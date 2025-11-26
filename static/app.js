@@ -18,6 +18,14 @@ const issueForm = document.getElementById('issue-form');
 const tasksSection = document.getElementById('tasks-section');
 const taskList = document.getElementById('task-list');
 const taskForm = document.getElementById('task-form');
+const navBoard = document.getElementById('nav-board');
+const navBacklog = document.getElementById('nav-backlog');
+const boardView = document.querySelector('.board');
+const backlogView = document.getElementById('backlog-view');
+const backlogList = document.getElementById('backlog-list');
+const backlogCount = document.getElementById('backlog-count');
+const statusSelect = document.getElementById('status');
+const deleteIssueBtn = document.getElementById('delete-issue-btn');
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -40,6 +48,31 @@ function setupEventListeners() {
         colContent.addEventListener('dragover', handleDragOver);
         colContent.addEventListener('drop', handleDrop);
     });
+
+    // Drag and Drop for Backlog
+    backlogList.addEventListener('dragover', handleDragOver);
+    backlogList.addEventListener('drop', handleDrop);
+
+    // Navigation
+    navBoard.addEventListener('click', () => switchView('board'));
+    navBacklog.addEventListener('click', () => switchView('backlog'));
+
+    // Delete Issue
+    deleteIssueBtn.addEventListener('click', handleDeleteIssue);
+}
+
+function switchView(view) {
+    if (view === 'board') {
+        boardView.classList.remove('hidden');
+        backlogView.classList.add('hidden');
+        navBoard.classList.add('active');
+        navBacklog.classList.remove('active');
+    } else {
+        boardView.classList.add('hidden');
+        backlogView.classList.remove('hidden');
+        navBoard.classList.remove('active');
+        navBacklog.classList.add('active');
+    }
 }
 
 // API Calls
@@ -49,6 +82,7 @@ async function fetchIssues() {
         issues = await res.json();
         if (!issues) issues = [];
         renderBoard();
+        renderBacklog();
     } catch (err) {
         console.error('Failed to fetch issues:', err);
     }
@@ -94,6 +128,10 @@ async function deleteTask(id) {
     await fetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' });
 }
 
+async function deleteIssue(id) {
+    await fetch(`${API_URL}/issues/${id}`, { method: 'DELETE' });
+}
+
 // Rendering
 function renderBoard() {
     // Clear columns
@@ -106,6 +144,8 @@ function renderBoard() {
     issues.sort((a, b) => a.position - b.position);
 
     issues.forEach(issue => {
+        if (issue.status === 'Open') return; // Skip backlog issues
+
         const card = createCardElement(issue);
         if (columns[issue.status]) {
             columns[issue.status].appendChild(card);
@@ -120,6 +160,23 @@ function renderBoard() {
     });
 
     renderDeadlineList();
+}
+
+function renderBacklog() {
+    backlogList.innerHTML = '';
+    let count = 0;
+
+    // Sort issues by position
+    const backlogIssues = issues.filter(i => i.status === 'Open');
+    backlogIssues.sort((a, b) => a.position - b.position);
+
+    backlogIssues.forEach(issue => {
+        const card = createCardElement(issue);
+        backlogList.appendChild(card);
+        count++;
+    });
+
+    backlogCount.textContent = count;
 }
 
 function renderDeadlineList() {
@@ -161,8 +218,8 @@ function renderDeadlineList() {
             <span class="deadline-date ${isOverdue ? 'overdue' : ''}">
                 ${isOverdue ? '<span class="overdue-indicator">⚠️</span>' : ''}${date}
             </span>
-            <span class="deadline-task" title="${task.title}">${task.title}</span>
-            <span class="deadline-issue">${task.issueTitle}</span>
+            <span class="deadline-task" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</span>
+            <span class="deadline-issue">${escapeHtml(task.issueTitle)}</span>
         `;
 
         // Add click handler to highlight the issue
@@ -207,12 +264,15 @@ function createCardElement(issue) {
     const totalTasks = issue.tasks ? issue.tasks.length : 0;
 
     card.innerHTML = `
-        <div class="card-title">${issue.title}</div>
+        <div class="card-main-content">
+            <div class="card-title">${escapeHtml(issue.title)}</div>
+            <div class="card-description">${escapeHtml(issue.description || '')}</div>
+        </div>
         <div class="card-tasks">
             ${issue.tasks ? issue.tasks.map(t => `
                 <div class="card-task-item ${t.done ? 'done' : ''}">
                     <span class="card-task-icon">${t.done ? '☑' : '☐'}</span>
-                    <span class="card-task-title">${t.title}</span>
+                    <span class="card-task-title">${escapeHtml(t.title)}</span>
                     ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                 </div>
             `).join('') : ''}
@@ -230,6 +290,16 @@ function createCardElement(issue) {
     return card;
 }
 
+function escapeHtml(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // Modal Handling
 function openModal(issue = null) {
     currentIssue = issue;
@@ -241,20 +311,35 @@ function openModal(issue = null) {
         document.getElementById('title').value = issue.title;
         document.getElementById('description').value = issue.description || '';
         document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 16) : '';
+        statusSelect.value = issue.status;
+
 
         tasksSection.classList.remove('hidden');
         renderTasks(issue.tasks || []);
+        deleteIssueBtn.classList.remove('hidden');
     } else {
         document.getElementById('modal-title').textContent = 'New Issue';
         document.getElementById('issue-form').reset();
         document.getElementById('issue-id').value = '';
+        statusSelect.value = 'Todo'; // Default for new issues, or user can choose Open
         tasksSection.classList.add('hidden');
+        deleteIssueBtn.classList.add('hidden');
     }
 }
 
 function closeModal() {
     modal.classList.add('hidden');
     currentIssue = null;
+}
+
+async function handleDeleteIssue() {
+    if (!currentIssue) return;
+
+    if (confirm(`Are you sure you want to delete "${currentIssue.title}"? This will also delete all associated tasks.`)) {
+        await deleteIssue(currentIssue.id);
+        closeModal();
+        fetchIssues();
+    }
 }
 
 async function handleIssueSubmit(e) {
@@ -264,7 +349,7 @@ async function handleIssueSubmit(e) {
         title: document.getElementById('title').value,
         description: document.getElementById('description').value,
         deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value) : null,
-        status: currentIssue ? currentIssue.status : 'Todo',
+        status: statusSelect.value,
         position: currentIssue ? currentIssue.position : 0 // Backend handles new position
     };
 
@@ -288,7 +373,7 @@ function renderTasks(tasks) {
         li.innerHTML = `
             <input type="checkbox" ${task.done ? 'checked' : ''}>
             <div class="task-info" style="flex: 1;">
-                <span>${task.title}</span>
+                <span>${escapeHtml(task.title)}</span>
                 ${task.deadline ? `<span class="task-deadline">📅 ${new Date(task.deadline).toLocaleDateString()}</span>` : ''}
             </div>
             <span class="delete-btn">&times;</span>
@@ -412,11 +497,18 @@ async function saveBoardState() {
         });
     });
 
+    // Handle Backlog
+    const backlogCards = [...backlogList.querySelectorAll('.card')];
+    backlogCards.forEach((card, index) => {
+        const id = parseInt(card.dataset.id);
+        const issue = issues.find(i => i.id === id);
+
+        if (issue && (issue.status !== 'Open' || issue.position !== index)) {
+            issue.status = 'Open';
+            issue.position = index;
+            updates.push(updateIssue(issue));
+        }
+    });
+
     await Promise.all(updates);
-    // No need to fetchIssues() here as local state is updated, 
-    // unless we want to sync with server side changes (e.g. timestamps)
-    // But let's do it to be safe and consistent
-    // fetchIssues(); 
-    // Actually, fetching might cause a jump if user is still dragging? 
-    // No, this is called on dragEnd.
 }

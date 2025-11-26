@@ -7,6 +7,7 @@ import (
 type IssueStatus string
 
 const (
+	StatusOpen    IssueStatus = "Open"
 	StatusTodo    IssueStatus = "Todo"
 	StatusPending IssueStatus = "Pending"
 	StatusWorking IssueStatus = "Working"
