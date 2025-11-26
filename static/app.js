@@ -181,6 +181,7 @@ function renderBacklog() {
 
 function renderDeadlineList() {
     const deadlineList = document.getElementById('deadline-list');
+    const deadlineCount = document.getElementById('deadline-count');
     deadlineList.innerHTML = '';
 
     const allTasks = [];
@@ -199,6 +200,9 @@ function renderDeadlineList() {
 
     // Sort by deadline
     allTasks.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+    // Update count
+    deadlineCount.textContent = allTasks.length;
 
     allTasks.forEach(task => {
         const li = document.createElement('li');
@@ -228,6 +232,21 @@ function renderDeadlineList() {
             const issue = issues.find(i => i.id === task.issue_id);
             if (issue) {
                 highlightIssueCard(issue.id);
+            }
+        });
+
+        // Add hover handlers to highlight the corresponding card
+        li.addEventListener('mouseenter', () => {
+            const targetCard = document.querySelector(`.card[data-id="${task.issue_id}"]`);
+            if (targetCard) {
+                targetCard.classList.add('hover-highlight');
+            }
+        });
+
+        li.addEventListener('mouseleave', () => {
+            const targetCard = document.querySelector(`.card[data-id="${task.issue_id}"]`);
+            if (targetCard) {
+                targetCard.classList.remove('hover-highlight');
             }
         });
 
