@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wuTrack</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <h1>wuTrack</h1>
+            <button id="add-issue-btn" class="btn primary">+ New Issue</button>
+        </header>
+
+        <div class="main-content">
+            <div class="board">
+                <div class="column" data-status="Todo">
+                    <div class="column-header">
+                        <h2>Todo</h2>
+                        <span class="count">0</span>
+                    </div>
+                    <div class="column-content" id="col-todo">
+                        <!-- Issues will be injected here -->
+                    </div>
+                </div>
+
+                <div class="column" data-status="Pending">
+                    <div class="column-header">
+                        <h2>Pending</h2>
+                        <span class="count">0</span>
+                    </div>
+                    <div class="column-content" id="col-pending"></div>
+                </div>
+
+                <div class="column" data-status="Working">
+                    <div class="column-header">
+                        <h2>Working</h2>
+                        <span class="count">0</span>
+                    </div>
+                    <div class="column-content" id="col-working"></div>
+                </div>
+
+                <div class="column" data-status="Done">
+                    <div class="column-header">
+                        <h2>Done</h2>
+                        <span class="count">0</span>
+                    </div>
+                    <div class="column-content" id="col-done"></div>
+                </div>
+            </div>
+
+            <aside class="sidebar">
+                <h3>Upcoming Deadlines</h3>
+                <ul id="deadline-list"></ul>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Modal for New/Edit Issue -->
+    <div id="issue-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 id="modal-title">New Issue</h2>
+            <form id="issue-form">
+                <input type="hidden" id="issue-id">
+                <div class="form-group">
+                    <label for="title">Title</label>
+                    <input type="text" id="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="deadline">Deadline</label>
+                    <input type="datetime-local" id="deadline">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+
+            <div id="tasks-section" class="hidden">
+                <h3>Tasks</h3>
+                <ul id="task-list"></ul>
+                <form id="task-form">
+                    <div class="input-group">
+                        <input type="text" id="new-task-title" placeholder="Add a task..." required>
+                        <input type="datetime-local" id="new-task-deadline" title="Task Deadline">
+                        <button type="submit" class="btn secondary">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

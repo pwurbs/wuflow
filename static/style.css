@@ -1,0 +1,403 @@
+:root {
+    --bg-color: #f4f5f7;
+    --text-color: #172b4d;
+    --column-bg: #ebecf0;
+    --card-bg: #ffffff;
+    --primary-color: #0052cc;
+    --primary-hover: #0065ff;
+    --secondary-color: #dfe1e6;
+    --danger-color: #cf513d;
+    --success-color: #5aac44;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.5;
+}
+
+.app-container {
+    padding: 20px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.btn.primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn.primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn.secondary {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+}
+
+.main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    gap: 20px;
+    min-width: 0;
+}
+
+.board {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    flex: 1;
+    padding-bottom: 20px;
+    min-width: 0;
+}
+
+.sidebar {
+    width: 250px;
+    min-width: 250px;
+    background-color: white;
+    border-radius: 8px;
+    padding: 16px;
+    overflow-y: auto;
+    box-shadow: 0 1px 2px rgba(9, 30, 66, 0.25);
+}
+
+.sidebar h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #5e6c84;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+#deadline-list {
+    list-style: none;
+}
+
+.deadline-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #ebecf0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.deadline-item:hover {
+    background-color: #f4f5f7;
+}
+
+.deadline-item:last-child {
+    border-bottom: none;
+}
+
+.deadline-date {
+    font-weight: 500;
+    color: var(--primary-color);
+    display: block;
+    margin-bottom: 2px;
+}
+
+.deadline-date.overdue {
+    color: var(--danger-color);
+}
+
+.overdue-indicator {
+    margin-right: 4px;
+}
+
+.deadline-task {
+    color: var(--text-color);
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.deadline-issue {
+    font-size: 11px;
+    color: #5e6c84;
+    display: block;
+}
+
+.column {
+    background-color: var(--column-bg);
+    border-radius: 8px;
+    width: 300px;
+    min-width: 200px;
+    flex-shrink: 1;
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+}
+
+.column-header {
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.column-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #5e6c84;
+    text-transform: uppercase;
+}
+
+.column-content {
+    padding: 0 8px 8px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 100px;
+}
+
+.card {
+    background-color: var(--card-bg);
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(9, 30, 66, 0.25);
+    cursor: grab;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    background-color: #f4f5f7;
+}
+
+.card.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+.card.highlighted {
+    background-color: #fff3cd;
+    box-shadow: 0 0 0 3px var(--primary-color);
+    animation: pulse 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+.card-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.card-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #5e6c84;
+    margin-top: 8px;
+}
+
+.task-progress {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 24px;
+    border-radius: 8px;
+    width: 500px;
+    max-width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.close-modal {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #5e6c84;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 2px solid #dfe1e6;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+#tasks-section {
+    margin-top: 24px;
+    border-top: 1px solid #dfe1e6;
+    padding-top: 16px;
+}
+
+#task-list {
+    list-style: none;
+    margin-bottom: 16px;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #ebecf0;
+}
+
+.task-item.done span {
+    text-decoration: line-through;
+    color: #5e6c84;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.input-group input {
+    flex: 1;
+    padding: 8px;
+    border: 2px solid #dfe1e6;
+    border-radius: 4px;
+}
+
+.delete-btn {
+    margin-left: auto;
+    color: var(--danger-color);
+    cursor: pointer;
+    font-size: 18px;
+}
+
+/* Tasks on Card */
+.card-tasks {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.card-task-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #5e6c84;
+    padding: 2px 0;
+}
+
+.card-task-item.done {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.card-task-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.card-task-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Task Deadlines */
+.task-deadline {
+    font-size: 11px;
+    color: #888;
+    margin-left: 8px;
+}
+
+.card-task-deadline {
+    font-size: 10px;
+    color: #888;
+    margin-left: auto;
+}
+
+.task-info {
+    display: flex;
+    align-items: center;
+}

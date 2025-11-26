@@ -1,0 +1,36 @@
+package backend
+
+import (
+	"time"
+)
+
+type IssueStatus string
+
+const (
+	StatusTodo    IssueStatus = "Todo"
+	StatusPending IssueStatus = "Pending"
+	StatusWorking IssueStatus = "Working"
+	StatusDone    IssueStatus = "Done"
+)
+
+type Issue struct {
+	ID          int         `json:"id"`
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	Status      IssueStatus `json:"status"`
+	Position    int         `json:"position"` // For manual sorting within a column
+	Deadline    *time.Time  `json:"deadline"`
+	Tasks       []Task      `json:"tasks"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+type Task struct {
+	ID        int        `json:"id"`
+	IssueID   int        `json:"issue_id"`
+	Title     string     `json:"title"`
+	Done      bool       `json:"done"`
+	Deadline  *time.Time `json:"deadline"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
