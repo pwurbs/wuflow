@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WuTrak</title>
+    <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +15,10 @@
 <body>
     <div class="app-container">
         <header>
-            <h1>WuTrak</h1>
+            <h1 style="display: flex; align-items: center; gap: 12px;">
+                <img src="logo.png" alt="WuTrak Logo" style="height: 48px;">
+                <span style="font-weight: 500; color: #003d99;">WuTrak</span>
+            </h1>
             <nav class="nav-links">
                 <button id="nav-board" class="btn nav-btn active">Board</button>
                 <button id="nav-backlog" class="btn nav-btn">Backlog</button>
