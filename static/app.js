@@ -26,6 +26,12 @@ const backlogList = document.getElementById('backlog-list');
 const backlogCount = document.getElementById('backlog-count');
 const statusSelect = document.getElementById('status');
 const deleteIssueBtn = document.getElementById('delete-issue-btn');
+const confirmModal = document.getElementById('confirm-modal');
+const confirmTitle = document.getElementById('confirm-title');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmOkBtn = document.getElementById('confirm-ok-btn');
+const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -184,14 +190,28 @@ function renderDeadlineList() {
     const deadlineCount = document.getElementById('deadline-count');
     deadlineList.innerHTML = '';
 
-    const allTasks = [];
+    const deadlineItems = [];
     issues.forEach(issue => {
+        // Add issue deadline if exists and not done
+        if (issue.deadline && issue.status !== 'Done') {
+            deadlineItems.push({
+                id: issue.id,
+                issue_id: issue.id,
+                title: issue.title,
+                deadline: issue.deadline,
+                issueTitle: 'Issue',
+                isIssue: true
+            });
+        }
+
+        // Add task deadlines
         if (issue.tasks) {
             issue.tasks.forEach(task => {
                 if (task.deadline && !task.done) {
-                    allTasks.push({
+                    deadlineItems.push({
                         ...task,
-                        issueTitle: issue.title
+                        issueTitle: issue.title,
+                        isIssue: false
                     });
                 }
             });
@@ -199,20 +219,20 @@ function renderDeadlineList() {
     });
 
     // Sort by deadline
-    allTasks.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+    deadlineItems.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
 
     // Update count
-    deadlineCount.textContent = allTasks.length;
+    deadlineCount.textContent = deadlineItems.length;
 
-    allTasks.forEach(task => {
+    deadlineItems.forEach(item => {
         const li = document.createElement('li');
         li.className = 'deadline-item';
 
-        const taskDeadline = new Date(task.deadline);
+        const itemDeadline = new Date(item.deadline);
         const now = new Date();
-        const isOverdue = taskDeadline < now;
+        const isOverdue = itemDeadline < now;
 
-        const date = taskDeadline.toLocaleDateString(undefined, {
+        const date = itemDeadline.toLocaleDateString(undefined, {
             weekday: 'short',
             month: 'short',
             day: 'numeric'
@@ -222,29 +242,38 @@ function renderDeadlineList() {
             <span class="deadline-date ${isOverdue ? 'overdue' : ''}">
                 ${isOverdue ? '<span class="overdue-indicator">⚠️</span>' : ''}${date}
             </span>
-            <span class="deadline-task" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</span>
-            <span class="deadline-issue">${escapeHtml(task.issueTitle)}</span>
+            <span class="deadline-task" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
+            <span class="deadline-issue">${escapeHtml(item.issueTitle)}</span>
         `;
 
         // Add click handler to highlight the issue
         li.style.cursor = 'pointer';
         li.addEventListener('click', () => {
-            const issue = issues.find(i => i.id === task.issue_id);
+            const issue = issues.find(i => i.id === item.issue_id);
             if (issue) {
-                highlightIssueCard(issue.id);
+                // Switch view if necessary
+                if (issue.status === 'Open' && backlogView.classList.contains('hidden')) {
+                    switchView('backlog');
+                } else if (issue.status !== 'Open' && boardView.classList.contains('hidden')) {
+                    switchView('board');
+                }
+
+                // Highlight after a brief delay to allow view transition
+                setTimeout(() => highlightIssueCard(issue.id), 100);
             }
         });
 
         // Add hover handlers to highlight the corresponding card
         li.addEventListener('mouseenter', () => {
-            const targetCard = document.querySelector(`.card[data-id="${task.issue_id}"]`);
-            if (targetCard) {
+            const targetCard = document.querySelector(`.card[data-id="${item.issue_id}"]`);
+            // Only highlight if visible
+            if (targetCard && targetCard.offsetParent !== null) {
                 targetCard.classList.add('hover-highlight');
             }
         });
 
         li.addEventListener('mouseleave', () => {
-            const targetCard = document.querySelector(`.card[data-id="${task.issue_id}"]`);
+            const targetCard = document.querySelector(`.card[data-id="${item.issue_id}"]`);
             if (targetCard) {
                 targetCard.classList.remove('hover-highlight');
             }
@@ -284,7 +313,7 @@ function createCardElement(issue) {
 
     card.innerHTML = `
         <div class="card-main-content">
-            <div class="card-title">${escapeHtml(issue.title)}</div>
+            <div class="card-title"><span class="card-id">#${issue.id}</span> ${escapeHtml(issue.title)}</div>
             <div class="card-description">${escapeHtml(issue.description || '')}</div>
         </div>
         <div class="card-tasks">
@@ -351,10 +380,55 @@ function closeModal() {
     currentIssue = null;
 }
 
+// Custom Confirmation Dialog
+function showConfirm(title, message, okButtonText = 'Delete') {
+    return new Promise((resolve) => {
+        confirmTitle.textContent = title;
+        confirmMessage.textContent = message;
+        confirmOkBtn.textContent = okButtonText;
+        confirmModal.classList.remove('hidden');
+
+        const handleOk = () => {
+            confirmModal.classList.add('hidden');
+            cleanup();
+            resolve(true);
+        };
+
+        const handleCancel = () => {
+            confirmModal.classList.add('hidden');
+            cleanup();
+            resolve(false);
+        };
+
+        const cleanup = () => {
+            confirmOkBtn.removeEventListener('click', handleOk);
+            confirmCancelBtn.removeEventListener('click', handleCancel);
+            confirmModal.removeEventListener('click', handleModalClick);
+        };
+
+        const handleModalClick = (e) => {
+            if (e.target === confirmModal) {
+                handleCancel();
+            }
+        };
+
+        confirmOkBtn.addEventListener('click', handleOk);
+        confirmCancelBtn.addEventListener('click', handleCancel);
+        confirmModal.addEventListener('click', handleModalClick);
+    });
+}
+
+
 async function handleDeleteIssue() {
     if (!currentIssue) return;
 
-    if (confirm(`Are you sure you want to delete "${currentIssue.title}"? This will also delete all associated tasks.`)) {
+    const confirmed = await showConfirm(
+        'Delete Issue',
+        `Are you sure you want to delete "${currentIssue.title}"? This will also delete all associated tasks.`,
+        'Delete'
+    );
+
+    if (confirmed) {
         await deleteIssue(currentIssue.id);
         closeModal();
         fetchIssues();
@@ -409,7 +483,13 @@ function renderTasks(tasks) {
 
         const deleteBtn = li.querySelector('.delete-btn');
         deleteBtn.addEventListener('click', async () => {
-            if (confirm('Delete this task?')) {
+            const confirmed = await showConfirm(
+                'Delete Task',
+                `Are you sure you want to delete "${task.title}"?`,
+                'Delete'
+            );
+
+            if (confirmed) {
                 await deleteTask(task.id);
                 // Remove from local array and re-render
                 currentIssue.tasks = currentIssue.tasks.filter(t => t.id !== task.id);

@@ -100,13 +100,13 @@ h1 {
     padding: 16px;
     overflow-y: auto;
     box-shadow: 0 1px 3px rgba(9, 30, 66, 0.15);
+    margin-bottom: 20px;
 }
 
 .sidebar h3 {
     font-size: 14px;
     font-weight: 600;
     color: #5e6c84;
-    text-transform: uppercase;
     margin-bottom: 12px;
 }
 
@@ -275,6 +275,13 @@ h1 {
     50% {
         transform: scale(1.02);
     }
+}
+
+.card-id {
+    font-size: 12px;
+    color: #5e6c84;
+    margin-right: 4px;
+    font-weight: 400;
 }
 
 .card-title {
@@ -498,22 +505,20 @@ h1 {
 /* Backlog View */
 #backlog-view {
     flex: 1;
-    background-color: white;
+    background-color: var(--column-bg);
     border-radius: 8px;
-    padding: 20px;
-    margin-right: 20px;
+    padding: 0;
     overflow-y: auto;
     min-width: 0;
     box-shadow: 0 1px 3px rgba(9, 30, 66, 0.15);
+    margin-bottom: 20px;
 }
 
 .backlog-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #ebecf0;
+    padding: 12px 20px;
 }
 
 .backlog-header .count {
@@ -532,7 +537,7 @@ h1 {
 .backlog-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    padding: 8px 20px;
 }
 
 .backlog-list .card {
@@ -565,6 +570,23 @@ h1 {
     margin-top: 0;
     gap: 16px;
     white-space: nowrap;
+}
+
+/* Confirmation Modal */
+.modal-content.confirm {
+    width: 400px;
+    max-width: 90%;
+}
+
+.modal-content.confirm h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.modal-content.confirm p {
+    font-size: 14px;
+    line-height: 1.6;
 }
 
 /* Utilities */
