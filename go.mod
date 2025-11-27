@@ -1,4 +1,4 @@
-module kanban
+module github.com/wusolv/wutrak
 
 go 1.24.5
 
