@@ -3,8 +3,9 @@
     --text-color: #172b4d;
     --column-bg: #ebecf0;
     --card-bg: #ffffff;
-    --primary-color: #0052cc;
-    --primary-hover: #0065ff;
+    --primary-color: #22ae96;
+    --primary-hover: #1e9d87;
+    --accent-blue: #4a90e2;
     --secondary-color: #dfe1e6;
     --danger-color: #cf513d;
     --success-color: #5aac44;
@@ -122,8 +123,8 @@ h1 {
 }
 
 .sidebar-header .count {
-    background-color: #dfe1e6;
-    color: #42526e;
+    background-color: var(--accent-blue);
+    color: white;
     border-radius: 50%;
     width: 24px;
     height: 24px;
@@ -210,8 +211,8 @@ h1 {
 }
 
 .column-header .count {
-    background-color: #dfe1e6;
-    color: #42526e;
+    background-color: var(--accent-blue);
+    color: white;
     border-radius: 50%;
     width: 24px;
     height: 24px;
@@ -244,7 +245,7 @@ h1 {
     background-color: #f4f5f7;
     transform: translateY(-4px);
     box-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
-    border: 1px solid var(--primary-color);
+    border: 1px solid var(--accent-blue);
 }
 
 .card.dragging {
@@ -262,7 +263,7 @@ h1 {
     background-color: #f4f5f7;
     transform: translateY(-4px);
     box-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
-    border: 1px solid var(--primary-color);
+    border: 1px solid var(--accent-blue);
 }
 
 @keyframes pulse {
@@ -287,6 +288,7 @@ h1 {
 .card-title {
     font-weight: 500;
     margin-bottom: 4px;
+    color: var(--primary-color);
 }
 
 .card-description {
@@ -499,7 +501,7 @@ h1 {
 
 .nav-btn.active {
     background-color: #e9f2ff;
-    color: var(--primary-color);
+    color: var(--accent-blue);
 }
 
 /* Backlog View */
@@ -522,8 +524,8 @@ h1 {
 }
 
 .backlog-header .count {
-    background-color: #dfe1e6;
-    color: #42526e;
+    background-color: var(--accent-blue);
+    color: white;
     border-radius: 50%;
     width: 24px;
     height: 24px;
