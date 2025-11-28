@@ -544,6 +544,20 @@ h1 {
     font-weight: 600;
 }
 
+
+#move-to-todo-list {
+    min-height: 80px;
+    border-radius: 8px;
+    background-color: #f4f5f7;
+    border: 2px dashed #dfe1e6;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#move-to-todo-list.drag-over {
+    background-color: #e9f2ff;
+    border-color: var(--accent-blue);
+}
+
 .backlog-list {
     display: flex;
     flex-direction: column;

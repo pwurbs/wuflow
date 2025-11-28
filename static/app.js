@@ -31,6 +31,7 @@ const confirmTitle = document.getElementById('confirm-title');
 const confirmMessage = document.getElementById('confirm-message');
 const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+const moveToTodoList = document.getElementById('move-to-todo-list');
 
 
 // Initialization
@@ -58,6 +59,19 @@ function setupEventListeners() {
     // Drag and Drop for Backlog
     backlogList.addEventListener('dragover', handleDragOver);
     backlogList.addEventListener('drop', handleDrop);
+
+    // Drag and Drop for Move to Todo
+    moveToTodoList.addEventListener('dragover', handleDragOver);
+    moveToTodoList.addEventListener('drop', handleDrop);
+    moveToTodoList.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        moveToTodoList.classList.add('drag-over');
+    });
+    moveToTodoList.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        moveToTodoList.classList.remove('drag-over');
+    });
+
 
     // Navigation
     navBoard.addEventListener('click', () => switchView('board'));
@@ -169,6 +183,7 @@ function renderBoard() {
 }
 
 function renderBacklog() {
+    moveToTodoList.innerHTML = '';
     backlogList.innerHTML = '';
     let count = 0;
 
@@ -327,7 +342,7 @@ function createCardElement(issue) {
         </div>
         <div class="card-meta">
             ${issue.deadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString()}</span>` : '<span></span>'}
-            ${totalTasks > 0 ? `<div class="task-progress">Tasks: ${completedTasks}/${totalTasks}</div>` : ''}
+            ${(issue.status === 'Open' && totalTasks > 0) ? `<div class="task-progress">Tasks: ${totalTasks}</div>` : ''}
         </div>
     `;
 
@@ -559,6 +574,9 @@ function handleDragOver(e) {
 
 function handleDrop(e) {
     e.preventDefault();
+    if (e.currentTarget.id === 'move-to-todo-list') {
+        e.currentTarget.classList.remove('drag-over');
+    }
 }
 
 function getDragAfterElement(column, y) {
@@ -609,5 +627,27 @@ async function saveBoardState() {
         }
     });
 
+    // Handle Move to Todo
+    const moveToTodoCards = [...moveToTodoList.querySelectorAll('.card')];
+    moveToTodoCards.forEach((card) => {
+        const id = parseInt(card.dataset.id);
+        const issue = issues.find(i => i.id === id);
+
+        if (issue) {
+            issue.status = 'Todo';
+            // Prepend to the "Todo" column, so set position to 0
+            issue.position = 0; 
+            updates.push(updateIssue(issue));
+        }
+    });
+
+
     await Promise.all(updates);
+    
+    // Refresh board and backlog
+    if (moveToTodoCards.length > 0) {
+        setTimeout(async () => {
+            await fetchIssues();
+        }, 5000);
+    }
 }

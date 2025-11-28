@@ -20,8 +20,8 @@
                 <span style="font-weight: 500; color: #003d99;">WuTrak</span>
             </h1>
             <nav class="nav-links">
-                <button id="nav-board" class="btn nav-btn active">Board</button>
                 <button id="nav-backlog" class="btn nav-btn">Backlog</button>
+                <button id="nav-board" class="btn nav-btn active">Board</button>
             </nav>
             <button id="add-issue-btn" class="btn primary">+ New Issue</button>
         </header>
@@ -64,6 +64,11 @@
             </div>
 
             <div id="backlog-view" class="hidden">
+                <div class="backlog-header" style="margin-bottom: 4px;">
+                    <h2>MOVE TO BOARD</h2>
+                </div>
+                <div class="backlog-list" id="move-to-todo-list" style="margin-bottom: 24px;">
+                </div>
                 <div class="backlog-header">
                     <h2>Backlog</h2>
                     <span class="count" id="backlog-count">0</span>
