@@ -21,6 +21,7 @@ type Issue struct {
 	Status      IssueStatus `json:"status"`
 	Position    int         `json:"position"` // For manual sorting within a column
 	Deadline    *time.Time  `json:"deadline"`
+	PlannedDate *time.Time  `json:"planned_date"`
 	Tasks       []Task      `json:"tasks"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`

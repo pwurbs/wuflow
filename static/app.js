@@ -32,6 +32,12 @@ const confirmMessage = document.getElementById('confirm-message');
 const confirmOkBtn = document.getElementById('confirm-ok-btn');
 const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 const moveToTodoList = document.getElementById('move-to-todo-list');
+const btnDeadlines = document.getElementById('btn-deadlines');
+const btnPlanning = document.getElementById('btn-planning');
+const deadlinesPanel = document.getElementById('deadlines-panel');
+const planningPanel = document.getElementById('planning-panel');
+const planningList = document.getElementById('planning-list');
+const sidebar = document.querySelector('.sidebar');
 
 
 // Initialization
@@ -53,12 +59,20 @@ function setupEventListeners() {
     // Drag and Drop for Columns
     document.querySelectorAll('.column-content').forEach(colContent => {
         colContent.addEventListener('dragover', handleDragOver);
+        colContent.addEventListener('dragleave', handleContainerDragLeave);
         colContent.addEventListener('drop', handleDrop);
     });
 
     // Drag and Drop for Backlog
     backlogList.addEventListener('dragover', handleDragOver);
+    backlogList.addEventListener('dragleave', handleContainerDragLeave);
     backlogList.addEventListener('drop', handleDrop);
+
+    // Drag and Drop for Container Backgrounds (to clear planned date)
+    boardView.addEventListener('dragover', handleContainerDragOver);
+    boardView.addEventListener('drop', handleContainerDrop);
+    backlogView.addEventListener('dragover', handleContainerDragOver);
+    backlogView.addEventListener('drop', handleContainerDrop);
 
     // Drag and Drop for Move to Todo
     moveToTodoList.addEventListener('dragover', handleDragOver);
@@ -67,10 +81,7 @@ function setupEventListeners() {
         e.preventDefault();
         moveToTodoList.classList.add('drag-over');
     });
-    moveToTodoList.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        moveToTodoList.classList.remove('drag-over');
-    });
+    moveToTodoList.addEventListener('dragleave', handleContainerDragLeave);
 
 
     // Navigation
@@ -79,6 +90,10 @@ function setupEventListeners() {
 
     // Delete Issue
     deleteIssueBtn.addEventListener('click', handleDeleteIssue);
+
+    // Sidebar Toggles
+    btnDeadlines.addEventListener('click', () => toggleSidebar('deadlines'));
+    btnPlanning.addEventListener('click', () => toggleSidebar('planning'));
 }
 
 function switchView(view) {
@@ -87,11 +102,28 @@ function switchView(view) {
         backlogView.classList.add('hidden');
         navBoard.classList.add('active');
         navBacklog.classList.remove('active');
+        sidebar.classList.remove('hidden');
     } else {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');
         navBoard.classList.remove('active');
         navBacklog.classList.add('active');
+        sidebar.classList.add('hidden');
+    }
+}
+
+function toggleSidebar(mode) {
+    if (mode === 'deadlines') {
+        deadlinesPanel.classList.remove('hidden');
+        planningPanel.classList.add('hidden');
+        btnDeadlines.classList.add('active');
+        btnPlanning.classList.remove('active');
+    } else {
+        deadlinesPanel.classList.add('hidden');
+        planningPanel.classList.remove('hidden');
+        btnDeadlines.classList.remove('active');
+        btnPlanning.classList.add('active');
+        renderPlanningPanel();
     }
 }
 
@@ -103,6 +135,7 @@ async function fetchIssues() {
         if (!issues) issues = [];
         renderBoard();
         renderBacklog();
+        renderPlanningPanel();
     } catch (err) {
         console.error('Failed to fetch issues:', err);
     }
@@ -242,6 +275,7 @@ function renderDeadlineList() {
     deadlineItems.forEach(item => {
         const li = document.createElement('li');
         li.className = 'deadline-item';
+        li.dataset.issueId = item.issue_id;
 
         const itemDeadline = new Date(item.deadline);
         const now = new Date();
@@ -298,6 +332,151 @@ function renderDeadlineList() {
     });
 }
 
+function renderPlanningPanel() {
+    planningList.innerHTML = '';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Helper to get local YYYY-MM-DD
+    const getLocalISODate = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Past Section
+    const pastContainer = createPlanningDayElement('Past', 'past');
+    planningList.appendChild(pastContainer);
+
+    // Next 10 Days
+    for (let i = 0; i < 10; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        const dateStr = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        const dateId = getLocalISODate(date);
+        const dayContainer = createPlanningDayElement(dateStr, dateId);
+        planningList.appendChild(dayContainer);
+    }
+
+    // Populate Issues
+    issues.forEach(issue => {
+        if (issue.planned_date) {
+            const planned = new Date(issue.planned_date);
+
+            let targetId;
+            if (planned < today) {
+                targetId = 'day-past';
+            } else {
+                const plannedId = getLocalISODate(planned);
+                targetId = `day-${plannedId}`;
+            }
+
+            if (targetId) {
+                const container = document.getElementById(targetId);
+                if (container) {
+                    const content = container.querySelector('.planning-day-content');
+                    content.appendChild(createPlanningItem(issue));
+                }
+            }
+        }
+    });
+
+    // Mark empty days
+    document.querySelectorAll('.planning-day').forEach(day => {
+        const content = day.querySelector('.planning-day-content');
+        if (content.children.length === 0) {
+            day.classList.add('empty');
+        } else {
+            day.classList.remove('empty');
+        }
+    });
+}
+
+function createPlanningDayElement(title, idSuffix) {
+    const div = document.createElement('div');
+    div.className = `planning-day ${idSuffix === 'past' ? 'past' : ''}`;
+    div.id = `day-${idSuffix}`;
+    div.dataset.date = idSuffix === 'past' ? 'past' : idSuffix;
+
+    div.innerHTML = `
+        <div class="planning-day-header">
+            <span class="planning-date">${title}</span>
+        </div>
+        <div class="planning-day-content"></div>
+    `;
+
+    div.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        // Visual cue
+        document.querySelectorAll('.planning-day').forEach(el => el.classList.remove('drag-over'));
+        div.classList.add('drag-over');
+    });
+    div.addEventListener('dragleave', (e) => {
+        // Only remove if we are leaving the element, not entering a child
+        if (!div.contains(e.relatedTarget)) {
+            div.classList.remove('drag-over');
+        }
+    });
+    div.addEventListener('drop', handlePlanningDrop);
+
+    return div;
+}
+
+function createPlanningItem(issue) {
+    const div = document.createElement('div');
+    div.className = 'planning-item';
+    div.textContent = `#${issue.id} ${issue.title}`;
+    div.draggable = true;
+    div.dataset.id = issue.id;
+    div.addEventListener('dragstart', handleDragStart);
+    div.addEventListener('dragend', handleDragEnd); // Re-use dragend to cleanup
+
+    // Hover handlers to highlight the corresponding card
+    div.addEventListener('mouseenter', () => {
+        const targetCard = document.querySelector(`.card[data-id="${issue.id}"]`);
+        if (targetCard && targetCard.offsetParent !== null) {
+            targetCard.classList.add('hover-highlight');
+        }
+    });
+
+    div.addEventListener('mouseleave', () => {
+        const targetCard = document.querySelector(`.card[data-id="${issue.id}"]`);
+        if (targetCard) {
+            targetCard.classList.remove('hover-highlight');
+        }
+    });
+
+    return div;
+}
+
+async function handlePlanningDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    const dateStr = this.dataset.date;
+
+    if (draggedCard) {
+        // Mark as dropped in planning so dragEnd knows to revert DOM
+        draggedCard.dataset.droppedInPlanning = 'true';
+
+        const issueId = parseInt(draggedCard.dataset.id);
+        const issue = issues.find(i => i.id === issueId);
+
+        if (issue && dateStr !== 'past') {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const newDate = new Date(y, m - 1, d, 12, 0, 0, 0);
+
+            // Only update if date changed
+            const oldDate = issue.planned_date ? new Date(issue.planned_date).setHours(12, 0, 0, 0) : 0;
+            if (newDate.getTime() !== oldDate) {
+                issue.planned_date = newDate;
+                await updateIssue(issue);
+                renderPlanningPanel();
+            }
+        }
+    }
+}
+
 function highlightIssueCard(issueId) {
     // Remove previous highlights
     document.querySelectorAll('.card.highlighted').forEach(card => {
@@ -350,6 +529,27 @@ function createCardElement(issue) {
     card.addEventListener('dragstart', handleDragStart);
     card.addEventListener('dragend', handleDragEnd);
 
+    // Hover handlers to highlight the corresponding planning item and deadline item
+    card.addEventListener('mouseenter', () => {
+        const targetItem = document.querySelector(`.planning-item[data-id="${issue.id}"]`);
+        if (targetItem) {
+            targetItem.classList.add('hover-highlight');
+        }
+        document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => {
+            el.classList.add('hover-highlight');
+        });
+    });
+
+    card.addEventListener('mouseleave', () => {
+        const targetItem = document.querySelector(`.planning-item[data-id="${issue.id}"]`);
+        if (targetItem) {
+            targetItem.classList.remove('hover-highlight');
+        }
+        document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => {
+            el.classList.remove('hover-highlight');
+        });
+    });
+
     return card;
 }
 
@@ -373,6 +573,7 @@ function openModal(issue = null) {
         document.getElementById('issue-id').value = issue.id;
         document.getElementById('title').value = issue.title;
         document.getElementById('description').value = issue.description || '';
+        document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
         document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 16) : '';
         statusSelect.value = issue.status;
 
@@ -457,6 +658,7 @@ async function handleIssueSubmit(e) {
         title: document.getElementById('title').value,
         description: document.getElementById('description').value,
         deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value) : null,
+        planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
         status: statusSelect.value,
         position: currentIssue ? currentIssue.position : 0 // Backend handles new position
     };
@@ -543,39 +745,160 @@ async function handleTaskSubmit(e) {
 
 // Drag and Drop Logic
 let draggedCard = null;
+let draggedCardOrigin = null;
 
 function handleDragStart(e) {
     draggedCard = this;
+    draggedCardOrigin = {
+        parent: this.parentNode,
+        nextSibling: this.nextElementSibling
+    };
     this.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
 }
 
 function handleDragEnd(e) {
     this.classList.remove('dragging');
-    draggedCard = null;
 
-    // Save new state
-    saveBoardState();
+    // If dropped in planning (and it's a board card), revert DOM position
+    // This prevents the card from staying in a column it was dragged over
+    if (this.dataset.droppedInPlanning === 'true' && this.classList.contains('card')) {
+        if (draggedCardOrigin && draggedCardOrigin.parent) {
+            draggedCardOrigin.parent.insertBefore(this, draggedCardOrigin.nextSibling);
+        }
+        delete this.dataset.droppedInPlanning;
+    } else {
+        // Only save board state if it wasn't a planning drop
+        // And only if it's a card (not a planning item)
+        if (this.classList.contains('card')) {
+            saveBoardState();
+        }
+    }
+
+    draggedCard = null;
+    draggedCardOrigin = null;
+}
+
+function handleContainerDragLeave(e) {
+    if (this.id === 'move-to-todo-list') {
+        this.classList.remove('drag-over');
+    }
+
+    if (!draggedCard || !draggedCard.classList.contains('card')) return;
+
+    // Check if we are really leaving the container
+    if (this.contains(e.relatedTarget)) return;
+
+    // Revert to origin
+    if (draggedCardOrigin && draggedCardOrigin.parent) {
+        draggedCardOrigin.parent.insertBefore(draggedCard, draggedCardOrigin.nextSibling);
+    }
 }
 
 function handleDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    if (!draggedCard) return;
 
-    const container = this; // This is now .column-content
-    const afterElement = getDragAfterElement(container, e.clientY);
-
-    if (afterElement == null) {
-        container.appendChild(draggedCard);
+    // Allow cards and planning items
+    if (draggedCard.classList.contains('card') || draggedCard.classList.contains('planning-item')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
     } else {
-        container.insertBefore(draggedCard, afterElement);
+        return;
+    }
+
+    // Only do visual sorting/insertion for cards
+    // For planning items, only show insertion if dropping in backlog/move-to-todo
+    if (draggedCard.classList.contains('card')) {
+        const container = this; // This is now .column-content
+        const afterElement = getDragAfterElement(container, e.clientY);
+
+        if (afterElement == null) {
+            container.appendChild(draggedCard);
+        } else {
+            container.insertBefore(draggedCard, afterElement);
+        }
+    } else if (draggedCard.classList.contains('planning-item')) {
+        // Only for backlog/move-to-todo
+        if (this.id === 'backlog-list' || this.id === 'move-to-todo-list') {
+            const container = this;
+            const afterElement = getDragAfterElement(container, e.clientY);
+            if (afterElement == null) {
+                container.appendChild(draggedCard);
+            } else {
+                container.insertBefore(draggedCard, afterElement);
+            }
+        }
     }
 }
 
 function handleDrop(e) {
     e.preventDefault();
+    e.stopPropagation(); // Prevent bubbling to container handlers
     if (e.currentTarget.id === 'move-to-todo-list') {
         e.currentTarget.classList.remove('drag-over');
+    }
+
+    if (!draggedCard) return;
+
+    // Handle dropping a planning item onto the board (clears planned date)
+    if (draggedCard.classList.contains('planning-item')) {
+        const issueId = parseInt(draggedCard.dataset.id);
+        const issue = issues.find(i => i.id === issueId);
+        if (issue) {
+            const container = e.currentTarget;
+            let newStatus = issue.status;
+
+            // Determine status based on drop target
+            if (container.id === 'backlog-list') {
+                newStatus = 'Open';
+            } else if (container.id === 'move-to-todo-list') {
+                newStatus = 'Todo';
+            }
+            // If dropped on a column (container.closest('.column')), keep existing status
+            // This allows users to drop on the board to unschedule without accidentally changing status
+
+            issue.planned_date = null;
+            issue.status = newStatus;
+
+            updateIssue(issue).then(() => {
+                fetchIssues();
+            });
+        }
+        return;
+    }
+
+    if (!draggedCard.classList.contains('card')) return;
+}
+
+function handleContainerDragOver(e) {
+    if (!draggedCard) return;
+    // Only allow planning items to be dropped on background
+    if (draggedCard.classList.contains('planning-item')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+}
+
+function handleContainerDrop(e) {
+    e.preventDefault();
+    if (!draggedCard || !draggedCard.classList.contains('planning-item')) return;
+
+    const issueId = parseInt(draggedCard.dataset.id);
+    const issue = issues.find(i => i.id === issueId);
+
+    if (issue) {
+        issue.planned_date = null;
+
+        // If dropped on Backlog view background, ensure status is Open
+        if (e.currentTarget === backlogView) {
+            issue.status = 'Open';
+        }
+        // If dropped on Board view background, keep current status 
+        // (unless it was Open, but then it won't show on board, which is expected behavior for "removing from plan")
+
+        updateIssue(issue).then(() => {
+            fetchIssues();
+        });
     }
 }
 
@@ -636,14 +959,14 @@ async function saveBoardState() {
         if (issue) {
             issue.status = 'Todo';
             // Prepend to the "Todo" column, so set position to 0
-            issue.position = 0; 
+            issue.position = 0;
             updates.push(updateIssue(issue));
         }
     });
 
 
     await Promise.all(updates);
-    
+
     // Refresh board and backlog
     if (moveToTodoCards.length > 0) {
         setTimeout(async () => {

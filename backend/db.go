@@ -22,6 +22,7 @@ func InitDB(dataSourceName string) {
 	}
 
 	createTables()
+	migrate()
 }
 
 func createTables() {
@@ -33,6 +34,7 @@ func createTables() {
 		status TEXT NOT NULL,
 		position INTEGER NOT NULL,
 		deadline DATETIME,
+		planned_date DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
@@ -57,10 +59,22 @@ func createTables() {
 	}
 }
 
+func migrate() {
+	// Add planned_date column if it doesn't exist
+	// SQLite doesn't support IF NOT EXISTS for ADD COLUMN, so we just try and ignore specific error
+	_, err := DB.Exec("ALTER TABLE issues ADD COLUMN planned_date DATETIME")
+	if err != nil {
+		// If error is not "duplicate column name", log it.
+		// In sqlite, the error for duplicate column is usually "duplicate column name: planned_date"
+		// We'll just log it as info/debug in a real app, here we can ignore or print.
+		// log.Println("Migration: planned_date column might already exist:", err)
+	}
+}
+
 // Helper functions for DB operations
 
 func GetAllIssues() ([]Issue, error) {
-	rows, err := DB.Query("SELECT id, title, description, status, position, deadline, created_at, updated_at FROM issues ORDER BY position ASC")
+	rows, err := DB.Query("SELECT id, title, description, status, position, deadline, planned_date, created_at, updated_at FROM issues ORDER BY position ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +84,15 @@ func GetAllIssues() ([]Issue, error) {
 	for rows.Next() {
 		var i Issue
 		var deadline sql.NullTime
-		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &i.CreatedAt, &i.UpdatedAt); err != nil {
+		var plannedDate sql.NullTime
+		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDate, &i.CreatedAt, &i.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if deadline.Valid {
 			i.Deadline = &deadline.Time
+		}
+		if plannedDate.Valid {
+			i.PlannedDate = &plannedDate.Time
 		}
 
 		tasks, err := GetTasksByIssueID(i.ID)
@@ -110,7 +128,7 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 }
 
 func CreateIssue(i *Issue) error {
-	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
+	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -125,7 +143,7 @@ func CreateIssue(i *Issue) error {
 	i.Position = int(maxPos.Int64) + 1
 	i.UpdatedAt = time.Now()
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.UpdatedAt)
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -139,14 +157,14 @@ func CreateIssue(i *Issue) error {
 }
 
 func UpdateIssue(i *Issue) error {
-	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ?")
+	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
 	i.UpdatedAt = time.Now()
-	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.UpdatedAt, i.ID)
+	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.UpdatedAt, i.ID)
 	return err
 }
 

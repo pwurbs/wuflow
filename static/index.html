@@ -15,15 +15,23 @@
 <body>
     <div class="app-container">
         <header>
-            <h1 style="display: flex; align-items: center; gap: 12px;">
-                <img src="logo.png" alt="WuTrak Logo" style="height: 48px;">
-                <span style="font-weight: 500; color: #003d99;">WuTrak</span>
-            </h1>
+            <div class="header-left">
+                <h1 style="display: flex; align-items: center; gap: 12px;">
+                    <img src="logo.png" alt="WuTrak Logo" style="height: 48px;">
+                    <span style="font-weight: 500; color: #003d99;">WuTrak</span>
+                </h1>
+                <button id="add-issue-btn" class="btn primary">+ New Issue</button>
+            </div>
             <nav class="nav-links">
-                <button id="nav-backlog" class="btn nav-btn">Backlog</button>
-                <button id="nav-board" class="btn nav-btn active">Board</button>
+                <button id="nav-backlog" class="btn toggle-btn">Backlog</button>
+                <button id="nav-board" class="btn toggle-btn active">Board</button>
             </nav>
-            <button id="add-issue-btn" class="btn primary">+ New Issue</button>
+            <div class="header-controls">
+                <div class="view-toggles">
+                    <button id="btn-deadlines" class="btn toggle-btn active">Deadlines</button>
+                    <button id="btn-planning" class="btn toggle-btn">Planning</button>
+                </div>
+            </div>
         </header>
 
         <div class="main-content">
@@ -79,11 +87,21 @@
             </div>
 
             <aside class="sidebar">
-                <div class="sidebar-header">
-                    <h3>Upcoming Deadlines</h3>
-                    <span class="count" id="deadline-count">0</span>
+                <div id="deadlines-panel">
+                    <div class="sidebar-header">
+                        <h3>Upcoming Deadlines</h3>
+                        <span class="count" id="deadline-count">0</span>
+                    </div>
+                    <ul id="deadline-list"></ul>
                 </div>
-                <ul id="deadline-list"></ul>
+                <div id="planning-panel" class="hidden">
+                    <div class="sidebar-header">
+                        <h3>Planning</h3>
+                    </div>
+                    <div id="planning-list">
+                        <!-- Planning days will be injected here -->
+                    </div>
+                </div>
             </aside>
         </div>
     </div>
@@ -112,6 +130,10 @@
                 <div class="form-group">
                     <label for="description">Description</label>
                     <textarea id="description" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="planned-date">Planned Date</label>
+                    <input type="date" id="planned-date">
                 </div>
                 <div class="form-group">
                     <label for="deadline">Deadline</label>
