@@ -317,7 +317,7 @@ function createCardElement(issue) {
             <div class="card-description">${escapeHtml(issue.description || '')}</div>
         </div>
         <div class="card-tasks">
-            ${issue.tasks ? issue.tasks.map(t => `
+            ${(issue.status !== 'Open' && issue.tasks) ? issue.tasks.map(t => `
                 <div class="card-task-item ${t.done ? 'done' : ''}">
                     <span class="card-task-icon">${t.done ? '☑' : '☐'}</span>
                     <span class="card-task-title">${escapeHtml(t.title)}</span>
@@ -327,7 +327,7 @@ function createCardElement(issue) {
         </div>
         <div class="card-meta">
             ${issue.deadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString()}</span>` : '<span></span>'}
-            ${totalTasks > 0 ? `<div class="task-progress">${completedTasks}/${totalTasks}</div>` : ''}
+            ${totalTasks > 0 ? `<div class="task-progress">Tasks: ${completedTasks}/${totalTasks}</div>` : ''}
         </div>
     `;
 
@@ -369,7 +369,7 @@ function openModal(issue = null) {
         document.getElementById('modal-title').textContent = 'New Issue';
         document.getElementById('issue-form').reset();
         document.getElementById('issue-id').value = '';
-        statusSelect.value = 'Todo'; // Default for new issues, or user can choose Open
+        statusSelect.value = 'Open'; // Default for new issues
         tasksSection.classList.add('hidden');
         deleteIssueBtn.classList.add('hidden');
     }
