@@ -22,7 +22,7 @@ func InitDB(dataSourceName string) {
 	}
 
 	createTables()
-	migrate()
+
 }
 
 func createTables() {
@@ -56,18 +56,6 @@ func createTables() {
 	}
 	if _, err := DB.Exec(createTasksTable); err != nil {
 		log.Fatal(err)
-	}
-}
-
-func migrate() {
-	// Add planned_date column if it doesn't exist
-	// SQLite doesn't support IF NOT EXISTS for ADD COLUMN, so we just try and ignore specific error
-	_, err := DB.Exec("ALTER TABLE issues ADD COLUMN planned_date DATETIME")
-	if err != nil {
-		// If error is not "duplicate column name", log it.
-		// In sqlite, the error for duplicate column is usually "duplicate column name: planned_date"
-		// We'll just log it as info/debug in a real app, here we can ignore or print.
-		// log.Println("Migration: planned_date column might already exist:", err)
 	}
 }
 
