@@ -7,17 +7,7 @@ import (
 	"strings"
 )
 
-func EnableCORS(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-}
-
 func HandleIssues(w http.ResponseWriter, r *http.Request) {
-	EnableCORS(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
 
 	switch r.Method {
 	case "GET":
@@ -45,10 +35,6 @@ func HandleIssues(w http.ResponseWriter, r *http.Request) {
 }
 
 func HandleIssue(w http.ResponseWriter, r *http.Request) {
-	EnableCORS(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/issues/")
 	id, err := strconv.Atoi(idStr)
@@ -82,10 +68,6 @@ func HandleIssue(w http.ResponseWriter, r *http.Request) {
 }
 
 func HandleTasks(w http.ResponseWriter, r *http.Request) {
-	EnableCORS(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
 
 	switch r.Method {
 	case "POST":
@@ -126,10 +108,6 @@ func HandleTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func HandleTask(w http.ResponseWriter, r *http.Request) {
-	EnableCORS(&w)
-	if r.Method == "OPTIONS" {
-		return
-	}
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 	id, err := strconv.Atoi(idStr)
