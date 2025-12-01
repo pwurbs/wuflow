@@ -931,6 +931,8 @@ function handleDrop(e) {
                 newStatus = 'Open';
             } else if (container.id === 'move-to-todo-list') {
                 newStatus = 'Todo';
+                const todoIssues = issues.filter(i => i.status === 'Todo');
+                issue.position = todoIssues.length;
             }
             // If dropped on a column (container.closest('.column')), keep existing status
             // This allows users to drop on the board to unschedule without accidentally changing status
@@ -998,10 +1000,15 @@ function getDragAfterElement(column, y) {
 async function saveBoardState() {
     // Iterate over all columns and update status and position
     const updates = [];
+    let todoCount = 0;
 
     document.querySelectorAll('.column').forEach(col => {
         const status = col.dataset.status;
         const cards = [...col.querySelectorAll('.column-content .card')];
+
+        if (status === 'Todo') {
+            todoCount = cards.length;
+        }
 
         cards.forEach((card, index) => {
             const id = parseInt(card.dataset.id);
@@ -1030,14 +1037,14 @@ async function saveBoardState() {
 
     // Handle Move to Todo
     const moveToTodoCards = [...moveToTodoList.querySelectorAll('.card')];
-    moveToTodoCards.forEach((card) => {
+    moveToTodoCards.forEach((card, index) => {
         const id = parseInt(card.dataset.id);
         const issue = issues.find(i => i.id === id);
 
         if (issue) {
             issue.status = 'Todo';
-            // Prepend to the "Todo" column, so set position to 0
-            issue.position = 0;
+            // Append to the "Todo" column
+            issue.position = todoCount + index;
             updates.push(updateIssue(issue));
         }
     });
