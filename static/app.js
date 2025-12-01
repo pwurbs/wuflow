@@ -51,9 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupEventListeners() {
     addIssueBtn.addEventListener('click', () => openModal());
     closeModalBtn.addEventListener('click', () => closeModal());
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeModal();
-    });
+
 
     issueForm.addEventListener('submit', handleIssueSubmit);
     taskForm.addEventListener('submit', handleTaskSubmit);
