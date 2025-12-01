@@ -13,11 +13,11 @@ const columns = {
 };
 const addIssueBtn = document.getElementById('add-issue-btn');
 const modal = document.getElementById('issue-modal');
-const closeModalBtn = document.querySelector('.close-modal');
+// const closeModalBtn = document.querySelector('.close-modal'); // Removed in redesign
 const issueForm = document.getElementById('issue-form');
 const tasksSection = document.getElementById('tasks-section');
 const taskList = document.getElementById('task-list');
-const taskForm = document.getElementById('task-form');
+// const taskForm = document.getElementById('task-form'); // Removed in redesign
 const navBoard = document.getElementById('nav-board');
 const navBacklog = document.getElementById('nav-backlog');
 const boardView = document.querySelector('.board');
@@ -50,11 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupEventListeners() {
     addIssueBtn.addEventListener('click', () => openModal());
-    closeModalBtn.addEventListener('click', () => closeModal());
+
+    document.getElementById('cancel-btn').addEventListener('click', () => closeModal());
 
 
     issueForm.addEventListener('submit', handleIssueSubmit);
-    taskForm.addEventListener('submit', handleTaskSubmit);
+
+    // Task form listener is now handled in setupEventListeners via add-task-btn click
 
     // Drag and Drop for Columns
     document.querySelectorAll('.column-content').forEach(colContent => {
@@ -101,6 +103,23 @@ function setupEventListeners() {
         input.addEventListener('change', () => updateDateInputStyle(input));
         updateDateInputStyle(input);
     });
+
+    // Task Form Handling
+    const addTaskBtn = document.getElementById('add-task-btn');
+    if (addTaskBtn) {
+        addTaskBtn.addEventListener('click', handleTaskSubmit);
+    }
+
+    // Allow Enter key in task title to submit
+    const newTaskTitleInput = document.getElementById('new-task-title');
+    if (newTaskTitleInput) {
+        newTaskTitleInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleTaskSubmit(e);
+            }
+        });
+    }
 }
 
 function switchView(view) {
@@ -587,13 +606,15 @@ function openModal(issue = null) {
     currentIssue = issue;
     modal.classList.remove('hidden');
 
+    const commentsSection = document.querySelector('.comments-section-placeholder');
+    const descriptionInput = document.getElementById('description');
+
     if (issue) {
         document.getElementById('modal-title').textContent = 'Edit Issue';
         document.getElementById('issue-id').value = issue.id;
         document.getElementById('title').value = issue.title;
         document.getElementById('description').value = issue.description || '';
         document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
-        document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
         document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
         statusSelect.value = issue.status;
 
@@ -603,6 +624,9 @@ function openModal(issue = null) {
         tasksSection.classList.remove('hidden');
         renderTasks(issue.tasks || []);
         deleteIssueBtn.classList.remove('hidden');
+
+        // Show comments and reset description size for Edit Issue
+        if (commentsSection) commentsSection.classList.remove('hidden');
     } else {
         document.getElementById('modal-title').textContent = 'New Issue';
         document.getElementById('issue-form').reset();
@@ -614,6 +638,9 @@ function openModal(issue = null) {
 
         tasksSection.classList.add('hidden');
         deleteIssueBtn.classList.add('hidden');
+
+        // Hide comments and enlarge description for New Issue
+        if (commentsSection) commentsSection.classList.add('hidden');
     }
 }
 
@@ -745,12 +772,18 @@ function renderTasks(tasks) {
     });
 }
 
+
+
+// ... (rest of the file)
+
 async function handleTaskSubmit(e) {
     e.preventDefault();
     if (!currentIssue) return;
 
     const titleInput = document.getElementById('new-task-title');
     const deadlineInput = document.getElementById('new-task-deadline');
+
+    if (!titleInput.value.trim()) return;
 
     const taskData = {
         issue_id: currentIssue.id,

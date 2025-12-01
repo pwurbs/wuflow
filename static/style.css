@@ -75,6 +75,11 @@ h1 {
     border: 1px solid var(--card-border);
 }
 
+.btn.secondary:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--muted-text);
+}
+
 .btn.danger {
     background-color: var(--danger-color);
     color: white;
@@ -367,6 +372,89 @@ h1 {
     position: relative;
 }
 
+.issue-modal-content {
+    width: 900px;
+    /* Wider modal */
+}
+
+#modal-title {
+    margin-bottom: 24px;
+}
+
+.modal-body {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.modal-main {
+    flex: 7;
+    /* 70% width */
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.modal-main .form-group,
+.modal-sidebar .form-group {
+    margin-bottom: 0;
+}
+
+.description-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#description {
+    flex: 1;
+    resize: none;
+}
+
+.modal-sidebar {
+    flex: 3;
+    /* 30% width */
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-left: 20px;
+    border-left: 1px solid var(--card-border);
+}
+
+.large-input {
+    font-size: 18px;
+    padding: 10px;
+}
+
+.sidebar-placeholder {
+    opacity: 0.6;
+}
+
+.sidebar-placeholder label {
+    font-size: 12px;
+    color: var(--muted-text);
+    margin-bottom: 4px;
+    display: block;
+}
+
+.placeholder-box {
+    background-color: var(--bg-color);
+    border: 1px dashed var(--card-border);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--muted-text);
+}
+
+.comments-section-placeholder h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted-text);
+    margin-bottom: 8px;
+}
+
 .close-modal {
     position: absolute;
     top: 16px;
@@ -447,7 +535,16 @@ input:-webkit-autofill:active,
 .form-actions {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 8px;
+    margin-top: 20px;
+}
+
+.right-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    /* Pushes to the right if delete button is hidden or missing */
 }
 
 #tasks-section {
@@ -465,8 +562,7 @@ input:-webkit-autofill:active,
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--card-border);
+    padding: 2px 0;
     font-size: 14px;
 }
 

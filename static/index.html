@@ -109,54 +109,96 @@
 
     <!-- Modal for New/Edit Issue -->
     <div id="issue-modal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close-modal">&times;</span>
+        <div class="modal-content issue-modal-content">
+
             <h2 id="modal-title">New Issue</h2>
             <form id="issue-form">
                 <input type="hidden" id="issue-id">
-                <div class="form-group">
-                    <label for="status">Status</label>
-                    <select id="status">
-                        <option value="Open">Open</option>
-                        <option value="Todo">Todo</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Working">Working</option>
-                        <option value="Done">Done</option>
-                    </select>
+
+                <div class="modal-body">
+                    <!-- Main Column -->
+                    <div class="modal-main">
+                        <div class="form-group">
+                            <label for="title">Title</label>
+                            <input type="text" id="title" name="title" required class="large-input">
+                        </div>
+                        <div class="form-group description-group">
+                            <label for="description">Description</label>
+                            <textarea id="description" rows="15"></textarea>
+                        </div>
+
+                        <div id="tasks-section" class="hidden">
+                            <h3>Tasks</h3>
+                            <ul id="task-list"></ul>
+                            <div id="task-form-container">
+                                <div class="input-group">
+                                    <input type="text" id="new-task-title" name="task_title"
+                                        placeholder="Add a task...">
+                                    <input type="date" id="new-task-deadline" title="Task Deadline">
+                                    <button type="button" id="add-task-btn" class="btn secondary">Add</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Future Comments Section Placeholder -->
+                        <div class="comments-section-placeholder" style="margin-top: 20px; opacity: 0.5;">
+                            <h3>Comments</h3>
+                            <div class="input-group">
+                                <input type="text" placeholder="Write a comment..." disabled>
+                                <button type="button" class="btn secondary" disabled>Post</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar Column -->
+                    <div class="modal-sidebar">
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select id="status">
+                                <option value="Open">Open</option>
+                                <option value="Todo">Todo</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Working">Working</option>
+                                <option value="Done">Done</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="planned-date">Planned Date</label>
+                            <input type="date" id="planned-date">
+                        </div>
+                        <div class="form-group">
+                            <label for="deadline">Deadline</label>
+                            <input type="date" id="deadline">
+                        </div>
+
+                        <!-- Future Placeholders -->
+                        <div class="sidebar-placeholder">
+                            <label>Assignee</label>
+                            <div class="placeholder-box">Unassigned</div>
+                        </div>
+                        <div class="sidebar-placeholder">
+                            <label>Priority</label>
+                            <div class="placeholder-box">None</div>
+                        </div>
+                        <div class="sidebar-placeholder">
+                            <label>Labels</label>
+                            <div class="placeholder-box">No labels</div>
+                        </div>
+                        <div class="sidebar-placeholder">
+                            <label>Epic</label>
+                            <div class="placeholder-box">No epic</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="title">Title</label>
-                    <input type="text" id="title" name="title" required>
-                </div>
-                <div class="form-group">
-                    <label for="description">Description</label>
-                    <textarea id="description" rows="4"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="planned-date">Planned Date</label>
-                    <input type="date" id="planned-date">
-                </div>
-                <div class="form-group">
-                    <label for="deadline">Deadline</label>
-                    <input type="date" id="deadline">
-                </div>
+
                 <div class="form-actions">
                     <button type="button" id="delete-issue-btn" class="btn danger hidden">Delete Issue</button>
-                    <button type="submit" class="btn primary">Save</button>
+                    <div class="right-actions">
+                        <button type="button" id="cancel-btn" class="btn secondary">Cancel</button>
+                        <button type="submit" class="btn primary">Save</button>
+                    </div>
                 </div>
             </form>
-
-            <div id="tasks-section" class="hidden">
-                <h3>Tasks</h3>
-                <ul id="task-list"></ul>
-                <form id="task-form">
-                    <div class="input-group">
-                        <input type="text" id="new-task-title" name="task_title" placeholder="Add a task..." required>
-                        <input type="date" id="new-task-deadline" title="Task Deadline">
-                        <button type="submit" class="btn secondary">Add</button>
-                    </div>
-                </form>
-            </div>
         </div>
     </div>
 
