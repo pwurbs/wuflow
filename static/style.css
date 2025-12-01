@@ -368,28 +368,42 @@ h1 {
     width: 500px;
     max-width: 90%;
     max-height: 90vh;
-    overflow-y: auto;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .issue-modal-content {
-    width: 900px;
-    /* Wider modal */
+    width: 1170px;
+    /* Wider modal (30% increase) */
 }
 
 #modal-title {
     margin-bottom: 24px;
 }
 
+#issue-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .modal-body {
     display: flex;
     gap: 24px;
     margin-bottom: 20px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
 }
 
 .modal-main {
-    flex: 7;
-    /* 70% width */
+    flex: 1;
+    /* Takes remaining width */
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -413,8 +427,8 @@ h1 {
 }
 
 .modal-sidebar {
-    flex: 3;
-    /* 30% width */
+    flex: 0 0 260px;
+    /* Fixed width, keeping original size approx */
     min-width: 200px;
     display: flex;
     flex-direction: column;
@@ -537,14 +551,17 @@ input:-webkit-autofill:active,
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    margin-top: 20px;
+    margin-top: 0;
+    padding-top: 20px;
+    border-top: 1px solid var(--card-border);
+    flex-shrink: 0;
+    background-color: var(--column-bg);
 }
 
 .right-actions {
     display: flex;
     gap: 8px;
     margin-left: auto;
-    /* Pushes to the right if delete button is hidden or missing */
 }
 
 #tasks-section {
