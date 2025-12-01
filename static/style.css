@@ -398,6 +398,43 @@ h1 {
     outline: none;
 }
 
+/* Global placeholder styling for consistency */
+::placeholder {
+    color: var(--muted-text);
+    opacity: 1;
+}
+
+/* Date input placeholder styling */
+.form-group input[type="date"],
+.input-group input[type="date"] {
+    color: var(--muted-text);
+}
+
+.form-group input[type="date"].has-value,
+.form-group input[type="date"]:focus,
+.input-group input[type="date"].has-value,
+.input-group input[type="date"]:focus {
+    color: var(--text-color);
+}
+
+/* Fix for calendar icon visibility in dark mode */
+::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+/* Fix for browser autofill background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+#new-task-title:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 30px var(--bg-color) inset !important;
+    -webkit-text-fill-color: var(--text-color) !important;
+    transition: background-color 5000s ease-in-out 0s;
+    caret-color: var(--text-color);
+}
+
 .form-actions {
     display: flex;
     justify-content: space-between;
@@ -421,6 +458,7 @@ h1 {
     gap: 8px;
     padding: 8px 0;
     border-bottom: 1px solid var(--card-border);
+    font-size: 14px;
 }
 
 .task-item.done span {
@@ -434,10 +472,26 @@ h1 {
 }
 
 .input-group input {
-    flex: 1;
     border: 1px solid var(--card-border);
     background-color: var(--bg-color);
     color: var(--text-color);
+    padding: 8px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.input-group input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+.input-group #new-task-title {
+    flex: 1;
+}
+
+.input-group #new-task-deadline {
+    width: 140px;
 }
 
 .delete-btn {

@@ -39,6 +39,7 @@ const planningPanel = document.getElementById('planning-panel');
 const planningList = document.getElementById('planning-list');
 const planningCount = document.getElementById('planning-count');
 const sidebar = document.querySelector('.sidebar');
+const viewToggles = document.querySelector('.view-toggles');
 
 
 // Initialization
@@ -95,6 +96,13 @@ function setupEventListeners() {
     // Sidebar Toggles
     btnDeadlines.addEventListener('click', () => toggleSidebar('deadlines'));
     btnPlanning.addEventListener('click', () => toggleSidebar('planning'));
+
+    // Date input styling
+    document.querySelectorAll('input[type="date"]').forEach(input => {
+        input.addEventListener('input', () => updateDateInputStyle(input));
+        input.addEventListener('change', () => updateDateInputStyle(input));
+        updateDateInputStyle(input);
+    });
 }
 
 function switchView(view) {
@@ -104,12 +112,14 @@ function switchView(view) {
         navBoard.classList.add('active');
         navBacklog.classList.remove('active');
         sidebar.classList.remove('hidden');
+        viewToggles.classList.remove('hidden');
     } else {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');
         navBoard.classList.remove('active');
         navBacklog.classList.add('active');
         sidebar.classList.add('hidden');
+        viewToggles.classList.add('hidden');
     }
 }
 
@@ -293,7 +303,6 @@ function renderDeadlineList() {
                 ${isOverdue ? '<span class="overdue-indicator">⚠️</span>' : ''}${date}
             </span>
             <span class="deadline-task" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
-            <span class="deadline-issue">${escapeHtml(item.issueTitle)}</span>
         `;
 
         // Add click handler to highlight the issue
@@ -431,7 +440,7 @@ function createPlanningDayElement(title, idSuffix) {
 function createPlanningItem(issue) {
     const div = document.createElement('div');
     div.className = 'planning-item';
-    div.textContent = `Issue #${issue.id} ${issue.title}`;
+    div.textContent = issue.title;
     div.draggable = true;
     div.dataset.id = issue.id;
     div.addEventListener('dragstart', handleDragStart);
@@ -524,10 +533,17 @@ function createCardElement(issue) {
                 </div>
             `).join('') : ''}
         </div>
-        <div class="card-meta">
-            ${issue.deadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString()}</span>` : '<span></span>'}
-            ${(issue.status === 'Open' && totalTasks > 0) ? `<div class="task-progress">Tasks: ${totalTasks}</div>` : ''}
-        </div>
+        ${(() => {
+            const hasDeadline = !!issue.deadline;
+            const showProgress = issue.status === 'Open' && totalTasks > 0;
+
+            if (!hasDeadline && !showProgress) return '';
+
+            return `<div class="card-meta">
+                ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString()}</span>` : '<span></span>'}
+                ${showProgress ? `<div class="task-progress">Tasks: ${totalTasks}</div>` : ''}
+            </div>`;
+        })()}
     `;
 
     card.addEventListener('click', () => openModal(issue));
@@ -579,9 +595,12 @@ function openModal(issue = null) {
         document.getElementById('title').value = issue.title;
         document.getElementById('description').value = issue.description || '';
         document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
-        document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 16) : '';
+        document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
+        document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
         statusSelect.value = issue.status;
 
+        updateDateInputStyle(document.getElementById('planned-date'));
+        updateDateInputStyle(document.getElementById('deadline'));
 
         tasksSection.classList.remove('hidden');
         renderTasks(issue.tasks || []);
@@ -591,6 +610,10 @@ function openModal(issue = null) {
         document.getElementById('issue-form').reset();
         document.getElementById('issue-id').value = '';
         statusSelect.value = 'Open'; // Default for new issues
+
+        updateDateInputStyle(document.getElementById('planned-date'));
+        updateDateInputStyle(document.getElementById('deadline'));
+
         tasksSection.classList.add('hidden');
         deleteIssueBtn.classList.add('hidden');
     }
@@ -662,7 +685,7 @@ async function handleIssueSubmit(e) {
     const issueData = {
         title: document.getElementById('title').value,
         description: document.getElementById('description').value,
-        deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value) : null,
+        deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
         planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
         status: statusSelect.value,
         position: currentIssue ? currentIssue.position : 0 // Backend handles new position
@@ -735,7 +758,7 @@ async function handleTaskSubmit(e) {
         issue_id: currentIssue.id,
         title: titleInput.value,
         done: false,
-        deadline: deadlineInput.value ? new Date(deadlineInput.value) : null
+        deadline: deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null
     };
 
     const newTask = await createTask(taskData);
@@ -745,7 +768,16 @@ async function handleTaskSubmit(e) {
     renderTasks(currentIssue.tasks);
     titleInput.value = '';
     deadlineInput.value = '';
+    updateDateInputStyle(deadlineInput);
     fetchIssues();
+}
+
+function updateDateInputStyle(input) {
+    if (input.value) {
+        input.classList.add('has-value');
+    } else {
+        input.classList.remove('has-value');
+    }
 }
 
 // Drag and Drop Logic

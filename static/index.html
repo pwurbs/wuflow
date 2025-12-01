@@ -126,7 +126,7 @@
                 </div>
                 <div class="form-group">
                     <label for="title">Title</label>
-                    <input type="text" id="title" required>
+                    <input type="text" id="title" name="title" required>
                 </div>
                 <div class="form-group">
                     <label for="description">Description</label>
@@ -138,7 +138,7 @@
                 </div>
                 <div class="form-group">
                     <label for="deadline">Deadline</label>
-                    <input type="datetime-local" id="deadline">
+                    <input type="date" id="deadline">
                 </div>
                 <div class="form-actions">
                     <button type="button" id="delete-issue-btn" class="btn danger hidden">Delete Issue</button>
@@ -151,8 +151,8 @@
                 <ul id="task-list"></ul>
                 <form id="task-form">
                     <div class="input-group">
-                        <input type="text" id="new-task-title" placeholder="Add a task..." required>
-                        <input type="datetime-local" id="new-task-deadline" title="Task Deadline">
+                        <input type="text" id="new-task-title" name="task_title" placeholder="Add a task..." required>
+                        <input type="date" id="new-task-deadline" title="Task Deadline">
                         <button type="submit" class="btn secondary">Add</button>
                     </div>
                 </form>
