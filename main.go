@@ -54,6 +54,6 @@ func main() {
 	})
 	http.HandleFunc("/api/tasks/", backend.HandleTask)
 
-	fmt.Printf("Server starting on http://localhost:%s\n", *port)
+	fmt.Printf("Server starting on port %s\n", *port)
 	log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
