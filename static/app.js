@@ -40,6 +40,7 @@ const planningList = document.getElementById('planning-list');
 const planningCount = document.getElementById('planning-count');
 const sidebar = document.querySelector('.sidebar');
 const viewToggles = document.querySelector('.view-toggles');
+const notificationToast = document.getElementById('notification-toast');
 
 
 // Initialization
@@ -649,6 +650,14 @@ function closeModal() {
     currentIssue = null;
 }
 
+function showNotification(message) {
+    notificationToast.textContent = message;
+    notificationToast.classList.remove('hidden');
+    setTimeout(() => {
+        notificationToast.classList.add('hidden');
+    }, 5000);
+}
+
 // Custom Confirmation Dialog
 function showConfirm(title, message, okButtonText = 'Delete') {
     return new Promise((resolve) => {
@@ -720,7 +729,8 @@ async function handleIssueSubmit(e) {
         issueData.id = currentIssue.id;
         await updateIssue(issueData);
     } else {
-        await createIssue(issueData);
+        const newIssue = await createIssue(issueData);
+        showNotification(`Issue #${newIssue.id} created successfully`);
     }
 
     closeModal();

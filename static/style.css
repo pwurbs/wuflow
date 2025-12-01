@@ -966,3 +966,28 @@ header {
     background-color: rgba(88, 166, 255, 0.1);
     border-color: var(--accent-blue);
 }
+
+/* Notification Toast */
+.notification-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #16a34a;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 2000;
+    font-weight: 500;
+    font-size: 14px;
+    border: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.notification-toast.hidden {
+    display: none;
+    opacity: 0;
+    transform: translateY(-20px);
+}
