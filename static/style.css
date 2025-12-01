@@ -674,13 +674,17 @@ header {
 }
 
 .backlog-list .card-description {
-    display: block;
-    font-size: 13px;
-    color: var(--muted-text);
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.2;
+    font-size: 13px;
+    color: var(--muted-text);
+    margin-top: 4px;
+    line-height: 1.4;
+    min-height: calc(1.4 * 13px);
 }
 
 .backlog-list .task-progress {
