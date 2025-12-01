@@ -37,6 +37,7 @@ const btnPlanning = document.getElementById('btn-planning');
 const deadlinesPanel = document.getElementById('deadlines-panel');
 const planningPanel = document.getElementById('planning-panel');
 const planningList = document.getElementById('planning-list');
+const planningCount = document.getElementById('planning-count');
 const sidebar = document.querySelector('.sidebar');
 
 
@@ -334,6 +335,7 @@ function renderDeadlineList() {
 
 function renderPlanningPanel() {
     planningList.innerHTML = '';
+    let count = 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -377,10 +379,13 @@ function renderPlanningPanel() {
                 if (container) {
                     const content = container.querySelector('.planning-day-content');
                     content.appendChild(createPlanningItem(issue));
+                    count++;
                 }
             }
         }
     });
+
+    planningCount.textContent = count;
 
     // Mark empty days
     document.querySelectorAll('.planning-day').forEach(day => {
@@ -426,7 +431,7 @@ function createPlanningDayElement(title, idSuffix) {
 function createPlanningItem(issue) {
     const div = document.createElement('div');
     div.className = 'planning-item';
-    div.textContent = `#${issue.id} ${issue.title}`;
+    div.textContent = `Issue #${issue.id} ${issue.title}`;
     div.draggable = true;
     div.dataset.id = issue.id;
     div.addEventListener('dragstart', handleDragStart);
@@ -507,7 +512,7 @@ function createCardElement(issue) {
 
     card.innerHTML = `
         <div class="card-main-content">
-            <div class="card-title"><span class="card-id">#${issue.id}</span> ${escapeHtml(issue.title)}</div>
+            <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
             <div class="card-description">${escapeHtml(issue.description || '')}</div>
         </div>
         <div class="card-tasks">
