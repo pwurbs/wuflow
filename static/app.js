@@ -542,9 +542,9 @@ function createCardElement(issue) {
             <div class="card-description">${escapeHtml(issue.description || '')}</div>
         </div>
         <div class="card-tasks">
-            ${(issue.status !== 'Open' && issue.tasks) ? issue.tasks.map(t => `
-                <div class="card-task-item ${t.done ? 'done' : ''}">
-                    <span class="card-task-icon">${t.done ? '☑' : '☐'}</span>
+            ${(issue.status !== 'Open' && issue.tasks) ? issue.tasks.filter(t => !t.done).map(t => `
+                <div class="card-task-item">
+                    <span class="card-task-icon">☐</span>
                     <span class="card-task-title">${escapeHtml(t.title)}</span>
                     ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                 </div>
