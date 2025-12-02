@@ -22,7 +22,6 @@ func InitDB(dataSourceName string) {
 	}
 
 	createTables()
-	migrateTasksTable()
 }
 
 func createTables() {
@@ -57,21 +56,6 @@ func createTables() {
 	}
 	if _, err := DB.Exec(createTasksTable); err != nil {
 		log.Fatal(err)
-	}
-}
-
-func migrateTasksTable() {
-	// Check if position column exists
-	row := DB.QueryRow("SELECT position FROM tasks LIMIT 1")
-	if row.Scan() != nil {
-		// Column likely doesn't exist, add it
-		_, err := DB.Exec("ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
-		if err != nil {
-			// Ignore error if column already exists (in case check failed for other reason)
-			log.Println("Migration warning:", err)
-		} else {
-			log.Println("Migrated tasks table: added position column")
-		}
 	}
 }
 
