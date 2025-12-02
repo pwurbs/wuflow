@@ -121,6 +121,91 @@ function setupEventListeners() {
             }
         });
     }
+    // Editor Toolbar
+    // Editor Toolbar
+    const editor = document.getElementById('description-editor');
+    const toolbarBtns = document.querySelectorAll('.editor-btn');
+
+    function updateToolbarState() {
+        toolbarBtns.forEach(btn => {
+            const cmd = btn.dataset.cmd;
+            if (document.queryCommandState(cmd)) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    toolbarBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Use currentTarget to ensure we get the button even if clicking the SVG/icon inside
+            const cmd = e.currentTarget.dataset.cmd;
+            document.execCommand(cmd, false, null);
+            editor.focus(); // Keep focus in editor
+            updateToolbarState();
+        });
+    });
+
+    if (editor) {
+        editor.addEventListener('keyup', updateToolbarState);
+        editor.addEventListener('mouseup', updateToolbarState);
+        editor.addEventListener('input', (e) => {
+            updateToolbarState();
+            handleAutoList(e);
+        });
+    }
+
+    function handleAutoList(e) {
+        // Only trigger on space
+        if (e.data !== ' ') return;
+
+        const selection = window.getSelection();
+        if (!selection.isCollapsed) return;
+
+        const anchorNode = selection.anchorNode;
+        if (!anchorNode || anchorNode.nodeType !== Node.TEXT_NODE) return;
+
+        const text = anchorNode.textContent;
+        const offset = selection.anchorOffset;
+
+        // Check for bullet list: "* " or "- " at the start of the line
+        const bulletMatch = text.slice(0, offset).match(/^(\*|-)\s$/);
+        if (bulletMatch) {
+            // Select the trigger characters
+            const range = document.createRange();
+            range.setStart(anchorNode, 0);
+            range.setEnd(anchorNode, offset);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            // Delete the trigger characters using execCommand to ensure proper history/cursor handling
+            document.execCommand('delete');
+
+            // Apply the list formatting
+            document.execCommand('insertUnorderedList');
+            return;
+        }
+
+        // Check for numbered list: "1. " at the start of the line
+        const numberMatch = text.slice(0, offset).match(/^1\.\s$/);
+        if (numberMatch) {
+            // Select the trigger characters
+            const range = document.createRange();
+            range.setStart(anchorNode, 0);
+            range.setEnd(anchorNode, offset);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            // Delete the trigger characters
+            document.execCommand('delete');
+
+            // Apply the list formatting
+            document.execCommand('insertOrderedList');
+            return;
+        }
+    }
 }
 
 function switchView(view) {
@@ -540,7 +625,7 @@ function createCardElement(issue) {
     card.innerHTML = `
         <div class="card-main-content">
             <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
-            <div class="card-description">${escapeHtml(issue.description || '')}</div>
+            <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
         </div>
         <div class="card-tasks">
             ${(issue.status !== 'Open' && issue.tasks) ? issue.tasks.filter(t => !t.done).map(t => `
@@ -592,6 +677,12 @@ function createCardElement(issue) {
     return card;
 }
 
+function stripHtml(html) {
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || "";
+}
+
 function escapeHtml(text) {
     if (!text) return '';
     return text
@@ -608,13 +699,13 @@ function openModal(issue = null) {
     modal.classList.remove('hidden');
 
     const commentsSection = document.querySelector('.comments-section-placeholder');
-    const descriptionInput = document.getElementById('description');
+
 
     if (issue) {
         document.getElementById('modal-title').textContent = 'Edit Issue';
         document.getElementById('issue-id').value = issue.id;
         document.getElementById('title').value = issue.title;
-        document.getElementById('description').value = issue.description || '';
+        document.getElementById('description-editor').innerHTML = issue.description || '';
         document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
         document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
         statusSelect.value = issue.status;
@@ -631,6 +722,7 @@ function openModal(issue = null) {
     } else {
         document.getElementById('modal-title').textContent = 'New Issue';
         document.getElementById('issue-form').reset();
+        document.getElementById('description-editor').innerHTML = '';
         document.getElementById('issue-id').value = '';
         statusSelect.value = 'Open'; // Default for new issues
 
@@ -718,7 +810,7 @@ async function handleIssueSubmit(e) {
 
     const issueData = {
         title: document.getElementById('title').value,
-        description: document.getElementById('description').value,
+        description: document.getElementById('description-editor').innerHTML,
         deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
         planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
         status: statusSelect.value,

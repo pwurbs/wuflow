@@ -485,6 +485,7 @@ h1 {
     border-radius: 4px;
     font-family: inherit;
     font-size: 14px;
+    font-weight: 200;
 }
 
 .form-group input:focus,
@@ -586,6 +587,7 @@ input:-webkit-autofill:active,
     border-radius: 4px;
     font-family: inherit;
     font-size: 14px;
+    font-weight: 200;
 }
 
 .input-group input:focus {
@@ -962,4 +964,96 @@ header {
     display: none;
     opacity: 0;
     transform: translateY(-20px);
+}
+
+/* Rich Text Editor */
+.editor-container {
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    background-color: var(--bg-color);
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    min-height: 300px;
+}
+
+.editor-toolbar {
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    background-color: var(--column-bg);
+    border-bottom: 1px solid var(--card-border);
+    align-items: center;
+    flex-shrink: 0;
+    z-index: 1;
+}
+
+.editor-btn {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 14px;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.editor-btn:hover,
+.editor-btn.active {
+    background-color: var(--hover-bg);
+    border-color: var(--card-border);
+}
+
+.editor-btn.active {
+    background-color: rgba(59, 130, 246, 0.2);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.separator {
+    color: var(--muted-text);
+    margin: 0 4px;
+    font-size: 12px;
+}
+
+.rich-editor {
+    flex: 1;
+    padding: 12px;
+    overflow-y: auto;
+    outline: none;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text-color);
+    font-weight: 200;
+    line-height: 1.4;
+}
+
+.rich-editor ul,
+.rich-editor ol {
+    padding-left: 24px;
+    margin-bottom: 8px;
+}
+
+.rich-editor p {
+    margin-bottom: 8px;
+}
+
+/* Ensure lists in the editor look correct */
+.rich-editor li {
+    margin-bottom: 0;
+}
+
+.rich-editor b,
+.rich-editor strong {
+    font-weight: 700;
+}
+
+.rich-editor i,
+.rich-editor em {
+    font-style: italic;
 }
