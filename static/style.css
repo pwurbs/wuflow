@@ -573,15 +573,22 @@ input:-webkit-autofill:active,
     padding: 2px 8px;
     font-size: 14px;
     border-radius: 4px;
-    background-color: var(--bg-color);
+    background-color: rgba(11, 17, 33, 0.6);
+    /* Match Assignee placeholder opacity */
     border: 1px solid var(--card-border);
     margin-bottom: 4px;
     transition: background-color 0.2s, border-color 0.2s;
 }
 
 .task-item:hover {
-    background-color: var(--hover-bg);
+    /* No background change on hover */
     border-color: var(--card-border);
+}
+
+.task-item.editing {
+    border-color: var(--primary-color);
+    background-color: var(--bg-color);
+    /* Solid background for edit mode */
 }
 
 .task-item.dragging {
@@ -646,9 +653,39 @@ input:-webkit-autofill:active,
     min-width: 0;
 }
 
-.task-title-input:focus {
-    border-color: var(--primary-color);
-    background-color: var(--bg-color);
+
+
+/* Edit Actions */
+.task-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /* margin-left: auto; */
+    /* Let task-actions handle the push */
+}
+
+.task-edit-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.task-edit-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+.task-cancel-btn {
+    color: var(--danger-color);
+}
+
+.task-save-btn {
+    color: var(--success-color);
 }
 
 .task-deadline-container {
@@ -663,7 +700,7 @@ input:-webkit-autofill:active,
     pointer-events: none;
 }
 
-.task-actions:hover .task-deadline-container.no-deadline {
+.task-item.editing .task-deadline-container.no-deadline {
     opacity: 1;
     pointer-events: auto;
 }
@@ -1117,6 +1154,15 @@ header {
     display: none;
     opacity: 0;
     transform: translateY(-20px);
+}
+
+.modal-toast {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    z-index: 10;
+    width: auto;
+    white-space: nowrap;
 }
 
 /* Rich Text Editor */

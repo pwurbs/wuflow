@@ -777,6 +777,16 @@ function showNotification(message) {
     }, 5000);
 }
 
+function showModalNotification(message) {
+    const toast = document.getElementById('modal-notification-toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.remove('hidden');
+    setTimeout(() => {
+        toast.classList.add('hidden');
+    }, 3000); // Shorter timeout for modal actions
+}
+
 // Custom Confirmation Dialog
 function showConfirm(title, message, okButtonText = 'Delete') {
     return new Promise((resolve) => {
@@ -874,7 +884,15 @@ function renderTasks(tasks) {
             <span class="task-drag-handle">⋮⋮</span>
             <input type="checkbox" id="task-check-${task.id}" name="task_check_${task.id}" ${task.done ? 'checked' : ''}>
             <div class="task-info">
-                <input type="text" id="task-title-${task.id}" name="task_title_${task.id}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}">
+                <input type="text" id="task-title-${task.id}" name="task_title_${task.id}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
+                <div class="task-edit-actions hidden">
+                    <button type="button" class="task-edit-btn task-cancel-btn" title="Cancel">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                    <button type="button" class="task-edit-btn task-save-btn" title="Save">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </button>
+                </div>
                 <div class="task-actions">
                     <div class="task-deadline-container ${!task.deadline ? 'no-deadline' : ''}" title="Set Deadline">
                         <span class="task-deadline task-deadline-display">
@@ -902,35 +920,106 @@ function renderTasks(tasks) {
         });
 
         const titleInput = li.querySelector('.task-title-input');
+        const editActions = li.querySelector('.task-edit-actions');
+        const cancelBtn = li.querySelector('.task-cancel-btn');
+        const saveBtn = li.querySelector('.task-save-btn');
+        const taskActions = li.querySelector('.task-actions'); // The right-side actions (deadline, delete)
 
-        // Prevent drag when interacting with input
-        titleInput.addEventListener('mousedown', (e) => {
+        let originalTitle = task.title;
+
+        // --- Edit Mode Logic ---
+
+        const enterEditMode = () => {
+            if (task.done) return; // Don't edit done tasks easily? Or maybe allow it. User didn't specify. Assuming allow, but read-only input usually implies no edit.
+            // Actually, user said "When it changes into edit mode...".
+            // Let's allow editing even if done, but usually done tasks are struck through.
+
+            li.classList.add('editing');
             li.draggable = false;
-            e.stopPropagation();
-        });
+            titleInput.readOnly = false;
+            editActions.classList.remove('hidden');
+            // taskActions kept visible to allow setting deadline/delete in edit mode
 
-        titleInput.addEventListener('blur', async () => {
+            originalTitle = task.title;
+            // Focus and move cursor to end
+            titleInput.focus();
+            const val = titleInput.value;
+            titleInput.value = '';
+            titleInput.value = val;
+        };
+
+        const exitEditMode = () => {
+            li.classList.remove('editing');
             li.draggable = true;
+            titleInput.readOnly = true;
+            editActions.classList.add('hidden');
+            // blur to remove focus ring if any
+            titleInput.blur();
+        };
+
+        const cancelEdit = () => {
+            titleInput.value = originalTitle;
+            exitEditMode();
+        };
+
+        const saveTask = async () => {
             const newTitle = titleInput.value.trim();
+            if (!newTitle) {
+                // If empty, maybe revert? or alert? Let's revert for now.
+                cancelEdit();
+                return;
+            }
+
             if (newTitle !== task.title) {
-                if (!newTitle) {
-                    // Revert if empty
-                    titleInput.value = task.title;
-                    return;
-                }
                 task.title = newTitle;
                 await updateTask(task);
-                // No fetchIssues() here to prevent re-rendering and losing focus/state if user is quick
-                // But we should update the local state if needed.
-                // Since we updated the task object, it should be fine.
+                showModalNotification('Task updated');
+                // We don't fetchIssues() here to avoid full re-render which kills the DOM state, 
+                // but we should update the global state if needed.
+            }
+            exitEditMode();
+        };
+
+        // Event Listeners for Edit Mode
+
+        // Click to edit
+        titleInput.addEventListener('click', (e) => {
+            if (li.classList.contains('editing')) return;
+            enterEditMode();
+        });
+
+        // Buttons
+        cancelBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Prevent blur from firing before click
+            cancelEdit();
+        });
+
+        saveBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Prevent blur from firing before click
+            saveTask();
+        });
+
+        // Keyboard
+        titleInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveTask();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
             }
         });
 
-        titleInput.addEventListener('keydown', async (e) => {
-            if (e.key === 'Enter') {
-                titleInput.blur();
+        // Blur - Cancel edit
+        titleInput.addEventListener('blur', (e) => {
+            // We use a small timeout or check relatedTarget to see if we clicked a button
+            // But mousedown.preventDefault() on buttons handles the relatedTarget issue mostly.
+            // If user clicks outside, we cancel.
+            if (li.classList.contains('editing')) {
+                cancelEdit();
             }
         });
+
 
         const deadlineContainer = li.querySelector('.task-deadline-container');
         const deadlineInput = li.querySelector('.task-deadline-input');
@@ -953,8 +1042,6 @@ function renderTasks(tasks) {
             } else {
                 deadlineContainer.classList.add('no-deadline');
             }
-
-            // fetchIssues(); // Optional: might cause re-render
         });
 
         const deleteBtn = li.querySelector('.delete-task-btn');
