@@ -413,10 +413,7 @@ h1 {
     flex-direction: column;
 }
 
-#description {
-    flex: 1;
-    resize: none;
-}
+
 
 .modal-sidebar {
     flex: 0 0 260px;
@@ -438,7 +435,7 @@ h1 {
     opacity: 0.6;
 }
 
-.sidebar-placeholder label {
+.sidebar-placeholder .placeholder-label {
     font-size: 12px;
     color: var(--muted-text);
     margin-bottom: 4px;
@@ -467,7 +464,8 @@ h1 {
     margin-bottom: 16px;
 }
 
-.form-group label {
+.form-group label,
+.form-group .form-label {
     display: block;
     margin-bottom: 8px;
     font-weight: 500;
@@ -694,7 +692,6 @@ input:-webkit-autofill:active,
     white-space: nowrap;
 }
 
-.edit-task-btn,
 .delete-task-btn {
     cursor: pointer;
     color: var(--muted-text);
@@ -707,10 +704,7 @@ input:-webkit-autofill:active,
     transition: color 0.2s, background-color 0.2s;
 }
 
-.edit-task-btn:hover {
-    color: var(--primary-color);
-    background-color: rgba(59, 130, 246, 0.1);
-}
+
 
 .delete-task-btn:hover {
     color: var(--danger-color);

@@ -114,7 +114,7 @@
 
             <h2 id="modal-title">New Issue</h2>
             <form id="issue-form">
-                <input type="hidden" id="issue-id">
+                <input type="hidden" id="issue-id" name="issue_id">
 
                 <div class="modal-body">
                     <!-- Main Column -->
@@ -124,7 +124,7 @@
                             <input type="text" id="title" name="title" required class="large-input">
                         </div>
                         <div class="form-group description-group">
-                            <label for="description-editor">Description</label>
+                            <div id="description-label" class="form-label">Description</div>
                             <div class="editor-container">
                                 <div class="editor-toolbar">
                                     <button type="button" class="editor-btn" data-cmd="bold"
@@ -161,7 +161,8 @@
                                         </svg>
                                     </button>
                                 </div>
-                                <div id="description-editor" class="rich-editor" contenteditable="true"></div>
+                                <div id="description-editor" class="rich-editor" contenteditable="true" role="textbox"
+                                    aria-labelledby="description-label"></div>
                             </div>
                         </div>
 
@@ -182,7 +183,8 @@
                         <div class="comments-section-placeholder" style="margin-top: 20px; opacity: 0.5;">
                             <h3>Comments</h3>
                             <div class="input-group">
-                                <input type="text" placeholder="Write a comment..." disabled>
+                                <input type="text" id="comment-input" name="comment" placeholder="Write a comment..."
+                                    disabled>
                                 <button type="button" class="btn secondary" disabled>Post</button>
                             </div>
                         </div>
@@ -202,28 +204,28 @@
                         </div>
                         <div class="form-group">
                             <label for="planned-date">Planned Date</label>
-                            <input type="date" id="planned-date">
+                            <input type="date" id="planned-date" name="planned_date">
                         </div>
                         <div class="form-group">
                             <label for="deadline">Deadline</label>
-                            <input type="date" id="deadline">
+                            <input type="date" id="deadline" name="deadline">
                         </div>
 
                         <!-- Future Placeholders -->
                         <div class="sidebar-placeholder">
-                            <label>Assignee</label>
+                            <div class="placeholder-label">Assignee</div>
                             <div class="placeholder-box">Unassigned</div>
                         </div>
                         <div class="sidebar-placeholder">
-                            <label>Priority</label>
+                            <div class="placeholder-label">Priority</div>
                             <div class="placeholder-box">None</div>
                         </div>
                         <div class="sidebar-placeholder">
-                            <label>Labels</label>
+                            <div class="placeholder-label">Labels</div>
                             <div class="placeholder-box">No labels</div>
                         </div>
                         <div class="sidebar-placeholder">
-                            <label>Epic</label>
+                            <div class="placeholder-label">Epic</div>
                             <div class="placeholder-box">No epic</div>
                         </div>
                     </div>
