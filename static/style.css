@@ -118,12 +118,7 @@ h1 {
     border: 1px solid var(--card-border);
 }
 
-.sidebar h3 {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--muted-text);
-    margin-bottom: 12px;
-}
+
 
 .sidebar-header {
     display: flex;
@@ -199,11 +194,7 @@ h1 {
     white-space: nowrap;
 }
 
-.deadline-issue {
-    font-size: 11px;
-    color: var(--muted-text);
-    display: block;
-}
+
 
 .column {
     background-color: var(--column-bg);
@@ -470,14 +461,7 @@ h1 {
     margin-bottom: 8px;
 }
 
-.close-modal {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    font-size: 24px;
-    cursor: pointer;
-    color: var(--muted-text);
-}
+
 
 .form-group {
     margin-bottom: 16px;
@@ -641,10 +625,7 @@ input:-webkit-autofill:active,
     padding: 2px 0;
 }
 
-.card-task-item.done {
-    text-decoration: line-through;
-    opacity: 0.7;
-}
+
 
 .card-task-icon {
     font-size: 14px;
@@ -702,24 +683,7 @@ header {
     gap: 0;
 }
 
-.nav-btn {
-    background: none;
-    border: none;
-    padding: 8px 16px;
-    cursor: pointer;
-    font-weight: 500;
-    color: var(--text-color);
-    border-radius: 4px;
-}
 
-.nav-btn:hover {
-    background-color: var(--hover-bg);
-}
-
-.nav-btn.active {
-    background-color: var(--primary-color);
-    color: white;
-}
 
 /* Backlog View */
 #backlog-view {

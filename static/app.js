@@ -13,11 +13,11 @@ const columns = {
 };
 const addIssueBtn = document.getElementById('add-issue-btn');
 const modal = document.getElementById('issue-modal');
-// const closeModalBtn = document.querySelector('.close-modal'); // Removed in redesign
+
 const issueForm = document.getElementById('issue-form');
 const tasksSection = document.getElementById('tasks-section');
 const taskList = document.getElementById('task-list');
-// const taskForm = document.getElementById('task-form'); // Removed in redesign
+
 const navBoard = document.getElementById('nav-board');
 const navBacklog = document.getElementById('nav-backlog');
 const boardView = document.querySelector('.board');
