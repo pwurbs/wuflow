@@ -22,7 +22,7 @@ func InitDB(dataSourceName string) {
 	}
 
 	createTables()
-
+	migrateTasksTable()
 }
 
 func createTables() {
@@ -45,6 +45,7 @@ func createTables() {
 		issue_id INTEGER NOT NULL,
 		title TEXT NOT NULL,
 		done BOOLEAN NOT NULL DEFAULT 0,
+		position INTEGER NOT NULL DEFAULT 0,
 		deadline DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -56,6 +57,21 @@ func createTables() {
 	}
 	if _, err := DB.Exec(createTasksTable); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func migrateTasksTable() {
+	// Check if position column exists
+	row := DB.QueryRow("SELECT position FROM tasks LIMIT 1")
+	if row.Scan() != nil {
+		// Column likely doesn't exist, add it
+		_, err := DB.Exec("ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+		if err != nil {
+			// Ignore error if column already exists (in case check failed for other reason)
+			log.Println("Migration warning:", err)
+		} else {
+			log.Println("Migrated tasks table: added position column")
+		}
 	}
 }
 
@@ -94,7 +110,7 @@ func GetAllIssues() ([]Issue, error) {
 }
 
 func GetTasksByIssueID(issueID int) ([]Task, error) {
-	rows, err := DB.Query("SELECT id, issue_id, title, done, deadline, created_at, updated_at FROM tasks WHERE issue_id = ?", issueID)
+	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id = ? ORDER BY position ASC", issueID)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +120,7 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 	for rows.Next() {
 		var t Task
 		var deadline sql.NullTime
-		if err := rows.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &deadline, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if deadline.Valid {
@@ -162,14 +178,22 @@ func DeleteIssue(id int) error {
 }
 
 func CreateTask(t *Task) error {
-	stmt, err := DB.Prepare("INSERT INTO tasks(issue_id, title, done, deadline, updated_at) VALUES(?, ?, ?, ?, ?)")
+	stmt, err := DB.Prepare("INSERT INTO tasks(issue_id, title, done, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
+	// Get max position
+	var maxPos sql.NullInt64
+	err = DB.QueryRow("SELECT MAX(position) FROM tasks WHERE issue_id = ?", t.IssueID).Scan(&maxPos)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	t.Position = int(maxPos.Int64) + 1
 	t.UpdatedAt = time.Now()
-	res, err := stmt.Exec(t.IssueID, t.Title, t.Done, t.Deadline, t.UpdatedAt)
+
+	res, err := stmt.Exec(t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -183,14 +207,14 @@ func CreateTask(t *Task) error {
 }
 
 func UpdateTask(t *Task) error {
-	stmt, err := DB.Prepare("UPDATE tasks SET title = ?, done = ?, deadline = ?, updated_at = ? WHERE id = ?")
+	stmt, err := DB.Prepare("UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
 	t.UpdatedAt = time.Now()
-	_, err = stmt.Exec(t.Title, t.Done, t.Deadline, t.UpdatedAt, t.ID)
+	_, err = stmt.Exec(t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID)
 	return err
 }
 

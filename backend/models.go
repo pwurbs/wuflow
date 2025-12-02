@@ -32,6 +32,7 @@ type Task struct {
 	IssueID   int        `json:"issue_id"`
 	Title     string     `json:"title"`
 	Done      bool       `json:"done"`
+	Position  int        `json:"position"` // For manual sorting
 	Deadline  *time.Time `json:"deadline"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`

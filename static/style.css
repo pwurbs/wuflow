@@ -551,9 +551,16 @@ input:-webkit-autofill:active,
 }
 
 #tasks-section {
-    margin-top: 24px;
-    border-top: 1px solid var(--card-border);
-    padding-top: 16px;
+    margin-top: 0;
+    /* Relies on .modal-main gap */
+    /* Removed border-top */
+    padding-top: 0;
+}
+
+#tasks-section h3 {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 12px;
 }
 
 #task-list {
@@ -565,13 +572,149 @@ input:-webkit-autofill:active,
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 2px 0;
+    padding: 2px 8px;
     font-size: 14px;
+    border-radius: 4px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--card-border);
+    margin-bottom: 4px;
+    transition: background-color 0.2s, border-color 0.2s;
 }
 
-.task-item.done span {
+.task-item:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--card-border);
+}
+
+.task-item.dragging {
+    opacity: 0.5;
+    background-color: var(--hover-bg);
+    border: 1px dashed var(--accent-blue);
+}
+
+.task-item.done .task-title-text,
+.task-item.done .task-deadline {
     text-decoration: line-through;
     color: var(--muted-text);
+}
+
+.task-drag-handle {
+    cursor: grab;
+    color: var(--muted-text);
+    padding: 0;
+    font-size: 16px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    margin-right: 0;
+    width: 12px;
+    /* Fixed width to minimize space */
+    text-align: center;
+}
+
+.task-item:hover .task-drag-handle {
+    opacity: 1;
+}
+
+.task-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    /* For text overflow */
+}
+
+.task-title-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 200;
+    /* Match input font weight */
+}
+
+.task-title-input {
+    flex: 1;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 200;
+    color: var(--text-color);
+    font-family: inherit;
+    padding: 1px 4px;
+    border-radius: 4px;
+    outline: none;
+    width: 100%;
+    min-width: 0;
+}
+
+.task-title-input:focus {
+    border-color: var(--primary-color);
+    background-color: var(--bg-color);
+}
+
+.task-deadline-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.task-deadline-display {
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.task-deadline-display:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.task-deadline-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.task-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.task-deadline {
+    font-size: 12px;
+    color: var(--muted-text);
+    white-space: nowrap;
+}
+
+.edit-task-btn,
+.delete-task-btn {
+    cursor: pointer;
+    color: var(--muted-text);
+    font-size: 14px;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.edit-task-btn:hover {
+    color: var(--primary-color);
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.delete-task-btn:hover {
+    color: var(--danger-color);
+    background-color: rgba(239, 68, 68, 0.1);
 }
 
 .input-group {
@@ -583,11 +726,15 @@ input:-webkit-autofill:active,
     border: 1px solid var(--card-border);
     background-color: var(--bg-color);
     color: var(--text-color);
-    padding: 8px;
+    padding: 4px 8px;
     border-radius: 4px;
     font-family: inherit;
     font-size: 14px;
     font-weight: 200;
+}
+
+.input-group .btn {
+    padding: 4px 12px;
 }
 
 .input-group input:focus {
@@ -603,11 +750,12 @@ input:-webkit-autofill:active,
     width: 140px;
 }
 
-.delete-btn {
-    margin-left: auto;
-    color: var(--danger-color);
-    cursor: pointer;
-    font-size: 18px;
+/* Comments Section Separator */
+.comments-section-placeholder {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--card-border);
+    opacity: 0.5;
 }
 
 /* Tasks on Card */

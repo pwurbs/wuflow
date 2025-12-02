@@ -3,6 +3,8 @@ const API_URL = '/api';
 // State
 let issues = [];
 let currentIssue = null;
+let editingTaskId = null;
+let draggedTask = null;
 
 // DOM Elements
 const columns = {
@@ -121,6 +123,11 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Task List Drag and Drop
+    taskList.addEventListener('dragover', handleTaskDragOver);
+    taskList.addEventListener('drop', handleTaskDrop);
+
     // Editor Toolbar
     // Editor Toolbar
     const editor = document.getElementById('description-editor');
@@ -753,11 +760,13 @@ function openModal(issue = null) {
         // Hide comments and enlarge description for New Issue
         if (commentsSection) commentsSection.classList.add('hidden');
     }
+    resetTaskForm();
 }
 
 function closeModal() {
     modal.classList.add('hidden');
     currentIssue = null;
+    resetTaskForm();
 }
 
 function showNotification(message) {
@@ -848,30 +857,101 @@ async function handleIssueSubmit(e) {
 }
 
 // Task Handling
+// Task Handling
 function renderTasks(tasks) {
     taskList.innerHTML = '';
+
+    // Sort tasks by position
+    tasks.sort((a, b) => a.position - b.position);
+
     tasks.forEach(task => {
         const li = document.createElement('li');
         li.className = `task-item ${task.done ? 'done' : ''}`;
+        li.draggable = true;
+        li.dataset.id = task.id;
+
         li.innerHTML = `
+            <span class="task-drag-handle">⋮⋮</span>
             <input type="checkbox" ${task.done ? 'checked' : ''}>
-            <div class="task-info" style="flex: 1;">
-                <span>${escapeHtml(task.title)}</span>
-                ${task.deadline ? `<span class="task-deadline">📅 ${new Date(task.deadline).toLocaleDateString()}</span>` : ''}
+            <div class="task-info">
+                <input type="text" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}">
+                <div class="task-actions">
+                    <div class="task-deadline-container" title="Set Deadline">
+                        <span class="task-deadline task-deadline-display">
+                            ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '📅'}
+                        </span>
+                        <input type="date" class="task-deadline-input" value="${task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : ''}">
+                    </div>
+                    <div class="delete-task-btn" title="Delete Task">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </div>
+                </div>
             </div>
-            <span class="delete-btn">&times;</span>
         `;
 
-        const checkbox = li.querySelector('input');
+        // Drag events
+        li.addEventListener('dragstart', handleTaskDragStart);
+        li.addEventListener('dragend', handleTaskDragEnd);
+
+        const checkbox = li.querySelector('input[type="checkbox"]');
         checkbox.addEventListener('change', async () => {
             task.done = checkbox.checked;
             await updateTask(task);
-            fetchIssues(); // Refresh to update card progress
-            // Don't re-render modal tasks to avoid flickering, just update style
+            fetchIssues();
             li.className = `task-item ${task.done ? 'done' : ''}`;
         });
 
-        const deleteBtn = li.querySelector('.delete-btn');
+        const titleInput = li.querySelector('.task-title-input');
+
+        // Prevent drag when interacting with input
+        titleInput.addEventListener('mousedown', (e) => {
+            li.draggable = false;
+            e.stopPropagation();
+        });
+
+        titleInput.addEventListener('blur', async () => {
+            li.draggable = true;
+            const newTitle = titleInput.value.trim();
+            if (newTitle !== task.title) {
+                if (!newTitle) {
+                    // Revert if empty
+                    titleInput.value = task.title;
+                    return;
+                }
+                task.title = newTitle;
+                await updateTask(task);
+                // No fetchIssues() here to prevent re-rendering and losing focus/state if user is quick
+                // But we should update the local state if needed.
+                // Since we updated the task object, it should be fine.
+            }
+        });
+
+        titleInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                titleInput.blur();
+            }
+        });
+
+        const deadlineContainer = li.querySelector('.task-deadline-container');
+        const deadlineInput = li.querySelector('.task-deadline-input');
+
+        deadlineContainer.addEventListener('click', () => {
+            deadlineInput.showPicker();
+        });
+
+        deadlineInput.addEventListener('change', async () => {
+            const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
+            task.deadline = newDate;
+            await updateTask(task);
+
+            // Update display
+            const display = li.querySelector('.task-deadline-display');
+            display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '📅';
+
+            // fetchIssues(); // Optional: might cause re-render
+        });
+
+        const deleteBtn = li.querySelector('.delete-task-btn');
         deleteBtn.addEventListener('click', async () => {
             const confirmed = await showConfirm(
                 'Delete Task',
@@ -881,7 +961,6 @@ function renderTasks(tasks) {
 
             if (confirmed) {
                 await deleteTask(task.id);
-                // Remove from local array and re-render
                 currentIssue.tasks = currentIssue.tasks.filter(t => t.id !== task.id);
                 renderTasks(currentIssue.tasks);
                 fetchIssues();
@@ -890,6 +969,23 @@ function renderTasks(tasks) {
 
         taskList.appendChild(li);
     });
+}
+
+// Removed handleTaskEdit and resetTaskForm as they are no longer needed for inline editing
+
+function resetTaskForm() {
+    editingTaskId = null;
+    const titleInput = document.getElementById('new-task-title');
+    const deadlineInput = document.getElementById('new-task-deadline');
+    const addBtn = document.getElementById('add-task-btn');
+
+    titleInput.value = '';
+    deadlineInput.value = '';
+    updateDateInputStyle(deadlineInput);
+
+    addBtn.textContent = 'Add';
+    addBtn.classList.remove('primary');
+    addBtn.classList.add('secondary');
 }
 
 
@@ -905,11 +1001,14 @@ async function handleTaskSubmit(e) {
 
     if (!titleInput.value.trim()) return;
 
+    const deadline = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
+
     const taskData = {
         issue_id: currentIssue.id,
         title: titleInput.value,
         done: false,
-        deadline: deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null
+        deadline: deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null,
+        position: currentIssue.tasks ? currentIssue.tasks.length : 0
     };
 
     const newTask = await createTask(taskData);
@@ -1167,5 +1266,74 @@ async function saveBoardState() {
         setTimeout(async () => {
             await fetchIssues();
         }, 5000);
+    }
+}
+
+// Task Drag and Drop Functions
+function handleTaskDragStart(e) {
+    draggedTask = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleTaskDragEnd(e) {
+    this.classList.remove('dragging');
+    draggedTask = null;
+    saveTaskOrder();
+}
+
+function handleTaskDragOver(e) {
+    e.preventDefault();
+    if (!draggedTask) return;
+
+    const container = taskList;
+    const afterElement = getDragAfterTaskElement(container, e.clientY);
+
+    if (afterElement == null) {
+        container.appendChild(draggedTask);
+    } else {
+        container.insertBefore(draggedTask, afterElement);
+    }
+}
+
+function handleTaskDrop(e) {
+    e.preventDefault();
+}
+
+function getDragAfterTaskElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+async function saveTaskOrder() {
+    if (!currentIssue || !currentIssue.tasks) return;
+
+    const taskItems = [...taskList.querySelectorAll('.task-item')];
+    const updates = [];
+
+    taskItems.forEach((item, index) => {
+        const id = parseInt(item.dataset.id);
+        const task = currentIssue.tasks.find(t => t.id === id);
+
+        if (task && task.position !== index) {
+            task.position = index;
+            updates.push(updateTask(task));
+        }
+    });
+
+    if (updates.length > 0) {
+        await Promise.all(updates);
+        // Update local array order
+        currentIssue.tasks.sort((a, b) => a.position - b.position);
     }
 }
