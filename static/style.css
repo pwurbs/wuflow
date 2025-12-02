@@ -159,7 +159,7 @@ h1 {
     background-color: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: 3px;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
     font-size: 13px;
     cursor: pointer;
     box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
@@ -168,6 +168,7 @@ h1 {
 
 .deadline-item:hover {
     background-color: var(--hover-bg);
+    border-color: var(--accent-blue);
 }
 
 .deadline-item.hover-highlight {
