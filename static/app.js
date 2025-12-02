@@ -627,15 +627,21 @@ function createCardElement(issue) {
             <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
             <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
         </div>
-        <div class="card-tasks">
-            ${(issue.status !== 'Open' && issue.tasks) ? issue.tasks.filter(t => !t.done).map(t => `
-                <div class="card-task-item">
-                    <span class="card-task-icon">☐</span>
-                    <span class="card-task-title">${escapeHtml(t.title)}</span>
-                    ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
-                </div>
-            `).join('') : ''}
-        </div>
+        ${(() => {
+            if (issue.status === 'Open' || !issue.tasks) return '';
+            const openTasks = issue.tasks.filter(t => !t.done);
+            if (openTasks.length === 0) return '';
+
+            return `<div class="card-tasks">
+                ${openTasks.map(t => `
+                    <div class="card-task-item">
+                        <span class="card-task-icon">☐</span>
+                        <span class="card-task-title">${escapeHtml(t.title)}</span>
+                        ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                    </div>
+                `).join('')}
+            </div>`;
+        })()}
         ${(() => {
             const hasDeadline = !!issue.deadline;
             const showProgress = issue.status === 'Open' && totalTasks > 0;
@@ -678,9 +684,21 @@ function createCardElement(issue) {
 }
 
 function stripHtml(html) {
+    if (!html) return '';
+
+    // Add spaces around block-level tags to prevent text merging
+    // This handles <div>, <p>, <br>, <li>, etc. (both opening and closing tags)
+    const processed = html.replace(
+        /<\/?(div|p|li|ul|ol|h[1-6]|blockquote|pre|br)\b[^>]*>/gi,
+        ' $& '
+    );
+
     const tmp = document.createElement("DIV");
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || "";
+    tmp.innerHTML = processed;
+    const text = tmp.textContent || tmp.innerText || "";
+
+    // Collapse multiple spaces into one and trim
+    return text.replace(/\s+/g, ' ').trim();
 }
 
 function escapeHtml(text) {
