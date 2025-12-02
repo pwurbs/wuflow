@@ -655,6 +655,17 @@ input:-webkit-autofill:active,
     position: relative;
     display: flex;
     align-items: center;
+    transition: opacity 0.2s;
+}
+
+.task-deadline-container.no-deadline {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.task-actions:hover .task-deadline-container.no-deadline {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .task-deadline-display {

@@ -876,7 +876,7 @@ function renderTasks(tasks) {
             <div class="task-info">
                 <input type="text" id="task-title-${task.id}" name="task_title_${task.id}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}">
                 <div class="task-actions">
-                    <div class="task-deadline-container" title="Set Deadline">
+                    <div class="task-deadline-container ${!task.deadline ? 'no-deadline' : ''}" title="Set Deadline">
                         <span class="task-deadline task-deadline-display">
                             ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '📅'}
                         </span>
@@ -947,6 +947,12 @@ function renderTasks(tasks) {
             // Update display
             const display = li.querySelector('.task-deadline-display');
             display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '📅';
+
+            if (task.deadline) {
+                deadlineContainer.classList.remove('no-deadline');
+            } else {
+                deadlineContainer.classList.add('no-deadline');
+            }
 
             // fetchIssues(); // Optional: might cause re-render
         });
