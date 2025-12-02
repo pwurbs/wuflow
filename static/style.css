@@ -199,7 +199,7 @@ h1 {
 .column {
     background-color: var(--column-bg);
     border-radius: 8px;
-    width: 300px;
+    width: 330px;
     min-width: 200px;
     flex-shrink: 1;
     display: flex;
