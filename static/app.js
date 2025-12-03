@@ -972,12 +972,12 @@ function renderTasks(tasks) {
             <input type="checkbox" id="task-check-${task.id}" name="task_check_${task.id}" ${task.done ? 'checked' : ''}>
             <div class="task-info">
                 <input type="text" id="task-title-${task.id}" name="task_title_${task.id}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
-                <div class="task-edit-actions hidden">
-                    <button type="button" class="task-edit-btn task-cancel-btn" title="Cancel">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                <div class="inline-edit-actions hidden">
+                    <button type="button" class="inline-edit-btn inline-cancel-btn" title="Cancel">
+                        ✕
                     </button>
-                    <button type="button" class="task-edit-btn task-save-btn" title="Save">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <button type="button" class="inline-edit-btn inline-save-btn" title="Save">
+                        ✓
                     </button>
                 </div>
                 <div class="task-actions">
@@ -1007,9 +1007,9 @@ function renderTasks(tasks) {
         });
 
         const titleInput = li.querySelector('.task-title-input');
-        const editActions = li.querySelector('.task-edit-actions');
-        const cancelBtn = li.querySelector('.task-cancel-btn');
-        const saveBtn = li.querySelector('.task-save-btn');
+        const editActions = li.querySelector('.inline-edit-actions');
+        const cancelBtn = li.querySelector('.inline-cancel-btn');
+        const saveBtn = li.querySelector('.inline-save-btn');
         const taskActions = li.querySelector('.task-actions'); // The right-side actions (deadline, delete)
 
         let originalTitle = task.title;

@@ -124,23 +124,14 @@
                             <label for="title">Title</label>
                             <div class="title-input-container">
                                 <input type="text" id="title" name="title" required class="large-input">
-                                <div id="title-edit-actions" class="task-edit-actions hidden">
-                                    <button type="button" id="title-cancel-btn" class="task-edit-btn task-cancel-btn"
-                                        title="Cancel">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                        </svg>
+                                <div id="title-edit-actions" class="inline-edit-actions hidden">
+                                    <button type="button" id="title-cancel-btn"
+                                        class="inline-edit-btn inline-cancel-btn" title="Cancel">
+                                        ✕
                                     </button>
-                                    <button type="button" id="title-save-btn" class="task-edit-btn task-save-btn"
+                                    <button type="button" id="title-save-btn" class="inline-edit-btn inline-save-btn"
                                         title="Save">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
+                                        ✓
                                     </button>
                                 </div>
                             </div>
@@ -182,28 +173,21 @@
                                             <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path>
                                         </svg>
                                     </button>
+                                    <div id="description-edit-actions" class="inline-edit-actions hidden"
+                                        style="margin-left: auto;">
+                                        <button type="button" id="desc-cancel-btn"
+                                            class="inline-edit-btn inline-cancel-btn" title="Cancel">
+                                            ✕
+                                        </button>
+                                        <button type="button" id="desc-save-btn" class="inline-edit-btn inline-save-btn"
+                                            title="Save">
+                                            ✓
+                                        </button>
+                                    </div>
                                 </div>
                                 <div id="description-editor" class="rich-editor" contenteditable="true" role="textbox"
                                     aria-labelledby="description-label"></div>
-                                <div id="description-edit-actions" class="task-edit-actions hidden">
-                                    <button type="button" id="desc-cancel-btn" class="task-edit-btn task-cancel-btn"
-                                        title="Cancel">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                        </svg>
-                                    </button>
-                                    <button type="button" id="desc-save-btn" class="task-edit-btn task-save-btn"
-                                        title="Save">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
-                                    </button>
-                                </div>
+
                             </div>
                         </div>
 

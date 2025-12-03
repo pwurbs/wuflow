@@ -656,7 +656,7 @@ input:-webkit-autofill:active,
 
 
 /* Edit Actions */
-.task-edit-actions {
+.inline-edit-actions {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -664,7 +664,7 @@ input:-webkit-autofill:active,
     /* Let task-actions handle the push */
 }
 
-.task-edit-btn {
+.inline-edit-btn {
     background: none;
     border: none;
     cursor: pointer;
@@ -674,17 +674,18 @@ input:-webkit-autofill:active,
     justify-content: center;
     border-radius: 4px;
     transition: background-color 0.2s;
+    font-size: 18px;
 }
 
-.task-edit-btn:hover {
+.inline-edit-btn:hover {
     background-color: var(--hover-bg);
 }
 
-.task-cancel-btn {
+.inline-cancel-btn {
     color: var(--danger-color);
 }
 
-.task-save-btn {
+.inline-save-btn {
     color: var(--success-color);
 }
 
@@ -1316,16 +1317,4 @@ header {
 /* Description Inline Edit Positioning */
 .editor-container {
     position: relative;
-}
-
-#description-edit-actions {
-    position: absolute;
-    bottom: 12px;
-    right: 12px;
-    background-color: var(--bg-color);
-    border: 1px solid var(--card-border);
-    border-radius: 4px;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    z-index: 5;
 }
