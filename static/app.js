@@ -44,6 +44,21 @@ const sidebar = document.querySelector('.sidebar');
 const viewToggles = document.querySelector('.view-toggles');
 const notificationToast = document.getElementById('notification-toast');
 
+// Inline Edit Elements
+const titleInput = document.getElementById('title');
+const titleEditActions = document.getElementById('title-edit-actions');
+const titleCancelBtn = document.getElementById('title-cancel-btn');
+const titleSaveBtn = document.getElementById('title-save-btn');
+
+const descEditor = document.getElementById('description-editor');
+const descContainer = document.querySelector('.editor-container');
+const descEditActions = document.getElementById('description-edit-actions');
+const descCancelBtn = document.getElementById('desc-cancel-btn');
+const descSaveBtn = document.getElementById('desc-save-btn');
+
+let originalTitle = '';
+let originalDesc = '';
+
 
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -55,6 +70,52 @@ function setupEventListeners() {
     addIssueBtn.addEventListener('click', () => openModal());
 
     document.getElementById('cancel-btn').addEventListener('click', () => closeModal());
+
+    // Inline Edit Listeners
+    titleInput.addEventListener('click', () => {
+        if (titleInput.classList.contains('inline-editable')) {
+            enterTitleEdit();
+        }
+    });
+
+    titleCancelBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        cancelTitleEdit();
+    });
+
+    titleSaveBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        saveTitle();
+    });
+
+    descEditor.addEventListener('click', () => {
+        if (descContainer.classList.contains('inline-editable')) {
+            enterDescEdit();
+        }
+    });
+
+    descCancelBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        cancelDescEdit();
+    });
+
+    descSaveBtn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        saveDesc();
+    });
+
+    // Blur listeners for click outside to cancel
+    titleInput.addEventListener('blur', () => {
+        if (titleInput.classList.contains('inline-editing')) {
+            cancelTitleEdit();
+        }
+    });
+
+    descEditor.addEventListener('blur', () => {
+        if (descContainer.classList.contains('inline-editing')) {
+            cancelDescEdit();
+        }
+    });
 
 
     issueForm.addEventListener('submit', handleIssueSubmit);
@@ -145,6 +206,11 @@ function setupEventListeners() {
     }
 
     toolbarBtns.forEach(btn => {
+        // Prevent focus loss on toolbar click
+        btn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+        });
+
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             // Use currentTarget to ensure we get the button even if clicking the SVG/icon inside
@@ -744,6 +810,17 @@ function openModal(issue = null) {
 
         // Show comments and reset description size for Edit Issue
         if (commentsSection) commentsSection.classList.remove('hidden');
+
+        // Enable inline edit mode for Title and Description
+        titleInput.classList.add('inline-editable');
+        titleInput.readOnly = true;
+
+        descContainer.classList.add('inline-editable');
+        descEditor.contentEditable = "false";
+
+        titleEditActions.classList.add('hidden');
+        descEditActions.classList.add('hidden');
+
     } else {
         document.getElementById('modal-title').textContent = 'New Issue';
         document.getElementById('issue-form').reset();
@@ -759,6 +836,16 @@ function openModal(issue = null) {
 
         // Hide comments and enlarge description for New Issue
         if (commentsSection) commentsSection.classList.add('hidden');
+
+        // Disable inline edit mode (Standard input behavior)
+        titleInput.classList.remove('inline-editable');
+        titleInput.readOnly = false;
+
+        descContainer.classList.remove('inline-editable');
+        descEditor.contentEditable = "true";
+
+        titleEditActions.classList.add('hidden');
+        descEditActions.classList.add('hidden');
     }
     resetTaskForm();
 }
@@ -1431,4 +1518,74 @@ async function saveTaskOrder() {
         // Update local array order
         currentIssue.tasks.sort((a, b) => a.position - b.position);
     }
+}
+
+// Inline Edit Functions
+function enterTitleEdit() {
+    originalTitle = titleInput.value;
+    titleInput.classList.remove('inline-editable');
+    titleInput.classList.add('inline-editing');
+    titleInput.readOnly = false;
+    titleEditActions.classList.remove('hidden');
+    titleInput.focus();
+}
+
+function cancelTitleEdit() {
+    titleInput.value = originalTitle;
+    exitTitleEdit();
+}
+
+async function saveTitle() {
+    const newTitle = titleInput.value.trim();
+    if (!newTitle) {
+        cancelTitleEdit();
+        return;
+    }
+
+    if (newTitle !== currentIssue.title) {
+        currentIssue.title = newTitle;
+        await updateIssue(currentIssue);
+        showModalNotification('Title updated');
+        fetchIssues();
+    }
+    exitTitleEdit();
+}
+
+function exitTitleEdit() {
+    titleInput.classList.add('inline-editable');
+    titleInput.classList.remove('inline-editing');
+    titleInput.readOnly = true;
+    titleEditActions.classList.add('hidden');
+}
+
+function enterDescEdit() {
+    originalDesc = descEditor.innerHTML;
+    descContainer.classList.remove('inline-editable');
+    descContainer.classList.add('inline-editing');
+    descEditor.contentEditable = "true";
+    descEditActions.classList.remove('hidden');
+    descEditor.focus();
+}
+
+function cancelDescEdit() {
+    descEditor.innerHTML = originalDesc;
+    exitDescEdit();
+}
+
+async function saveDesc() {
+    const newDesc = descEditor.innerHTML;
+    if (newDesc !== currentIssue.description) {
+        currentIssue.description = newDesc;
+        await updateIssue(currentIssue);
+        showModalNotification('Description updated');
+        fetchIssues();
+    }
+    exitDescEdit();
+}
+
+function exitDescEdit() {
+    descContainer.classList.add('inline-editable');
+    descContainer.classList.remove('inline-editing');
+    descEditor.contentEditable = "false";
+    descEditActions.classList.add('hidden');
 }

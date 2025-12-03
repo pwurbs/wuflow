@@ -1264,3 +1264,68 @@ header {
 .rich-editor em {
     font-style: italic;
 }
+
+/* Inline Editing Styles for Title and Description */
+.inline-editable {
+    background-color: rgba(11, 17, 33, 0.6) !important;
+    border: 1px solid var(--card-border) !important;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.inline-editable:hover {
+    border-color: var(--card-border);
+}
+
+.inline-editing {
+    background-color: var(--bg-color) !important;
+    border-color: var(--primary-color) !important;
+    cursor: text;
+}
+
+/* Hide toolbar when not editing description in inline mode */
+.editor-container.inline-editable .editor-toolbar {
+    display: none;
+}
+
+/* Ensure title input looks correct in inline mode */
+#title.inline-editable {
+    color: var(--text-color);
+}
+
+/* Title Inline Edit Positioning */
+.title-input-container {
+    position: relative;
+}
+
+#title-edit-actions {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: var(--bg-color);
+    padding-left: 4px;
+    z-index: 2;
+}
+
+#title {
+    padding-right: 70px;
+    /* Make space for buttons */
+}
+
+/* Description Inline Edit Positioning */
+.editor-container {
+    position: relative;
+}
+
+#description-edit-actions {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 5;
+}
