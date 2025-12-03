@@ -15,6 +15,9 @@ import (
 )
 
 // embeddedFiles holds the static files embedded into the binary.
+// don't remove the line below, it's used by go:embed to embed the static files during build
+//
+//go:embed static
 var embeddedFiles embed.FS
 
 // main initializes the database, serves static files, and starts the HTTP server.
