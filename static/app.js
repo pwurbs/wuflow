@@ -423,7 +423,7 @@ function renderBoard() {
     issues.forEach(issue => {
         if (issue.status === 'Open') return; // Skip backlog issues
 
-        const card = createCardElement(issue);
+        const card = createCardElement(issue, true);
         if (columns[issue.status]) {
             columns[issue.status].appendChild(card);
             counts[issue.status]++;
@@ -449,7 +449,7 @@ function renderBacklog() {
     backlogIssues.sort((a, b) => a.position - b.position);
 
     backlogIssues.forEach(issue => {
-        const card = createCardElement(issue);
+        const card = createCardElement(issue, false);
         backlogList.appendChild(card);
         count++;
     });
@@ -723,47 +723,72 @@ function highlightIssueCard(issueId) {
     }
 }
 
-function createCardElement(issue) {
+function createCardElement(issue, isBoard = false) {
     const card = document.createElement('div');
     card.className = 'card';
+    if (isBoard) {
+        card.classList.add('board-card');
+    }
     card.draggable = true;
     card.dataset.id = issue.id;
 
     const completedTasks = issue.tasks ? issue.tasks.filter(t => t.done).length : 0;
     const totalTasks = issue.tasks ? issue.tasks.length : 0;
 
-    card.innerHTML = `
-        <div class="card-main-content">
-            <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
-            <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
-        </div>
-        ${(() => {
-            if (issue.status === 'Open' || !issue.tasks) return '';
-            const openTasks = issue.tasks.filter(t => !t.done);
-            if (openTasks.length === 0) return '';
-
-            return `<div class="card-tasks">
-                ${openTasks.map(t => `
-                    <div class="card-task-item">
-                        <span class="card-task-icon">☐</span>
-                        <span class="card-task-title">${escapeHtml(t.title)}</span>
-                        ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+    if (isBoard) {
+        // New Board Card Layout
+        card.innerHTML = `
+            <div class="board-card-title">${escapeHtml(issue.title)}</div>
+            <div class="board-card-label-space"></div>
+            <div class="board-card-bottom">
+                <div class="board-card-id">#${issue.id}</div>
+                <div class="board-card-meta-right">
+                    ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    <div class="board-task-info">
+                        <span class="board-task-icon">☑</span>
+                        <span>${completedTasks}/${totalTasks}</span>
                     </div>
-                `).join('')}
-            </div>`;
-        })()}
-        ${(() => {
-            const hasDeadline = !!issue.deadline;
-            const showProgress = issue.status === 'Open' && totalTasks > 0;
+                </div>
+            </div>
+        `;
+    } else {
+        // Existing Backlog Card Layout
+        card.innerHTML = `
+            <div class="card-main-content">
+                <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
+                <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
+            </div>
+            ${(() => {
+                if (issue.status === 'Open' || !issue.tasks) return '';
+                const openTasks = issue.tasks.filter(t => !t.done);
+                if (openTasks.length === 0) return '';
 
-            if (!hasDeadline && !showProgress) return '';
+                return `<div class="card-tasks">
+                    ${openTasks.map(t => `
+                        <div class="card-task-item">
+                            <span class="card-task-icon">☐</span>
+                            <span class="card-task-title">${escapeHtml(t.title)}</span>
+                            ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                        </div>
+                    `).join('')}
+                </div>`;
+            })()}
+            ${(() => {
+                const hasDeadline = !!issue.deadline;
+                const showProgress = issue.status === 'Open' && totalTasks > 0;
 
-            return `<div class="card-meta">
-                ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString()}</span>` : '<span></span>'}
-                ${showProgress ? `<div class="task-progress">Tasks: ${totalTasks}</div>` : ''}
-            </div>`;
-        })()}
-    `;
+                if (!hasDeadline && !showProgress) return '';
+
+                return `<div class="card-meta">
+                    ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString()}</span>` : '<span></span>'}
+                    ${showProgress ? `<div class="board-task-info">
+                        <span class="board-task-icon">☑</span>
+                        <span>${completedTasks}/${totalTasks}</span>
+                    </div>` : ''}
+                </div>`;
+            })()}
+        `;
+    }
 
     card.addEventListener('click', () => openModal(issue));
     card.addEventListener('dragstart', handleDragStart);

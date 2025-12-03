@@ -323,6 +323,7 @@ h1 {
 .card-meta {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 12px;
     color: var(--muted-text);
     margin-top: 8px;
@@ -1317,4 +1318,76 @@ header {
 /* Description Inline Edit Positioning */
 .editor-container {
     position: relative;
+}
+
+/* New Board Card Styles */
+.card.board-card {
+    height: 125px;
+    padding: 10px 10px 4px 10px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    justify-content: space-between;
+}
+
+.board-card-title {
+    font-weight: 500;
+    color: var(--header-text);
+    font-size: 14px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    height: calc(1.4 * 14px * 2);
+    margin-bottom: 8px;
+}
+
+.board-card-label-space {
+    flex: 1;
+    min-height: 10px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.board-card-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--muted-text);
+    margin-top: auto;
+}
+
+.board-card-id {
+    color: var(--muted-text);
+}
+
+.board-card-meta-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.board-card-deadline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.board-task-info {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.board-task-icon {
+    color: #3b82f6;
+    font-size: 18px;
+    position: relative;
+    top: -1px;
 }
