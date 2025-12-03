@@ -70,6 +70,7 @@ function setupEventListeners() {
     addIssueBtn.addEventListener('click', () => openModal());
 
     document.getElementById('cancel-btn').addEventListener('click', () => closeModal());
+    document.getElementById('done-btn').addEventListener('click', () => closeModal());
 
     // Inline Edit Listeners
     titleInput.addEventListener('click', () => {
@@ -114,6 +115,42 @@ function setupEventListeners() {
     descEditor.addEventListener('blur', () => {
         if (descContainer.classList.contains('inline-editing')) {
             cancelDescEdit();
+        }
+    });
+
+
+
+
+    // Immediate Save for Sidebar Fields (Edit Issue only)
+    const plannedDateInput = document.getElementById('planned-date');
+    const deadlineInput = document.getElementById('deadline');
+
+    statusSelect.addEventListener('change', async () => {
+        if (currentIssue) {
+            currentIssue.status = statusSelect.value;
+            await updateIssue(currentIssue);
+            showModalNotification('Status updated');
+            fetchIssues();
+        }
+    });
+
+    plannedDateInput.addEventListener('change', async () => {
+        if (currentIssue) {
+            const dateVal = plannedDateInput.value ? new Date(plannedDateInput.value + 'T12:00:00') : null;
+            currentIssue.planned_date = dateVal;
+            await updateIssue(currentIssue);
+            showModalNotification('Planned date updated');
+            fetchIssues();
+        }
+    });
+
+    deadlineInput.addEventListener('change', async () => {
+        if (currentIssue) {
+            const dateVal = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
+            currentIssue.deadline = dateVal;
+            await updateIssue(currentIssue);
+            showModalNotification('Deadline updated');
+            fetchIssues();
         }
     });
 
@@ -819,7 +856,12 @@ function openModal(issue = null) {
         descEditor.contentEditable = "false";
 
         titleEditActions.classList.add('hidden');
+        titleEditActions.classList.add('hidden');
         descEditActions.classList.add('hidden');
+
+        document.getElementById('save-issue-btn').classList.add('hidden');
+        document.getElementById('cancel-btn').classList.add('hidden');
+        document.getElementById('done-btn').classList.remove('hidden');
 
     } else {
         document.getElementById('modal-title').textContent = 'New Issue';
@@ -845,7 +887,12 @@ function openModal(issue = null) {
         descEditor.contentEditable = "true";
 
         titleEditActions.classList.add('hidden');
+        titleEditActions.classList.add('hidden');
         descEditActions.classList.add('hidden');
+
+        document.getElementById('save-issue-btn').classList.remove('hidden');
+        document.getElementById('cancel-btn').classList.remove('hidden');
+        document.getElementById('done-btn').classList.add('hidden');
     }
     resetTaskForm();
 }
