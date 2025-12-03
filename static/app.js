@@ -830,7 +830,7 @@ function openModal(issue = null) {
 
 
     if (issue) {
-        document.getElementById('modal-title').textContent = 'Edit Issue';
+        document.getElementById('modal-title').textContent = `Edit Issue #${issue.id}`;
         document.getElementById('issue-id').value = issue.id;
         document.getElementById('title').value = issue.title;
         document.getElementById('description-editor').innerHTML = issue.description || '';
