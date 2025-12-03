@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wusolv/wutrak/backend"
+	"codeberg.org/wusolv/wutrak/backend"
 )
 
 //go:embed static/*

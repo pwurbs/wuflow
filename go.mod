@@ -1,5 +1,5 @@
-module github.com/wusolv/wutrak
+module codeberg.org/wusolv/wutrak
 
-go 1.24.5
+go 1.25.5
 
 require github.com/mattn/go-sqlite3 v1.14.32
