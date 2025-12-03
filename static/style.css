@@ -790,6 +790,14 @@ input:-webkit-autofill:active,
 
 .input-group #new-task-deadline {
     width: 140px;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+#new-task-title::placeholder {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--muted-text);
 }
 
 /* Comments Section Separator */

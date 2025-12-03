@@ -1032,6 +1032,8 @@ function renderTasks(tasks) {
             const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
             task.deadline = newDate;
             await updateTask(task);
+            showModalNotification('Task deadline updated');
+            renderBoard();
 
             // Update display
             const display = li.querySelector('.task-deadline-display');
