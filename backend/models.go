@@ -1,19 +1,27 @@
+// Package backend provides the core logic and data structures for the wuTrak application.
 package backend
 
 import (
 	"time"
 )
 
+// IssueStatus represents the status of an issue.
 type IssueStatus string
 
 const (
-	StatusOpen    IssueStatus = "Open"
-	StatusTodo    IssueStatus = "Todo"
+	// StatusOpen represents an issue that is open but not yet started.
+	StatusOpen IssueStatus = "Open"
+	// StatusTodo represents an issue that is in the Todo state.
+	StatusTodo IssueStatus = "Todo"
+	// StatusPending represents an issue that is pending.
 	StatusPending IssueStatus = "Pending"
+	// StatusWorking represents an issue that is currently being worked on.
 	StatusWorking IssueStatus = "Working"
-	StatusDone    IssueStatus = "Done"
+	// StatusDone represents an issue that is completed.
+	StatusDone IssueStatus = "Done"
 )
 
+// Issue represents a task or bug to be tracked.
 type Issue struct {
 	ID          int         `json:"id"`
 	Title       string      `json:"title"`
@@ -27,6 +35,7 @@ type Issue struct {
 	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
+// Task represents a sub-task associated with an issue.
 type Task struct {
 	ID        int        `json:"id"`
 	IssueID   int        `json:"issue_id"`

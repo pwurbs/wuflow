@@ -1,3 +1,4 @@
+// Package main is the entry point for the wuTrak application.
 package main
 
 import (
@@ -13,9 +14,10 @@ import (
 	"codeberg.org/wusolv/wutrak/backend"
 )
 
-//go:embed static/*
+// embeddedFiles holds the static files embedded into the binary.
 var embeddedFiles embed.FS
 
+// main initializes the database, serves static files, and starts the HTTP server.
 func main() {
 	dbPath := flag.String("db", "wutrak.db", "Path to the SQLite database file")
 	port := flag.String("port", "8080", "Port to run the server on")

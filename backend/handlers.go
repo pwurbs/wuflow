@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// HandleIssues handles GET and POST requests for issues.
 func HandleIssues(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
@@ -34,6 +35,7 @@ func HandleIssues(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleIssue handles PUT and DELETE requests for a single issue.
 func HandleIssue(w http.ResponseWriter, r *http.Request) {
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/issues/")
@@ -67,6 +69,7 @@ func HandleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleTasks handles POST requests for creating tasks.
 func HandleTasks(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
@@ -107,6 +110,7 @@ func HandleTasks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleTask handles PUT and DELETE requests for a single task.
 func HandleTask(w http.ResponseWriter, r *http.Request) {
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/tasks/")

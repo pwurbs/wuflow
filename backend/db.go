@@ -8,8 +8,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// DB is the global database connection pool.
 var DB *sql.DB
 
+// InitDB initializes the database connection and creates tables if they don't exist.
 func InitDB(dataSourceName string) {
 	var err error
 	DB, err = sql.Open("sqlite3", dataSourceName)
@@ -24,6 +26,7 @@ func InitDB(dataSourceName string) {
 	createTables()
 }
 
+// createTables creates the necessary tables for the application.
 func createTables() {
 	createIssuesTable := `
 	CREATE TABLE IF NOT EXISTS issues (
@@ -61,6 +64,7 @@ func createTables() {
 
 // Helper functions for DB operations
 
+// GetAllIssues retrieves all issues from the database, including their associated tasks.
 func GetAllIssues() ([]Issue, error) {
 	rows, err := DB.Query("SELECT id, title, description, status, position, deadline, planned_date, created_at, updated_at FROM issues ORDER BY position ASC")
 	if err != nil {
@@ -93,6 +97,7 @@ func GetAllIssues() ([]Issue, error) {
 	return issues, nil
 }
 
+// GetTasksByIssueID retrieves all tasks associated with a specific issue.
 func GetTasksByIssueID(issueID int) ([]Task, error) {
 	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id = ? ORDER BY position ASC", issueID)
 	if err != nil {
@@ -115,6 +120,7 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 	return tasks, nil
 }
 
+// CreateIssue inserts a new issue into the database.
 func CreateIssue(i *Issue) error {
 	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
@@ -144,6 +150,7 @@ func CreateIssue(i *Issue) error {
 	return nil
 }
 
+// UpdateIssue updates an existing issue in the database.
 func UpdateIssue(i *Issue) error {
 	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
@@ -156,11 +163,13 @@ func UpdateIssue(i *Issue) error {
 	return err
 }
 
+// DeleteIssue removes an issue from the database by its ID.
 func DeleteIssue(id int) error {
 	_, err := DB.Exec("DELETE FROM issues WHERE id = ?", id)
 	return err
 }
 
+// CreateTask inserts a new task into the database.
 func CreateTask(t *Task) error {
 	stmt, err := DB.Prepare("INSERT INTO tasks(issue_id, title, done, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
 	if err != nil {
@@ -190,6 +199,7 @@ func CreateTask(t *Task) error {
 	return nil
 }
 
+// UpdateTask updates an existing task in the database.
 func UpdateTask(t *Task) error {
 	stmt, err := DB.Prepare("UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
@@ -202,6 +212,7 @@ func UpdateTask(t *Task) error {
 	return err
 }
 
+// DeleteTask removes a task from the database by its ID.
 func DeleteTask(id int) error {
 	_, err := DB.Exec("DELETE FROM tasks WHERE id = ?", id)
 	return err
