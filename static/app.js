@@ -274,6 +274,18 @@ function setupEventListeners() {
         updateDateInputStyle(input);
     });
 
+    // Custom Date Input Click Handling
+    document.querySelectorAll('.custom-date-input').forEach(container => {
+        container.addEventListener('click', () => {
+            const input = container.querySelector('input[type="date"]');
+            if (input && typeof input.showPicker === 'function') {
+                input.showPicker();
+            } else if (input) {
+                input.click();
+            }
+        });
+    });
+
     // Task Form Handling
     const addTaskBtn = document.getElementById('add-task-btn');
     if (addTaskBtn) {
@@ -633,7 +645,7 @@ function renderDeadlineList() {
         const now = new Date();
         const isOverdue = itemDeadline < now;
 
-        const date = itemDeadline.toLocaleDateString(undefined, {
+        const date = itemDeadline.toLocaleDateString(navigator.language, {
             weekday: 'short',
             month: 'short',
             day: 'numeric'
@@ -705,7 +717,7 @@ function renderPlanningPanel() {
     for (let i = 0; i < 10; i++) {
         const date = new Date(today);
         date.setDate(today.getDate() + i);
-        const dateStr = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        const dateStr = date.toLocaleDateString(navigator.language, { weekday: 'short', month: 'short', day: 'numeric' });
         const dateId = getLocalISODate(date);
         const dayContainer = createPlanningDayElement(dateStr, dateId);
         planningList.appendChild(dayContainer);
@@ -790,7 +802,7 @@ function createPlanningItem(issue) {
     // Hover handlers to highlight the corresponding card
     div.addEventListener('mouseenter', () => {
         const targetCard = document.querySelector(`.card[data-id="${issue.id}"]`);
-        if (targetCard && targetCard.offsetParent !== null) {
+        if (targetCard) {
             targetCard.classList.add('hover-highlight');
         }
     });
@@ -871,7 +883,7 @@ function createCardElement(issue, isBoard = false) {
             <div class="board-card-bottom">
                 <div class="board-card-id">#${issue.id}</div>
                 <div class="board-card-meta-right">
-                    ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
                     <div class="board-task-info">
                         <span class="board-task-icon">☑</span>
                         <span>${completedTasks}/${totalTasks}</span>
@@ -882,7 +894,7 @@ function createCardElement(issue, isBoard = false) {
                                     <li class="${t.done ? 'done' : ''}">
                                         <span class="tooltip-icon">${t.done ? '☑' : '☐'}</span>
                                         <span class="tooltip-title">${escapeHtml(t.title)}</span>
-                                        ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                                        ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                                     </li>
                                 `).join('')}
                             </ul>
@@ -909,7 +921,7 @@ function createCardElement(issue, isBoard = false) {
                         <div class="card-task-item">
                             <span class="card-task-icon">☐</span>
                             <span class="card-task-title">${escapeHtml(t.title)}</span>
-                            ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                            ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                         </div>
                     `).join('')}
                 </div>`;
@@ -921,7 +933,7 @@ function createCardElement(issue, isBoard = false) {
                 if (!hasDeadline && !showProgress) return '';
 
                 return `<div class="card-meta">
-                    ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString()}</span>` : '<span></span>'}
+                    ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language)}</span>` : '<span></span>'}
                     ${showProgress ? `<div class="board-task-info">
                         <span class="board-task-icon">☑</span>
                         <span>${completedTasks}/${totalTasks}</span>
@@ -1203,7 +1215,7 @@ function renderTasks(tasks) {
                 <div class="task-actions">
                     <div class="task-deadline-container ${!task.deadline ? 'no-deadline' : ''}" title="Set Deadline">
                         <span class="task-deadline task-deadline-display">
-                            ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '📅'}
+                            ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅'}
                         </span>
                         <input type="date" id="task-deadline-${task.id}" name="task_deadline_${task.id}" class="task-deadline-input" value="${task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : ''}">
                     </div>
@@ -1359,7 +1371,7 @@ function renderTasks(tasks) {
 
             // Update display
             const display = li.querySelector('.task-deadline-display');
-            display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '📅';
+            display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
 
             if (task.deadline) {
                 deadlineContainer.classList.remove('no-deadline');
@@ -1444,6 +1456,35 @@ function updateDateInputStyle(input) {
         input.classList.add('has-value');
     } else {
         input.classList.remove('has-value');
+    }
+
+    // Update custom display if present
+    const container = input.closest('.custom-date-input');
+    if (container) {
+        const display = container.querySelector('.custom-date-display');
+        if (display) {
+            if (input.value) {
+                // Parse YYYY-MM-DD to local date to avoid timezone issues
+                const [y, m, d] = input.value.split('-').map(Number);
+                const date = new Date(y, m - 1, d);
+                display.textContent = date.toLocaleDateString(navigator.language, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+                display.classList.remove('placeholder');
+            } else {
+                // For task input, we might want empty text or just icon?
+                // The CSS ::before adds the icon.
+                // If it's the task input, keep text empty to save space?
+                if (input.id === 'new-task-deadline') {
+                    display.textContent = '';
+                } else {
+                    display.textContent = 'Select date...';
+                }
+                display.classList.add('placeholder');
+            }
+        }
     }
 }
 
