@@ -79,6 +79,13 @@ function setupEventListeners() {
         }
     });
 
+    titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && titleInput.classList.contains('inline-editing')) {
+            e.preventDefault();
+            saveTitle();
+        }
+    });
+
     titleCancelBtn.addEventListener('mousedown', (e) => {
         e.preventDefault();
         cancelTitleEdit();
@@ -129,15 +136,54 @@ function setupEventListeners() {
     });
 
     // Blur listeners for click outside to cancel
-    titleInput.addEventListener('blur', () => {
+    titleInput.addEventListener('blur', async (e) => {
         if (titleInput.classList.contains('inline-editing')) {
-            cancelTitleEdit();
+            // Check if we should ignore this blur (e.g. clicking Save/Cancel buttons of the inline edit)
+            // Note: mousedown preventDefault on inline buttons handles this, but for other elements:
+            const related = e.relatedTarget;
+            // If clicking main form buttons, we might want to allow it, but for safety we show warning if changed.
+            // Actually, if clicking Main Save, the form submits. 
+            // If we show modal, we interrupt.
+
+            const currentVal = titleInput.value.trim();
+            if (currentVal !== originalTitle) {
+                const save = await showConfirm(
+                    'Unsaved Changes',
+                    'You have unsaved changes in the title. Do you want to save them?',
+                    'Save',
+                    'Discard',
+                    'primary'
+                );
+                if (save) {
+                    saveTitle();
+                } else {
+                    cancelTitleEdit();
+                }
+            } else {
+                cancelTitleEdit();
+            }
         }
     });
 
-    descEditor.addEventListener('blur', () => {
+    descEditor.addEventListener('blur', async () => {
         if (descContainer.classList.contains('inline-editing')) {
-            cancelDescEdit();
+            const currentVal = descEditor.innerHTML;
+            if (currentVal !== originalDesc) {
+                const save = await showConfirm(
+                    'Unsaved Changes',
+                    'You have unsaved changes in the description. Do you want to save them?',
+                    'Save',
+                    'Discard',
+                    'primary'
+                );
+                if (save) {
+                    saveDesc();
+                } else {
+                    cancelDescEdit();
+                }
+            } else {
+                cancelDescEdit();
+            }
         }
     });
 
@@ -1042,11 +1088,18 @@ function showModalNotification(message) {
 }
 
 // Custom Confirmation Dialog
-function showConfirm(title, message, okButtonText = 'Delete') {
+// Custom Confirmation Dialog
+function showConfirm(title, message, okButtonText = 'Delete', cancelButtonText = 'Cancel', okButtonClass = 'danger') {
     return new Promise((resolve) => {
         confirmTitle.textContent = title;
         confirmMessage.textContent = message;
         confirmOkBtn.textContent = okButtonText;
+        confirmCancelBtn.textContent = cancelButtonText;
+
+        // Reset classes and add specific one
+        confirmOkBtn.className = 'btn';
+        confirmOkBtn.classList.add(okButtonClass);
+
         confirmModal.classList.remove('hidden');
 
         const handleOk = () => {
@@ -1264,12 +1317,28 @@ function renderTasks(tasks) {
         });
 
         // Blur - Cancel edit
-        titleInput.addEventListener('blur', (e) => {
+        titleInput.addEventListener('blur', async (e) => {
             // We use a small timeout or check relatedTarget to see if we clicked a button
             // But mousedown.preventDefault() on buttons handles the relatedTarget issue mostly.
             // If user clicks outside, we cancel.
             if (li.classList.contains('editing')) {
-                cancelEdit();
+                const currentVal = titleInput.value.trim();
+                if (currentVal !== originalTitle) {
+                    const save = await showConfirm(
+                        'Unsaved Changes',
+                        'You have unsaved changes in this task. Do you want to save them?',
+                        'Save',
+                        'Discard',
+                        'primary'
+                    );
+                    if (save) {
+                        saveTask();
+                    } else {
+                        cancelEdit();
+                    }
+                } else {
+                    cancelEdit();
+                }
             }
         });
 
