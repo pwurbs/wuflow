@@ -89,7 +89,30 @@ function setupEventListeners() {
         saveTitle();
     });
 
-    descEditor.addEventListener('click', () => {
+    descEditor.addEventListener('click', (e) => {
+        // Check if clicked element is a link or inside a link
+        let node = e.target;
+        while (node && node !== descEditor) {
+            if (node.tagName === 'A') {
+                // It's a link
+                if (descContainer.classList.contains('inline-editable')) {
+                    // Non-edit mode: let default behavior happen (open link)
+                    return;
+                } else {
+                    // Edit mode: contenteditable prevents default link click
+                    // We need to manually open it
+                    // But we only want to open if it was a direct click, not a selection
+                    // For now, let's just open it.
+                    // Actually, contenteditable usually requires Ctrl+Click or similar.
+                    // User requested "click on the URL should open the web page".
+                    // So we force open it.
+                    window.open(node.href, '_blank');
+                    return;
+                }
+            }
+            node = node.parentNode;
+        }
+
         if (descContainer.classList.contains('inline-editable')) {
             enterDescEdit();
         }
@@ -232,12 +255,45 @@ function setupEventListeners() {
     const toolbarBtns = document.querySelectorAll('.editor-btn');
 
     function updateToolbarState() {
+        const selection = window.getSelection();
+        let inLink = false;
+        if (selection.rangeCount > 0) {
+            let node = selection.anchorNode;
+            while (node && node !== editor && node !== document.body) {
+                if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'A') {
+                    inLink = true;
+                    break;
+                }
+                node = node.parentNode;
+            }
+        }
+
         toolbarBtns.forEach(btn => {
             const cmd = btn.dataset.cmd;
-            if (document.queryCommandState(cmd)) {
-                btn.classList.add('active');
+
+            if (cmd === 'createLink') {
+                if (inLink) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            } else if (cmd === 'underline') {
+                // Don't highlight underline button if we are in a link
+                if (inLink) {
+                    btn.classList.remove('active');
+                } else {
+                    if (document.queryCommandState(cmd)) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                }
             } else {
-                btn.classList.remove('active');
+                if (document.queryCommandState(cmd)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             }
         });
     }
@@ -252,7 +308,33 @@ function setupEventListeners() {
             e.preventDefault();
             // Use currentTarget to ensure we get the button even if clicking the SVG/icon inside
             const cmd = e.currentTarget.dataset.cmd;
-            document.execCommand(cmd, false, null);
+
+            if (cmd === 'createLink') {
+                const selection = window.getSelection();
+                let url = selection.toString().trim();
+
+                if (url) {
+                    if (!/^https?:\/\//i.test(url)) {
+                        url = 'https://' + url;
+                    }
+                    document.execCommand(cmd, false, url);
+
+                    // Add target="_blank" to the newly created link
+                    let anchor = null;
+                    if (selection.anchorNode.nodeType === Node.ELEMENT_NODE && selection.anchorNode.tagName === 'A') {
+                        anchor = selection.anchorNode;
+                    } else if (selection.anchorNode.parentElement && selection.anchorNode.parentElement.tagName === 'A') {
+                        anchor = selection.anchorNode.parentElement;
+                    }
+
+                    if (anchor) {
+                        anchor.target = '_blank';
+                    }
+                }
+            } else {
+                document.execCommand(cmd, false, null);
+            }
+
             editor.focus(); // Keep focus in editor
             updateToolbarState();
         });

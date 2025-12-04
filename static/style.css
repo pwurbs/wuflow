@@ -664,9 +664,12 @@ input:-webkit-autofill:active,
     outline: none;
     width: 100%;
     min-width: 0;
+    cursor: default;
 }
 
-
+.task-item.editing .task-title-input {
+    cursor: text;
+}
 
 /* Edit Actions */
 .inline-edit-actions {
@@ -1283,8 +1286,14 @@ header {
 .inline-editable {
     background-color: rgba(11, 17, 33, 0.6) !important;
     border: 1px solid var(--card-border) !important;
-    cursor: pointer;
+    cursor: default;
     transition: background-color 0.2s, border-color 0.2s;
+}
+
+.rich-editor a {
+    cursor: pointer;
+    color: var(--primary-hover);
+    text-decoration: underline;
 }
 
 .inline-editable:hover {
