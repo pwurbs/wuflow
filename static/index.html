@@ -37,38 +37,59 @@
 
         <div class="main-content">
             <div class="board">
-                <div class="column" data-status="Todo">
-                    <div class="column-header">
-                        <h2>Todo</h2>
-                        <span class="count">0</span>
+                <div class="board-columns">
+                    <div class="column" data-status="Todo">
+                        <div class="column-header">
+                            <h2>Todo</h2>
+                            <span class="count">0</span>
+                        </div>
+                        <div class="column-content" id="col-todo">
+                            <!-- Issues will be injected here -->
+                        </div>
                     </div>
-                    <div class="column-content" id="col-todo">
-                        <!-- Issues will be injected here -->
-                    </div>
-                </div>
 
-                <div class="column" data-status="Pending">
-                    <div class="column-header">
-                        <h2>Pending</h2>
-                        <span class="count">0</span>
+                    <div class="column" data-status="Pending">
+                        <div class="column-header">
+                            <h2>Pending</h2>
+                            <span class="count">0</span>
+                        </div>
+                        <div class="column-content" id="col-pending"></div>
                     </div>
-                    <div class="column-content" id="col-pending"></div>
-                </div>
 
-                <div class="column" data-status="Working">
-                    <div class="column-header">
-                        <h2>Working</h2>
-                        <span class="count">0</span>
+                    <div class="column" data-status="Working">
+                        <div class="column-header">
+                            <h2>Working</h2>
+                            <span class="count">0</span>
+                        </div>
+                        <div class="column-content" id="col-working"></div>
                     </div>
-                    <div class="column-content" id="col-working"></div>
-                </div>
 
-                <div class="column" data-status="Done">
-                    <div class="column-header">
-                        <h2>Done</h2>
-                        <span class="count">0</span>
+                    <div class="column" data-status="Done">
+                        <div class="column-header">
+                            <h2>Done</h2>
+                            <span class="count">0</span>
+                        </div>
+                        <div class="column-content" id="col-done"></div>
                     </div>
-                    <div class="column-content" id="col-done"></div>
+
+                    <aside class="sidebar">
+                        <div id="deadlines-panel">
+                            <div class="sidebar-header">
+                                <h3>Upcoming Deadlines</h3>
+                                <span class="count" id="deadline-count">0</span>
+                            </div>
+                            <ul id="deadline-list"></ul>
+                        </div>
+                        <div id="planning-panel" class="hidden">
+                            <div class="sidebar-header">
+                                <h3>Planning</h3>
+                                <span class="count" id="planning-count">0</span>
+                            </div>
+                            <div id="planning-list">
+                                <!-- Planning days will be injected here -->
+                            </div>
+                        </div>
+                    </aside>
                 </div>
             </div>
 
@@ -87,24 +108,7 @@
                 </div>
             </div>
 
-            <aside class="sidebar">
-                <div id="deadlines-panel">
-                    <div class="sidebar-header">
-                        <h3>Upcoming Deadlines</h3>
-                        <span class="count" id="deadline-count">0</span>
-                    </div>
-                    <ul id="deadline-list"></ul>
-                </div>
-                <div id="planning-panel" class="hidden">
-                    <div class="sidebar-header">
-                        <h3>Planning</h3>
-                        <span class="count" id="planning-count">0</span>
-                    </div>
-                    <div id="planning-list">
-                        <!-- Planning days will be injected here -->
-                    </div>
-                </div>
-            </aside>
+
         </div>
     </div>
 
