@@ -104,6 +104,8 @@ h1 {
     flex: 1;
     padding-bottom: 20px;
     min-width: 0;
+    overflow-y: auto;
+    /* Allow vertical scrolling for the whole board */
 }
 
 .sidebar {
@@ -204,7 +206,8 @@ h1 {
     flex-shrink: 1;
     display: flex;
     flex-direction: column;
-    max-height: 100%;
+    height: fit-content;
+    /* Allow column to grow */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     border: 1px solid var(--card-border);
 }
@@ -214,6 +217,11 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--column-bg);
+    border-radius: 8px 8px 0 0;
 }
 
 .column-header h2,
@@ -241,7 +249,10 @@ h1 {
 .column-content {
     padding: 8px 8px 8px;
     flex: 1;
-    overflow-y: auto;
+    padding: 8px 8px 8px;
+    flex: 1;
+    overflow: visible;
+    /* Allow tooltip to overflow */
     min-height: 100px;
 }
 
@@ -261,6 +272,7 @@ h1 {
     transform: translateY(-4px);
     box-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
     border: 1px solid var(--accent-blue);
+    z-index: 50;
 }
 
 .card.dragging {
@@ -1383,6 +1395,73 @@ header {
     display: flex;
     align-items: center;
     gap: 2px;
+}
+
+.board-task-tooltip {
+    display: none;
+    position: absolute;
+    position: absolute;
+    top: 52px;
+    left: auto;
+    right: -28px;
+    /* Align with next column left border (8px padding + 20px gap) */
+    width: 258px;
+    /* Maintain left position (230px from right) */
+    background-color: var(--card-bg);
+    border: 1px solid #475569;
+    border-radius: 4px;
+    padding: 8px;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.board-task-info:hover .board-task-tooltip {
+    display: block;
+}
+
+.board-task-tooltip ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.board-task-tooltip li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--text-color);
+    line-height: 1.4;
+}
+
+.board-task-tooltip li:last-child {
+    margin-bottom: 0;
+}
+
+.board-task-tooltip li.done {
+    text-decoration: line-through;
+    color: var(--muted-text);
+}
+
+.board-task-tooltip .tooltip-icon {
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.board-task-tooltip .tooltip-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.tooltip-deadline {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--muted-text);
+    white-space: nowrap;
 }
 
 .board-task-icon {

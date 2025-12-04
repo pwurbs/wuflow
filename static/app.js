@@ -747,6 +747,19 @@ function createCardElement(issue, isBoard = false) {
                     <div class="board-task-info">
                         <span class="board-task-icon">☑</span>
                         <span>${completedTasks}/${totalTasks}</span>
+                        ${issue.tasks && issue.tasks.length > 0 ? `
+                        <div class="board-task-tooltip">
+                            <ul>
+                                ${issue.tasks.map(t => `
+                                    <li class="${t.done ? 'done' : ''}">
+                                        <span class="tooltip-icon">${t.done ? '☑' : '☐'}</span>
+                                        <span class="tooltip-title">${escapeHtml(t.title)}</span>
+                                        ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -1133,8 +1146,7 @@ function renderTasks(tasks) {
                 task.title = newTitle;
                 await updateTask(task);
                 showModalNotification('Task updated');
-                // We don't fetchIssues() here to avoid full re-render which kills the DOM state, 
-                // but we should update the global state if needed.
+                fetchIssues();
             }
             exitEditMode();
         };
@@ -1192,7 +1204,7 @@ function renderTasks(tasks) {
             task.deadline = newDate;
             await updateTask(task);
             showModalNotification('Task deadline updated');
-            renderBoard();
+            fetchIssues();
 
             // Update display
             const display = li.querySelector('.task-deadline-display');
