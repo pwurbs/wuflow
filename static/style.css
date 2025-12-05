@@ -984,6 +984,9 @@ header {
     margin-bottom: 0;
     font-weight: 500;
     line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .backlog-list .card-description {
@@ -1566,7 +1569,9 @@ header {
 
 .input-group .custom-date-input.task-input-date .custom-date-display::before {
     font-size: 13px;
-}/* Left Menu Sidebar */
+}
+
+/* Left Menu Sidebar */
 .left-menu {
     width: 64px;
     background-color: var(--column-bg);
@@ -1579,12 +1584,14 @@ header {
     border: 1px solid var(--card-border);
     flex-shrink: 0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-    z-index: 20; /* Ensure it stays above if needed */
+    z-index: 20;
+    /* Ensure it stays above if needed */
 }
 
 /* Ensure main content handles the new flex item properly */
 .main-content {
-    gap: 20px; /* Maintains gap between menu and content */
+    gap: 20px;
+    /* Maintains gap between menu and content */
 }
 
 /* Menu Buttons */
@@ -1609,7 +1616,8 @@ header {
 }
 
 .menu-btn.active {
-    background-color: rgba(59, 130, 246, 0.15); /* Tinted background for active */
+    background-color: rgba(59, 130, 246, 0.15);
+    /* Tinted background for active */
     color: var(--accent-blue);
     border: 1px solid var(--accent-blue);
 }
@@ -1625,7 +1633,8 @@ header {
     left: 100%;
     top: 50%;
     transform: translateY(-50%) translateX(10px);
-    background-color: #1e293b; /* Darker tooltip bg */
+    background-color: #1e293b;
+    /* Darker tooltip bg */
     color: white;
     padding: 6px 12px;
     border-radius: 4px;
