@@ -1,0 +1,124 @@
+.card {
+  background-color: var(--card-bg);
+  border-radius: 4px;
+  padding: 6px 10px 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border 0.2s ease;
+  border: 1px solid var(--card-border);
+}
+
+.card:hover {
+  background-color: var(--hover-bg);
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
+  border: 1px solid var(--accent-blue);
+  z-index: 50;
+}
+
+.card.dragging {
+  opacity: 0.5;
+}
+
+.card.highlighted {
+  background-color: rgba(88, 166, 255, 0.15);
+  box-shadow: 0 0 0 3px var(--primary-color);
+  animation: pulse 0.5s ease-in-out;
+}
+
+.card.hover-highlight {
+  background-color: var(--hover-bg);
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
+  border: 1px solid var(--accent-blue);
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.card-id {
+  font-size: 12px;
+  color: var(--muted-text);
+  margin-right: 4px;
+  font-weight: 400;
+}
+
+.card-title {
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--header-text);
+}
+
+.card-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: var(--muted-text);
+  margin-top: 4px;
+  line-height: 1.4;
+  max-height: calc(1.4 * 13px * 2);
+}
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted-text);
+  margin-top: 8px;
+}
+
+/* Tasks on Card */
+.card-tasks {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-task-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted-text);
+  padding: 2px 0;
+}
+
+.card-task-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.card-task-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-task-deadline {
+  font-size: 10px;
+  color: var(--muted-text);
+  margin-left: auto;
+}
+
+/* Task Deadlines - Keeping consistent with original override */
+.task-deadline {
+  font-size: 11px;
+  color: var(--muted-text);
+  margin-left: 8px;
+}

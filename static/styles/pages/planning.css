@@ -1,0 +1,93 @@
+/* Planning Panel */
+#planning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.planning-day {
+  padding: 8px 12px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.planning-day-header {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.planning-date {
+  font-weight: 500;
+  color: var(--primary-color);
+}
+
+.planning-day-content {
+  min-height: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.planning-day.drag-over {
+  background-color: var(--hover-bg);
+  border-color: var(--accent-blue);
+  border-style: dashed;
+}
+
+.planning-day.past .planning-date {
+  color: var(--danger-color);
+}
+
+.planning-item {
+  padding: 1px 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 2px;
+  font-size: 13px;
+  cursor: grab;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.planning-item::before {
+  content: "•";
+  font-size: 18px;
+  line-height: 0.8;
+  color: var(--muted-text);
+  flex-shrink: 0;
+}
+
+.planning-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.planning-item.hover-highlight {
+  background-color: rgba(88, 166, 255, 0.15);
+  color: var(--accent-blue);
+}
+
+/* Empty State Styling */
+.planning-day.empty:not(.past) {
+  opacity: 0.6;
+}
+
+.planning-day.empty:hover {
+  opacity: 1;
+}

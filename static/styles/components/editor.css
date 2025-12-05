@@ -1,0 +1,146 @@
+/* Rich Text Editor */
+.editor-container {
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  background-color: var(--bg-color);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 300px;
+  position: relative;
+}
+
+.editor-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background-color: var(--column-bg);
+  border-bottom: 1px solid var(--card-border);
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.editor-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-btn:hover,
+.editor-btn.active {
+  background-color: var(--hover-bg);
+  border-color: var(--card-border);
+}
+
+.editor-btn.active {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.separator {
+  color: var(--muted-text);
+  margin: 0 4px;
+  font-size: 12px;
+}
+
+.rich-editor {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 200;
+  line-height: 1.4;
+}
+
+.rich-editor ul,
+.rich-editor ol {
+  padding-left: 24px;
+  margin-bottom: 8px;
+}
+
+.rich-editor p {
+  margin-bottom: 8px;
+}
+
+/* Ensure lists in the editor look correct */
+.rich-editor li {
+  margin-bottom: 0;
+}
+
+.rich-editor b,
+.rich-editor strong {
+  font-weight: 700;
+}
+
+.rich-editor i,
+.rich-editor em {
+  font-style: italic;
+}
+
+.rich-editor a {
+  cursor: pointer;
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+/* Inline Editing Styles for Title and Description */
+.inline-editable {
+  background-color: rgba(11, 17, 33, 0.6) !important;
+  border: 1px solid var(--card-border) !important;
+  cursor: default;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.inline-editable:hover {
+  border-color: var(--card-border);
+}
+
+.inline-editing {
+  background-color: var(--bg-color) !important;
+  border-color: var(--primary-color) !important;
+  cursor: text;
+}
+
+/* Hide toolbar when not editing description in inline mode */
+.editor-container.inline-editable .editor-toolbar {
+  display: none;
+}
+
+/* Ensure title input looks correct in inline mode */
+#title.inline-editable {
+  color: var(--text-color);
+}
+
+/* Title Inline Edit Positioning */
+.title-input-container {
+  position: relative;
+}
+
+#title-edit-actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--bg-color);
+  padding-left: 4px;
+  z-index: 2;
+}
+
+#title {
+  padding-right: 70px;
+  /* Make space for buttons */
+}

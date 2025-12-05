@@ -1,0 +1,46 @@
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.btn.primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn.primary:hover {
+  background-color: var(--primary-hover);
+}
+
+#add-issue-btn {
+  background-color: #16a34a;
+}
+
+#add-issue-btn:hover {
+  background-color: var(--success-color);
+}
+
+.btn.secondary {
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+  border: 1px solid var(--card-border);
+}
+
+.btn.secondary:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--muted-text);
+}
+
+.btn.danger {
+  background-color: var(--danger-color);
+  color: white;
+}
+
+.btn.danger:hover {
+  background-color: #b8442f;
+}

@@ -1,0 +1,16 @@
+:root {
+  --bg-color: #0b1121;
+  --text-color: #e2e8f0;
+  --column-bg: #151e32;
+  --card-bg: #1e293b;
+  --card-border: #2d3b55;
+  --primary-color: #3b82f6;
+  --primary-hover: #60a5fa;
+  --accent-blue: #3b82f6;
+  --secondary-color: #151e32;
+  --danger-color: #ef4444;
+  --success-color: #22c55e;
+  --header-text: #f8fafc;
+  --muted-text: #94a3b8;
+  --hover-bg: #2d3b55;
+}

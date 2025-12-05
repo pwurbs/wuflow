@@ -1,0 +1,116 @@
+/* Backlog View */
+#backlog-view {
+  flex: 1;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  overflow-y: auto;
+  min-width: 0;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.backlog-section {
+  background-color: var(--column-bg);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--card-border);
+  padding-bottom: 12px;
+}
+
+.backlog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+}
+
+/* Shared Header Styling */
+.backlog-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.backlog-header .count {
+  background-color: #16a34a;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#move-to-todo-list {
+  min-height: 80px;
+  border-radius: 8px;
+  background-color: transparent;
+  border: 2px dashed transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#move-to-todo-list.drag-over {
+  background-color: rgba(88, 166, 255, 0.1);
+  border-color: var(--accent-blue);
+}
+
+.backlog-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 20px;
+}
+
+.backlog-list .card {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 12px;
+}
+
+.backlog-list .card-title {
+  margin-bottom: 0;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.backlog-list .card-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: var(--muted-text);
+  margin-top: 4px;
+  line-height: 1.4;
+  min-height: calc(1.4 * 13px);
+}
+
+.backlog-list .task-progress {
+  display: flex;
+}
+
+.backlog-list .card-main-content {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16px;
+}
+
+.backlog-list .card-meta {
+  margin-top: 0;
+  gap: 16px;
+  white-space: nowrap;
+}

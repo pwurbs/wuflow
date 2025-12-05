@@ -1,0 +1,141 @@
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background-color: var(--column-bg);
+  color: var(--text-color);
+  border: 1px solid var(--card-border);
+  padding: 24px;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+  max-height: 90vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.issue-modal-content {
+  width: 1170px;
+  /* Wider modal (30% increase) */
+}
+
+#modal-title {
+  margin-bottom: 24px;
+}
+
+#issue-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal-body {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 20px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.modal-main {
+  flex: 1;
+  /* Takes remaining width */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-main .form-group,
+.modal-sidebar .form-group {
+  margin-bottom: 0;
+}
+
+.description-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-sidebar {
+  flex: 0 0 260px;
+  /* Fixed width, keeping original size approx */
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-left: 20px;
+  border-left: 1px solid var(--card-border);
+}
+
+.sidebar-placeholder {
+  opacity: 0.6;
+}
+
+.sidebar-placeholder .placeholder-label {
+  font-size: 12px;
+  color: var(--muted-text);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.placeholder-box {
+  background-color: var(--bg-color);
+  border: 1px solid var(--card-border);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--muted-text);
+}
+
+.comments-section-placeholder h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted-text);
+  margin-bottom: 8px;
+}
+
+/* Comments Section Separator */
+.comments-section-placeholder {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--card-border);
+  opacity: 0.5;
+}
+
+/* Confirmation Modal */
+.modal-content.confirm {
+  width: 400px;
+  max-width: 90%;
+}
+
+.modal-content.confirm h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.modal-content.confirm p {
+  font-size: 14px;
+  line-height: 1.6;
+}
