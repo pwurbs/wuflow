@@ -1,0 +1,129 @@
+/* setup.css - Styles for the Setup page */
+
+#setup-view {
+    flex: 1;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    overflow-y: auto;
+    min-width: 0;
+    margin-bottom: 20px;
+}
+
+.setup-section {
+    background-color: var(--column-bg);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--card-border);
+    padding-bottom: 24px;
+    margin-bottom: 20px;
+    max-width: 800px;
+}
+
+.setup-section .column-header {
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: 16px;
+    background-color: var(--column-bg);
+}
+
+.setup-content {
+    padding: 0 24px;
+}
+
+.label-input-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    max-width: 480px;
+}
+
+.setup-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 200;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.setup-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: none;
+    outline: none;
+}
+
+.labels-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Label Chip Styles */
+.label-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Center content */
+    position: relative;
+    /* For absolute button */
+    width: 120px;
+    /* Width to fit 10 chars */
+    border-radius: 4px;
+    padding: 3px 24px 3px 24px;
+    /* Padding to prevent text overlap with button */
+    font-size: 13px;
+    font-weight: 500;
+    color: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    transition: transform 0.1s;
+}
+
+.label-item:hover {
+    transform: translateY(-1px);
+}
+
+.label-name {
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+}
+
+.delete-label-btn {
+    position: absolute;
+    right: 4px;
+    /* Fix to right edge */
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.delete-label-btn:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.no-data,
+.error,
+.loader {
+    color: var(--muted-text);
+    font-style: italic;
+    padding: 12px 0;
+}

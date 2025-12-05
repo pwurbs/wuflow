@@ -4,14 +4,17 @@ import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
 import { renderDeadlineList } from './components/deadlines.js';
+import { setupSetupView, renderSetupView } from './components/setup.js';
 import { setupModal, openModal, closeModal } from './components/modal.js';
 import { showModalNotification } from './utils.js';
 
 // DOM Elements
 const navBoard = document.getElementById('nav-board');
 const navBacklog = document.getElementById('nav-backlog');
+const navSetup = document.getElementById('nav-setup');
 const boardView = document.querySelector('.board');
 const backlogView = document.getElementById('backlog-view');
+const setupView = document.getElementById('setup-view');
 const sidebar = document.querySelector('.sidebar');
 const viewToggles = document.querySelector('.view-toggles');
 const btnDeadlines = document.getElementById('btn-deadlines');
@@ -27,6 +30,7 @@ async function init() {
     setupEventListeners();
     setupBoardView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
+    setupSetupView();
     setupModal(refreshApp); // Pass refresh callback
     await refreshApp();
 }
@@ -48,6 +52,7 @@ function setupEventListeners() {
     // Navigation
     navBoard.addEventListener('click', () => switchView('board'));
     navBacklog.addEventListener('click', () => switchView('backlog'));
+    navSetup.addEventListener('click', () => switchView('setup'));
 
     // Sidebar Toggles
     btnDeadlines.addEventListener('click', () => toggleSidebar('deadlines'));
@@ -75,17 +80,38 @@ function switchView(view) {
     if (view === 'board') {
         boardView.classList.remove('hidden');
         backlogView.classList.add('hidden');
+        setupView.classList.add('hidden');
+
         navBoard.classList.add('active');
         navBacklog.classList.remove('active');
+        navSetup.classList.remove('active');
+
         sidebar.classList.remove('hidden');
         viewToggles.classList.remove('hidden');
-    } else {
+    } else if (view === 'backlog') {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');
+        setupView.classList.add('hidden');
+
         navBoard.classList.remove('active');
         navBacklog.classList.add('active');
+        navSetup.classList.remove('active');
+
         sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
+    } else if (view === 'setup') {
+        boardView.classList.add('hidden');
+        backlogView.classList.add('hidden');
+        setupView.classList.remove('hidden');
+
+        navBoard.classList.remove('active');
+        navBacklog.classList.remove('active');
+        navSetup.classList.add('active');
+
+        sidebar.classList.add('hidden');
+        viewToggles.classList.add('hidden');
+
+        renderSetupView();
     }
 }
 

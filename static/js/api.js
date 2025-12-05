@@ -54,3 +54,34 @@ export async function deleteTask(id) {
 export async function deleteIssue(id) {
   await fetch(`${API_URL}/issues/${id}`, { method: 'DELETE' });
 }
+
+export async function fetchLabels() {
+  const response = await fetch(`${API_URL}/labels`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch labels');
+  }
+  return await response.json();
+}
+
+export async function createLabel(label) {
+  const response = await fetch(`${API_URL}/labels`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(label),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to create label');
+  }
+  return await response.json();
+}
+
+export async function deleteLabel(id) {
+  const response = await fetch(`${API_URL}/labels/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to delete label');
+  }
+}

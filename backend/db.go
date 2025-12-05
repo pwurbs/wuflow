@@ -60,6 +60,16 @@ func createTables() {
 	if _, err := DB.Exec(createTasksTable); err != nil {
 		log.Fatal(err)
 	}
+
+	createLabelsTable := `
+	CREATE TABLE IF NOT EXISTS labels (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		color TEXT NOT NULL
+	);`
+	if _, err := DB.Exec(createLabelsTable); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Helper functions for DB operations
@@ -215,5 +225,51 @@ func UpdateTask(t *Task) error {
 // DeleteTask removes a task from the database by its ID.
 func DeleteTask(id int) error {
 	_, err := DB.Exec("DELETE FROM tasks WHERE id = ?", id)
+	return err
+}
+
+// GetAllLabels retrieves all labels from the database.
+func GetAllLabels() ([]Label, error) {
+	rows, err := DB.Query("SELECT id, name, color FROM labels ORDER BY name ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	labels := []Label{} // Initialize as empty slice to ensure JSON [] instead of null
+	for rows.Next() {
+		var l Label
+		if err := rows.Scan(&l.ID, &l.Name, &l.Color); err != nil {
+			return nil, err
+		}
+		labels = append(labels, l)
+	}
+	return labels, nil
+}
+
+// CreateLabel inserts a new label into the database.
+func CreateLabel(l *Label) error {
+	stmt, err := DB.Prepare("INSERT INTO labels(name, color) VALUES(?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	res, err := stmt.Exec(l.Name, l.Color)
+	if err != nil {
+		return err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	l.ID = int(id)
+	return nil
+}
+
+// DeleteLabel removes a label from the database by its ID.
+func DeleteLabel(id int) error {
+	_, err := DB.Exec("DELETE FROM labels WHERE id = ?", id)
 	return err
 }

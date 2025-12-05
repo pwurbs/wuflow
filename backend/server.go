@@ -25,6 +25,8 @@ func StartServer(port string, dbPath string, embeddedFiles embed.FS) {
 	http.HandleFunc("/api/issues", HandleIssues)
 	http.HandleFunc("/api/issues/", HandleIssuesRoute)
 	http.HandleFunc("/api/tasks/", HandleTask)
+	http.HandleFunc("/api/labels", HandleLabels)
+	http.HandleFunc("/api/labels/", HandleLabel)
 
 	fmt.Printf("Server starting on port %s\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))

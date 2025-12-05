@@ -13,14 +13,15 @@
 /* Components */
 @import "./components/buttons.css";
 @import "./components/cards.css";
-@import "./components/modals.css";
-@import "./components/forms.css";
-@import "./components/toasts.css";
 @import "./components/editor.css";
-@import "./components/tasks.css";
+@import "./components/forms.css";
 @import "./components/menu.css";
+@import "./components/modals.css";
+@import "./components/tasks.css";
+@import "./components/toasts.css";
 
 /* Pages */
-@import "./pages/board.css";
 @import "./pages/backlog.css";
+@import "./pages/board.css";
 @import "./pages/planning.css";
+@import "./pages/setup.css";
