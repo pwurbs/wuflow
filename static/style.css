@@ -1566,4 +1566,104 @@ header {
 
 .input-group .custom-date-input.task-input-date .custom-date-display::before {
     font-size: 13px;
+}/* Left Menu Sidebar */
+.left-menu {
+    width: 64px;
+    background-color: var(--column-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--card-border);
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    z-index: 20; /* Ensure it stays above if needed */
+}
+
+/* Ensure main content handles the new flex item properly */
+.main-content {
+    gap: 20px; /* Maintains gap between menu and content */
+}
+
+/* Menu Buttons */
+.menu-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background-color: transparent;
+    color: var(--muted-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.menu-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.menu-btn.active {
+    background-color: rgba(59, 130, 246, 0.15); /* Tinted background for active */
+    color: var(--accent-blue);
+    border: 1px solid var(--accent-blue);
+}
+
+.menu-btn svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Tooltips */
+.menu-tooltip {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    background-color: #1e293b; /* Darker tooltip bg */
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    border: 1px solid var(--card-border);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+}
+
+/* Arrow for tooltip */
+.menu-tooltip::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 5px 5px 5px 0;
+    border-style: solid;
+    border-color: transparent var(--card-border) transparent transparent;
+}
+
+.menu-tooltip::after {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 4px 4px 4px 0;
+    border-style: solid;
+    border-color: transparent #1e293b transparent transparent;
+}
+
+.menu-btn:hover .menu-tooltip {
+    opacity: 1;
+    transform: translateY(-50%) translateX(14px);
 }

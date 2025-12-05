@@ -1,3 +1,4 @@
 .DS_Store
 *.db
 /bin
+coverage.out
