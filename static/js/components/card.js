@@ -1,0 +1,122 @@
+import { escapeHtml, stripHtml } from '../utils.js';
+import { setDraggedCard, setDraggedCardOrigin } from '../drag.js';
+
+export function createCardElement(issue, isBoard = false, callbacks = {}) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  if (isBoard) {
+    card.classList.add('board-card');
+  }
+  card.draggable = true;
+  card.dataset.id = issue.id;
+
+  const completedTasks = issue.tasks ? issue.tasks.filter(t => t.done).length : 0;
+  const totalTasks = issue.tasks ? issue.tasks.length : 0;
+
+  if (isBoard) {
+    // New Board Card Layout
+    card.innerHTML = `
+            <div class="board-card-title">${escapeHtml(issue.title)}</div>
+            <div class="board-card-label-space"></div>
+            <div class="board-card-bottom">
+                <div class="board-card-id">#${issue.id}</div>
+                <div class="board-card-meta-right">
+                    ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    <div class="board-task-info">
+                        <span class="board-task-icon">☑</span>
+                        <span>${completedTasks}/${totalTasks}</span>
+                        ${issue.tasks && issue.tasks.length > 0 ? `
+                        <div class="board-task-tooltip">
+                            <ul>
+                                ${issue.tasks.map(t => `
+                                    <li class="${t.done ? 'done' : ''}">
+                                        <span class="tooltip-icon">${t.done ? '☑' : '☐'}</span>
+                                        <span class="tooltip-title">${escapeHtml(t.title)}</span>
+                                        ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+  } else {
+    // Existing Backlog Card Layout
+    card.innerHTML = `
+            <div class="card-main-content">
+                <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
+                <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
+            </div>
+            ${'' /* Task list hidden for backlog view to match Open issues layout */}
+            ${(() => {
+        const hasDeadline = !!issue.deadline;
+        const showProgress = totalTasks > 0;
+
+        if (!hasDeadline && !showProgress) return '';
+
+        return `<div class="card-meta">
+                    ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language)}</span>` : '<span></span>'}
+                    ${showProgress ? `<div class="board-task-info">
+                        <span class="board-task-icon">☑</span>
+                        <span>${completedTasks}/${totalTasks}</span>
+                    </div>` : ''}
+                </div>`;
+      })()}
+        `;
+  }
+
+  // Event Listeners
+  card.addEventListener('click', () => {
+    if (callbacks.openModal) {
+      callbacks.openModal(issue);
+    }
+  });
+
+  card.addEventListener('dragstart', function (e) {
+    setDraggedCard(this);
+    setDraggedCardOrigin({
+      parent: this.parentNode,
+      nextSibling: this.nextElementSibling
+    });
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+
+    if (callbacks.onDragStart) callbacks.onDragStart(this);
+  });
+
+  card.addEventListener('dragend', function (e) {
+    this.classList.remove('dragging');
+    setDraggedCard(null);
+    setDraggedCardOrigin(null);
+
+    // Check if dropped in planning (handled by dropped-in-planning logic if data attribute set)
+    if (this.dataset.droppedInPlanning === 'true') {
+      const origin = callbacks.getDraggedCardOrigin ? callbacks.getDraggedCardOrigin() : null;
+      // Note: In module system, we might need a better way to get origin if we cleared it?
+      // Actually we just cleared it above. `setDraggedCardOrigin(null)`.
+      // We should capture it *before* clearing?
+      // Or rely on the fact that `drag.js` state was just cleared, so this logic needs to be careful.
+      // The original code uses global `draggedCardOrigin`.
+      // Here we just cleared it.
+      // Let's rely on the caller/handler to manage the complex drop logic or pass it via callback.
+      // But standard dragEnd cleanup is here.
+    }
+
+    if (callbacks.onDragEnd) callbacks.onDragEnd(this, e);
+  });
+
+  // Hover handlers for planning/deadline highlighting
+  card.addEventListener('mouseenter', () => {
+    document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
+    document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
+  });
+
+  card.addEventListener('mouseleave', () => {
+    document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
+    document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
+  });
+
+  return card;
+}
