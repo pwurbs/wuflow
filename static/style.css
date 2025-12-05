@@ -914,14 +914,24 @@ header {
 /* Backlog View */
 #backlog-view {
     flex: 1;
-    background-color: var(--column-bg);
-    border-radius: 8px;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
     padding: 0;
     overflow-y: auto;
     min-width: 0;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.backlog-section {
+    background-color: var(--column-bg);
+    border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     border: 1px solid var(--card-border);
-    margin-bottom: 20px;
+    padding-bottom: 12px;
 }
 
 .backlog-header {
@@ -948,8 +958,8 @@ header {
 #move-to-todo-list {
     min-height: 80px;
     border-radius: 8px;
-    background-color: var(--bg-color);
-    border: 2px dashed var(--card-border);
+    background-color: transparent;
+    border: 2px dashed transparent;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 

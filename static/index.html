@@ -90,17 +90,23 @@
             </div>
 
             <div id="backlog-view" class="hidden">
-                <div class="backlog-header" style="margin-bottom: 4px;">
-                    <h2>MOVE TO BOARD</h2>
+                <div id="backlog-todo-section" class="backlog-section">
+                    <div class="backlog-header" data-status="Todo">
+                        <h2>Move to Board (Todo)</h2>
+                        <span class="count" id="todo-count">0</span>
+                    </div>
+                    <div class="backlog-list" id="move-to-todo-list">
+                    </div>
                 </div>
-                <div class="backlog-list" id="move-to-todo-list" style="margin-bottom: 24px;">
-                </div>
-                <div class="backlog-header">
-                    <h2>Backlog</h2>
-                    <span class="count" id="backlog-count">0</span>
-                </div>
-                <div class="backlog-list" id="backlog-list">
-                    <!-- Backlog issues will be injected here -->
+
+                <div id="backlog-open-section" class="backlog-section">
+                    <div class="backlog-header" data-status="Open">
+                        <h2>Backlog (Open)</h2>
+                        <span class="count" id="backlog-count">0</span>
+                    </div>
+                    <div class="backlog-list" id="backlog-list">
+                        <!-- Backlog issues will be injected here -->
+                    </div>
                 </div>
             </div>
 

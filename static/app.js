@@ -25,7 +25,6 @@ const navBacklog = document.getElementById('nav-backlog');
 const boardView = document.querySelector('.board');
 const backlogView = document.getElementById('backlog-view');
 const backlogList = document.getElementById('backlog-list');
-const backlogCount = document.getElementById('backlog-count');
 const statusSelect = document.getElementById('status');
 const deleteIssueBtn = document.getElementById('delete-issue-btn');
 const confirmModal = document.getElementById('confirm-modal');
@@ -243,8 +242,20 @@ function setupEventListeners() {
     // Drag and Drop for Container Backgrounds (to clear planned date)
     boardView.addEventListener('dragover', handleContainerDragOver);
     boardView.addEventListener('drop', handleContainerDrop);
-    backlogView.addEventListener('dragover', handleContainerDragOver);
-    backlogView.addEventListener('drop', handleContainerDrop);
+
+    // Backlog Sections Drag and Drop
+    const backlogTodoSection = document.getElementById('backlog-todo-section');
+    const backlogOpenSection = document.getElementById('backlog-open-section');
+
+    if (backlogTodoSection) {
+        backlogTodoSection.addEventListener('dragover', handleContainerDragOver);
+        backlogTodoSection.addEventListener('drop', handleContainerDrop);
+    }
+
+    if (backlogOpenSection) {
+        backlogOpenSection.addEventListener('dragover', handleContainerDragOver);
+        backlogOpenSection.addEventListener('drop', handleContainerDrop);
+    }
 
     // Drag and Drop for Move to Todo
     moveToTodoList.addEventListener('dragover', handleDragOver);
@@ -555,13 +566,16 @@ function renderBoard() {
     Object.values(columns).forEach(col => col.innerHTML = '');
 
     // Update counts
-    const counts = { Todo: 0, Pending: 0, Working: 0, Done: 0 };
+    const counts = { Todo: 0, Pending: 0, Working: 0, Done: 0, Open: 0 };
 
     // Sort issues by position
     issues.sort((a, b) => a.position - b.position);
 
     issues.forEach(issue => {
-        if (issue.status === 'Open') return; // Skip backlog issues
+        if (issue.status === 'Open') {
+            counts.Open++;
+            return; // Skip backlog issues for board columns
+        }
 
         const card = createCardElement(issue, true);
         if (columns[issue.status]) {
@@ -571,9 +585,12 @@ function renderBoard() {
     });
 
     // Update header counts
-    document.querySelectorAll('.column').forEach(col => {
-        const status = col.dataset.status;
-        col.querySelector('.count').textContent = counts[status];
+    document.querySelectorAll('[data-status]').forEach(el => {
+        const status = el.dataset.status;
+        const countEl = el.querySelector('.count');
+        if (countEl && counts[status] !== undefined) {
+            countEl.textContent = counts[status];
+        }
     });
 
     renderDeadlineList();
@@ -582,7 +599,6 @@ function renderBoard() {
 function renderBacklog() {
     moveToTodoList.innerHTML = '';
     backlogList.innerHTML = '';
-    let count = 0;
 
     // Sort issues by position
     const backlogIssues = issues.filter(i => i.status === 'Open');
@@ -591,10 +607,16 @@ function renderBacklog() {
     backlogIssues.forEach(issue => {
         const card = createCardElement(issue, false);
         backlogList.appendChild(card);
-        count++;
     });
 
-    backlogCount.textContent = count;
+    // Render Todo issues in Move to Board section
+    const todoIssues = issues.filter(i => i.status === 'Todo');
+    todoIssues.sort((a, b) => a.position - b.position);
+
+    todoIssues.forEach(issue => {
+        const card = createCardElement(issue, false);
+        moveToTodoList.appendChild(card);
+    });
 }
 
 function renderDeadlineList() {
@@ -911,24 +933,10 @@ function createCardElement(issue, isBoard = false) {
                 <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
                 <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
             </div>
-            ${(() => {
-                if (issue.status === 'Open' || !issue.tasks) return '';
-                const openTasks = issue.tasks.filter(t => !t.done);
-                if (openTasks.length === 0) return '';
-
-                return `<div class="card-tasks">
-                    ${openTasks.map(t => `
-                        <div class="card-task-item">
-                            <span class="card-task-icon">☐</span>
-                            <span class="card-task-title">${escapeHtml(t.title)}</span>
-                            ${t.deadline ? `<span class="card-task-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
-                        </div>
-                    `).join('')}
-                </div>`;
-            })()}
+            ${'' /* Task list hidden for backlog view to match Open issues layout */}
             ${(() => {
                 const hasDeadline = !!issue.deadline;
-                const showProgress = issue.status === 'Open' && totalTasks > 0;
+                const showProgress = totalTasks > 0;
 
                 if (!hasDeadline && !showProgress) return '';
 
@@ -1636,9 +1644,11 @@ function handleContainerDrop(e) {
     if (issue) {
         issue.planned_date = null;
 
-        // If dropped on Backlog view background, ensure status is Open
-        if (e.currentTarget === backlogView) {
+        // If dropped on Backlog view background, ensure status is Open or Todo depending on section
+        if (e.currentTarget.id === 'backlog-open-section') {
             issue.status = 'Open';
+        } else if (e.currentTarget.id === 'backlog-todo-section') {
+            issue.status = 'Todo';
         }
         // If dropped on Board view background, keep current status 
         // (unless it was Open, but then it won't show on board, which is expected behavior for "removing from plan")
@@ -1665,65 +1675,63 @@ function getDragAfterElement(column, y) {
 }
 
 async function saveBoardState() {
-    // Iterate over all columns and update status and position
+    const isBoardView = !boardView.classList.contains('hidden');
     const updates = [];
-    let todoCount = 0;
 
-    document.querySelectorAll('.column').forEach(col => {
-        const status = col.dataset.status;
-        const cards = [...col.querySelectorAll('.column-content .card')];
+    if (isBoardView) {
+        // Board View: specific columns are the source of truth
+        document.querySelectorAll('.column').forEach(col => {
+            const status = col.dataset.status;
+            const cards = [...col.querySelectorAll('.column-content .card')];
 
-        if (status === 'Todo') {
-            todoCount = cards.length;
-        }
+            cards.forEach((card, index) => {
+                const id = parseInt(card.dataset.id);
+                const issue = issues.find(i => i.id === id);
 
-        cards.forEach((card, index) => {
+                if (issue && (issue.status !== status || issue.position !== index)) {
+                    issue.status = status;
+                    issue.position = index;
+                    updates.push(updateIssue(issue));
+                }
+            });
+        });
+    } else {
+        // Backlog View: backlogList (Open) and moveToTodoList (Todo) are source of truth
+
+        // Open Issues
+        const backlogCards = [...backlogList.querySelectorAll('.card')];
+        backlogCards.forEach((card, index) => {
             const id = parseInt(card.dataset.id);
             const issue = issues.find(i => i.id === id);
 
-            if (issue && (issue.status !== status || issue.position !== index)) {
-                issue.status = status;
+            if (issue && (issue.status !== 'Open' || issue.position !== index)) {
+                issue.status = 'Open';
                 issue.position = index;
                 updates.push(updateIssue(issue));
             }
         });
-    });
 
-    // Handle Backlog
-    const backlogCards = [...backlogList.querySelectorAll('.card')];
-    backlogCards.forEach((card, index) => {
-        const id = parseInt(card.dataset.id);
-        const issue = issues.find(i => i.id === id);
+        // Todo Issues
+        const todoCards = [...moveToTodoList.querySelectorAll('.card')];
+        todoCards.forEach((card, index) => {
+            const id = parseInt(card.dataset.id);
+            const issue = issues.find(i => i.id === id);
 
-        if (issue && (issue.status !== 'Open' || issue.position !== index)) {
-            issue.status = 'Open';
-            issue.position = index;
-            updates.push(updateIssue(issue));
-        }
-    });
-
-    // Handle Move to Todo
-    const moveToTodoCards = [...moveToTodoList.querySelectorAll('.card')];
-    moveToTodoCards.forEach((card, index) => {
-        const id = parseInt(card.dataset.id);
-        const issue = issues.find(i => i.id === id);
-
-        if (issue) {
-            issue.status = 'Todo';
-            // Append to the "Todo" column
-            issue.position = todoCount + index;
-            updates.push(updateIssue(issue));
-        }
-    });
-
+            if (issue && (issue.status !== 'Todo' || issue.position !== index)) {
+                issue.status = 'Todo';
+                issue.position = index;
+                updates.push(updateIssue(issue));
+            }
+        });
+    }
 
     await Promise.all(updates);
 
-    // Refresh board and backlog
-    if (moveToTodoCards.length > 0) {
-        setTimeout(async () => {
-            await fetchIssues();
-        }, 5000);
+    // Sync the other view
+    if (isBoardView) {
+        renderBacklog();
+    } else {
+        renderBoard();
     }
 }
 
