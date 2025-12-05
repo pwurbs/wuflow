@@ -174,15 +174,15 @@
                             <div id="description-label" class="form-label">Description</div>
                             <div class="editor-container">
                                 <div class="editor-toolbar">
-                                    <button type="button" class="editor-btn" data-cmd="bold"
+                                    <button type="button" id="editor-btn-bold" class="editor-btn" data-cmd="bold"
                                         title="Bold"><b>B</b></button>
-                                    <button type="button" class="editor-btn" data-cmd="italic"
+                                    <button type="button" id="editor-btn-italic" class="editor-btn" data-cmd="italic"
                                         title="Italic"><i>I</i></button>
-                                    <button type="button" class="editor-btn" data-cmd="underline"
-                                        title="Underline"><u>U</u></button>
+                                    <button type="button" id="editor-btn-underline" class="editor-btn"
+                                        data-cmd="underline" title="Underline"><u>U</u></button>
                                     <span class="separator">|</span>
-                                    <button type="button" class="editor-btn" data-cmd="insertUnorderedList"
-                                        title="Bullet List">
+                                    <button type="button" id="editor-btn-ul" class="editor-btn"
+                                        data-cmd="insertUnorderedList" title="Bullet List">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                             stroke-linejoin="round">
@@ -194,8 +194,8 @@
                                             <line x1="3" y1="18" x2="3.01" y2="18"></line>
                                         </svg>
                                     </button>
-                                    <button type="button" class="editor-btn" data-cmd="insertOrderedList"
-                                        title="Numbered List">
+                                    <button type="button" id="editor-btn-ol" class="editor-btn"
+                                        data-cmd="insertOrderedList" title="Numbered List">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                             stroke-linejoin="round">
@@ -207,7 +207,8 @@
                                             <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path>
                                         </svg>
                                     </button>
-                                    <button type="button" class="editor-btn" data-cmd="createLink" title="Link">
+                                    <button type="button" id="editor-btn-link" class="editor-btn" data-cmd="createLink"
+                                        title="Link">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                             stroke-linejoin="round">
@@ -245,7 +246,8 @@
                                     <div class="custom-date-input task-input-date">
                                         <span id="new-task-deadline-display"
                                             class="custom-date-display placeholder"></span>
-                                        <input type="date" id="new-task-deadline" title="Task Deadline">
+                                        <input type="date" id="new-task-deadline" name="task_deadline"
+                                            title="Task Deadline">
                                     </div>
                                     <button type="button" id="add-task-btn" class="btn secondary">Add</button>
                                 </div>
@@ -267,7 +269,7 @@
                     <div class="modal-sidebar">
                         <div class="form-group">
                             <label for="status">Status</label>
-                            <select id="status">
+                            <select id="status" name="status">
                                 <option value="Open">Open</option>
                                 <option value="Todo">Todo</option>
                                 <option value="Pending">Pending</option>
