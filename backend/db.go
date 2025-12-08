@@ -85,6 +85,7 @@ func GetAllIssues() ([]Issue, error) {
 		LEFT JOIN labels l ON i.label_id = l.id 
 		ORDER BY i.position ASC`)
 	if err != nil {
+		log.Printf("Database Error: GetAllIssues: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -99,6 +100,7 @@ func GetAllIssues() ([]Issue, error) {
 		var lColor sql.NullString
 
 		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDate, &i.CreatedAt, &i.UpdatedAt, &lID, &lName, &lColor); err != nil {
+			log.Printf("Database Error: GetAllIssues Scan: %v", err)
 			return nil, err
 		}
 		if deadline.Valid {
@@ -117,6 +119,7 @@ func GetAllIssues() ([]Issue, error) {
 
 		tasks, err := GetTasksByIssueID(i.ID)
 		if err != nil {
+			log.Printf("Database Error: GetAllIssues GetTasksByIssueID: %v", err)
 			return nil, err
 		}
 		i.Tasks = tasks
@@ -129,6 +132,7 @@ func GetAllIssues() ([]Issue, error) {
 func GetTasksByIssueID(issueID int) ([]Task, error) {
 	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id = ? ORDER BY position ASC", issueID)
 	if err != nil {
+		log.Printf("Database Error: GetTasksByIssueID: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -138,6 +142,7 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 		var t Task
 		var deadline sql.NullTime
 		if err := rows.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			log.Printf("Database Error: GetTasksByIssueID Scan: %v", err)
 			return nil, err
 		}
 		if deadline.Valid {
@@ -152,6 +157,7 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 func CreateIssue(i *Issue) error {
 	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, label_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
+		log.Printf("Database Error: CreateIssue Prepare: %v", err)
 		return err
 	}
 	defer stmt.Close()
@@ -160,6 +166,7 @@ func CreateIssue(i *Issue) error {
 	var maxPos sql.NullInt64
 	err = DB.QueryRow("SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
 	if err != nil && err != sql.ErrNoRows {
+		log.Printf("Database Error: CreateIssue MaxPos: %v", err)
 		return err
 	}
 	i.Position = int(maxPos.Int64) + 1
@@ -173,11 +180,13 @@ func CreateIssue(i *Issue) error {
 
 	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, labelID, i.UpdatedAt)
 	if err != nil {
+		log.Printf("Database Error: CreateIssue Exec: %v", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
+		log.Printf("Database Error: CreateIssue LastInsertId: %v", err)
 		return err
 	}
 	i.ID = int(id)
@@ -188,6 +197,7 @@ func CreateIssue(i *Issue) error {
 func UpdateIssue(i *Issue) error {
 	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, label_id = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
+		log.Printf("Database Error: UpdateIssue Prepare: %v", err)
 		return err
 	}
 	defer stmt.Close()
@@ -201,12 +211,18 @@ func UpdateIssue(i *Issue) error {
 	}
 
 	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, labelID, i.UpdatedAt, i.ID)
+	if err != nil {
+		log.Printf("Database Error: UpdateIssue Exec: %v", err)
+	}
 	return err
 }
 
 // DeleteIssue removes an issue from the database by its ID.
 func DeleteIssue(id int) error {
 	_, err := DB.Exec("DELETE FROM issues WHERE id = ?", id)
+	if err != nil {
+		log.Printf("Database Error: DeleteIssue: %v", err)
+	}
 	return err
 }
 
@@ -214,6 +230,7 @@ func DeleteIssue(id int) error {
 func CreateTask(t *Task) error {
 	stmt, err := DB.Prepare("INSERT INTO tasks(issue_id, title, done, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
 	if err != nil {
+		log.Printf("Database Error: CreateTask Prepare: %v", err)
 		return err
 	}
 	defer stmt.Close()
@@ -222,6 +239,7 @@ func CreateTask(t *Task) error {
 	var maxPos sql.NullInt64
 	err = DB.QueryRow("SELECT MAX(position) FROM tasks WHERE issue_id = ?", t.IssueID).Scan(&maxPos)
 	if err != nil && err != sql.ErrNoRows {
+		log.Printf("Database Error: CreateTask MaxPos: %v", err)
 		return err
 	}
 	t.Position = int(maxPos.Int64) + 1
@@ -229,11 +247,13 @@ func CreateTask(t *Task) error {
 
 	res, err := stmt.Exec(t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt)
 	if err != nil {
+		log.Printf("Database Error: CreateTask Exec: %v", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
+		log.Printf("Database Error: CreateTask LastInsertId: %v", err)
 		return err
 	}
 	t.ID = int(id)
@@ -244,18 +264,25 @@ func CreateTask(t *Task) error {
 func UpdateTask(t *Task) error {
 	stmt, err := DB.Prepare("UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
+		log.Printf("Database Error: UpdateTask Prepare: %v", err)
 		return err
 	}
 	defer stmt.Close()
 
 	t.UpdatedAt = time.Now()
 	_, err = stmt.Exec(t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID)
+	if err != nil {
+		log.Printf("Database Error: UpdateTask Exec: %v", err)
+	}
 	return err
 }
 
 // DeleteTask removes a task from the database by its ID.
 func DeleteTask(id int) error {
 	_, err := DB.Exec("DELETE FROM tasks WHERE id = ?", id)
+	if err != nil {
+		log.Printf("Database Error: DeleteTask: %v", err)
+	}
 	return err
 }
 
@@ -263,6 +290,7 @@ func DeleteTask(id int) error {
 func GetAllLabels() ([]Label, error) {
 	rows, err := DB.Query("SELECT id, name, color FROM labels ORDER BY name ASC")
 	if err != nil {
+		log.Printf("Database Error: GetAllLabels: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -271,6 +299,7 @@ func GetAllLabels() ([]Label, error) {
 	for rows.Next() {
 		var l Label
 		if err := rows.Scan(&l.ID, &l.Name, &l.Color); err != nil {
+			log.Printf("Database Error: GetAllLabels Scan: %v", err)
 			return nil, err
 		}
 		labels = append(labels, l)
@@ -282,17 +311,20 @@ func GetAllLabels() ([]Label, error) {
 func CreateLabel(l *Label) error {
 	stmt, err := DB.Prepare("INSERT INTO labels(name, color) VALUES(?, ?)")
 	if err != nil {
+		log.Printf("Database Error: CreateLabel Prepare: %v", err)
 		return err
 	}
 	defer stmt.Close()
 
 	res, err := stmt.Exec(l.Name, l.Color)
 	if err != nil {
+		log.Printf("Database Error: CreateLabel Exec: %v", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
+		log.Printf("Database Error: CreateLabel LastInsertId: %v", err)
 		return err
 	}
 	l.ID = int(id)
@@ -302,5 +334,8 @@ func CreateLabel(l *Label) error {
 // DeleteLabel removes a label from the database by its ID.
 func DeleteLabel(id int) error {
 	_, err := DB.Exec("DELETE FROM labels WHERE id = ?", id)
+	if err != nil {
+		log.Printf("Database Error: DeleteLabel: %v", err)
+	}
 	return err
 }
