@@ -72,10 +72,6 @@ func createTables() {
 	if _, err := DB.Exec(createLabelsTable); err != nil {
 		log.Fatal(err)
 	}
-
-	// Migration: Ensure label_id exists
-	// We ignore the error here as it will fail if the column already exists
-	DB.Exec("ALTER TABLE issues ADD COLUMN label_id INTEGER REFERENCES labels(id) ON DELETE SET NULL")
 }
 
 // Helper functions for DB operations
