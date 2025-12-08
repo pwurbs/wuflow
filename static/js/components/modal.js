@@ -50,7 +50,19 @@ export function setupModal(refreshApp) {
     input.addEventListener('change', () => updateDateInputStyle(input));
   });
 
-  // Labels are initialized in openModal now
+  // Custom Dropdown Logic
+  setupCustomDropdown('status-dropdown', 'status-trigger', 'status-options', 'status', 'status-text');
+  setupCustomDropdown('label-dropdown', 'label-trigger', 'label-options', 'label-select', 'label-text');
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', (e) => {
+    ['status-dropdown', 'label-dropdown'].forEach(id => {
+      const container = document.getElementById(id);
+      if (container && !container.contains(e.target)) {
+        container.querySelector('.custom-select-options').classList.add('hidden');
+      }
+    });
+  });
 }
 
 export function openModal(issue = null) {
@@ -58,7 +70,9 @@ export function openModal(issue = null) {
   const modal = document.getElementById('issue-modal');
   modal.classList.remove('hidden');
 
-  const statusSelect = document.getElementById('status');
+
+
+  /* const statusSelect = document.getElementById('status'); -- Removed as part of custom dropdown refactor */
   const commentsSection = document.querySelector('.comments-section-placeholder');
   const tasksSection = document.getElementById('tasks-section');
   const deleteIssueBtn = document.getElementById('delete-issue-btn');
@@ -75,25 +89,29 @@ export function openModal(issue = null) {
     descEditor.innerHTML = issue.description || '';
     document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
     document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
+    document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
     document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
-    statusSelect.value = issue.status;
 
-    // Populate labels fresh
-    const labelSelect = document.getElementById('label-select');
-    if (labelSelect) {
-      labelSelect.innerHTML = '<option value="">No Label</option>';
-      fetchLabels().then(labels => {
-        labels.forEach(l => {
-          const opt = document.createElement('option');
-          opt.value = l.id;
-          opt.textContent = l.name;
-          opt.dataset.color = l.color;
-          labelSelect.appendChild(opt);
-        });
-        // Set value after fetch
-        labelSelect.value = issue.label ? issue.label.id : '';
-      }).catch(err => console.error('Failed to load labels', err));
-    }
+    // Status Dropdown
+    const statusInput = document.getElementById('status');
+    statusInput.value = issue.status;
+    document.getElementById('status-text').textContent = issue.status;
+    renderStatusOptions();
+
+    // Label Dropdown
+    const labelInput = document.getElementById('label-select');
+    const labelText = document.getElementById('label-text');
+    labelInput.value = issue.label ? issue.label.id : '';
+    labelText.textContent = issue.label ? issue.label.name : 'No Label';
+
+    fetchLabels().then(labels => {
+      renderLabelOptions(labels);
+      // Re-verify text in case ID match needed (already set above if object, but good for consistency)
+      if (issue.label) {
+        const found = labels.find(l => l.id === issue.label.id);
+        if (found) labelText.textContent = found.name;
+      }
+    }).catch(err => console.error('Failed to load labels', err));
 
     updateDateInputStyle(document.getElementById('planned-date'));
     updateDateInputStyle(document.getElementById('deadline'));
@@ -134,22 +152,19 @@ export function openModal(issue = null) {
     descEditor.innerHTML = '';
     document.getElementById('issue-id').value = '';
     document.getElementById('issue-id').value = '';
-    statusSelect.value = 'Open';
+    document.getElementById('issue-id').value = '';
 
-    const labelSelect = document.getElementById('label-select');
-    if (labelSelect) {
-      labelSelect.innerHTML = '<option value="">No Label</option>';
-      fetchLabels().then(labels => {
-        labels.forEach(l => {
-          const opt = document.createElement('option');
-          opt.value = l.id;
-          opt.textContent = l.name;
-          opt.dataset.color = l.color;
-          labelSelect.appendChild(opt);
-        });
-        labelSelect.value = '';
-      }).catch(err => console.error('Failed to load labels', err));
-    }
+    // Status Dropdown Default
+    document.getElementById('status').value = 'Open';
+    document.getElementById('status-text').textContent = 'Open';
+    renderStatusOptions();
+
+    // Label Dropdown Default
+    document.getElementById('label-select').value = '';
+    document.getElementById('label-text').textContent = 'No Label';
+    fetchLabels().then(labels => {
+      renderLabelOptions(labels);
+    }).catch(err => console.error('Failed to load labels', err));
 
     updateDateInputStyle(document.getElementById('planned-date'));
     updateDateInputStyle(document.getElementById('deadline'));
@@ -195,14 +210,13 @@ export function closeModal() {
 
 async function handleIssueSubmit(e) {
   e.preventDefault();
-  const statusSelect = document.getElementById('status');
+  const statusInput = document.getElementById('status');
   const issueData = {
     title: document.getElementById('title').value,
     description: document.getElementById('description-editor').innerHTML,
     deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
     planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
-    planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
-    status: statusSelect.value,
+    status: statusInput.value,
     position: state.currentIssue ? state.currentIssue.position : 0
   };
 
@@ -210,7 +224,7 @@ async function handleIssueSubmit(e) {
   if (labelId) {
     issueData.label = { id: parseInt(labelId) };
   } else {
-    issueData.label = null; // Ensure null is sent if cleared
+    issueData.label = null;
   }
 
   if (state.currentIssue) {
@@ -227,7 +241,7 @@ async function handleIssueSubmit(e) {
 async function handleDeleteIssue() {
   if (!state.currentIssue) return;
   if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
-    await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id)); // Circular dep safety if any? imports are hoisting.
+    await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id));
     closeModal();
     if (refreshAppCallback) refreshAppCallback();
   }
@@ -558,4 +572,92 @@ async function saveTaskOrder(issue) {
     await Promise.all(updates);
     issue.tasks.sort((a, b) => a.position - b.position);
   }
+}
+
+
+
+// Custom Dropdown Split
+function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
+  const trigger = document.getElementById(triggerId);
+  const options = document.getElementById(optionsId);
+  const wrapper = document.getElementById(wrapperId);
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    const wasHidden = options.classList.contains('hidden');
+
+    // Close others
+    ['status-dropdown', 'label-dropdown'].forEach(id => {
+      if (id !== wrapperId) {
+        document.getElementById(id).querySelector('.custom-select-options').classList.add('hidden');
+      }
+    });
+
+    if (wasHidden) {
+      options.classList.remove('hidden');
+
+      // Auto-scroll to make visible
+      setTimeout(() => {
+        options.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    } else {
+      options.classList.add('hidden');
+    }
+  });
+}
+
+function renderStatusOptions() {
+  const optionsContainer = document.getElementById('status-options');
+  optionsContainer.innerHTML = '';
+  const statuses = ['Open', 'Todo', 'Pending', 'Working', 'Done'];
+
+  statuses.forEach(status => {
+    const div = document.createElement('div');
+    div.className = 'custom-option';
+    div.textContent = status;
+    div.addEventListener('click', () => {
+      selectOption('status', 'status-text', 'status-options', status, status);
+    });
+    optionsContainer.appendChild(div);
+  });
+}
+
+function renderLabelOptions(labels) {
+  const optionsContainer = document.getElementById('label-options');
+  optionsContainer.innerHTML = '';
+
+  // No Label Option
+  const noLabelDiv = document.createElement('div');
+  noLabelDiv.className = 'custom-option';
+  noLabelDiv.textContent = 'No Label';
+  noLabelDiv.addEventListener('click', () => {
+    selectOption('label-select', 'label-text', 'label-options', '', 'No Label');
+  });
+  optionsContainer.appendChild(noLabelDiv);
+
+  labels.forEach(label => {
+    const div = document.createElement('div');
+    div.className = 'custom-option';
+    div.textContent = label.name;
+
+    div.addEventListener('click', () => {
+      selectOption('label-select', 'label-text', 'label-options', label.id, label.name);
+    });
+    optionsContainer.appendChild(div);
+  });
+}
+
+function selectOption(inputId, textId, optionsId, value, text) {
+  const input = document.getElementById(inputId);
+  const textSpan = document.getElementById(textId);
+  const options = document.getElementById(optionsId);
+
+  if (input.value != value) {
+    input.value = value;
+    textSpan.textContent = text;
+    input.dispatchEvent(new Event('change')); // Trigger immediate save if applicable
+  }
+
+  options.classList.add('hidden');
 }
