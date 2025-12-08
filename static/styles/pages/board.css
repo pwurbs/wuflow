@@ -202,3 +202,8 @@
   position: relative;
   top: -1px;
 }
+
+/* Align sidebar to the right */
+.board-columns .sidebar {
+  margin-left: auto;
+}
