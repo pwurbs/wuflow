@@ -36,6 +36,7 @@
   z-index: 10;
   background-color: var(--column-bg);
   border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid var(--card-border);
 }
 
 /* Shared Header Styling (replicated from style.css lines 234-241) */
@@ -62,9 +63,7 @@
 }
 
 .column-content {
-  padding: 8px 8px 8px;
-  flex: 1;
-  padding: 8px 8px 8px;
+  padding: 16px 8px 8px;
   flex: 1;
   overflow: visible;
   /* Allow tooltip to overflow */

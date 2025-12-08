@@ -19,6 +19,7 @@
   z-index: 10;
   background-color: var(--column-bg);
   border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid var(--card-border);
 }
 
 .sidebar-header h3 {
@@ -44,7 +45,7 @@
 
 #deadline-list {
   list-style: none;
-  padding: 8px;
+  padding: 16px 8px 8px;
 }
 
 .deadline-item {

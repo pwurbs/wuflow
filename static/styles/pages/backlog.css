@@ -18,7 +18,7 @@
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   border: 1px solid var(--card-border);
-  padding-bottom: 12px;
+  padding-bottom: 0;
 }
 
 .backlog-header {
@@ -26,6 +26,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
+  border-bottom: 1px solid var(--card-border);
 }
 
 /* Shared Header Styling */
@@ -66,7 +67,7 @@
 .backlog-list {
   display: flex;
   flex-direction: column;
-  padding: 8px 20px;
+  padding: 16px 20px 8px;
 }
 
 .backlog-list .card {
