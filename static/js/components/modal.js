@@ -53,10 +53,11 @@ export function setupModal(refreshApp) {
   // Custom Dropdown Logic
   setupCustomDropdown('status-dropdown', 'status-trigger', 'status-options', 'status', 'status-text');
   setupCustomDropdown('label-dropdown', 'label-trigger', 'label-options', 'label-select', 'label-text');
+  setupCustomDropdown('priority-dropdown', 'priority-trigger', 'priority-options', 'priority', 'priority-text');
 
   // Close dropdowns on outside click
   document.addEventListener('click', (e) => {
-    ['status-dropdown', 'label-dropdown'].forEach(id => {
+    ['status-dropdown', 'label-dropdown', 'priority-dropdown'].forEach(id => {
       const container = document.getElementById(id);
       if (container && !container.contains(e.target)) {
         container.querySelector('.custom-select-options').classList.add('hidden');
@@ -97,6 +98,12 @@ export function openModal(issue = null) {
     statusInput.value = issue.status;
     document.getElementById('status-text').textContent = issue.status;
     renderStatusOptions();
+
+    // Priority Dropdown
+    const priorityInput = document.getElementById('priority');
+    priorityInput.value = issue.priority || 'Normal';
+    document.getElementById('priority-text').textContent = issue.priority || 'Normal';
+    renderPriorityOptions();
 
     // Label Dropdown
     const labelInput = document.getElementById('label-select');
@@ -159,6 +166,11 @@ export function openModal(issue = null) {
     document.getElementById('status-text').textContent = 'Open';
     renderStatusOptions();
 
+    // Priority Dropdown Default
+    document.getElementById('priority').value = 'Normal';
+    document.getElementById('priority-text').textContent = 'Normal';
+    renderPriorityOptions();
+
     // Label Dropdown Default
     document.getElementById('label-select').value = '';
     document.getElementById('label-text').textContent = 'No Label';
@@ -217,6 +229,7 @@ async function handleIssueSubmit(e) {
     deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
     planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
     status: statusInput.value,
+    priority: document.getElementById('priority').value,
     position: state.currentIssue ? state.currentIssue.position : 0
   };
 
@@ -390,6 +403,16 @@ function setupSidebarImmediateSave() {
 
   const statusSelect = document.getElementById('status');
   const labelSelect = document.getElementById('label-select');
+  const prioritySelect = document.getElementById('priority');
+
+  prioritySelect.addEventListener('change', async () => {
+    if (state.currentIssue) {
+      state.currentIssue.priority = prioritySelect.value;
+      await updateIssue(state.currentIssue);
+      showModalNotification('Priority updated');
+      if (refreshAppCallback) refreshAppCallback();
+    }
+  });
 
   statusSelect.addEventListener('change', async () => {
     if (state.currentIssue) {
@@ -588,7 +611,7 @@ function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
     const wasHidden = options.classList.contains('hidden');
 
     // Close others
-    ['status-dropdown', 'label-dropdown'].forEach(id => {
+    ['status-dropdown', 'label-dropdown', 'priority-dropdown'].forEach(id => {
       if (id !== wrapperId) {
         document.getElementById(id).querySelector('.custom-select-options').classList.add('hidden');
       }
@@ -618,6 +641,22 @@ function renderStatusOptions() {
     div.textContent = status;
     div.addEventListener('click', () => {
       selectOption('status', 'status-text', 'status-options', status, status);
+    });
+    optionsContainer.appendChild(div);
+  });
+}
+
+function renderPriorityOptions() {
+  const optionsContainer = document.getElementById('priority-options');
+  optionsContainer.innerHTML = '';
+  const priorities = ['Normal', 'High'];
+
+  priorities.forEach(prio => {
+    const div = document.createElement('div');
+    div.className = 'custom-option';
+    div.textContent = prio;
+    div.addEventListener('click', () => {
+      selectOption('priority', 'priority-text', 'priority-options', prio, prio);
     });
     optionsContainer.appendChild(div);
   });

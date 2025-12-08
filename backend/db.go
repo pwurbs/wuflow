@@ -23,6 +23,10 @@ func InitDB(dataSourceName string) {
 		log.Fatal(err)
 	}
 
+	if _, err := DB.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		log.Fatal(err)
+	}
+
 	createTables()
 }
 
@@ -38,6 +42,7 @@ func createTables() {
 		deadline DATETIME,
 		planned_date DATETIME,
 		label_id INTEGER,
+		priority TEXT DEFAULT 'Normal',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE SET NULL
@@ -63,6 +68,23 @@ func createTables() {
 		log.Fatal(err)
 	}
 
+	// Migration: Add priority column if it doesn't exist
+	var priorityColumnExists int
+	err := DB.QueryRow("SELECT count(*) FROM pragma_table_info('issues') WHERE name='priority'").Scan(&priorityColumnExists)
+	if err != nil {
+		log.Printf("Database Error: Checking priority column: %v", err)
+	} else if priorityColumnExists == 0 {
+		log.Println("Migrating: Adding priority column to issues table")
+		if _, err := DB.Exec("ALTER TABLE issues ADD COLUMN priority TEXT DEFAULT 'Normal'"); err != nil {
+			log.Printf("Database Error: Adding priority column: %v", err)
+		} else {
+			// Set default value for existing rows
+			if _, err := DB.Exec("UPDATE issues SET priority = 'Normal' WHERE priority IS NULL OR priority = ''"); err != nil {
+				log.Printf("Database Error: Setting default priority: %v", err)
+			}
+		}
+	}
+
 	createLabelsTable := `
 	CREATE TABLE IF NOT EXISTS labels (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +101,7 @@ func createTables() {
 // GetAllIssues retrieves all issues from the database, including their associated tasks.
 func GetAllIssues() ([]Issue, error) {
 	rows, err := DB.Query(`
-		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_date, i.created_at, i.updated_at, 
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_date, i.priority, i.created_at, i.updated_at, 
 		       l.id, l.name, l.color 
 		FROM issues i 
 		LEFT JOIN labels l ON i.label_id = l.id 
@@ -97,11 +119,18 @@ func GetAllIssues() ([]Issue, error) {
 		var plannedDate sql.NullTime
 		var lID sql.NullInt64
 		var lName sql.NullString
-		var lColor sql.NullString
 
-		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDate, &i.CreatedAt, &i.UpdatedAt, &lID, &lName, &lColor); err != nil {
+		var lColor sql.NullString
+		var priority sql.NullString
+
+		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDate, &priority, &i.CreatedAt, &i.UpdatedAt, &lID, &lName, &lColor); err != nil {
 			log.Printf("Database Error: GetAllIssues Scan: %v", err)
 			return nil, err
+		}
+		if priority.Valid {
+			i.Priority = IssuePriority(priority.String)
+		} else {
+			i.Priority = PriorityNormal
 		}
 		if deadline.Valid {
 			i.Deadline = &deadline.Time
@@ -155,7 +184,10 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 
 // CreateIssue inserts a new issue into the database.
 func CreateIssue(i *Issue) error {
-	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, label_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
+	if i.Priority == "" {
+		i.Priority = PriorityNormal
+	}
+	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, priority, label_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		log.Printf("Database Error: CreateIssue Prepare: %v", err)
 		return err
@@ -178,7 +210,7 @@ func CreateIssue(i *Issue) error {
 		labelID = &id
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, labelID, i.UpdatedAt)
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.Priority, labelID, i.UpdatedAt)
 	if err != nil {
 		log.Printf("Database Error: CreateIssue Exec: %v", err)
 		return err
@@ -195,7 +227,8 @@ func CreateIssue(i *Issue) error {
 
 // UpdateIssue updates an existing issue in the database.
 func UpdateIssue(i *Issue) error {
-	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, label_id = ?, updated_at = ? WHERE id = ?")
+
+	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, priority = ?, label_id = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
 		log.Printf("Database Error: UpdateIssue Prepare: %v", err)
 		return err
@@ -210,7 +243,7 @@ func UpdateIssue(i *Issue) error {
 		labelID = &id
 	}
 
-	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, labelID, i.UpdatedAt, i.ID)
+	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.Priority, labelID, i.UpdatedAt, i.ID)
 	if err != nil {
 		log.Printf("Database Error: UpdateIssue Exec: %v", err)
 	}

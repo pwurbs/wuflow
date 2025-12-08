@@ -9,6 +9,9 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
   }
   card.draggable = true;
   card.dataset.id = issue.id;
+  if (issue.priority === 'High') {
+    card.classList.add('high-priority');
+  }
 
   const completedTasks = issue.tasks ? issue.tasks.filter(t => t.done).length : 0;
   const totalTasks = issue.tasks ? issue.tasks.length : 0;
