@@ -68,23 +68,6 @@ func createTables() {
 		log.Fatal(err)
 	}
 
-	// Migration: Add priority column if it doesn't exist
-	var priorityColumnExists int
-	err := DB.QueryRow("SELECT count(*) FROM pragma_table_info('issues') WHERE name='priority'").Scan(&priorityColumnExists)
-	if err != nil {
-		log.Printf("Database Error: Checking priority column: %v", err)
-	} else if priorityColumnExists == 0 {
-		log.Println("Migrating: Adding priority column to issues table")
-		if _, err := DB.Exec("ALTER TABLE issues ADD COLUMN priority TEXT DEFAULT 'Normal'"); err != nil {
-			log.Printf("Database Error: Adding priority column: %v", err)
-		} else {
-			// Set default value for existing rows
-			if _, err := DB.Exec("UPDATE issues SET priority = 'Normal' WHERE priority IS NULL OR priority = ''"); err != nil {
-				log.Printf("Database Error: Setting default priority: %v", err)
-			}
-		}
-	}
-
 	createLabelsTable := `
 	CREATE TABLE IF NOT EXISTS labels (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
