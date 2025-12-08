@@ -37,8 +37,10 @@ func createTables() {
 		position INTEGER NOT NULL,
 		deadline DATETIME,
 		planned_date DATETIME,
+		label_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE SET NULL
 	);`
 
 	createTasksTable := `
@@ -70,13 +72,22 @@ func createTables() {
 	if _, err := DB.Exec(createLabelsTable); err != nil {
 		log.Fatal(err)
 	}
+
+	// Migration: Ensure label_id exists
+	// We ignore the error here as it will fail if the column already exists
+	DB.Exec("ALTER TABLE issues ADD COLUMN label_id INTEGER REFERENCES labels(id) ON DELETE SET NULL")
 }
 
 // Helper functions for DB operations
 
 // GetAllIssues retrieves all issues from the database, including their associated tasks.
 func GetAllIssues() ([]Issue, error) {
-	rows, err := DB.Query("SELECT id, title, description, status, position, deadline, planned_date, created_at, updated_at FROM issues ORDER BY position ASC")
+	rows, err := DB.Query(`
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_date, i.created_at, i.updated_at, 
+		       l.id, l.name, l.color 
+		FROM issues i 
+		LEFT JOIN labels l ON i.label_id = l.id 
+		ORDER BY i.position ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +98,11 @@ func GetAllIssues() ([]Issue, error) {
 		var i Issue
 		var deadline sql.NullTime
 		var plannedDate sql.NullTime
-		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDate, &i.CreatedAt, &i.UpdatedAt); err != nil {
+		var lID sql.NullInt64
+		var lName sql.NullString
+		var lColor sql.NullString
+
+		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDate, &i.CreatedAt, &i.UpdatedAt, &lID, &lName, &lColor); err != nil {
 			return nil, err
 		}
 		if deadline.Valid {
@@ -95,6 +110,13 @@ func GetAllIssues() ([]Issue, error) {
 		}
 		if plannedDate.Valid {
 			i.PlannedDate = &plannedDate.Time
+		}
+		if lID.Valid {
+			i.Label = &Label{
+				ID:    int(lID.Int64),
+				Name:  lName.String,
+				Color: lColor.String,
+			}
 		}
 
 		tasks, err := GetTasksByIssueID(i.ID)
@@ -132,7 +154,7 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 
 // CreateIssue inserts a new issue into the database.
 func CreateIssue(i *Issue) error {
-	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, label_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -147,7 +169,13 @@ func CreateIssue(i *Issue) error {
 	i.Position = int(maxPos.Int64) + 1
 	i.UpdatedAt = time.Now()
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.UpdatedAt)
+	var labelID *int
+	if i.Label != nil {
+		id := i.Label.ID
+		labelID = &id
+	}
+
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, labelID, i.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -162,14 +190,21 @@ func CreateIssue(i *Issue) error {
 
 // UpdateIssue updates an existing issue in the database.
 func UpdateIssue(i *Issue) error {
-	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, updated_at = ? WHERE id = ?")
+	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, label_id = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
 	i.UpdatedAt = time.Now()
-	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.UpdatedAt, i.ID)
+
+	var labelID *int
+	if i.Label != nil {
+		id := i.Label.ID
+		labelID = &id
+	}
+
+	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, labelID, i.UpdatedAt, i.ID)
 	return err
 }
 

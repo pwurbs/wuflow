@@ -67,18 +67,22 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    /* Center content */
     position: relative;
-    /* For absolute button */
-    width: 120px;
-    /* Width to fit 10 chars */
-    border-radius: 4px;
-    padding: 3px 24px 3px 24px;
-    /* Padding to prevent text overlap with button */
-    font-size: 13px;
+    /* width: 120px; Removed fixed width for more natural chip look, or keep? User said "style". 
+       Issues on board are flexible width. Let's make this flexible but with min-width. */
+    /* Remove min-width for true flexibility */
+    /* Left matches board (8px), Right accommodates btn (26px) */
+    padding: 1px 26px 2px 8px;
+
+    border-radius: 12px;
+    /* Matches board */
+    font-size: 11px;
+    /* Matches board */
     font-weight: 500;
-    color: white;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    line-height: 1.2;
+    /* Matches board */
+    /* color, bg, border set in JS */
+    box-shadow: none;
     transition: transform 0.1s;
 }
 
@@ -87,11 +91,12 @@
 }
 
 .label-name {
-    width: 100%;
+    /* Let text flow naturally */
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: center;
+    overflow: visible;
+    /* Chips usually expand, unless constrained by parent? Setup view is wide. */
+    text-overflow: clip;
+    /* If we want max-width we can add it, but user asked for flexible. */
 }
 
 .delete-label-btn {

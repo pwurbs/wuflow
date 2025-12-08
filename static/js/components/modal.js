@@ -1,5 +1,5 @@
 import { state, setCurrentIssue } from '../state.js';
-import { createIssue, updateIssue, createTask, updateTask } from '../api.js';
+import { createIssue, updateIssue, createTask, updateTask, fetchLabels } from '../api.js';
 import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, stripHtml, escapeHtml } from '../utils.js';
 import { renderTasks } from './tasks.js';
 
@@ -46,9 +46,10 @@ export function setupModal(refreshApp) {
 
   // Date input styling
   document.querySelectorAll('input[type="date"]').forEach(input => {
-    input.addEventListener('input', () => updateDateInputStyle(input));
     input.addEventListener('change', () => updateDateInputStyle(input));
   });
+
+  // Labels are initialized in openModal now
 }
 
 export function openModal(issue = null) {
@@ -73,7 +74,25 @@ export function openModal(issue = null) {
     descEditor.innerHTML = issue.description || '';
     document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
     document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
+    document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
     statusSelect.value = issue.status;
+
+    // Populate labels fresh
+    const labelSelect = document.getElementById('label-select');
+    if (labelSelect) {
+      labelSelect.innerHTML = '<option value="">No Label</option>';
+      fetchLabels().then(labels => {
+        labels.forEach(l => {
+          const opt = document.createElement('option');
+          opt.value = l.id;
+          opt.textContent = l.name;
+          opt.dataset.color = l.color;
+          labelSelect.appendChild(opt);
+        });
+        // Set value after fetch
+        labelSelect.value = issue.label ? issue.label.id : '';
+      }).catch(err => console.error('Failed to load labels', err));
+    }
 
     updateDateInputStyle(document.getElementById('planned-date'));
     updateDateInputStyle(document.getElementById('deadline'));
@@ -113,7 +132,23 @@ export function openModal(issue = null) {
     document.getElementById('issue-form').reset();
     descEditor.innerHTML = '';
     document.getElementById('issue-id').value = '';
+    document.getElementById('issue-id').value = '';
     statusSelect.value = 'Open';
+
+    const labelSelect = document.getElementById('label-select');
+    if (labelSelect) {
+      labelSelect.innerHTML = '<option value="">No Label</option>';
+      fetchLabels().then(labels => {
+        labels.forEach(l => {
+          const opt = document.createElement('option');
+          opt.value = l.id;
+          opt.textContent = l.name;
+          opt.dataset.color = l.color;
+          labelSelect.appendChild(opt);
+        });
+        labelSelect.value = '';
+      }).catch(err => console.error('Failed to load labels', err));
+    }
 
     updateDateInputStyle(document.getElementById('planned-date'));
     updateDateInputStyle(document.getElementById('deadline'));
@@ -151,9 +186,17 @@ async function handleIssueSubmit(e) {
     description: document.getElementById('description-editor').innerHTML,
     deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
     planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
+    planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
     status: statusSelect.value,
     position: state.currentIssue ? state.currentIssue.position : 0
   };
+
+  const labelId = document.getElementById('label-select').value;
+  if (labelId) {
+    issueData.label = { id: parseInt(labelId) };
+  } else {
+    issueData.label = null; // Ensure null is sent if cleared
+  }
 
   if (state.currentIssue) {
     issueData.id = state.currentIssue.id;
@@ -315,7 +358,9 @@ function setupInlineEditing() {
 function setupSidebarImmediateSave() {
   const plannedDateInput = document.getElementById('planned-date');
   const deadlineInput = document.getElementById('deadline');
+
   const statusSelect = document.getElementById('status');
+  const labelSelect = document.getElementById('label-select');
 
   statusSelect.addEventListener('change', async () => {
     if (state.currentIssue) {
@@ -343,6 +388,18 @@ function setupSidebarImmediateSave() {
       if (refreshAppCallback) refreshAppCallback();
     }
   });
+  if (refreshAppCallback) refreshAppCallback();
+  if (labelSelect) {
+    labelSelect.addEventListener('change', async () => {
+      if (state.currentIssue) {
+        const val = labelSelect.value;
+        state.currentIssue.label = val ? { id: parseInt(val) } : null;
+        await updateIssue(state.currentIssue);
+        showModalNotification('Label updated');
+        if (refreshAppCallback) refreshAppCallback();
+      }
+    });
+  }
 }
 
 function setupEditorToolbar() {

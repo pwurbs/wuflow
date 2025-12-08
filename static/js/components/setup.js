@@ -3,7 +3,7 @@ import { showModalNotification, showConfirm } from '../utils.js';
 
 let setupViewContainer = null;
 
-export function setupSetupView() {
+export function setupSetupView(refreshCallback) {
   setupViewContainer = document.getElementById('setup-view');
   // Add event listener for adding a label
   const addLabelInput = document.getElementById('new-label-input');
@@ -23,7 +23,8 @@ export function setupSetupView() {
         const color = getUnusedColor(usedColors);
         await createLabel({ name, color });
         addLabelInput.value = '';
-        renderSetupView(); // Refresh list
+        renderSetupView(refreshCallback); // Refresh list
+        if (refreshCallback) refreshCallback(); // Refresh board/app
         showModalNotification('Label created', 'success');
       } catch (err) {
         console.error(err);
@@ -38,7 +39,7 @@ export function setupSetupView() {
   }
 }
 
-export async function renderSetupView() {
+export async function renderSetupView(refreshCallback) {
   if (!setupViewContainer) return;
 
   const labelsList = document.getElementById('labels-list');
@@ -58,9 +59,10 @@ export async function renderSetupView() {
     labels.forEach(label => {
       const labelEl = document.createElement('div');
       labelEl.className = 'label-item';
-      labelEl.style.backgroundColor = label.color;
-      // Determine text color based on background luminance for better contrast
-      labelEl.style.color = isLight(label.color) ? '#000' : '#fff';
+      // Match Board Style: Light BG, Border, Colored Text
+      labelEl.style.backgroundColor = label.color + '20';
+      labelEl.style.color = label.color;
+      labelEl.style.border = `1px solid ${label.color}`;
 
       labelEl.innerHTML = `
                 <span class="label-name">${label.name}</span>
@@ -76,7 +78,9 @@ export async function renderSetupView() {
         if (confirmed) {
           try {
             await deleteLabel(label.id);
-            renderSetupView(); // Refresh
+            await deleteLabel(label.id);
+            renderSetupView(refreshCallback); // Refresh
+            if (refreshCallback) refreshCallback(); // Refresh board/app
             showModalNotification('Label deleted', 'success');
           } catch (err) {
             console.error(err);

@@ -30,7 +30,8 @@ async function init() {
     setupEventListeners();
     setupBoardView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
-    setupSetupView();
+    setupBacklogView(refreshApp, openModal);
+    setupSetupView(refreshApp);
     setupModal(refreshApp); // Pass refresh callback
     await refreshApp();
 }
@@ -111,7 +112,8 @@ function switchView(view) {
         sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
 
-        renderSetupView();
+
+        renderSetupView(refreshApp);
     }
 }
 

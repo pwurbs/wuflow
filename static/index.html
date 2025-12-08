@@ -78,8 +78,8 @@
                     </div>
                     <div class="setup-content">
                         <div class="label-input-group">
-                            <input type="text" id="new-label-input" placeholder="New label (max 10 chars)"
-                                class="setup-input" maxlength="10">
+                            <input type="text" id="new-label-input" placeholder="New label (max 15 chars)"
+                                class="setup-input" maxlength="15">
                             <button id="add-label-btn" class="btn secondary">Add</button>
                         </div>
                         <div id="labels-list" class="labels-grid">
@@ -331,9 +331,11 @@
                             <div class="placeholder-label">Priority</div>
                             <div class="placeholder-box">None</div>
                         </div>
-                        <div class="sidebar-placeholder">
-                            <div class="placeholder-label">Labels</div>
-                            <div class="placeholder-box">No labels</div>
+                        <div class="form-group">
+                            <label for="label-select">Label</label>
+                            <select id="label-select" name="label">
+                                <option value="">No Label</option>
+                            </select>
                         </div>
                         <div class="sidebar-placeholder">
                             <div class="placeholder-label">Epic</div>

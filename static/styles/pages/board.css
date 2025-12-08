@@ -96,14 +96,7 @@
   margin-bottom: 8px;
 }
 
-.board-card-label-space {
-  flex: 1;
-  min-height: 10px;
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+
 
 .board-card-bottom {
   display: flex;

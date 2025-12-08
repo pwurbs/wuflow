@@ -17,7 +17,9 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
     // New Board Card Layout
     card.innerHTML = `
             <div class="board-card-title">${escapeHtml(issue.title)}</div>
-            <div class="board-card-label-space"></div>
+            <div class="board-card-label-space">
+                ${issue.label ? `<span class="label-chip" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</span>` : ''}
+            </div>
             <div class="board-card-bottom">
                 <div class="board-card-id">#${issue.id}</div>
                 <div class="board-card-meta-right">
@@ -64,6 +66,7 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
                     </div>` : ''}
                 </div>`;
       })()}
+      ${issue.label ? `<div class="backlog-card-label" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</div>` : ''}
         `;
   }
 
@@ -109,13 +112,13 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
 
   // Hover handlers for planning/deadline highlighting
   card.addEventListener('mouseenter', () => {
-    document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
-    document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
+    document.querySelectorAll(`.planning - item[data - id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
+    document.querySelectorAll(`.deadline - item[data - issue - id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
   });
 
   card.addEventListener('mouseleave', () => {
-    document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
-    document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
+    document.querySelectorAll(`.planning - item[data - id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
+    document.querySelectorAll(`.deadline - item[data - issue - id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
   });
 
   return card;

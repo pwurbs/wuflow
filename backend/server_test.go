@@ -57,6 +57,13 @@ func TestHandleIssuesRoute(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   "Invalid ID",
 		},
+		{
+			name:           "Update Issue with Label (PUT) - Success",
+			method:         "PUT",
+			url:            "/api/issues/1",
+			body:           map[string]interface{}{"title": "Labeled Issue", "status": "todo", "label": map[string]interface{}{"id": 1}},
+			expectedStatus: http.StatusOK,
+		},
 	}
 
 	// Pre-populate DB for happy paths
