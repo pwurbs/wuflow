@@ -37,6 +37,10 @@ export function renderBoard(refreshApp, openModal) {
       }
     }
 
+    if (state.filter.priority) {
+      if (issue.priority !== state.filter.priority) return;
+    }
+
     if (columns[issue.status]) {
       const card = createCardElement(issue, true, { openModal: openModalCallback });
       columns[issue.status].appendChild(card);

@@ -17,12 +17,23 @@
                     <img src="logo.png" alt="wuTrak Logo" style="height: 48px;">
                     <span style="font-weight: 500; color: white;">wuTrak</span>
                 </h1>
-                <div id="label-filter-container" class="filter-card">
+                <div id="filter-container" class="filter-card">
                     <span class="filter-label">Filter</span>
-                    <div class="filter-input-wrapper custom-select-wrapper">
+                    <!-- Label Filter Wrapper -->
+                    <div id="label-filter-wrapper" class="filter-input-wrapper custom-select-wrapper">
                         <button id="label-filter-btn" class="custom-select-trigger"
                             aria-label="Filter by label">Label</button>
                         <div id="label-filter-options" class="custom-select-options hidden">
+                            <!-- Options injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Priority Filter Wrapper -->
+                    <div id="priority-filter-wrapper" class="filter-input-wrapper custom-select-wrapper"
+                        style="margin-left: 10px;">
+                        <button id="priority-filter-btn" class="custom-select-trigger"
+                            aria-label="Filter by priority">Priority</button>
+                        <div id="priority-filter-options" class="custom-select-options hidden">
                             <!-- Options injected here -->
                         </div>
                     </div>

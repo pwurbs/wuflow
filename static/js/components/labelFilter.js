@@ -8,7 +8,7 @@ let refreshAppCallback;
 export function initLabelFilter(refreshApp) {
   refreshAppCallback = refreshApp;
 
-  labelFilterContainer = document.getElementById('label-filter-container');
+  labelFilterContainer = document.getElementById('label-filter-wrapper');
   labelFilterBtn = document.getElementById('label-filter-btn');
   labelFilterOptions = document.getElementById('label-filter-options');
 
@@ -29,15 +29,6 @@ export function initLabelFilter(refreshApp) {
       labelFilterOptions.classList.add('hidden');
     }
   });
-}
-
-export function setLabelFilterVisibility(visible) {
-  if (!labelFilterContainer) return; // Guard if called before init
-  if (visible) {
-    labelFilterContainer.classList.remove('hidden');
-  } else {
-    labelFilterContainer.classList.add('hidden');
-  }
 }
 
 export function updateLabelFilterOptions(labels) {

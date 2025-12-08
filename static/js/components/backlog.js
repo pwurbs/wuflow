@@ -29,6 +29,10 @@ export function renderBacklog(refreshApp, openModal) {
     }
   }
 
+  if (state.filter.priority) {
+    displayIssues = displayIssues.filter(i => i.priority === state.filter.priority);
+  }
+
   const openIssues = displayIssues.filter(i => i.status === 'Open').sort((a, b) => a.position - b.position);
   const todoIssues = displayIssues.filter(i => i.status === 'Todo').sort((a, b) => a.position - b.position);
 

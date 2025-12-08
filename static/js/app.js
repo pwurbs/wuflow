@@ -7,7 +7,8 @@ import { renderDeadlineList } from './components/deadlines.js';
 import { setupSetupView, renderSetupView } from './components/setup.js';
 import { setupModal, openModal, closeModal } from './components/modal.js';
 import { showModalNotification } from './utils.js';
-import { initLabelFilter, updateLabelFilterOptions, setLabelFilterVisibility } from './components/labelFilter.js';
+import { initLabelFilter, updateLabelFilterOptions } from './components/labelFilter.js';
+import { initPriorityFilter, updatePriorityFilterOptions } from './components/priorityFilter.js';
 
 // DOM Elements
 const navBoard = document.getElementById('nav-board');
@@ -22,6 +23,7 @@ const btnDeadlines = document.getElementById('btn-deadlines');
 const btnPlanning = document.getElementById('btn-planning');
 const deadlinesPanel = document.getElementById('deadlines-panel');
 const planningPanel = document.getElementById('planning-panel');
+const filterContainer = document.getElementById('filter-container');
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function init() {
     setupEventListeners();
     initLabelFilter(refreshApp);
+    initPriorityFilter(refreshApp);
     setupBoardView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
@@ -47,6 +50,9 @@ async function refreshApp() {
         // Refresh Label Filter
         const labels = await fetchLabels();
         updateLabelFilterOptions(labels);
+        // Priority filter options are static/local so we might not strictly need to call update here unless we want to ensure sync, 
+        // but let's do it to be safe if we add dynamic priorities later or reset logic.
+        updatePriorityFilterOptions();
 
         renderBoard(refreshApp, openModal);
         renderBacklog(refreshApp, openModal);
@@ -100,8 +106,9 @@ function switchView(view) {
         navSetup.classList.remove('active');
 
         sidebar.classList.remove('hidden');
+        sidebar.classList.remove('hidden');
         viewToggles.classList.remove('hidden');
-        setLabelFilterVisibility(true);
+        filterContainer.classList.remove('hidden');
     } else if (view === 'backlog') {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');
@@ -112,8 +119,9 @@ function switchView(view) {
         navSetup.classList.remove('active');
 
         sidebar.classList.add('hidden');
+        sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
-        setLabelFilterVisibility(true);
+        filterContainer.classList.remove('hidden');
     } else if (view === 'setup') {
         boardView.classList.add('hidden');
         backlogView.classList.add('hidden');
@@ -125,8 +133,9 @@ function switchView(view) {
 
         sidebar.classList.add('hidden');
         sidebar.classList.add('hidden');
+        sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
-        setLabelFilterVisibility(false);
+        filterContainer.classList.add('hidden');
 
 
         renderSetupView(refreshApp);
