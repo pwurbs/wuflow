@@ -4,6 +4,7 @@ import { showNotification, showModalNotification, showConfirm, updateDateInputSt
 import { renderTasks } from './tasks.js';
 
 let refreshAppCallback = null;
+let previousActiveNavBtn = null;
 
 export function setupModal(refreshApp) {
   refreshAppCallback = refreshApp;
@@ -165,6 +166,12 @@ export function openModal(issue = null) {
     titleEditActions.classList.add('hidden');
     descEditActions.classList.add('hidden');
 
+    const activeNav = document.querySelector('.left-menu .menu-btn.active');
+    if (activeNav && activeNav.id !== 'add-issue-btn') {
+      previousActiveNavBtn = activeNav;
+      activeNav.classList.remove('active');
+    }
+    document.getElementById('add-issue-btn').classList.add('active');
     document.getElementById('save-issue-btn').classList.remove('hidden');
     document.getElementById('cancel-btn').classList.remove('hidden');
     document.getElementById('done-btn').classList.add('hidden');
@@ -174,6 +181,14 @@ export function openModal(issue = null) {
 
 export function closeModal() {
   document.getElementById('issue-modal').classList.add('hidden');
+  const addBtn = document.getElementById('add-issue-btn');
+  if (addBtn.classList.contains('active')) {
+    addBtn.classList.remove('active');
+    if (previousActiveNavBtn) {
+      previousActiveNavBtn.classList.add('active');
+      previousActiveNavBtn = null;
+    }
+  }
   setCurrentIssue(null);
   resetTaskForm();
 }

@@ -17,7 +17,6 @@
                     <img src="logo.png" alt="wuTrak Logo" style="height: 48px;">
                     <span style="font-weight: 500; color: white;">wuTrak</span>
                 </h1>
-                <button id="add-issue-btn" class="btn primary">+ New Issue</button>
             </div>
 
             <div class="header-controls">
@@ -30,6 +29,14 @@
 
         <div class="main-content">
             <nav class="left-menu">
+                <button id="add-issue-btn" class="menu-btn" aria-label="New Issue">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span class="menu-tooltip">New Issue</span>
+                </button>
                 <button id="nav-backlog" class="menu-btn" aria-label="Backlog">
                     <!-- Tray with downward arrow -->
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
