@@ -27,6 +27,16 @@ export function renderBoard(refreshApp, openModal) {
 
   state.issues.forEach(issue => {
     if (issue.status === 'Open') return; // Backlog
+
+    // Filter Logic
+    if (state.filter.label) {
+      if (state.filter.label === '__no_label__') {
+        if (issue.label) return;
+      } else {
+        if (!issue.label || issue.label.name !== state.filter.label) return;
+      }
+    }
+
     if (columns[issue.status]) {
       const card = createCardElement(issue, true, { openModal: openModalCallback });
       columns[issue.status].appendChild(card);

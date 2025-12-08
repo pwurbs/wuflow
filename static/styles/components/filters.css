@@ -1,0 +1,134 @@
+/* Label Filter Styling */
+.filter-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background-color: var(--column-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  min-width: 400px;
+  position: relative;
+  /* Double width */
+}
+
+.filter-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+}
+
+.filter-input-wrapper {
+  position: relative;
+  display: flex;
+  /* Ensures it shrinks to content */
+  font-family: inherit;
+  /* Inherit font settings */
+}
+
+.custom-select-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-select-trigger {
+  background-color: var(--bg-color);
+  border: 1px solid var(--card-border);
+  color: var(--text-color);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 200;
+  cursor: pointer;
+  min-width: 120px;
+  text-align: left;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Flex for icon alignment */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-select-trigger:hover {
+  border-color: var(--primary-color);
+}
+
+.custom-select-trigger:focus {
+  /* No focus ring needed on button usually if we manage active state, or use default */
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.filter-icon-arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.filter-icon-clear {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--muted-text);
+  cursor: pointer;
+  line-height: 1;
+  z-index: 10;
+  /* Ensure clickable */
+  padding: 0 4px;
+  /* Hit area */
+}
+
+.filter-icon-clear:hover {
+  color: var(--accent-red, #ef4444);
+  /* Use red or primary */
+}
+
+.custom-select-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 100%;
+  /* Match trigger width or wider */
+  max-height: 300px;
+  overflow-y: auto;
+  background-color: var(--column-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  margin-top: 4px;
+  /* Slight gap */
+}
+
+.custom-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-color);
+  transition: background-color 0.2s;
+  font-weight: 200;
+}
+
+.custom-option:hover {
+  background-color: var(--hover-bg);
+}
+
+.custom-option.selected {
+  background-color: var(--primary-color);
+  /* Or a tint */
+  color: white;
+}
+
+
+/* Tooltip removed */
+
+/* Utilities */
+.hidden {
+  display: none !important;
+}

@@ -19,8 +19,18 @@ export function renderBacklog(refreshApp, openModal) {
   backlogList.innerHTML = '';
   moveToTodoList.innerHTML = '';
 
-  const openIssues = state.issues.filter(i => i.status === 'Open').sort((a, b) => a.position - b.position);
-  const todoIssues = state.issues.filter(i => i.status === 'Todo').sort((a, b) => a.position - b.position);
+  // Filter Logic
+  let displayIssues = state.issues;
+  if (state.filter.label) {
+    if (state.filter.label === '__no_label__') {
+      displayIssues = displayIssues.filter(i => !i.label);
+    } else {
+      displayIssues = displayIssues.filter(i => i.label && i.label.name === state.filter.label);
+    }
+  }
+
+  const openIssues = displayIssues.filter(i => i.status === 'Open').sort((a, b) => a.position - b.position);
+  const todoIssues = displayIssues.filter(i => i.status === 'Todo').sort((a, b) => a.position - b.position);
 
   openIssues.forEach(issue => {
     backlogList.appendChild(createCardElement(issue, false, { openModal: openModalCallback }));

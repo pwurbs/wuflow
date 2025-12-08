@@ -1,5 +1,5 @@
-import { fetchIssues } from './api.js';
-import { state, setIssues } from './state.js';
+import { fetchIssues, fetchLabels } from './api.js';
+import { state, setIssues, setFilterLabel } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
@@ -21,6 +21,9 @@ const btnDeadlines = document.getElementById('btn-deadlines');
 const btnPlanning = document.getElementById('btn-planning');
 const deadlinesPanel = document.getElementById('deadlines-panel');
 const planningPanel = document.getElementById('planning-panel');
+const labelFilterContainer = document.getElementById('label-filter-container');
+const labelFilterBtn = document.getElementById('label-filter-btn');
+const labelFilterOptions = document.getElementById('label-filter-options');
 
 document.addEventListener('DOMContentLoaded', () => {
     init();
@@ -40,6 +43,11 @@ async function refreshApp() {
     try {
         const issues = await fetchIssues();
         setIssues(issues);
+
+        // Refresh Label Filter
+        const labels = await fetchLabels();
+        updateLabelFilterOptions(labels);
+
         renderBoard(refreshApp, openModal);
         renderBacklog(refreshApp, openModal);
         renderPlanningPanel(refreshApp);
@@ -47,6 +55,77 @@ async function refreshApp() {
     } catch (err) {
         console.error('Failed to refresh app:', err);
     }
+}
+
+function updateLabelFilterOptions(labels) {
+    const currentVal = state.filter.label;
+
+    // Clear dropdown options
+    labelFilterOptions.innerHTML = '';
+
+    // Add "No Label"
+    const noLabelOption = createCustomOption('No Label', '__no_label__');
+    labelFilterOptions.appendChild(noLabelOption);
+
+    labels.forEach(label => {
+        const option = createCustomOption(label.name, label.name);
+        labelFilterOptions.appendChild(option);
+    });
+
+    // Update button content
+    labelFilterBtn.innerHTML = ''; // Clear existing
+    if (currentVal) {
+        // Filter Selected
+        const labelText = currentVal === '__no_label__' ? 'No Label' : currentVal;
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = `Label: ${labelText}`;
+        labelFilterBtn.appendChild(textSpan);
+
+        const clearIcon = document.createElement('span');
+        clearIcon.className = 'filter-icon-clear';
+        clearIcon.innerHTML = '&times;'; // Cross entity
+        clearIcon.title = 'Clear filter';
+
+        clearIcon.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent opening dropdown
+            setFilterLabel(null);
+            refreshApp();
+        });
+
+        labelFilterBtn.appendChild(clearIcon);
+        labelFilterBtn.classList.add('has-selection');
+    } else {
+        // No Filter
+        const textSpan = document.createElement('span');
+        textSpan.textContent = 'Label';
+        labelFilterBtn.appendChild(textSpan);
+
+        const arrowIcon = document.createElement('span');
+        arrowIcon.className = 'filter-icon-arrow';
+        // arrowIcon.innerHTML = '&#9662;'; // Down triangle
+        // or a small svg? Using text for simplicity as requested "small down arrow"
+        arrowIcon.innerHTML = '▼';
+
+        labelFilterBtn.appendChild(arrowIcon);
+        labelFilterBtn.classList.remove('has-selection');
+    }
+}
+
+function createCustomOption(text, value) {
+    const div = document.createElement('div');
+    div.className = 'custom-option';
+    if (state.filter.label === value || (!state.filter.label && value === '')) {
+        // div.classList.add('selected'); // Optional styling
+    }
+    div.textContent = text;
+    div.addEventListener('click', () => {
+        setFilterLabel(value || null);
+        labelFilterBtn.textContent = text;
+        labelFilterOptions.classList.add('hidden');
+        refreshApp();
+    });
+    return div;
 }
 
 function setupEventListeners() {
@@ -61,6 +140,19 @@ function setupEventListeners() {
 
     // New Issue Btn
     document.getElementById('add-issue-btn').addEventListener('click', () => openModal(null));
+
+    // Label Filter Dropdown Toggle
+    labelFilterBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent document click
+        labelFilterOptions.classList.toggle('hidden');
+    });
+
+    // Close Dropdown on outside click
+    document.addEventListener('click', (e) => {
+        if (!labelFilterContainer.contains(e.target)) {
+            labelFilterOptions.classList.add('hidden');
+        }
+    });
 
     // Custom Events
     document.addEventListener('nav-to-issue', (e) => {
@@ -89,6 +181,7 @@ function switchView(view) {
 
         sidebar.classList.remove('hidden');
         viewToggles.classList.remove('hidden');
+        labelFilterContainer.classList.remove('hidden');
     } else if (view === 'backlog') {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');
@@ -100,6 +193,7 @@ function switchView(view) {
 
         sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
+        labelFilterContainer.classList.remove('hidden');
     } else if (view === 'setup') {
         boardView.classList.add('hidden');
         backlogView.classList.add('hidden');
@@ -110,7 +204,9 @@ function switchView(view) {
         navSetup.classList.add('active');
 
         sidebar.classList.add('hidden');
+        sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
+        labelFilterContainer.classList.add('hidden');
 
 
         renderSetupView(refreshApp);
