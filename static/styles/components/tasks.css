@@ -29,7 +29,7 @@
   padding: 2px 8px;
   font-size: 14px;
   border-radius: 4px;
-  background-color: rgba(11, 17, 33, 0.6);
+  background-color: rgb(16, 22, 35);
   /* Match Assignee placeholder opacity */
   border: 1px solid var(--card-border);
   margin-bottom: 4px;
@@ -43,7 +43,7 @@
 
 .task-item.editing {
   border-color: var(--primary-color);
-  background-color: var(--bg-color);
+  background-color: rgb(14, 18, 30);
   /* Solid background for edit mode */
 }
 

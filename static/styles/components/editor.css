@@ -2,7 +2,7 @@
 .editor-container {
   border: 1px solid var(--card-border);
   border-radius: 4px;
-  background-color: var(--bg-color);
+  background-color: rgb(16, 22, 35);
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -99,7 +99,7 @@
 
 /* Inline Editing Styles for Title and Description */
 .inline-editable {
-  background-color: rgba(11, 17, 33, 0.6) !important;
+  background-color: rgb(16, 22, 35) !important;
   border: 1px solid var(--card-border) !important;
   cursor: default;
   transition: background-color 0.2s, border-color 0.2s;
@@ -110,7 +110,7 @@
 }
 
 .inline-editing {
-  background-color: var(--bg-color) !important;
+  background-color: rgb(14, 18, 30) !important;
   border-color: var(--primary-color) !important;
   cursor: text;
 }

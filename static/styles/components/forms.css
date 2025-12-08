@@ -21,7 +21,7 @@
   width: 100%;
   padding: 8px;
   border: 1px solid var(--card-border);
-  background-color: var(--bg-color);
+  background-color: rgb(16, 22, 35);
   color: var(--text-color);
   border-radius: 4px;
   font-family: inherit;
@@ -33,6 +33,7 @@
 .form-group select:focus,
 .form-group textarea:focus {
   border-color: var(--primary-color);
+  background-color: rgb(14, 18, 30);
   outline: none;
 }
 
@@ -98,7 +99,7 @@ input:-webkit-autofill:active,
 
 .input-group input {
   border: 1px solid var(--card-border);
-  background-color: var(--bg-color);
+  background-color: rgb(16, 22, 35);
   color: var(--text-color);
   padding: 4px 8px;
   border-radius: 4px;
@@ -113,6 +114,7 @@ input:-webkit-autofill:active,
 
 .input-group input:focus {
   border-color: var(--primary-color);
+  background-color: rgb(14, 18, 30);
   outline: none;
 }
 
@@ -122,7 +124,7 @@ input:-webkit-autofill:active,
   width: 100%;
   padding: 8px;
   border: 1px solid var(--card-border);
-  background-color: var(--bg-color);
+  background-color: rgb(16, 22, 35);
   color: var(--text-color);
   border-radius: 4px;
   font-size: 14px;
@@ -136,6 +138,7 @@ input:-webkit-autofill:active,
 
 .custom-date-input:focus-within {
   border-color: var(--primary-color);
+  background-color: rgb(14, 18, 30);
 }
 
 .custom-date-display {
