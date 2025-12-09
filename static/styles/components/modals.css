@@ -19,7 +19,7 @@
   background-color: var(--column-bg);
   color: var(--text-color);
   border: 1px solid var(--card-border);
-  padding: 24px;
+  padding: 20px;
   border-radius: 8px;
   width: 500px;
   max-width: 90%;
@@ -36,7 +36,7 @@
 }
 
 #modal-title {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 #issue-form {
