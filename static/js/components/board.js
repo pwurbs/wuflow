@@ -41,6 +41,12 @@ export function renderBoard(refreshApp, openModal) {
       if (issue.priority !== state.filter.priority) return;
     }
 
+    if (state.filter.search) {
+      const term = state.filter.search.toLowerCase();
+      const match = issue.title.toLowerCase().includes(term) || (issue.description && issue.description.toLowerCase().includes(term));
+      if (!match) return;
+    }
+
     if (columns[issue.status]) {
       const card = createCardElement(issue, true, { openModal: openModalCallback });
       columns[issue.status].appendChild(card);

@@ -1,7 +1,7 @@
 export const state = {
   issues: [],
   currentIssue: null,
-  filter: { label: null, priority: null }
+  filter: { label: null, priority: null, search: '' }
 };
 
 export function setFilterLabel(label) {
@@ -10,6 +10,10 @@ export function setFilterLabel(label) {
 
 export function setFilterPriority(priority) {
   state.filter.priority = priority;
+}
+
+export function setFilterSearch(term) {
+  state.filter.search = term;
 }
 
 export function setIssues(newIssues) {

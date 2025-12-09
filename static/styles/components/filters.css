@@ -135,3 +135,31 @@
 .hidden {
   display: none !important;
 }
+
+/* Search Input Styling */
+.search-input {
+  background-color: rgb(16, 22, 35);
+  border: 1px solid var(--card-border);
+  color: var(--text-color);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 200;
+  cursor: text;
+  min-width: 120px;
+  text-align: left;
+  transition: all 0.2s ease;
+  /* height: 34px; Removed to match button auto height */
+  /* box-sizing: border-box; Inherited from reset */
+}
+
+.search-input:hover {
+  border-color: var(--primary-color);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: rgb(14, 18, 30);
+}

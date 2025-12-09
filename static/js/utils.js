@@ -130,3 +130,17 @@ export function updateDateInputStyle(input) {
     }
   }
 }
+
+// Debounce a function call by a specified wait time, needed for search
+export function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+

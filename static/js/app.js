@@ -1,12 +1,12 @@
 import { fetchIssues, fetchLabels } from './api.js';
-import { state, setIssues, setFilterLabel } from './state.js';
+import { state, setIssues, setFilterLabel, setFilterSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
 import { renderDeadlineList } from './components/deadlines.js';
 import { setupSetupView, renderSetupView } from './components/setup.js';
 import { setupModal, openModal, closeModal } from './components/modal.js';
-import { showModalNotification } from './utils.js';
+import { showModalNotification, debounce } from './utils.js';
 import { initLabelFilter, updateLabelFilterOptions } from './components/labelFilter.js';
 import { initPriorityFilter, updatePriorityFilterOptions } from './components/priorityFilter.js';
 
@@ -24,6 +24,7 @@ const btnPlanning = document.getElementById('btn-planning');
 const deadlinesPanel = document.getElementById('deadlines-panel');
 const planningPanel = document.getElementById('planning-panel');
 const filterContainer = document.getElementById('filter-container');
+const searchInput = document.getElementById('search-input');
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -77,6 +78,14 @@ function setupEventListeners() {
 
     // New Issue Btn
     document.getElementById('add-issue-btn').addEventListener('click', () => openModal(null));
+
+    // Search
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce((e) => {
+            setFilterSearch(e.target.value);
+            refreshApp();
+        }, 300));
+    }
 
 
 
