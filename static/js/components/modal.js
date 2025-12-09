@@ -74,7 +74,7 @@ export function openModal(issue = null) {
 
 
   /* const statusSelect = document.getElementById('status'); -- Removed as part of custom dropdown refactor */
-  const commentsSection = document.querySelector('.comments-section-placeholder');
+
   const tasksSection = document.getElementById('tasks-section');
   const deleteIssueBtn = document.getElementById('delete-issue-btn');
   const titleInput = document.getElementById('title');
@@ -137,7 +137,7 @@ export function openModal(issue = null) {
     });
     deleteIssueBtn.classList.remove('hidden');
 
-    if (commentsSection) commentsSection.classList.remove('hidden');
+
 
     // Timestamps
     const timestampContainer = document.getElementById('timestamp-container');
@@ -206,7 +206,7 @@ export function openModal(issue = null) {
     tasksSection.classList.add('hidden');
     deleteIssueBtn.classList.add('hidden');
 
-    if (commentsSection) commentsSection.classList.add('hidden');
+
 
     // Hide Timestamps
     const timestampContainer = document.getElementById('timestamp-container');

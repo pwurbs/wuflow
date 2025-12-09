@@ -108,20 +108,7 @@
   color: var(--muted-text);
 }
 
-.comments-section-placeholder h3 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--muted-text);
-  margin-bottom: 8px;
-}
 
-/* Comments Section Separator */
-.comments-section-placeholder {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid var(--card-border);
-  opacity: 0.5;
-}
 
 /* Confirmation Modal */
 .modal-content.confirm {
