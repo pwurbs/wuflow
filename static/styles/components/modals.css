@@ -144,3 +144,32 @@
 .modal-sidebar .custom-select-trigger {
   width: 100%;
 }
+
+/* Timestamp Container */
+.timestamp-container {
+  margin-top: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timestamp-container.hidden {
+  display: none;
+}
+
+.timestamp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: default;
+}
+
+.timestamp-item svg {
+  color: var(--text-color);
+  opacity: 1;
+}

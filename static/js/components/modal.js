@@ -139,6 +139,28 @@ export function openModal(issue = null) {
 
     if (commentsSection) commentsSection.classList.remove('hidden');
 
+    // Timestamps
+    const timestampContainer = document.getElementById('timestamp-container');
+    const createdAtDisplay = document.getElementById('created-at-display');
+    const updatedAtDisplay = document.getElementById('updated-at-display');
+
+    if (timestampContainer && createdAtDisplay && updatedAtDisplay) {
+      if (issue.created_at) {
+        const createdDate = new Date(issue.created_at);
+        createdAtDisplay.textContent = createdDate.toLocaleDateString(navigator.language) + ' / ' + createdDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+      } else {
+        createdAtDisplay.textContent = '-';
+      }
+
+      if (issue.updated_at) {
+        const updatedDate = new Date(issue.updated_at);
+        updatedAtDisplay.textContent = updatedDate.toLocaleDateString(navigator.language) + ' / ' + updatedDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+      } else {
+        updatedAtDisplay.textContent = '-';
+      }
+      timestampContainer.classList.remove('hidden');
+    }
+
     // Enable inline edit mode
     titleInput.classList.add('inline-editable');
     titleInput.readOnly = true;
@@ -185,6 +207,12 @@ export function openModal(issue = null) {
     deleteIssueBtn.classList.add('hidden');
 
     if (commentsSection) commentsSection.classList.add('hidden');
+
+    // Hide Timestamps
+    const timestampContainer = document.getElementById('timestamp-container');
+    if (timestampContainer) {
+      timestampContainer.classList.add('hidden');
+    }
 
     titleInput.classList.remove('inline-editable');
     titleInput.readOnly = false;
