@@ -81,29 +81,7 @@ function setupBoardDragDrop(columns) {
 
 // Export a setup function to be called once
 export function setupBoardView(refreshApp, openModal) {
-  // Background drop for planning items (clearing date)
-  const boardView = document.querySelector('.board');
-  boardView.addEventListener('dragover', (e) => {
-    if (draggedCard && draggedCard.classList.contains('planning-item')) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    }
-  });
-  boardView.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    if (e.target.closest('#planning-panel')) return;
-    if (draggedCard && draggedCard.classList.contains('planning-item')) {
-      const issueId = parseInt(draggedCard.dataset.id);
-      const issue = state.issues.find(i => i.id === issueId);
-      if (issue) {
-        issue.planned_date = null;
-        // If dropped on board background, keep status (unless it was Open?)
-        // Existing logic: "If dropped on Board view background... keep current status"
-        await updateIssue(issue);
-        if (refreshAppCallback) refreshAppCallback();
-      }
-    }
-  });
+
 
   // Columns
   document.querySelectorAll('.column-content').forEach(colContent => {

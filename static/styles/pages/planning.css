@@ -36,7 +36,7 @@
   min-height: 10px;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 6px;
 }
 
 .planning-day.drag-over {
@@ -50,29 +50,45 @@
 }
 
 .planning-item {
-  padding: 1px 0;
-  background-color: transparent;
-  border: none;
-  border-radius: 2px;
+  padding: 3px 6px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
   font-size: 13px;
   cursor: grab;
   color: var(--text-color);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 6px;
 }
 
-.planning-item::before {
-  content: "•";
+.planning-item-remove {
+  color: var(--danger-color);
+  /* Or a specific red */
+  cursor: pointer;
   font-size: 18px;
-  line-height: 0.8;
-  color: var(--muted-text);
-  flex-shrink: 0;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+  padding: 4px;
+  /* Increased padding slightly for touch target */
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
+.planning-item-remove:hover {
+  opacity: 1;
+  background-color: rgba(255, 0, 0, 0.1);
+}
+
+/* Removed .planning-item::before */
 
 .planning-item:hover {
   background-color: var(--hover-bg);

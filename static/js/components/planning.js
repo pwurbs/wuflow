@@ -90,9 +90,32 @@ function createPlanningDayElement(title, idSuffix) {
 function createPlanningItem(issue) {
   const div = document.createElement('div');
   div.className = 'planning-item';
-  div.textContent = issue.title;
   div.draggable = true;
   div.dataset.id = issue.id;
+
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = issue.title;
+  titleSpan.style.flex = '1';
+  titleSpan.style.overflow = 'hidden';
+  titleSpan.style.textOverflow = 'ellipsis';
+
+  const removeBtn = document.createElement('span');
+  removeBtn.className = 'planning-item-remove';
+  // Use SVG to match task delete icon
+  removeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+  removeBtn.title = 'Remove from plan';
+
+  removeBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    issue.planned_date = null;
+    await updateIssue(issue);
+    if (refreshAppCallback) refreshAppCallback();
+  });
+
+  div.appendChild(titleSpan);
+  div.appendChild(removeBtn);
+
   div.addEventListener('dragstart', (e) => {
     import('../drag.js').then(d => {
       d.setDraggedCard(div);
