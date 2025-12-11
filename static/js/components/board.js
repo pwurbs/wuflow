@@ -133,8 +133,7 @@ export function setupBoardView(refreshApp, openModal) {
           if (issue && (issue.status !== status || issue.position !== index)) {
             issue.status = status;
             issue.position = index;
-            issue.planned_date = null; // Board drop clears planned date usually? 
-            // Check original code: "If dropped on a column ... issue.planned_date = null;" (line 1615)
+            // Planned date is preserved
             updates.push(updateIssue(issue));
           }
         });

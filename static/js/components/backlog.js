@@ -126,7 +126,6 @@ export function setupBacklogView(refreshApp, openModal) {
           if (issue && (issue.status !== 'Open' || issue.position !== index)) {
             issue.status = 'Open';
             issue.position = index;
-            issue.planned_date = null;
             updates.push(updateIssue(issue));
           }
         });
@@ -138,7 +137,6 @@ export function setupBacklogView(refreshApp, openModal) {
           if (issue && (issue.status !== 'Todo' || issue.position !== index)) {
             issue.status = 'Todo';
             issue.position = index;
-            issue.planned_date = null;
             updates.push(updateIssue(issue));
           }
         });
