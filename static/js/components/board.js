@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
-import { draggedCard, getDragAfterElement } from '../drag.js';
+import { draggedCard, draggedCardOrigin, getDragAfterElement } from '../drag.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
@@ -106,6 +106,22 @@ export function setupBoardView(refreshApp, openModal) {
 
   // Columns
   document.querySelectorAll('.column-content').forEach(colContent => {
+    colContent.addEventListener('dragleave', (e) => {
+      // If moving into a child element, ignore
+      if (colContent.contains(e.relatedTarget)) return;
+
+      if (draggedCard && draggedCardOrigin) {
+        // Revert to origin
+        if (draggedCardOrigin.parent && document.body.contains(draggedCardOrigin.parent)) {
+          if (draggedCardOrigin.nextSibling) {
+            draggedCardOrigin.parent.insertBefore(draggedCard, draggedCardOrigin.nextSibling);
+          } else {
+            draggedCardOrigin.parent.appendChild(draggedCard);
+          }
+        }
+      }
+    });
+
     colContent.addEventListener('dragover', (e) => {
       if (!draggedCard || !draggedCard.classList.contains('card')) return;
       e.preventDefault();
