@@ -121,6 +121,7 @@ function createPlanningItem(issue) {
 
 async function handlePlanningDrop(e) {
   e.preventDefault();
+  e.stopPropagation();
   this.classList.remove('drag-over');
   const dateStr = this.dataset.date;
 
