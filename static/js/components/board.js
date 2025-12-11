@@ -91,6 +91,7 @@ export function setupBoardView(refreshApp, openModal) {
   });
   boardView.addEventListener('drop', async (e) => {
     e.preventDefault();
+    if (e.target.closest('#planning-panel')) return;
     if (draggedCard && draggedCard.classList.contains('planning-item')) {
       const issueId = parseInt(draggedCard.dataset.id);
       const issue = state.issues.find(i => i.id === issueId);
