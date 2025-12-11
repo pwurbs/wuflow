@@ -2,3 +2,7 @@
 *.db*
 /bin
 coverage.out
+.scannerwork
+.vscode
+.sonarlint
+sonar-project.properties
