@@ -2,6 +2,7 @@ import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, createTask, updateTask, fetchLabels } from '../api.js';
 import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, stripHtml, escapeHtml } from '../utils.js';
 import { renderTasks } from './tasks.js';
+import { getDragAfterTaskElement, draggedTask } from '../drag.js';
 
 let refreshAppCallback = null;
 let previousActiveNavBtn = null;
@@ -30,6 +31,19 @@ export function setupModal(refreshApp) {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleTaskSubmit(e);
+    }
+  });
+
+  // Task Drag Reordering Logic
+  const taskList = document.getElementById('task-list');
+  taskList.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!draggedTask) return;
+    const afterElement = getDragAfterTaskElement(taskList, e.clientY);
+    if (afterElement == null) {
+      taskList.appendChild(draggedTask);
+    } else {
+      taskList.insertBefore(draggedTask, afterElement);
     }
   });
 
