@@ -11,7 +11,7 @@ type IssueStatus string
 const (
 	// StatusOpen represents an issue that is open but not yet started.
 	StatusOpen IssueStatus = "Open"
-	// StatusTodo represents an issue that is in the Todo state.
+	// StatusTodo represents an issue that is in the "To Do" state.
 	StatusTodo IssueStatus = "Todo"
 	// StatusPending represents an issue that is pending.
 	StatusPending IssueStatus = "Pending"

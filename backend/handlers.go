@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	errMsgMethodNotAllowed = "Method not allowed"
+	errMsgInvalidID        = "Invalid ID"
+)
+
 // HandleIssues handles GET and POST requests for issues.
 func HandleIssues(w http.ResponseWriter, r *http.Request) {
 
@@ -31,7 +36,7 @@ func HandleIssues(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(i)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -41,7 +46,7 @@ func HandleIssue(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/issues/")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
 
@@ -65,7 +70,7 @@ func HandleIssue(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -106,7 +111,7 @@ func HandleTasks(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(t)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -116,7 +121,7 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
 
@@ -140,7 +145,7 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -167,7 +172,7 @@ func HandleLabels(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(l)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -176,7 +181,7 @@ func HandleLabel(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/labels/")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
 
@@ -188,6 +193,6 @@ func HandleLabel(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }

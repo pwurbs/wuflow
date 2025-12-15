@@ -8,13 +8,22 @@ import (
 	"testing"
 )
 
-func TestHandleIssues_GET(t *testing.T) {
+const (
+	apiIssues       = "/api/issues"
+	apiIssues1      = "/api/issues/1"
+	apiIssues1Tasks = "/api/issues/1/tasks"
+	apiTasks1       = "/api/tasks/1"
+	invalidJSON     = "invalid json"
+	wrongStatusCode = "handler returned wrong status code: got %v want %v"
+)
+
+func TestHandleIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
 	CreateIssue(&Issue{Title: "Issue 1", Status: StatusOpen})
 
-	req, err := http.NewRequest("GET", "/api/issues", nil)
+	req, err := http.NewRequest("GET", apiIssues, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +34,7 @@ func TestHandleIssues_GET(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusOK)
 	}
 
@@ -39,14 +48,14 @@ func TestHandleIssues_GET(t *testing.T) {
 	}
 }
 
-func TestHandleIssues_POST(t *testing.T) {
+func TestHandleIssuesPost(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "New Issue", Status: StatusOpen}
 	body, _ := json.Marshal(issue)
 
-	req, err := http.NewRequest("POST", "/api/issues", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +66,7 @@ func TestHandleIssues_POST(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusCreated)
 	}
 
@@ -71,7 +80,7 @@ func TestHandleIssues_POST(t *testing.T) {
 	}
 }
 
-func TestHandleIssue_PUT(t *testing.T) {
+func TestHandleIssuePut(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
@@ -82,7 +91,7 @@ func TestHandleIssue_PUT(t *testing.T) {
 	body, _ := json.Marshal(issue)
 
 	// URL path is needed for ID extraction in handler
-	req, err := http.NewRequest("PUT", "/api/issues/1", bytes.NewBuffer(body))
+	req, err := http.NewRequest("PUT", apiIssues1, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +102,7 @@ func TestHandleIssue_PUT(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusOK)
 	}
 
@@ -109,14 +118,14 @@ func TestHandleIssue_PUT(t *testing.T) {
 	}
 }
 
-func TestHandleIssue_DELETE(t *testing.T) {
+func TestHandleIssueDelete(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "To Delete", Status: StatusOpen}
 	CreateIssue(issue)
 
-	req, err := http.NewRequest("DELETE", "/api/issues/1", nil)
+	req, err := http.NewRequest("DELETE", apiIssues1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +136,7 @@ func TestHandleIssue_DELETE(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNoContent {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusNoContent)
 	}
 
@@ -137,7 +146,7 @@ func TestHandleIssue_DELETE(t *testing.T) {
 	}
 }
 
-func TestHandleTasks_POST(t *testing.T) {
+func TestHandleTasksPost(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
@@ -148,7 +157,7 @@ func TestHandleTasks_POST(t *testing.T) {
 	body, _ := json.Marshal(task)
 
 	// URL path structure: /api/issues/{id}/tasks
-	req, err := http.NewRequest("POST", "/api/issues/1/tasks", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", apiIssues1Tasks, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +168,7 @@ func TestHandleTasks_POST(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusCreated)
 	}
 
@@ -169,7 +178,7 @@ func TestHandleTasks_POST(t *testing.T) {
 	}
 }
 
-func TestHandleTask_PUT(t *testing.T) {
+func TestHandleTaskPut(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
@@ -181,7 +190,7 @@ func TestHandleTask_PUT(t *testing.T) {
 	task.Title = "Updated"
 	body, _ := json.Marshal(task)
 
-	req, err := http.NewRequest("PUT", "/api/tasks/1", bytes.NewBuffer(body))
+	req, err := http.NewRequest("PUT", apiTasks1, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +201,7 @@ func TestHandleTask_PUT(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusOK)
 	}
 
@@ -202,7 +211,7 @@ func TestHandleTask_PUT(t *testing.T) {
 	}
 }
 
-func TestHandleTask_DELETE(t *testing.T) {
+func TestHandleTaskDelete(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
@@ -211,7 +220,7 @@ func TestHandleTask_DELETE(t *testing.T) {
 	task := &Task{IssueID: issue.ID, Title: "To Delete"}
 	CreateTask(task)
 
-	req, err := http.NewRequest("DELETE", "/api/tasks/1", nil)
+	req, err := http.NewRequest("DELETE", apiTasks1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +231,7 @@ func TestHandleTask_DELETE(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNoContent {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusNoContent)
 	}
 
@@ -232,8 +241,8 @@ func TestHandleTask_DELETE(t *testing.T) {
 	}
 }
 
-func TestHandleIssues_POST_InvalidJSON(t *testing.T) {
-	req, err := http.NewRequest("POST", "/api/issues", bytes.NewBufferString("invalid json"))
+func TestHandleIssuesPostInvalidJSON(t *testing.T) {
+	req, err := http.NewRequest("POST", apiIssues, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,12 +253,12 @@ func TestHandleIssues_POST_InvalidJSON(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusBadRequest)
 	}
 }
 
-func TestHandleIssue_InvalidID(t *testing.T) {
+func TestHandleIssueInvalidID(t *testing.T) {
 	req, err := http.NewRequest("GET", "/api/issues/invalid", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -261,13 +270,13 @@ func TestHandleIssue_InvalidID(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusBadRequest)
 	}
 }
 
-func TestHandleIssue_PUT_InvalidJSON(t *testing.T) {
-	req, err := http.NewRequest("PUT", "/api/issues/1", bytes.NewBufferString("invalid json"))
+func TestHandleIssuePutInvalidJSON(t *testing.T) {
+	req, err := http.NewRequest("PUT", apiIssues1, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,13 +287,13 @@ func TestHandleIssue_PUT_InvalidJSON(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusBadRequest)
 	}
 }
 
-func TestHandleTasks_POST_InvalidJSON(t *testing.T) {
-	req, err := http.NewRequest("POST", "/api/issues/1/tasks", bytes.NewBufferString("invalid json"))
+func TestHandleTasksPostInvalidJSON(t *testing.T) {
+	req, err := http.NewRequest("POST", apiIssues1Tasks, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,12 +304,12 @@ func TestHandleTasks_POST_InvalidJSON(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusBadRequest)
 	}
 }
 
-func TestHandleTasks_POST_InvalidIssueID(t *testing.T) {
+func TestHandleTasksPostInvalidIssueID(t *testing.T) {
 	req, err := http.NewRequest("POST", "/api/issues/invalid/tasks", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -312,12 +321,12 @@ func TestHandleTasks_POST_InvalidIssueID(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusBadRequest)
 	}
 }
 
-func TestHandleTask_InvalidID(t *testing.T) {
+func TestHandleTaskInvalidID(t *testing.T) {
 	req, err := http.NewRequest("PUT", "/api/tasks/invalid", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -329,13 +338,13 @@ func TestHandleTask_InvalidID(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusBadRequest)
 	}
 }
 
-func TestHandleTask_PUT_InvalidJSON(t *testing.T) {
-	req, err := http.NewRequest("PUT", "/api/tasks/1", bytes.NewBufferString("invalid json"))
+func TestHandleTaskPutInvalidJSON(t *testing.T) {
+	req, err := http.NewRequest("PUT", apiTasks1, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,13 +355,13 @@ func TestHandleTask_PUT_InvalidJSON(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusBadRequest)
 	}
 }
 
-func TestHandleIssues_MethodNotAllowed(t *testing.T) {
-	req, err := http.NewRequest("DELETE", "/api/issues", nil)
+func TestHandleIssuesMethodNotAllowed(t *testing.T) {
+	req, err := http.NewRequest("DELETE", apiIssues, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,13 +372,13 @@ func TestHandleIssues_MethodNotAllowed(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusMethodNotAllowed)
 	}
 }
 
-func TestHandleIssue_MethodNotAllowed(t *testing.T) {
-	req, err := http.NewRequest("POST", "/api/issues/1", nil)
+func TestHandleIssueMethodNotAllowed(t *testing.T) {
+	req, err := http.NewRequest("POST", apiIssues1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,13 +389,13 @@ func TestHandleIssue_MethodNotAllowed(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusMethodNotAllowed)
 	}
 }
 
-func TestHandleTasks_MethodNotAllowed(t *testing.T) {
-	req, err := http.NewRequest("GET", "/api/issues/1/tasks", nil)
+func TestHandleTasksMethodNotAllowed(t *testing.T) {
+	req, err := http.NewRequest("GET", apiIssues1Tasks, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,13 +406,13 @@ func TestHandleTasks_MethodNotAllowed(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusMethodNotAllowed)
 	}
 }
 
-func TestHandleTask_MethodNotAllowed(t *testing.T) {
-	req, err := http.NewRequest("POST", "/api/tasks/1", nil)
+func TestHandleTaskMethodNotAllowed(t *testing.T) {
+	req, err := http.NewRequest("POST", apiTasks1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +423,7 @@ func TestHandleTask_MethodNotAllowed(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
-		t.Errorf("handler returned wrong status code: got %v want %v",
+		t.Errorf(wrongStatusCode,
 			status, http.StatusMethodNotAllowed)
 	}
 }
