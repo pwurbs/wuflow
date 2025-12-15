@@ -15,6 +15,7 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
 
   const completedTasks = issue.tasks ? issue.tasks.filter(t => t.done).length : 0;
   const totalTasks = issue.tasks ? issue.tasks.length : 0;
+  const openTasks = totalTasks - completedTasks;
 
   if (isBoard) {
     // New Board Card Layout
@@ -28,14 +29,14 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
                 <div class="board-card-meta-right">
                     ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
                     <div class="board-task-info">
-                        <span class="board-task-icon">☑</span>
-                        <span>${completedTasks}/${totalTasks}</span>
-                        ${issue.tasks && issue.tasks.length > 0 ? `
+                        <span class="board-task-icon">☐</span>
+                        <span>${openTasks}</span>
+                        ${issue.tasks && openTasks > 0 ? `
                         <div class="board-task-tooltip">
                             <ul>
-                                ${issue.tasks.map(t => `
-                                    <li class="${t.done ? 'done' : ''}">
-                                        <span class="tooltip-icon">${t.done ? '☑' : '☐'}</span>
+                                ${issue.tasks.filter(t => !t.done).map(t => `
+                                    <li>
+                                        <span class="tooltip-icon">☐</span>
                                         <span class="tooltip-title">${escapeHtml(t.title)}</span>
                                         ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                                     </li>
@@ -64,8 +65,8 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
         return `<div class="card-meta">
                     ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language)}</span>` : '<span></span>'}
                     ${showProgress ? `<div class="board-task-info">
-                        <span class="board-task-icon">☑</span>
-                        <span>${completedTasks}/${totalTasks}</span>
+                        <span class="board-task-icon">☐</span>
+                        <span>${openTasks}</span>
                     </div>` : ''}
                 </div>`;
       })()}
