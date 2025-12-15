@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	// Import sqlite3 driver for side effects (registration)
 	_ "github.com/mattn/go-sqlite3"
 )
 
