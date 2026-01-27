@@ -3,6 +3,7 @@ package backend
 import (
 	"database/sql"
 	"log"
+	"os"
 	"time"
 
 	// Import sqlite3 driver for side effects (registration)
@@ -14,6 +15,10 @@ var DB *sql.DB
 
 // InitDB initializes the database connection and creates tables if they don't exist.
 func InitDB(dataSourceName string) {
+	if _, err := os.Stat(dataSourceName); os.IsNotExist(err) {
+		log.Printf("Creating new database at: %s", dataSourceName)
+	}
+
 	var err error
 	DB, err = sql.Open("sqlite3", dataSourceName)
 	if err != nil {
