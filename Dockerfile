@@ -42,10 +42,10 @@ COPY --from=builder /app/wutrak /app/wutrak
 # maybe we change this later
 
 # Create data directory and make appuser own the files
-RUN mkdir -p /app/data && chown -R appuser:appuser /app
+RUN mkdir -p /data && chown -R appuser:appuser /data
 
 # Directory for data persistence
-VOLUME ["/app/data"]
+VOLUME ["/data"]
 
 # Expose at port 8080
 EXPOSE 8080
@@ -57,4 +57,4 @@ USER appuser
 ENTRYPOINT ["/app/wutrak"]
 
 # Default arguments: Store DB in a volume-friendly path
-CMD ["-port", "8080", "-db", "/app/data/wutrak.db"]
+CMD ["-port", "8080", "-db", "/data/wutrak.db"]

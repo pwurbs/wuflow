@@ -6,3 +6,6 @@ coverage.out
 .vscode
 .sonarlint
 sonar-project.properties
+
+# HA addon config
+config.yaml 
