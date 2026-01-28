@@ -3,9 +3,15 @@
 /bin
 coverage.out
 .scannerwork
-.vscode
 .sonarlint
 sonar-project.properties
 
 # HA addon config
 config.yaml 
+
+# Playwright
+playwright/.playwright
+.tmp
+node_modules
+playwright/test-results
+playwright/playwright-report

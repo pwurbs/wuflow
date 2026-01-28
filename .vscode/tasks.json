@@ -1,0 +1,139 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Go Test",
+      "type": "shell",
+      "command": "go test -v -coverprofile=coverage.out ./backend/...",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": [
+        "$go"
+      ]
+    },
+    {
+      "label": "Go Build",
+      "type": "shell",
+      "command": "go build -v -o bin/wutrak main.go",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": [
+        "$go"
+      ]
+    },
+    {
+      "label": "Sonar Scanner",
+      "type": "shell",
+      "command": "sonar-scanner",
+      // Use a login interactive shell to ensure the user's PATH and SONAR_TOKEN are loaded correctly (finding sonar-scanner binary)
+      "options": {
+        "shell": {
+          "args": [
+            "-l",
+            "-i",
+            "-c"
+          ]
+        }
+      },
+      // Add your specific arguments here if not using a sonar-project.properties file
+      "args": [
+        "-Dsonar.token=${env:SONAR_TOKEN}" // we keep it here to document that the envvar is used
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker Build",
+      "type": "shell",
+      "command": "container build -t wutrak .",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Test Container",
+      "type": "shell",
+      "command": "container run -d -p 8080:8080 --name wutrak-test wutrak",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Execute Playwright Tests",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/playwright"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop Test Container",
+      "type": "shell",
+      "command": "container stop wutrak-test && container rm wutrak-test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Open Test Report",
+      "type": "shell",
+      "command": "open ${workspaceFolder}/playwright/playwright-report/index.html",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Build&Package",
+      "dependsOn": [
+        "Go Test",
+        "Go Build",
+        "Sonar Scanner",
+        "Docker Build"
+      ],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Playwright Tests",
+      "dependsOn": [
+        "Start Test Container",
+        "Execute Playwright Tests",
+        "Stop Test Container",
+        "Open Test Report"
+      ],
+      "dependsOrder": "sequence",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
