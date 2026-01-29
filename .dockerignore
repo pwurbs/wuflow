@@ -1,0 +1,35 @@
+# Test files and directories
+static/js/tests/
+static/js/coverage/
+static/js/node_modules/
+
+# Go test files
+*_test.go
+
+# Development configuration files
+static/js/package.json
+static/js/package-lock.json
+static/js/vitest.config.js
+static/js/README.md
+
+# Playwright tests
+playwright/
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+DOCS.md
+*.md
+
+# VS Code
+.vscode/
+
+# Agent files
+.agent/
