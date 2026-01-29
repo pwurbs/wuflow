@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderTasks } from '../components/tasks.js';
 import * as api from '../api.js';
@@ -18,7 +17,7 @@ vi.mock('../utils.js', () => ({
 
 vi.mock('../drag.js', () => ({
   setDraggedTask: vi.fn(),
-  draggedTask: null
+  getDraggedTask: vi.fn()
 }));
 
 describe('Tasks Component', () => {

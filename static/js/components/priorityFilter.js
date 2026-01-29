@@ -90,9 +90,6 @@ export function updatePriorityFilterOptions() {
 function createCustomOption(text, value) {
   const div = document.createElement('div');
   div.className = 'custom-option';
-  if (state.filter.priority === value) {
-    // div.classList.add('selected'); 
-  }
   div.textContent = text;
   div.addEventListener('click', () => {
     setFilterPriority(value);

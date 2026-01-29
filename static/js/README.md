@@ -46,10 +46,11 @@ npm run test:coverage
 |--------|----------|--------|
 | **`state.js`** | **100%** | ✅ **Covered**. All state transitions are verified. |
 | **`filters.js`** | **100%** | ✅ **Covered**. Complex filtering/sorting logic is verified. |
-| **`utils.js`** | **~30%** | ✅ **Sufficient**. Only pure functions (`stripHtml`, `escapeHtml`, `debounce`) covered. |
+| **`utils.js`** | **~31%** | ✅ **Sufficient**. Only pure functions (`stripHtml`, `escapeHtml`, `debounce`) covered. |
+| **`components/board.js`** | **~90%** | ✅ **Excellent**. Rendering, drag-drop, and state updates covered. |
 | **`components/tasks.js`** | **~84%** | ✅ **Detailed**. Rendering, status toggling, deletion, and editing covered. |
-| **`components/modal.js`** | **~58%** | ✅ **Significant**. Form state, inline editing, and validation logic covered. |
-| **`components/board.js`** | **~50%** | ✅ **Basic**. Column distribution logic verified. |
+| **`components/modal.js`** | **~75%** | ✅ **Comprehensive**. Form state, inline editing, dropdowns, and helper functions covered. |
 | Other `components/` | 0% | ✅ **Intended**. Pure DOM rendering delegated to E2E tests. |
 | `api.js` | 0% | ⚠️ **Acceptable**. Contains only `fetch` wrappers. Logic is minimal. |
+
 

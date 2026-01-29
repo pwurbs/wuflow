@@ -1,6 +1,9 @@
 // Shared drag state
-export let draggedCard = null;
-export let draggedCardOrigin = null;
+let draggedCard = null;
+let draggedCardOrigin = null;
+
+export const getDraggedCard = () => draggedCard;
+export const getDraggedCardOrigin = () => draggedCardOrigin;
 
 export function setDraggedCard(card) {
   draggedCard = card;
@@ -26,7 +29,9 @@ export function getDragAfterElement(column, y) {
 }
 
 // Task drag helpers
-export let draggedTask = null;
+let draggedTask = null;
+
+export const getDraggedTask = () => draggedTask;
 
 export function setDraggedTask(task) {
   draggedTask = task;

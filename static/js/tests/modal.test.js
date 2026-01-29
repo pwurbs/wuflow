@@ -1,5 +1,5 @@
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setupModal, openModal, closeModal } from '../components/modal.js';
 import * as api from '../api.js';
 import * as state from '../state.js';
@@ -45,13 +45,11 @@ vi.mock('../components/tasks.js', () => ({
 
 vi.mock('../drag.js', () => ({
   getDragAfterTaskElement: vi.fn(),
-  draggedTask: null
+  getDraggedTask: vi.fn(),
+  setDraggedTask: vi.fn()
 }));
 
 describe('Modal Component', () => {
-  let modal, form, cancelBtn, doneBtn, deleteBtn, addTaskBtn, newTaskTitle, taskList;
-  let titleInput, descEditor, plannedDate, deadline, statusInput, priorityInput, labelInput;
-
   beforeEach(() => {
     // Setup DOM
     document.body.innerHTML = `
@@ -119,6 +117,11 @@ describe('Modal Component', () => {
 
     // Initialize module
     setupModal(vi.fn());
+
+    // Mock JSDOM missing functions
+    document.queryCommandState = vi.fn();
+    document.execCommand = vi.fn();
+    HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   it('should open modal for new issue', async () => {
@@ -238,4 +241,336 @@ describe('Modal Component', () => {
     expect(api.deleteIssue).toHaveBeenCalledWith(99);
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
+  it('should drag and drop task', async () => {
+    // Mock drag utils
+    const mockTask = document.createElement('div');
+    mockTask.className = 'task-item';
+
+    // Import drag mock to set return values if needed, or use the vi.mocked helper if available. 
+    // Since we mocked the module, we can access the mock functions.
+    // However, we didn't import the mock functions in this test file directly from the mocked module instance.
+    // But we did: `import * as tasks from ...` but drag is mocked separate.
+    // We need to import the mocked module to manipulate it?
+    // Actually we can just rely on the event listeners calling the global mock.
+
+    const dragModule = await import('../drag.js');
+    dragModule.getDraggedTask.mockReturnValue(mockTask);
+    dragModule.getDragAfterTaskElement.mockReturnValue(null); // Append to end
+
+    const taskList = document.getElementById('task-list');
+
+    // Simulate dragover
+    const dragEvent = new Event('dragover');
+    Object.defineProperty(dragEvent, 'clientY', { value: 100 });
+    taskList.dispatchEvent(dragEvent);
+
+    expect(dragModule.getDraggedTask).toHaveBeenCalled();
+    expect(taskList.contains(mockTask)).toBe(true);
+  });
+
+  it('should handle dropdown interaction', async () => {
+    openModal(null);
+
+    // Simulate clicking the status trigger to open dropdown
+    const statusTrigger = document.getElementById('status-trigger');
+    const statusOptions = document.getElementById('status-options');
+    statusTrigger.click();
+    expect(statusOptions.classList.contains('hidden')).toBe(false);
+
+    // Click an option (e.g. 'Working')
+    // We need to find the element containing 'Working' - it's dynamically rendered
+    // renderStatusOptions is called in openModal
+    const option = Array.from(statusOptions.children).find(c => c.textContent === 'Working');
+    expect(option).toBeTruthy();
+
+    option.click();
+
+    const statusInput = document.getElementById('status');
+    const statusText = document.getElementById('status-text');
+
+    expect(statusInput.value).toBe('Working');
+    expect(statusText.textContent).toBe('Working');
+    expect(statusOptions.classList.contains('hidden')).toBe(true);
+  });
+
+  it('should handle inline title editing keys', async () => {
+    const issue = { id: 1, title: 'Original', status: 'Open' };
+    openModal(issue);
+
+    const titleInput = document.getElementById('title');
+    // Enter edit mode
+    titleInput.click();
+    expect(titleInput.classList.contains('inline-editing')).toBe(true);
+
+    // Change value
+    titleInput.value = 'New Title';
+
+    // Press Enter
+    titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+    await new Promise(process.nextTick);
+
+    expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'New Title'
+    }));
+    expect(titleInput.classList.contains('inline-editing')).toBe(false);
+  });
+
+  it('should handle inline description markdown auto-list', async () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+
+    // Mock execCommand
+    document.execCommand = vi.fn();
+    const textNode = document.createTextNode('* ');
+    globalThis.getSelection = vi.fn().mockReturnValue({
+      isCollapsed: true,
+      anchorNode: textNode,
+      anchorOffset: 2,
+      removeAllRanges: vi.fn(),
+      addRange: vi.fn()
+    });
+
+    editor.dispatchEvent(new InputEvent('input', { data: ' ' }));
+
+    expect(document.execCommand).toHaveBeenCalledWith('insertUnorderedList');
+  });
+
+  it('should handle toolbar button click', async () => {
+    openModal(null);
+
+    document.execCommand = vi.fn();
+    document.queryCommandState = vi.fn();
+    globalThis.getSelection = vi.fn().mockReturnValue({
+      rangeCount: 0,
+      toString: () => ''
+    });
+
+    const boldBtn = document.querySelector('.editor-btn[data-cmd="bold"]');
+    boldBtn.click();
+
+    expect(document.execCommand).toHaveBeenCalledWith('bold', false, null);
+  });
+
+  it('should handle custom date input click', () => {
+    openModal(null);
+
+    const plannedDate = document.getElementById('planned-date');
+    // Mock showPicker if it exists (it might not in JSDOM)
+    plannedDate.showPicker = vi.fn();
+
+    // wrapper logic: .custom-date-input click -> input.showPicker() or click()
+    // We need to construct the DOM structure that matches what setupModal expects for this test?
+    // setupModal does: document.querySelectorAll('.custom-date-input').forEach...
+    // The test DOM in `beforeEach` has `<input id="planned-date">` but DOES NOT have the wrapper `.custom-date-input`.
+    // We need to check expected DOM. 
+    // Checking `modal.js`: `document.querySelectorAll('.custom-date-input').forEach...`
+    // Checking `modal.test.js` HTML: ` <input id="planned-date" type="date">` without wrapper.
+    // So that part of `setupModal` likely runs on nothing in the test currently.
+    // I should update the DOM setup in the test to include the wrapper to test this.
+    // But for now, let's skip this specific test or update DOM in this test block manually if possible, or assume it's low priority.
+    // I will update the DOM in this test case.
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'custom-date-input';
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.showPicker = vi.fn();
+    wrapper.appendChild(input);
+    document.body.appendChild(wrapper);
+
+    // Re-run setup to attach listeners to new elements
+    setupModal(); // Re-binding: might duplicate listeners on old elements but we focus on new one
+
+    wrapper.click();
+    expect(input.showPicker).toHaveBeenCalled();
+  });
+
+  describe('Helper Functions Coverage', () => {
+    it('should render modal dropdowns with issue data', async () => {
+      const issue = {
+        id: 1,
+        status: 'Working',
+        priority: 'High',
+        label: { id: 2, name: 'Feature' }
+      };
+
+      openModal(issue);
+
+      // Wait for fetchLabels promise
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('status').value).toBe('Working');
+      expect(document.getElementById('status-text').textContent).toBe('Working');
+      expect(document.getElementById('priority').value).toBe('High');
+      expect(document.getElementById('priority-text').textContent).toBe('High');
+      expect(document.getElementById('label-select').value).toBe('2');
+      expect(document.getElementById('label-text').textContent).toBe('Feature');
+    });
+
+    it('should render modal dropdowns with defaults for new issue', async () => {
+      openModal(null);
+
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('status').value).toBe('Open');
+      expect(document.getElementById('status-text').textContent).toBe('Open');
+      expect(document.getElementById('priority').value).toBe('Normal');
+      expect(document.getElementById('priority-text').textContent).toBe('Normal');
+      expect(document.getElementById('label-select').value).toBe('');
+      expect(document.getElementById('label-text').textContent).toBe('No Label');
+    });
+
+    it('should setup edit modal with timestamps', () => {
+      const issue = {
+        id: 5,
+        title: 'Edit Test',
+        description: 'Edit Desc',
+        status: 'Todo',
+        tasks: [],
+        created_at: '2024-01-15T10:00:00Z',
+        updated_at: '2024-01-16T15:30:00Z'
+      };
+
+      openModal(issue);
+
+      expect(document.getElementById('modal-title').textContent).toBe('Edit Issue #5');
+      expect(document.getElementById('delete-issue-btn').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('done-btn').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(true);
+
+      // Check timestamps are rendered
+      const createdDisplay = document.getElementById('created-at-display');
+      const updatedDisplay = document.getElementById('updated-at-display');
+      expect(createdDisplay.textContent).not.toBe('');
+      expect(updatedDisplay.textContent).not.toBe('');
+    });
+
+    it('should setup new modal with correct button visibility', () => {
+      openModal(null);
+
+      expect(document.getElementById('modal-title').textContent).toBe('New Issue');
+      expect(document.getElementById('delete-issue-btn').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('done-btn').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('tasks-section').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should toggle inline edit mode on', () => {
+      const issue = { id: 1, title: 'Test', status: 'Todo', tasks: [] };
+      openModal(issue);
+
+      const titleInput = document.getElementById('title');
+      const descEditor = document.getElementById('description-editor');
+      const descContainer = document.querySelector('.editor-container');
+
+      expect(titleInput.classList.contains('inline-editable')).toBe(true);
+      expect(titleInput.readOnly).toBe(true);
+      expect(descContainer.classList.contains('inline-editable')).toBe(true);
+      expect(descEditor.contentEditable).toBe('false');
+    });
+
+    it('should toggle inline edit mode off', () => {
+      openModal(null);
+
+      const titleInput = document.getElementById('title');
+      const descEditor = document.getElementById('description-editor');
+      const descContainer = document.querySelector('.editor-container');
+
+      expect(titleInput.classList.contains('inline-editable')).toBe(false);
+      expect(titleInput.readOnly).toBe(false);
+      expect(descContainer.classList.contains('inline-editable')).toBe(false);
+      expect(descEditor.contentEditable).toBe('true');
+    });
+
+    it('should render timestamps with missing data gracefully', () => {
+      const issue = {
+        id: 6,
+        title: 'No Timestamps',
+        status: 'Todo',
+        tasks: []
+      };
+
+      openModal(issue);
+
+      const createdDisplay = document.getElementById('created-at-display');
+      const updatedDisplay = document.getElementById('updated-at-display');
+
+      expect(createdDisplay.textContent).toBe('-');
+      expect(updatedDisplay.textContent).toBe('-');
+    });
+
+    it('should handle issue with null priority gracefully', async () => {
+      const issue = {
+        id: 7,
+        title: 'No Priority',
+        status: 'Todo',
+        priority: null,
+        tasks: []
+      };
+
+      openModal(issue);
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('priority').value).toBe('Normal');
+      expect(document.getElementById('priority-text').textContent).toBe('Normal');
+    });
+
+    it('should handle issue with null label gracefully', async () => {
+      const issue = {
+        id: 8,
+        title: 'No Label',
+        status: 'Todo',
+        label: null,
+        tasks: []
+      };
+
+      openModal(issue);
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('label-select').value).toBe('');
+      expect(document.getElementById('label-text').textContent).toBe('No Label');
+    });
+
+    it('should render tasks section for edit modal', () => {
+      const issue = {
+        id: 9,
+        title: 'With Tasks',
+        status: 'Todo',
+        tasks: [{ id: 1, title: 'Task 1', done: false }]
+      };
+
+      openModal(issue);
+
+      expect(document.getElementById('tasks-section').classList.contains('hidden')).toBe(false);
+      expect(tasks.renderTasks).toHaveBeenCalledWith(
+        issue.tasks,
+        expect.any(Object),
+        issue,
+        expect.objectContaining({
+          onTaskUpdate: expect.any(Function),
+          onTaskOrderSave: expect.any(Function)
+        })
+      );
+    });
+
+    it('should set planned_date and deadline for edit modal', () => {
+      const issue = {
+        id: 10,
+        title: 'With Dates',
+        status: 'Todo',
+        tasks: [],
+        planned_date: '2024-02-01T12:00:00Z',
+        deadline: '2024-02-15T12:00:00Z'
+      };
+
+      openModal(issue);
+
+      expect(document.getElementById('planned-date').value).toBe('2024-02-01');
+      expect(document.getElementById('deadline').value).toBe('2024-02-15');
+      expect(utils.updateDateInputStyle).toHaveBeenCalled();
+    });
+  });
+
 });
+

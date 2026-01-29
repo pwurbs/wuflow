@@ -1,15 +1,14 @@
 import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, createTask, updateTask, fetchLabels } from '../api.js';
-import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, stripHtml, escapeHtml } from '../utils.js';
+import { showNotification, showModalNotification, showConfirm, updateDateInputStyle } from '../utils.js';
 import { renderTasks } from './tasks.js';
-import { getDragAfterTaskElement, draggedTask } from '../drag.js';
+import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
 let refreshAppCallback = null;
 let previousActiveNavBtn = null;
 
 export function setupModal(refreshApp) {
   refreshAppCallback = refreshApp;
-  const modal = document.getElementById('issue-modal');
   const form = document.getElementById('issue-form');
 
   // Global checking of state is tricky if we don't have reference to 'currentIssue' variable in app.js
@@ -38,12 +37,13 @@ export function setupModal(refreshApp) {
   const taskList = document.getElementById('task-list');
   taskList.addEventListener('dragover', (e) => {
     e.preventDefault();
+    const draggedTask = getDraggedTask();
     if (!draggedTask) return;
     const afterElement = getDragAfterTaskElement(taskList, e.clientY);
     if (afterElement == null) {
       taskList.appendChild(draggedTask);
     } else {
-      taskList.insertBefore(draggedTask, afterElement);
+      afterElement.before(draggedTask);
     }
   });
 
@@ -85,167 +85,145 @@ export function openModal(issue = null) {
   const modal = document.getElementById('issue-modal');
   modal.classList.remove('hidden');
 
+  renderModalDropdowns(issue);
 
+  if (issue) {
+    setupEditModal(issue);
+  } else {
+    setupNewModal();
+  }
+  resetTaskForm();
+}
 
-  /* const statusSelect = document.getElementById('status'); -- Removed as part of custom dropdown refactor */
+function renderModalDropdowns(issue) {
+  // Status Dropdown
+  const statusInput = document.getElementById('status');
+  statusInput.value = issue?.status ?? 'Open';
+  document.getElementById('status-text').textContent = issue?.status ?? 'Open';
+  renderStatusOptions();
 
-  const tasksSection = document.getElementById('tasks-section');
-  const deleteIssueBtn = document.getElementById('delete-issue-btn');
+  // Priority Dropdown
+  const priorityInput = document.getElementById('priority');
+  priorityInput.value = issue?.priority ?? 'Normal';
+  document.getElementById('priority-text').textContent = issue?.priority ?? 'Normal';
+  renderPriorityOptions();
+
+  // Label Dropdown
+  const labelInput = document.getElementById('label-select');
+  const labelText = document.getElementById('label-text');
+  labelInput.value = issue?.label?.id ?? '';
+  labelText.textContent = issue?.label?.name ?? 'No Label';
+
+  fetchLabels().then(labels => {
+    renderLabelOptions(labels);
+    if (issue?.label) {
+      const found = labels.find(l => l.id === issue.label.id);
+      if (found) labelText.textContent = found.name;
+    }
+  }).catch(err => console.error('Failed to load labels', err));
+}
+
+function setupEditModal(issue) {
+  document.getElementById('modal-title').textContent = `Edit Issue #${issue.id}`;
+  document.getElementById('issue-id').value = issue.id;
+  document.getElementById('title').value = issue.title;
+  document.getElementById('description-editor').innerHTML = issue.description || '';
+  document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
+  document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
+
+  updateDateInputStyle(document.getElementById('planned-date'));
+  updateDateInputStyle(document.getElementById('deadline'));
+
+  document.getElementById('tasks-section').classList.remove('hidden');
+  renderTasks(issue.tasks || [], document.getElementById('task-list'), issue, {
+    onTaskUpdate: () => refreshAppCallback?.(),
+    onTaskOrderSave: async () => {
+      await saveTaskOrder(issue);
+    }
+  });
+  document.getElementById('delete-issue-btn').classList.remove('hidden');
+
+  renderModalTimestamps(issue);
+
+  // Enable inline edit mode
+  toggleInlineEditMode(true);
+
+  document.getElementById('save-issue-btn').classList.add('hidden');
+  document.getElementById('cancel-btn').classList.add('hidden');
+  document.getElementById('done-btn').classList.remove('hidden');
+}
+
+function setupNewModal() {
+  document.getElementById('modal-title').textContent = 'New Issue';
+  document.getElementById('issue-form').reset();
+  document.getElementById('description-editor').innerHTML = '';
+  document.getElementById('issue-id').value = '';
+
+  updateDateInputStyle(document.getElementById('planned-date'));
+  updateDateInputStyle(document.getElementById('deadline'));
+
+  document.getElementById('tasks-section').classList.add('hidden');
+  document.getElementById('delete-issue-btn').classList.add('hidden');
+  document.getElementById('timestamp-container')?.classList.add('hidden');
+
+  toggleInlineEditMode(false);
+
+  const activeNav = document.querySelector('.left-menu .menu-btn.active');
+  if (activeNav && activeNav.id !== 'add-issue-btn') {
+    previousActiveNavBtn = activeNav;
+    activeNav.classList.remove('active');
+  }
+  document.getElementById('add-issue-btn').classList.add('active');
+  document.getElementById('save-issue-btn').classList.remove('hidden');
+  document.getElementById('cancel-btn').classList.remove('hidden');
+  document.getElementById('done-btn').classList.add('hidden');
+}
+
+function toggleInlineEditMode(enable) {
   const titleInput = document.getElementById('title');
-  const descEditor = document.getElementById('description-editor');
   const descContainer = document.querySelector('.editor-container');
+  const descEditor = document.getElementById('description-editor');
   const titleEditActions = document.getElementById('title-edit-actions');
   const descEditActions = document.getElementById('description-edit-actions');
 
-  if (issue) {
-    document.getElementById('modal-title').textContent = `Edit Issue #${issue.id}`;
-    document.getElementById('issue-id').value = issue.id;
-    titleInput.value = issue.title;
-    descEditor.innerHTML = issue.description || '';
-    document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
-    document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
-    document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
-    document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
-
-    // Status Dropdown
-    const statusInput = document.getElementById('status');
-    statusInput.value = issue.status;
-    document.getElementById('status-text').textContent = issue.status;
-    renderStatusOptions();
-
-    // Priority Dropdown
-    const priorityInput = document.getElementById('priority');
-    priorityInput.value = issue.priority || 'Normal';
-    document.getElementById('priority-text').textContent = issue.priority || 'Normal';
-    renderPriorityOptions();
-
-    // Label Dropdown
-    const labelInput = document.getElementById('label-select');
-    const labelText = document.getElementById('label-text');
-    labelInput.value = issue.label ? issue.label.id : '';
-    labelText.textContent = issue.label ? issue.label.name : 'No Label';
-
-    fetchLabels().then(labels => {
-      renderLabelOptions(labels);
-      // Re-verify text in case ID match needed (already set above if object, but good for consistency)
-      if (issue.label) {
-        const found = labels.find(l => l.id === issue.label.id);
-        if (found) labelText.textContent = found.name;
-      }
-    }).catch(err => console.error('Failed to load labels', err));
-
-    updateDateInputStyle(document.getElementById('planned-date'));
-    updateDateInputStyle(document.getElementById('deadline'));
-
-    tasksSection.classList.remove('hidden');
-    renderTasks(issue.tasks || [], document.getElementById('task-list'), issue, {
-      onTaskUpdate: () => refreshAppCallback && refreshAppCallback(),
-      onTaskOrderSave: async () => {
-        // Logic to save task order is in tasks.js drag handlers? 
-        // Wait, tasks.js has `setDraggedTask`, but logic for saving order was in app.js `handleTaskDragEnd` -> `saveTaskOrder`.
-        // We need to implement `saveTaskOrder` logic here or pass it.
-        // Actually tasks.js render implementation I wrote handles updates but drag end reordering logic might need help.
-        // Let's implement `saveTaskOrder` logic here or imports.
-        await saveTaskOrder(issue);
-      }
-    });
-    deleteIssueBtn.classList.remove('hidden');
-
-
-
-    // Timestamps
-    const timestampContainer = document.getElementById('timestamp-container');
-    const createdAtDisplay = document.getElementById('created-at-display');
-    const updatedAtDisplay = document.getElementById('updated-at-display');
-
-    if (timestampContainer && createdAtDisplay && updatedAtDisplay) {
-      if (issue.created_at) {
-        const createdDate = new Date(issue.created_at);
-        createdAtDisplay.textContent = createdDate.toLocaleDateString(navigator.language) + ' / ' + createdDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
-      } else {
-        createdAtDisplay.textContent = '-';
-      }
-
-      if (issue.updated_at) {
-        const updatedDate = new Date(issue.updated_at);
-        updatedAtDisplay.textContent = updatedDate.toLocaleDateString(navigator.language) + ' / ' + updatedDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
-      } else {
-        updatedAtDisplay.textContent = '-';
-      }
-      timestampContainer.classList.remove('hidden');
-    }
-
-    // Enable inline edit mode
+  if (enable) {
     titleInput.classList.add('inline-editable');
     titleInput.readOnly = true;
-
     descContainer.classList.add('inline-editable');
     descEditor.contentEditable = "false";
-
     titleEditActions.classList.add('hidden');
     descEditActions.classList.add('hidden');
-
-    document.getElementById('save-issue-btn').classList.add('hidden');
-    document.getElementById('cancel-btn').classList.add('hidden');
-    document.getElementById('done-btn').classList.remove('hidden');
-
   } else {
-    document.getElementById('modal-title').textContent = 'New Issue';
-    document.getElementById('issue-form').reset();
-    descEditor.innerHTML = '';
-    document.getElementById('issue-id').value = '';
-    document.getElementById('issue-id').value = '';
-    document.getElementById('issue-id').value = '';
-
-    // Status Dropdown Default
-    document.getElementById('status').value = 'Open';
-    document.getElementById('status-text').textContent = 'Open';
-    renderStatusOptions();
-
-    // Priority Dropdown Default
-    document.getElementById('priority').value = 'Normal';
-    document.getElementById('priority-text').textContent = 'Normal';
-    renderPriorityOptions();
-
-    // Label Dropdown Default
-    document.getElementById('label-select').value = '';
-    document.getElementById('label-text').textContent = 'No Label';
-    fetchLabels().then(labels => {
-      renderLabelOptions(labels);
-    }).catch(err => console.error('Failed to load labels', err));
-
-    updateDateInputStyle(document.getElementById('planned-date'));
-    updateDateInputStyle(document.getElementById('deadline'));
-
-    tasksSection.classList.add('hidden');
-    deleteIssueBtn.classList.add('hidden');
-
-
-
-    // Hide Timestamps
-    const timestampContainer = document.getElementById('timestamp-container');
-    if (timestampContainer) {
-      timestampContainer.classList.add('hidden');
-    }
-
     titleInput.classList.remove('inline-editable');
     titleInput.readOnly = false;
     descContainer.classList.remove('inline-editable');
     descEditor.contentEditable = "true";
     titleEditActions.classList.add('hidden');
     descEditActions.classList.add('hidden');
-
-    const activeNav = document.querySelector('.left-menu .menu-btn.active');
-    if (activeNav && activeNav.id !== 'add-issue-btn') {
-      previousActiveNavBtn = activeNav;
-      activeNav.classList.remove('active');
-    }
-    document.getElementById('add-issue-btn').classList.add('active');
-    document.getElementById('save-issue-btn').classList.remove('hidden');
-    document.getElementById('cancel-btn').classList.remove('hidden');
-    document.getElementById('done-btn').classList.add('hidden');
   }
-  resetTaskForm();
+}
+
+function renderModalTimestamps(issue) {
+  const timestampContainer = document.getElementById('timestamp-container');
+  const createdAtDisplay = document.getElementById('created-at-display');
+  const updatedAtDisplay = document.getElementById('updated-at-display');
+
+  if (timestampContainer && createdAtDisplay && updatedAtDisplay) {
+    if (issue.created_at) {
+      const createdDate = new Date(issue.created_at);
+      createdAtDisplay.textContent = createdDate.toLocaleDateString(navigator.language) + ' / ' + createdDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+    } else {
+      createdAtDisplay.textContent = '-';
+    }
+
+    if (issue.updated_at) {
+      const updatedDate = new Date(issue.updated_at);
+      updatedAtDisplay.textContent = updatedDate.toLocaleDateString(navigator.language) + ' / ' + updatedDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+    } else {
+      updatedAtDisplay.textContent = '-';
+    }
+    timestampContainer.classList.remove('hidden');
+  }
 }
 
 export function closeModal() {
@@ -277,7 +255,7 @@ async function handleIssueSubmit(e) {
 
   const labelId = document.getElementById('label-select').value;
   if (labelId) {
-    issueData.label = { id: parseInt(labelId) };
+    issueData.label = { id: Number.parseInt(labelId) };
   } else {
     issueData.label = null;
   }
@@ -366,12 +344,10 @@ function setupInlineEditing() {
   titleInput.addEventListener('blur', async (e) => {
     if (titleInput.classList.contains('inline-editing')) {
       const currentVal = titleInput.value.trim();
-      if (currentVal !== originalTitle) {
-        if (await showConfirm('Unsaved Changes', 'Save title?', 'Save', 'Discard', 'primary')) {
-          saveTitle();
-        } else {
-          cancelTitle();
-        }
+      if (currentVal === originalTitle) {
+        cancelTitle();
+      } else if (await showConfirm('Unsaved Changes', 'Save title?', 'Save', 'Discard', 'primary')) {
+        saveTitle();
       } else {
         cancelTitle();
       }
@@ -385,7 +361,7 @@ function setupInlineEditing() {
     while (node && node !== descEditor) {
       if (node.tagName === 'A') {
         if (descContainer.classList.contains('inline-editable')) return;
-        window.open(node.href, '_blank');
+        globalThis.open(node.href, '_blank');
         return;
       }
       node = node.parentNode;
@@ -427,12 +403,10 @@ function setupInlineEditing() {
   descEditor.addEventListener('blur', async () => {
     if (descContainer.classList.contains('inline-editing')) {
       const currentVal = descEditor.innerHTML;
-      if (currentVal !== originalDesc) {
-        if (await showConfirm('Unsaved Changes', 'Save description?', 'Save', 'Discard', 'primary')) {
-          saveDesc();
-        } else {
-          cancelDesc();
-        }
+      if (currentVal === originalDesc) {
+        cancelDesc();
+      } else if (await showConfirm('Unsaved Changes', 'Save description?', 'Save', 'Discard', 'primary')) {
+        saveDesc();
       } else {
         cancelDesc();
       }
@@ -487,7 +461,7 @@ function setupSidebarImmediateSave() {
     labelSelect.addEventListener('change', async () => {
       if (state.currentIssue) {
         const val = labelSelect.value;
-        state.currentIssue.label = val ? { id: parseInt(val) } : null;
+        state.currentIssue.label = val ? { id: Number.parseInt(val) } : null;
         await updateIssue(state.currentIssue);
         showModalNotification('Label updated');
         if (refreshAppCallback) refreshAppCallback();
@@ -502,7 +476,7 @@ function setupEditorToolbar() {
 
   function updateToolbarState() {
     // Implementation from app.js
-    const selection = window.getSelection();
+    const selection = globalThis.getSelection();
     let inLink = false;
     if (selection.rangeCount > 0) {
       let node = selection.anchorNode;
@@ -519,9 +493,11 @@ function setupEditorToolbar() {
       if (cmd === 'createLink') {
         btn.classList.toggle('active', inLink);
       } else if (cmd === 'underline') {
-        btn.classList.toggle('active', !inLink && document.queryCommandState(cmd));
+        // queryCommandState is deprecated but required for lightweight rich text editing
+        btn.classList.toggle('active', !inLink && document.queryCommandState(cmd)); // NOSONAR
       } else {
-        btn.classList.toggle('active', document.queryCommandState(cmd));
+        // queryCommandState is deprecated but required for lightweight rich text editing
+        btn.classList.toggle('active', document.queryCommandState(cmd)); // NOSONAR
       }
     });
   }
@@ -532,17 +508,19 @@ function setupEditorToolbar() {
       e.preventDefault();
       const cmd = e.currentTarget.dataset.cmd;
       if (cmd === 'createLink') {
-        const selection = window.getSelection();
+        const selection = globalThis.getSelection();
         let url = selection.toString().trim();
         if (url) {
           if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-          document.execCommand(cmd, false, url);
+          // execCommand is deprecated but required for lightweight rich text editing
+          document.execCommand(cmd, false, url); // NOSONAR
           // Force target _blank
           let anchor = selection.anchorNode.parentElement?.tagName === 'A' ? selection.anchorNode.parentElement : null; // simplified finding
           if (anchor) anchor.target = '_blank';
         }
       } else {
-        document.execCommand(cmd, false, null);
+        // execCommand is deprecated but required for lightweight rich text editing
+        document.execCommand(cmd, false, null); // NOSONAR
       }
       editor.focus();
       updateToolbarState();
@@ -556,28 +534,32 @@ function setupEditorToolbar() {
       updateToolbarState();
       // Auto List Logic
       if (e.data === ' ') {
-        const sel = window.getSelection();
+        const sel = globalThis.getSelection();
         if (sel.isCollapsed && sel.anchorNode.nodeType === Node.TEXT_NODE) {
           const anchorNode = sel.anchorNode;
           const offset = sel.anchorOffset;
           const text = anchorNode.textContent.slice(0, offset);
 
-          if (/^(\*|-)\s$/.test(text)) {
+          if (/^[*|-]\s$/.test(text)) {
             const range = document.createRange();
             range.setStart(anchorNode, 0);
             range.setEnd(anchorNode, offset);
             sel.removeAllRanges();
             sel.addRange(range);
-            document.execCommand('delete');
-            document.execCommand('insertUnorderedList');
+            // execCommand is deprecated but required for lightweight rich text editing
+            document.execCommand('delete'); // NOSONAR
+            // execCommand is deprecated but required for lightweight rich text editing
+            document.execCommand('insertUnorderedList'); // NOSONAR
           } else if (/^1\.\s$/.test(text)) {
             const range = document.createRange();
             range.setStart(anchorNode, 0);
             range.setEnd(anchorNode, offset);
             sel.removeAllRanges();
             sel.addRange(range);
-            document.execCommand('delete');
-            document.execCommand('insertOrderedList');
+            // execCommand is deprecated but required for lightweight rich text editing
+            document.execCommand('delete'); // NOSONAR
+            // execCommand is deprecated but required for lightweight rich text editing
+            document.execCommand('insertOrderedList'); // NOSONAR
           }
         }
       }
@@ -614,7 +596,7 @@ async function handleTaskSubmit(e) {
   if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
   state.currentIssue.tasks.push(newTask);
   renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
-    onTaskUpdate: () => refreshAppCallback && refreshAppCallback(),
+    onTaskUpdate: () => refreshAppCallback?.(),
     onTaskOrderSave: () => saveTaskOrder(state.currentIssue)
   });
   resetTaskForm();
@@ -625,7 +607,7 @@ async function saveTaskOrder(issue) {
   const taskItems = [...document.querySelectorAll('#task-list .task-item')];
   const updates = [];
   taskItems.forEach((item, index) => {
-    const id = parseInt(item.dataset.id);
+    const id = Number.parseInt(item.dataset.id);
     const task = issue.tasks.find(t => t.id === id);
     if (task && task.position !== index) {
       task.position = index;
@@ -645,7 +627,6 @@ async function saveTaskOrder(issue) {
 function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
   const trigger = document.getElementById(triggerId);
   const options = document.getElementById(optionsId);
-  const wrapper = document.getElementById(wrapperId);
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();

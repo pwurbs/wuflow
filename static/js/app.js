@@ -1,12 +1,12 @@
 import { fetchIssues, fetchLabels } from './api.js';
-import { state, setIssues, setFilterLabel, setFilterSearch } from './state.js';
+import { state, setIssues, setFilterSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
 import { renderDeadlineList } from './components/deadlines.js';
 import { setupSetupView, renderSetupView } from './components/setup.js';
-import { setupModal, openModal, closeModal } from './components/modal.js';
-import { showModalNotification, debounce } from './utils.js';
+import { setupModal, openModal } from './components/modal.js';
+import { debounce } from './utils.js';
 import { initLabelFilter, updateLabelFilterOptions } from './components/labelFilter.js';
 import { initPriorityFilter, updatePriorityFilterOptions } from './components/priorityFilter.js';
 
@@ -36,7 +36,6 @@ async function init() {
     initLabelFilter(refreshApp);
     initPriorityFilter(refreshApp);
     setupBoardView(refreshApp, openModal);
-    setupBacklogView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
     setupSetupView(refreshApp);
     setupModal(refreshApp); // Pass refresh callback
@@ -115,7 +114,6 @@ function switchView(view) {
         navSetup.classList.remove('active');
 
         sidebar.classList.remove('hidden');
-        sidebar.classList.remove('hidden');
         viewToggles.classList.remove('hidden');
         filterContainer.classList.remove('hidden');
     } else if (view === 'backlog') {
@@ -128,7 +126,6 @@ function switchView(view) {
         navSetup.classList.remove('active');
 
         sidebar.classList.add('hidden');
-        sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
         filterContainer.classList.remove('hidden');
     } else if (view === 'setup') {
@@ -140,8 +137,6 @@ function switchView(view) {
         navBacklog.classList.remove('active');
         navSetup.classList.add('active');
 
-        sidebar.classList.add('hidden');
-        sidebar.classList.add('hidden');
         sidebar.classList.add('hidden');
         viewToggles.classList.add('hidden');
         filterContainer.classList.add('hidden');

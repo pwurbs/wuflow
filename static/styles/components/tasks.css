@@ -119,8 +119,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  /* margin-left: auto; */
-  /* Let task-actions handle the push */
 }
 
 .inline-edit-btn {

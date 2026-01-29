@@ -1,6 +1,6 @@
-import { escapeHtml, showModalNotification, showConfirm, updateDateInputStyle } from '../utils.js';
-import { updateTask, deleteTask, createTask } from '../api.js'; // Ensure createTask is imported
-import { setDraggedTask, draggedTask } from '../drag.js';
+import { escapeHtml, showModalNotification, showConfirm } from '../utils.js';
+import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
+import { setDraggedTask } from '../drag.js';
 
 export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
   container.innerHTML = '';
@@ -24,7 +24,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
                     <button type="button" id="task-save-${task.id}" class="inline-edit-btn inline-save-btn" title="Save">✓</button>
                 </div>
                 <div class="task-actions">
-                    <div class="task-deadline-container ${!task.deadline ? 'no-deadline' : ''}" title="Set Deadline">
+                    <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="Set Deadline">
                         <span class="task-deadline task-deadline-display">
                             ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅'}
                         </span>
@@ -102,11 +102,11 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
     titleInput.addEventListener('blur', async () => {
       if (li.classList.contains('editing')) {
         const currentVal = titleInput.value.trim();
-        if (currentVal !== originalTitle) {
+        if (currentVal === originalTitle) {
+          cancelEdit();
+        } else {
           const save = await showConfirm('Unsaved Changes', 'Save changes?', 'Save', 'Discard', 'primary');
           if (save) saveTask(); else cancelEdit();
-        } else {
-          cancelEdit();
         }
       }
     });

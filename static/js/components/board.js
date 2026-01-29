@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
-import { draggedCard, draggedCardOrigin, getDragAfterElement } from '../drag.js';
+import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
@@ -72,53 +72,63 @@ export function setupBoardView(refreshApp, openModal) {
       // If moving into a child element, ignore
       if (colContent.contains(e.relatedTarget)) return;
 
-      if (draggedCard && draggedCardOrigin) {
+      const draggedCard = getDraggedCard();
+      const origin = getDraggedCardOrigin();
+
+      if (draggedCard && origin) {
         // Revert to origin
-        if (draggedCardOrigin.parent && document.body.contains(draggedCardOrigin.parent)) {
-          if (draggedCardOrigin.nextSibling) {
-            draggedCardOrigin.parent.insertBefore(draggedCard, draggedCardOrigin.nextSibling);
+        if (origin.parent && document.body.contains(origin.parent)) {
+          if (origin.nextSibling) {
+            origin.nextSibling.before(draggedCard);
           } else {
-            draggedCardOrigin.parent.appendChild(draggedCard);
+            origin.parent.appendChild(draggedCard);
           }
         }
       }
     });
 
     colContent.addEventListener('dragover', (e) => {
-      if (!draggedCard || !draggedCard.classList.contains('card')) return;
+      const draggedCard = getDraggedCard();
+      if (!draggedCard?.classList.contains('card')) return;
       e.preventDefault();
       const afterElement = getDragAfterElement(colContent, e.clientY);
       if (afterElement == null) {
         colContent.appendChild(draggedCard);
       } else {
-        colContent.insertBefore(draggedCard, afterElement);
+        afterElement.before(draggedCard);
       }
     });
 
     colContent.addEventListener('drop', async (e) => {
       e.preventDefault();
-      if (!draggedCard || !draggedCard.classList.contains('card')) return;
+      const draggedCard = getDraggedCard();
+
+      if (!draggedCard?.classList.contains('card')) return;
 
       // Save State
-      // We need to iterate all columns and update issues
-      const updates = [];
-      document.querySelectorAll('.column').forEach(col => {
-        const status = col.dataset.status;
-        const cards = [...col.querySelectorAll('.column-content .card')];
-        cards.forEach((card, index) => {
-          const id = parseInt(card.dataset.id);
-          const issue = state.issues.find(i => i.id === id);
-          if (issue && (issue.status !== status || issue.position !== index)) {
-            issue.status = status;
-            issue.position = index;
-            // Planned date is preserved
-            updates.push(updateIssue(issue));
-          }
-        });
-      });
+      const updates = getBoardUpdates();
 
       await Promise.all(updates);
       if (refreshAppCallback) refreshAppCallback();
     });
   });
+}
+
+function getBoardUpdates() {
+  const updates = [];
+  document.querySelectorAll('.column').forEach(col => {
+    const status = col.dataset.status;
+    const cards = [...col.querySelectorAll('.column-content .card')];
+    cards.forEach((card, index) => {
+      const id = Number.parseInt(card.dataset.id);
+      const issue = state.issues.find(i => i.id === id);
+      if (issue && (issue.status !== status || issue.position !== index)) {
+        issue.status = status;
+        issue.position = index;
+        // Planned date is preserved
+        updates.push(updateIssue(issue));
+      }
+    });
+  });
+  return updates;
 }

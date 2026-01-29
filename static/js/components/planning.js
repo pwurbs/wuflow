@@ -1,6 +1,5 @@
 import { state } from '../state.js';
 import { updateIssue } from '../api.js';
-import { draggedCard } from '../drag.js';
 
 let refreshAppCallback = null;
 
@@ -150,7 +149,7 @@ async function handlePlanningDrop(e) {
 
   if (draggedCard) {
     draggedCard.dataset.droppedInPlanning = 'true';
-    const issueId = parseInt(draggedCard.dataset.id);
+    const issueId = Number.parseInt(draggedCard.dataset.id);
     const issue = state.issues.find(i => i.id === issueId);
 
     if (issue && dateStr !== 'past') {

@@ -98,18 +98,7 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
     setDraggedCard(null);
     setDraggedCardOrigin(null);
 
-    // Check if dropped in planning (handled by dropped-in-planning logic if data attribute set)
-    if (this.dataset.droppedInPlanning === 'true') {
-      const origin = callbacks.getDraggedCardOrigin ? callbacks.getDraggedCardOrigin() : null;
-      // Note: In module system, we might need a better way to get origin if we cleared it?
-      // Actually we just cleared it above. `setDraggedCardOrigin(null)`.
-      // We should capture it *before* clearing?
-      // Or rely on the fact that `drag.js` state was just cleared, so this logic needs to be careful.
-      // The original code uses global `draggedCardOrigin`.
-      // Here we just cleared it.
-      // Let's rely on the caller/handler to manage the complex drop logic or pass it via callback.
-      // But standard dragEnd cleanup is here.
-    }
+
 
     if (callbacks.onDragEnd) callbacks.onDragEnd(this, e);
   });

@@ -4,7 +4,7 @@ export function stripHtml(html) {
   if (!html) return '';
 
   // Add spaces around block-level tags to prevent text merging
-  const processed = html.replace(
+  const processed = html.replaceAll(
     /<\/?(div|p|li|ul|ol|h[1-6]|blockquote|pre|br)\b[^>]*>/gi,
     ' $& '
   );
@@ -14,17 +14,17 @@ export function stripHtml(html) {
   const text = tmp.textContent || tmp.innerText || "";
 
   // Collapse multiple spaces into one and trim
-  return text.replace(/\s+/g, ' ').trim();
+  return text.replaceAll(/\s+/g, ' ').trim();
 }
 
 export function escapeHtml(text) {
   if (!text) return '';
   return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 export function showNotification(message) {

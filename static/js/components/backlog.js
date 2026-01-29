@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
-import { draggedCard, getDragAfterElement } from '../drag.js';
+import { getDraggedCard, getDragAfterElement } from '../drag.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
@@ -43,23 +43,23 @@ export function setupBacklogView(refreshApp, openModal) {
     if (!section) return;
 
     section.addEventListener('dragover', (e) => {
-      if (draggedCard && draggedCard.classList.contains('planning-item')) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-      }
+      const draggedCard = getDraggedCard();
+      if (!draggedCard?.classList.contains('planning-item')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
     });
 
     section.addEventListener('drop', async (e) => {
       e.preventDefault();
-      if (draggedCard && draggedCard.classList.contains('planning-item')) {
-        const issueId = parseInt(draggedCard.dataset.id);
-        const issue = state.issues.find(i => i.id === issueId);
-        if (issue) {
-          issue.planned_date = null;
-          issue.status = targetStatus;
-          await updateIssue(issue);
-          if (refreshAppCallback) refreshAppCallback();
-        }
+      const draggedCard = getDraggedCard();
+      if (!draggedCard?.classList.contains('planning-item')) return;
+      const issueId = Number.parseInt(draggedCard.dataset.id);
+      const issue = state.issues.find(i => i.id === issueId);
+      if (issue) {
+        issue.planned_date = null;
+        issue.status = targetStatus;
+        await updateIssue(issue);
+        if (refreshAppCallback) refreshAppCallback();
       }
     });
   };
@@ -71,17 +71,14 @@ export function setupBacklogView(refreshApp, openModal) {
   const setupListDrag = (listId, status) => {
     const list = document.getElementById(listId);
     list.addEventListener('dragover', (e) => {
-
-
-      if (!draggedCard) return;
-      if (draggedCard.classList.contains('card') || draggedCard.classList.contains('planning-item')) {
-        e.preventDefault();
-        const afterElement = getDragAfterElement(list, e.clientY);
-        if (afterElement == null) {
-          list.appendChild(draggedCard);
-        } else {
-          list.insertBefore(draggedCard, afterElement);
-        }
+      const draggedCard = getDraggedCard();
+      if (!draggedCard?.classList.contains('card') && !draggedCard?.classList.contains('planning-item')) return;
+      e.preventDefault();
+      const afterElement = getDragAfterElement(list, e.clientY);
+      if (afterElement == null) {
+        list.appendChild(draggedCard);
+      } else {
+        afterElement.before(draggedCard);
       }
     });
 
@@ -91,36 +88,13 @@ export function setupBacklogView(refreshApp, openModal) {
 
     list.addEventListener('drop', async (e) => {
       e.preventDefault();
-
-
-      // Logic to update status and position
-      // If planning item, convert to card mentally (handled by update)
+      const draggedCard = getDraggedCard();
 
       if (draggedCard) {
-        const updates = [];
-
-        // Re-read both lists to ensure consistency is maintained if dragged between them
-        const openCards = [...document.getElementById('backlog-list').querySelectorAll('.card')];
-        openCards.forEach((card, index) => {
-          const id = parseInt(card.dataset.id);
-          const issue = state.issues.find(i => i.id === id);
-          if (issue && (issue.status !== 'Open' || issue.position !== index)) {
-            issue.status = 'Open';
-            issue.position = index;
-            updates.push(updateIssue(issue));
-          }
-        });
-
-        const todoCards = [...document.getElementById('move-to-todo-list').querySelectorAll('.card')];
-        todoCards.forEach((card, index) => {
-          const id = parseInt(card.dataset.id);
-          const issue = state.issues.find(i => i.id === id);
-          if (issue && (issue.status !== 'Todo' || issue.position !== index)) {
-            issue.status = 'Todo';
-            issue.position = index;
-            updates.push(updateIssue(issue));
-          }
-        });
+        const updates = [
+          ...getListUpdates('backlog-list', 'Open'),
+          ...getListUpdates('move-to-todo-list', 'Todo')
+        ];
 
         await Promise.all(updates);
         if (refreshAppCallback) refreshAppCallback();
@@ -130,4 +104,19 @@ export function setupBacklogView(refreshApp, openModal) {
 
   setupListDrag('backlog-list', 'Open');
   setupListDrag('move-to-todo-list', 'Todo');
+}
+
+function getListUpdates(listId, targetStatus) {
+  const cards = [...document.getElementById(listId).querySelectorAll('.card')];
+  const updates = [];
+  cards.forEach((card, index) => {
+    const id = Number.parseInt(card.dataset.id);
+    const issue = state.issues.find(i => i.id === id);
+    if (issue && (issue.status !== targetStatus || issue.position !== index)) {
+      issue.status = targetStatus;
+      issue.position = index;
+      updates.push(updateIssue(issue));
+    }
+  });
+  return updates;
 }
