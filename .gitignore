@@ -5,9 +5,6 @@ coverage.out
 coverage.html
 .scannerwork
 
-# HA addon config
-config.yaml 
-
 # Node modules
 node_modules
 
