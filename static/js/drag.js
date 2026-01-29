@@ -1,9 +1,15 @@
 // Shared drag state
 let draggedCard = null;
 let draggedCardOrigin = null;
+let dragSuccess = false;
 
 export const getDraggedCard = () => draggedCard;
 export const getDraggedCardOrigin = () => draggedCardOrigin;
+export const getDragSuccess = () => dragSuccess;
+
+export function setDragSuccess(success) {
+  dragSuccess = success;
+}
 
 export function setDraggedCard(card) {
   draggedCard = card;

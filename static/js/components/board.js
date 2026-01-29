@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
-import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin } from '../drag.js';
+import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
@@ -31,7 +31,23 @@ export function renderBoard(refreshApp, openModal) {
 
   sortedIssues.forEach(issue => {
     if (columns[issue.status]) {
-      const card = createCardElement(issue, true, { openModal: openModalCallback });
+      const card = createCardElement(issue, true, {
+        openModal: openModalCallback,
+        onDragStart: () => setDragSuccess(false),
+        onDragEnd: (cardEl) => {
+          if (!getDragSuccess()) {
+            // Revert
+            const origin = getDraggedCardOrigin();
+            if (origin && origin.parent && document.body.contains(origin.parent)) {
+              if (origin.nextSibling) {
+                origin.nextSibling.before(cardEl);
+              } else {
+                origin.parent.appendChild(cardEl);
+              }
+            }
+          }
+        }
+      });
       columns[issue.status].appendChild(card);
       counts[issue.status]++;
     }
@@ -45,21 +61,6 @@ export function renderBoard(refreshApp, openModal) {
       countEl.textContent = counts[status];
     }
   });
-
-  setupBoardDragDrop(columns);
-}
-
-function setupBoardDragDrop(columns) {
-  document.querySelectorAll('.column-content').forEach(colContent => {
-    // Remove old listeners to prevent duplicates if any (though typically we re-render whole content, but container persists)
-    // Cloning node is a heavy handed way to strip listeners. Check if we can just be idempotent.
-    // renderBoard clears innerHTML but doesn't replace the container element.
-    // So listeners accumulate if we don't be careful!
-    // We should move listener attachment to a one-time setup or use named functions and removeEventListener.
-    // Ideally `renderBoard` should not attach listeners to static container elements. 
-    // `app.js` should attach listeners ONCE to static containers.
-    // OR `board.js` exports a `setupBoard` function called once.
-  });
 }
 
 // Export a setup function to be called once
@@ -68,30 +69,16 @@ export function setupBoardView(refreshApp, openModal) {
 
   // Columns
   document.querySelectorAll('.column-content').forEach(colContent => {
-    colContent.addEventListener('dragleave', (e) => {
-      // If moving into a child element, ignore
-      if (colContent.contains(e.relatedTarget)) return;
-
-      const draggedCard = getDraggedCard();
-      const origin = getDraggedCardOrigin();
-
-      if (draggedCard && origin) {
-        // Revert to origin
-        if (origin.parent && document.body.contains(origin.parent)) {
-          if (origin.nextSibling) {
-            origin.nextSibling.before(draggedCard);
-          } else {
-            origin.parent.appendChild(draggedCard);
-          }
-        }
-      }
-    });
-
     colContent.addEventListener('dragover', (e) => {
       const draggedCard = getDraggedCard();
       if (!draggedCard?.classList.contains('card')) return;
       e.preventDefault();
       const afterElement = getDragAfterElement(colContent, e.clientY);
+
+      if (afterElement === draggedCard.nextElementSibling) {
+        return;
+      }
+
       if (afterElement == null) {
         colContent.appendChild(draggedCard);
       } else {
@@ -104,6 +91,8 @@ export function setupBoardView(refreshApp, openModal) {
       const draggedCard = getDraggedCard();
 
       if (!draggedCard?.classList.contains('card')) return;
+
+      setDragSuccess(true);
 
       // Save State
       const updates = getBoardUpdates();

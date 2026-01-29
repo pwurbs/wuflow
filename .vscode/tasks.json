@@ -97,7 +97,6 @@
         "Go Build",
         "Sonar Scanner",
         "Container Build",
-        "(Re-)Start Container",
         "Run Playwright Tests"
       ],
       "dependsOrder": "sequence",

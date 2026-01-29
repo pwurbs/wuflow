@@ -39,7 +39,9 @@ vi.mock('../drag.js', () => ({
   getDraggedCardOrigin: vi.fn(),
   getDragAfterElement: vi.fn(),
   setDraggedCard: vi.fn(),
-  setDraggedCardOrigin: vi.fn()
+  setDraggedCardOrigin: vi.fn(),
+  setDragSuccess: vi.fn(),
+  getDragSuccess: vi.fn()
 }));
 
 describe('Board Component', () => {
@@ -122,6 +124,77 @@ describe('Board Component', () => {
       expect(colContent).toBeTruthy();
     });
 
+    it('should not move card if already in correct position during dragover', () => {
+      setupBoardView(vi.fn(), vi.fn());
+
+      const mockCard = document.createElement('div');
+      mockCard.classList.add('card');
+      const nextSibling = document.createElement('div');
+
+      // Mock existing position
+      Object.defineProperty(mockCard, 'nextElementSibling', { value: nextSibling });
+
+      drag.getDraggedCard.mockReturnValue(mockCard);
+      drag.getDragAfterElement.mockReturnValue(nextSibling); // Same as current next sibling
+
+      const colContent = document.getElementById('col-todo');
+
+      // Spy on appendChild/insertBefore to ensure they are NOT called
+      const appendSpy = vi.spyOn(colContent, 'appendChild');
+      const insertSpy = vi.spyOn(nextSibling, 'before');
+
+      const event = new Event('dragover', { bubbles: true, cancelable: true });
+      colContent.dispatchEvent(event);
+
+      expect(drag.getDraggedCard).toHaveBeenCalled();
+      expect(appendSpy).not.toHaveBeenCalled();
+      expect(insertSpy).not.toHaveBeenCalled();
+    });
+
+    it('should revert card if drag was not successful', () => {
+      setupBoardView(vi.fn(), vi.fn());
+
+      const issues = [{ id: 1, title: 'Task 1', status: 'Todo' }];
+      state.state.issues = issues;
+      filters.filterIssues.mockReturnValue(issues);
+      filters.sortByPosition.mockReturnValue(issues);
+
+      renderBoard();
+
+      // Capture the options passed to createCardElement
+      // The last call to createCardElement should have the options as 3rd arg
+      const lastCall = card.createCardElement.mock.lastCall;
+      const options = lastCall[2];
+
+      expect(options.onDragEnd).toBeDefined();
+
+      // Simulate drag end with failure
+      drag.getDragSuccess.mockReturnValue(false);
+
+      const mockCardEl = document.createElement('div');
+      const mockParent = document.createElement('div');
+      const mockSibling = document.createElement('div');
+
+      mockParent.appendChild(mockSibling);
+      document.body.appendChild(mockParent); // Must be in document
+
+      drag.getDraggedCardOrigin.mockReturnValue({
+        parent: mockParent,
+        nextSibling: mockSibling
+      });
+
+      // Spy on insertBefore/appendChild logic
+      const beforeSpy = vi.spyOn(mockSibling, 'before');
+
+      // Execute callback
+      options.onDragEnd(mockCardEl);
+
+      expect(beforeSpy).toHaveBeenCalledWith(mockCardEl);
+
+      // Cleanup
+      mockParent.remove();
+    });
+
     it('should handle dragover event', () => {
       setupBoardView(vi.fn(), vi.fn());
 
@@ -138,6 +211,22 @@ describe('Board Component', () => {
       colContent.dispatchEvent(event);
 
       expect(drag.getDraggedCard).toHaveBeenCalled();
+    });
+
+    it('should ignore drop event if dragged element is not a card', async () => {
+      setupBoardView(vi.fn(), vi.fn());
+
+      const mockDiv = document.createElement('div');
+      // No 'card' class
+      drag.getDraggedCard.mockReturnValue(mockDiv);
+
+      const colContent = document.getElementById('col-todo');
+      const event = new Event('drop', { bubbles: true, cancelable: true });
+      colContent.dispatchEvent(event);
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(api.updateIssue).not.toHaveBeenCalled();
     });
 
     it('should handle drop event and update issues', async () => {
@@ -167,29 +256,7 @@ describe('Board Component', () => {
       expect(drag.getDraggedCard).toHaveBeenCalled();
     });
 
-    it('should handle dragleave event and revert card position', () => {
-      setupBoardView(vi.fn(), vi.fn());
 
-      const mockCard = document.createElement('div');
-      mockCard.classList.add('card');
-      const mockParent = document.createElement('div');
-      document.body.appendChild(mockParent);
-
-      drag.getDraggedCard.mockReturnValue(mockCard);
-      drag.getDraggedCardOrigin.mockReturnValue({
-        parent: mockParent,
-        nextSibling: null
-      });
-
-      const colContent = document.getElementById('col-todo');
-      const event = new Event('dragleave', { bubbles: true });
-      Object.defineProperty(event, 'relatedTarget', { value: null });
-
-      colContent.dispatchEvent(event);
-
-      expect(drag.getDraggedCard).toHaveBeenCalled();
-      expect(drag.getDraggedCardOrigin).toHaveBeenCalled();
-    });
 
     it('should not process dragover if dragged element is not a card', () => {
       setupBoardView(vi.fn(), vi.fn());

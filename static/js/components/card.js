@@ -87,14 +87,18 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
       parent: this.parentNode,
       nextSibling: this.nextElementSibling
     });
-    this.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => {
+      this.classList.add('dragging');
+      document.body.classList.add('is-dragging');
+    }, 0);
 
     if (callbacks.onDragStart) callbacks.onDragStart(this);
   });
 
   card.addEventListener('dragend', function (e) {
     this.classList.remove('dragging');
+    document.body.classList.remove('is-dragging');
     setDraggedCard(null);
     setDraggedCardOrigin(null);
 

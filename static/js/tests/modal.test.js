@@ -572,5 +572,138 @@ describe('Modal Component', () => {
     });
   });
 
+  describe('Sidebar Immediate Save', () => {
+    it('should update priority immediately on change', async () => {
+      const issue = { id: 1, priority: 'Normal' };
+      openModal(issue);
+
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = 'High';
+      prioritySelect.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        id: 1,
+        priority: 'High'
+      }));
+    });
+
+    it('should update planned_date immediately on change', async () => {
+      const issue = { id: 1 };
+      openModal(issue);
+
+      const input = document.getElementById('planned-date');
+      input.value = '2025-01-01';
+      input.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        id: 1,
+        planned_date: new Date('2025-01-01T12:00:00')
+      }));
+    });
+
+    it('should update deadline immediately on change', async () => {
+      const issue = { id: 1 };
+      openModal(issue);
+
+      const input = document.getElementById('deadline');
+      input.value = '2025-12-31';
+      input.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        id: 1,
+        deadline: new Date('2025-12-31T12:00:00')
+      }));
+    });
+
+    it('should update label immediately on change', async () => {
+      const issue = { id: 1, label: null };
+      openModal(issue);
+
+      const select = document.getElementById('label-select');
+      select.value = '2'; // ID 2
+      select.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        id: 1,
+        label: { id: 2 }
+      }));
+    });
+  });
+
+  describe('Inline Editing Features', () => {
+    it('should cancel inline title edit on cancel button', () => {
+      const issue = { id: 1, title: 'Original' };
+      openModal(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click(); // Enter edit
+      titleInput.value = 'Changed';
+
+      const cancelBtn = document.getElementById('title-cancel-btn');
+      cancelBtn.dispatchEvent(new Event('mousedown'));
+
+      expect(titleInput.value).toBe('Original');
+      expect(titleInput.readOnly).toBe(true);
+    });
+
+    it('should save inline title edit on save button', async () => {
+      const issue = { id: 1, title: 'Original' };
+      openModal(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = 'Saved Title';
+
+      const saveBtn = document.getElementById('title-save-btn');
+      saveBtn.dispatchEvent(new Event('mousedown'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Saved Title'
+      }));
+      expect(titleInput.readOnly).toBe(true);
+    });
+
+    it('should prompt save on title blur with changes', async () => {
+      const issue = { id: 1, title: 'Original' };
+      openModal(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = 'Changed';
+
+      // Mock confirm true
+      utils.showConfirm.mockResolvedValue(true);
+
+      titleInput.dispatchEvent(new Event('blur'));
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+      expect(api.updateIssue).toHaveBeenCalled();
+    });
+
+    it('should enter description inline edit on click', () => {
+      const issue = { id: 1, description: 'Desc' };
+      openModal(issue);
+
+      const descContainer = document.querySelector('.editor-container');
+      const descEditor = document.getElementById('description-editor');
+
+      descEditor.click();
+
+      expect(descContainer.classList.contains('inline-editing')).toBe(true);
+      expect(descEditor.contentEditable).toBe('true');
+    });
+  });
+
 });
 
