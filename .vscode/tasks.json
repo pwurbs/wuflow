@@ -66,7 +66,7 @@
       "problemMatcher": []
     },
     {
-      "label": "Docker Build",
+      "label": "Container Build",
       "type": "shell",
       "command": "container build -t wutrak .",
       "group": "build",
@@ -77,17 +77,7 @@
       "problemMatcher": []
     },
     {
-      "label": "Start Test Container",
-      "type": "shell",
-      "command": "container run -d -p 8080:8080 --name wutrak-test wutrak",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Execute Playwright Tests",
+      "label": "Run Playwright Tests",
       "type": "shell",
       "command": "npm test",
       "options": {
@@ -100,36 +90,14 @@
       "problemMatcher": []
     },
     {
-      "label": "Stop Test Container",
-      "type": "shell",
-      "command": "container stop wutrak-test && container rm wutrak-test",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Open Test Report",
-      "type": "shell",
-      "command": "open ${workspaceFolder}/playwright/playwright-report/index.html",
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Run Build&Package",
+      "label": "Full Pipeline",
       "dependsOn": [
         "Go Test",
         "JS Test",
         "Go Build",
         "Sonar Scanner",
-        "Docker Build"
+        "Container Build",
+        "Execute Playwright Tests"
       ],
       "dependsOrder": "sequence",
       "group": {
@@ -139,15 +107,13 @@
       "problemMatcher": []
     },
     {
-      "label": "Run Playwright Tests",
-      "dependsOn": [
-        "Start Test Container",
-        "Execute Playwright Tests",
-        "Stop Test Container",
-        "Open Test Report"
-      ],
-      "dependsOrder": "sequence",
-      "group": "test",
+      "label": "Start Container",
+      "type": "shell",
+      "command": "container run -d -p 8080:8080 --name wutrak-test wutrak",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
       "problemMatcher": []
     }
   ]
