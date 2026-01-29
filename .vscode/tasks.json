@@ -97,7 +97,8 @@
         "Go Build",
         "Sonar Scanner",
         "Container Build",
-        "Execute Playwright Tests"
+        "(Re-)Start Container",
+        "Run Playwright Tests"
       ],
       "dependsOrder": "sequence",
       "group": {
@@ -107,9 +108,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Start Container",
+      "label": "(Re-)Start Container",
       "type": "shell",
-      "command": "container run -d -p 8080:8080 --name wutrak-test wutrak",
+      "command": "container rm -f wutrak-test || true && container run -d -p 8080:8080 --name wutrak-test wutrak",
       "presentation": {
         "reveal": "always",
         "panel": "shared"
