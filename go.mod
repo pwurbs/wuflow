@@ -1,4 +1,4 @@
-module codeberg.org/wusolv/wutrak
+module codeberg.org/wusolv/wuflow
 
 go 1.25.5
 

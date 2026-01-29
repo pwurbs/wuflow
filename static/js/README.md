@@ -1,6 +1,6 @@
 # Unit Testing Frontend (JavaScript)
 
-This directory contains the vanilla JavaScript frontend code for the wuTrak application.
+This directory contains the vanilla JavaScript frontend code for the wuFlow application.
 
 ## Testing
 

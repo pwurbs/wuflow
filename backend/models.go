@@ -1,4 +1,4 @@
-// Package backend provides the core logic and data structures for the wuTrak application.
+// Package backend provides the core logic and data structures for the wuFlow application.
 package backend
 
 import (

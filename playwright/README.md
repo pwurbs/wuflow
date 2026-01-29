@@ -24,7 +24,7 @@ The tests run against a containerized instance of the application to ensure a cl
 
 1. **Start the Container**:
    ```bash
-   container run -d -p 8080:8080 --name wutrak-test wutrak
+   container run -d -p 8080:8080 --name wuflow-test wuflow
    ```
 
 2. **Run the Tests**:
@@ -34,7 +34,7 @@ The tests run against a containerized instance of the application to ensure a cl
 
 3. **Cleanup**:
    ```bash
-   container stop wutrak-test && container rm wutrak-test
+   container stop wuflow-test && container rm wuflow-test
    ```
 
 4. **Open Test Report**:

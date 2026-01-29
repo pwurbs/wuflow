@@ -1,7 +1,7 @@
 import { Page, expect } from '@playwright/test';
 
 /**
- * Helper functions for wuTrak Playwright tests
+ * Helper functions for wuFlow Playwright tests
  */
 
 export interface IssueData {

@@ -21,7 +21,7 @@ COPY static ./static
 
 # Build static binary for the target architecture
 # Enable CGO for sqlite3 support
-RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -ldflags="-w -s" -o wutrak ./main.go
+RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -ldflags="-w -s" -o wuflow ./main.go
 
 
 #------- Package stage ---------------------------------------------------------
@@ -36,7 +36,7 @@ RUN groupadd -r appuser && \
 WORKDIR /app
 
 # Copy the built binary
-COPY --from=builder /app/wutrak /app/wutrak
+COPY --from=builder /app/wuflow /app/wuflow
 
 # Currently copy web assets is not required because they are packaged into the binary
 # maybe we change this later
@@ -54,7 +54,7 @@ EXPOSE 8080
 USER appuser
 
 # This is the executable that runs
-ENTRYPOINT ["/app/wutrak"]
+ENTRYPOINT ["/app/wuflow"]
 
 # Default arguments: Store DB in a volume-friendly path
-CMD ["-port", "8080", "-db", "/data/wutrak.db"]
+CMD ["-port", "8080", "-db", "/data/wuflow.db"]

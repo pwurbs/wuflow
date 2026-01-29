@@ -6,10 +6,10 @@ async function globalSetup(config: FullConfig) {
 
   // 1. Cleanup existing container
   try {
-    console.log('Stopping and removing existing wutrak-test container...');
+    console.log('Stopping and removing existing wuflow-test container...');
     // We redirect stderr to null to avoid noise if container doesn't exist
-    execSync('container stop wutrak-test 2>/dev/null || true');
-    execSync('container rm wutrak-test 2>/dev/null || true');
+    execSync('container stop wuflow-test 2>/dev/null || true');
+    execSync('container rm wuflow-test 2>/dev/null || true');
   } catch (e) {
     // Ignore errors during cleanup
     console.log('Cleanup error (ignored):', e);
@@ -19,7 +19,7 @@ async function globalSetup(config: FullConfig) {
   try {
     const { baseURL } = config.projects[0].use;
     console.log(`Starting new test container at port 8080...`);
-    execSync('container run -d -p 8080:8080 --name wutrak-test wutrak');
+    execSync('container run -d -p 8080:8080 --name wuflow-test wuflow');
 
     // 3. Wait for readiness
     console.log(`Waiting for application at ${baseURL || 'http://localhost:8080'}...`);

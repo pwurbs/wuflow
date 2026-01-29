@@ -31,7 +31,7 @@
     {
       "label": "Go Build",
       "type": "shell",
-      "command": "go build -v -o bin/wutrak main.go",
+      "command": "go build -v -o bin/wuflow main.go",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -68,7 +68,7 @@
     {
       "label": "Container Build",
       "type": "shell",
-      "command": "container build -t wutrak .",
+      "command": "container build -t wuflow .",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -109,7 +109,7 @@
     {
       "label": "(Re-)Start Container",
       "type": "shell",
-      "command": "container rm -f wutrak-test || true && container run -d -p 8080:8080 --name wutrak-test wutrak",
+      "command": "container rm -f wuflow-test || true && container run -d -p 8080:8080 --name wuflow-test wuflow",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

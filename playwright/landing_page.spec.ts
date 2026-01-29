@@ -6,7 +6,7 @@ test.describe('Landing Page', () => {
   });
 
   test('page loads with correct title', async ({ page }) => {
-    await expect(page).toHaveTitle(/wuTrak/);
+    await expect(page).toHaveTitle(/wuFlow/);
   });
 
   test('logo and header are visible', async ({ page }) => {
@@ -15,7 +15,7 @@ test.describe('Landing Page', () => {
     await expect(logo).toBeVisible();
 
     // Header title
-    await expect(page.locator('header h1')).toContainText('wuTrak');
+    await expect(page.locator('header h1')).toContainText('wuFlow');
   });
 
   test('filter controls are visible', async ({ page }) => {
