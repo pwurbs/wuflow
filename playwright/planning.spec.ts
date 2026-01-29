@@ -153,4 +153,33 @@ test.describe('Planning Panel', () => {
     // Verify issue still exists on board (it's just removed from plan)
     await expect(page.locator('.board-card:has-text("To Be Removed")')).toBeVisible();
   });
+
+  test('drag planning item to another day', async ({ page }) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const todayStr = formatDate(today);
+    const tomorrowStr = formatDate(tomorrow);
+
+    await createIssue(page, {
+      title: 'Move Me',
+      status: 'Todo',
+      plannedDate: todayStr
+    });
+
+    const todayContainer = page.locator(`#day-${todayStr}`);
+    const tomorrowContainer = page.locator(`#day-${tomorrowStr}`);
+    const itemToMove = todayContainer.locator('.planning-item', { hasText: 'Move Me' });
+
+    await expect(itemToMove).toBeVisible();
+    await expect(tomorrowContainer.locator('.planning-item', { hasText: 'Move Me' })).toBeHidden();
+
+    // Perform Drag and Drop
+    await itemToMove.dragTo(tomorrowContainer);
+
+    // Verify it moved
+    await expect(todayContainer.locator('.planning-item', { hasText: 'Move Me' })).toBeHidden();
+    await expect(tomorrowContainer.locator('.planning-item', { hasText: 'Move Me' })).toBeVisible();
+  });
 });

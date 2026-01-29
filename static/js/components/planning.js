@@ -1,5 +1,6 @@
 import { state } from '../state.js';
 import { updateIssue } from '../api.js';
+import { getDraggedCard, setDraggedCard } from '../drag.js';
 
 let refreshAppCallback = null;
 
@@ -116,16 +117,14 @@ function createPlanningItem(issue) {
   div.appendChild(removeBtn);
 
   div.addEventListener('dragstart', (e) => {
-    import('../drag.js').then(d => {
-      d.setDraggedCard(div);
-      // planning item acts as a card proxy for basic dragging but has different class
-    });
+    setDraggedCard(div);
+    // planning item acts as a card proxy for basic dragging but has different class
     div.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
   });
   div.addEventListener('dragend', () => {
     div.classList.remove('dragging');
-    import('../drag.js').then(d => d.setDraggedCard(null));
+    setDraggedCard(null);
   });
 
   // Hover highlight integration
@@ -146,6 +145,8 @@ async function handlePlanningDrop(e) {
   e.stopPropagation();
   this.classList.remove('drag-over');
   const dateStr = this.dataset.date;
+
+  const draggedCard = getDraggedCard();
 
   if (draggedCard) {
     draggedCard.dataset.droppedInPlanning = 'true';
