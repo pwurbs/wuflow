@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openIssueModal, selectStatus, navigateTo } from './helpers/test-utils';
+import { createIssue, navigateTo, selectStatus } from './helpers/test-utils';
 
 test.describe('Backlog View', () => {
   test.beforeEach(async ({ page }) => {
@@ -22,11 +22,8 @@ test.describe('Backlog View', () => {
 
   test('create issue with Open status appears in Backlog', async ({ page }) => {
     // Create issue with Open status (this is the default)
-    await openIssueModal(page);
-    await page.fill('#title', 'Backlog Issue');
-    // Open is default, no need to explicitly select
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Note: createIssue defaults to Open if no status is provided
+    await createIssue(page, { title: 'Backlog Issue' });
 
     // Navigate to Backlog
     await navigateTo(page, 'backlog');
@@ -37,10 +34,7 @@ test.describe('Backlog View', () => {
 
   test('move issue from Open to To-Do', async ({ page }) => {
     // Create issue with Open status (default)
-    await openIssueModal(page);
-    await page.fill('#title', 'Move to Board Issue');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    await createIssue(page, { title: 'Move to Board Issue' });
 
     // Navigate to Backlog
     await navigateTo(page, 'backlog');

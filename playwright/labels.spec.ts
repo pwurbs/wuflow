@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { navigateTo, openIssueModal, selectStatus } from './helpers/test-utils';
+import { createIssue, navigateTo } from './helpers/test-utils';
 
 test.describe('Label Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -55,16 +55,7 @@ test.describe('Label Management', () => {
     await navigateTo(page, 'board');
 
     // Create an issue and assign the label
-    await openIssueModal(page);
-    await page.fill('#title', 'Labeled Issue');
-    await selectStatus(page, 'Todo');
-
-    // Open label dropdown and select by text
-    await page.click('#label-trigger');
-    await page.click('#label-options .custom-option:has-text("Priority")');
-
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    await createIssue(page, { title: 'Labeled Issue', status: 'Todo', label: 'Priority' });
 
     // Open the issue and verify label is set
     await page.click('.card:has-text("Labeled Issue")');

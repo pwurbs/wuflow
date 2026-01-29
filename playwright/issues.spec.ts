@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openIssueModal, selectStatus, selectPriority } from './helpers/test-utils';
+import { createIssue, selectStatus } from './helpers/test-utils';
 
 test.describe('Issue CRUD Operations', () => {
   test.beforeEach(async ({ page }) => {
@@ -7,50 +7,26 @@ test.describe('Issue CRUD Operations', () => {
   });
 
   test('create a new issue', async ({ page }) => {
-    // Open the issue modal
-    await openIssueModal(page);
-
-    // Fill in the title
-    await page.fill('#title', 'Test Issue 1');
-
-    // Default status is 'Open', change to 'To-Do' so it appears on board
-    await selectStatus(page, 'Todo');
-
-    // Save the issue
-    await page.click('#save-issue-btn');
-
-    // Wait for modal to close
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create a new issue using helper
+    await createIssue(page, { title: 'Test Issue 1', status: 'Todo' });
 
     // Verify the issue appears in the To-Do column (use .board-card to be specific)
     await expect(page.locator('#col-todo .board-card:has-text("Test Issue 1")')).toBeVisible();
   });
 
   test('create issue with all properties', async ({ page }) => {
-    await openIssueModal(page);
-
-    // Fill title
-    await page.fill('#title', 'Complete Issue');
-
-    // Fill description
-    await page.locator('#description-editor').click();
-    await page.locator('#description-editor').fill('This is a test description');
-
-    // Set status to Working
-    await selectStatus(page, 'Working');
-
-    // Set priority to High
-    await selectPriority(page, 'High');
-
-    // Set deadline (tomorrow)
+    // Create issue with all properties
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const deadlineStr = tomorrow.toISOString().split('T')[0];
-    await page.fill('#deadline', deadlineStr);
 
-    // Save
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    await createIssue(page, {
+      title: 'Complete Issue',
+      description: 'This is a test description',
+      status: 'Working',
+      priority: 'High',
+      deadline: deadlineStr
+    });
 
     // Verify issue appears in Working column
     await expect(page.locator('#col-working .board-card:has-text("Complete Issue")')).toBeVisible();
@@ -58,11 +34,8 @@ test.describe('Issue CRUD Operations', () => {
 
   test('edit an existing issue title', async ({ page }) => {
     // First create an issue
-    await openIssueModal(page);
-    await page.fill('#title', 'Issue to Edit');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // First create an issue
+    await createIssue(page, { title: 'Issue to Edit', status: 'Todo' });
 
     // Click on the issue to open it (use board-card to be specific)
     await page.click('.board-card:has-text("Issue to Edit")');
@@ -87,11 +60,8 @@ test.describe('Issue CRUD Operations', () => {
 
   test('change issue status', async ({ page }) => {
     // Create an issue in To-Do
-    await openIssueModal(page);
-    await page.fill('#title', 'Status Change Test');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create an issue in To-Do
+    await createIssue(page, { title: 'Status Change Test', status: 'Todo' });
 
     // Verify it's in To-Do column
     await expect(page.locator('#col-todo .board-card:has-text("Status Change Test")')).toBeVisible();
@@ -113,11 +83,8 @@ test.describe('Issue CRUD Operations', () => {
 
   test('delete an issue', async ({ page }) => {
     // Create an issue to delete
-    await openIssueModal(page);
-    await page.fill('#title', 'Issue to Delete');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create an issue to delete
+    await createIssue(page, { title: 'Issue to Delete', status: 'Todo' });
 
     // Open the issue
     await page.click('.board-card:has-text("Issue to Delete")');

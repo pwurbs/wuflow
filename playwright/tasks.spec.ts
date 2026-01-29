@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openIssueModal, selectStatus } from './helpers/test-utils';
+import { createIssue } from './helpers/test-utils';
 
 test.describe('Task (Subtask) Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -8,11 +8,8 @@ test.describe('Task (Subtask) Management', () => {
 
   test('tasks section is visible when editing an existing issue', async ({ page }) => {
     // Create an issue first with To-Do status so it's on board
-    await openIssueModal(page);
-    await page.fill('#title', 'Issue with Tasks');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create an issue first with To-Do status so it's on board
+    await createIssue(page, { title: 'Issue with Tasks', status: 'Todo' });
 
     // Open the issue for editing
     await page.click('.card:has-text("Issue with Tasks")');
@@ -24,11 +21,8 @@ test.describe('Task (Subtask) Management', () => {
 
   test('add a task to an issue', async ({ page }) => {
     // Create an issue
-    await openIssueModal(page);
-    await page.fill('#title', 'Task Test Issue');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create an issue
+    await createIssue(page, { title: 'Task Test Issue', status: 'Todo' });
 
     // Open the issue
     await page.click('.card:has-text("Task Test Issue")');
@@ -44,11 +38,8 @@ test.describe('Task (Subtask) Management', () => {
 
   test('add a task with deadline', async ({ page }) => {
     // Create an issue
-    await openIssueModal(page);
-    await page.fill('#title', 'Task Deadline Issue');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create an issue
+    await createIssue(page, { title: 'Task Deadline Issue', status: 'Todo' });
 
     // Open the issue
     await page.click('.card:has-text("Task Deadline Issue")');
@@ -70,11 +61,8 @@ test.describe('Task (Subtask) Management', () => {
 
   test('toggle task completion', async ({ page }) => {
     // Create an issue with a task
-    await openIssueModal(page);
-    await page.fill('#title', 'Toggle Task Issue');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create an issue with a task
+    await createIssue(page, { title: 'Toggle Task Issue', status: 'Todo' });
 
     // Open the issue
     await page.click('.card:has-text("Toggle Task Issue")');
@@ -99,11 +87,8 @@ test.describe('Task (Subtask) Management', () => {
 
   test('delete a task', async ({ page }) => {
     // Create an issue with a task
-    await openIssueModal(page);
-    await page.fill('#title', 'Delete Task Issue');
-    await selectStatus(page, 'Todo');
-    await page.click('#save-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
+    // Create an issue with a task
+    await createIssue(page, { title: 'Delete Task Issue', status: 'Todo' });
 
     // Open the issue
     await page.click('.card:has-text("Delete Task Issue")');
