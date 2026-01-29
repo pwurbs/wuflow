@@ -103,6 +103,7 @@ test.describe('Task (Subtask) Management', () => {
     const taskItem = page.locator('#task-list .task-item').filter({ has: page.locator('.task-title-input[value="Task to Delete"]') });
     await taskItem.locator('.delete-task-btn').click();
 
+
     // Handle confirmation dialog
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.click('#confirm-ok-btn');
@@ -110,4 +111,69 @@ test.describe('Task (Subtask) Management', () => {
     // Verify task is removed
     await expect(page.locator('#task-list .task-title-input[value="Task to Delete"]')).toHaveCount(0);
   });
+
+  test('edit task deadline', async ({ page }) => {
+    // Create an issue with a task
+    await createIssue(page, { title: 'Edit Task Deadline Issue', status: 'Todo' });
+
+    // Open the issue
+    await page.click('.card:has-text("Edit Task Deadline Issue")');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    // Add a task with deadline
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    await page.fill('#new-task-title', 'Task With Deadline');
+    await page.fill('#new-task-deadline', tomorrow.toISOString().split('T')[0]);
+    await page.click('#add-task-btn');
+
+    // Find the task and its deadline input
+    const taskItem = page.locator('#task-list .task-item').filter({
+      has: page.locator('.task-title-input[value="Task With Deadline"]')
+    });
+    const deadlineInput = taskItem.locator('input[type="date"]');
+
+    // Verify initial deadline
+    const initialDeadline = await deadlineInput.inputValue();
+    expect(initialDeadline).toBe(tomorrow.toISOString().split('T')[0]);
+
+    // Change the deadline
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    await deadlineInput.fill(nextWeek.toISOString().split('T')[0]);
+
+    // Verify the deadline was updated
+    const updatedDeadline = await deadlineInput.inputValue();
+    expect(updatedDeadline).toBe(nextWeek.toISOString().split('T')[0]);
+  });
+
+  test('remove task deadline', async ({ page }) => {
+    // Create an issue with a task
+    await createIssue(page, { title: 'Remove Task Deadline Issue', status: 'Todo' });
+
+    // Open the issue
+    await page.click('.card:has-text("Remove Task Deadline Issue")');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    // Add a task with deadline
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    await page.fill('#new-task-title', 'Task To Clear Deadline');
+    await page.fill('#new-task-deadline', tomorrow.toISOString().split('T')[0]);
+    await page.click('#add-task-btn');
+
+    // Find the task and its deadline input
+    const taskItem = page.locator('#task-list .task-item').filter({
+      has: page.locator('.task-title-input[value="Task To Clear Deadline"]')
+    });
+    const deadlineInput = taskItem.locator('input[type="date"]');
+
+    // Clear the deadline
+    await deadlineInput.fill('');
+
+    // Verify the deadline was cleared
+    const clearedDeadline = await deadlineInput.inputValue();
+    expect(clearedDeadline).toBe('');
+  });
 });
+
