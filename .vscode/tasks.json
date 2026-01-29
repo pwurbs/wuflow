@@ -15,6 +15,20 @@
       ]
     },
     {
+      "label": "JS Test",
+      "type": "shell",
+      "command": "npm run test:coverage",
+      "options": {
+        "cwd": "${workspaceFolder}/static/js"
+      },
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Go Build",
       "type": "shell",
       "command": "go build -v -o bin/wutrak main.go",
@@ -112,6 +126,7 @@
       "label": "Run Build&Package",
       "dependsOn": [
         "Go Test",
+        "JS Test",
         "Go Build",
         "Sonar Scanner",
         "Docker Build"

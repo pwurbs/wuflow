@@ -3,15 +3,18 @@
 /bin
 coverage.out
 .scannerwork
-.sonarlint
-sonar-project.properties
 
 # HA addon config
 config.yaml 
 
+# Node modules
+node_modules
+
 # Playwright
 playwright/.playwright
 .tmp
-node_modules
 playwright/test-results
 playwright/playwright-report
+
+# JavaScript unit tests
+static/js/coverage

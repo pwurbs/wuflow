@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
 import { draggedCard, draggedCardOrigin, getDragAfterElement } from '../drag.js';
+import { filterIssues, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
@@ -23,30 +24,12 @@ export function renderBoard(refreshApp, openModal) {
   // Counts
   const counts = { Todo: 0, Pending: 0, Working: 0, Done: 0 };
 
-  state.issues.sort((a, b) => a.position - b.position);
+  // Filter and sort issues using extracted pure functions
+  const nonBacklogIssues = state.issues.filter(issue => issue.status !== 'Open');
+  const filteredIssues = filterIssues(nonBacklogIssues, state.filter);
+  const sortedIssues = sortByPosition(filteredIssues);
 
-  state.issues.forEach(issue => {
-    if (issue.status === 'Open') return; // Backlog
-
-    // Filter Logic
-    if (state.filter.label) {
-      if (state.filter.label === '__no_label__') {
-        if (issue.label) return;
-      } else {
-        if (!issue.label || issue.label.name !== state.filter.label) return;
-      }
-    }
-
-    if (state.filter.priority) {
-      if (issue.priority !== state.filter.priority) return;
-    }
-
-    if (state.filter.search) {
-      const term = state.filter.search.toLowerCase();
-      const match = issue.title.toLowerCase().includes(term) || (issue.description && issue.description.toLowerCase().includes(term));
-      if (!match) return;
-    }
-
+  sortedIssues.forEach(issue => {
     if (columns[issue.status]) {
       const card = createCardElement(issue, true, { openModal: openModalCallback });
       columns[issue.status].appendChild(card);

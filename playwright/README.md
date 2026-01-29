@@ -1,4 +1,4 @@
-# wuTrak
+# End-to-End Tests
 
 ## Automated Regression Testing
 This project uses **Playwright** for automated UI/DOM regression testing.

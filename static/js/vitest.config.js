@@ -1,0 +1,15 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    include: ['tests/**/*.test.js'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      reportsDirectory: './coverage',
+      include: ['filters.js', 'state.js', 'utils.js', 'components/board.js', 'components/modal.js', 'components/tasks.js'],
+      exclude: ['tests/**', 'node_modules/**', 'coverage/**']
+    }
+  }
+});
