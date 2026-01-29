@@ -9,6 +9,11 @@ import (
 	"testing"
 )
 
+const (
+	testIssueTitle     = "Test Issue"
+	wrongStatusCodeMsg = "handler returned wrong status code: got %v want %v"
+)
+
 type issueRouteTestCase struct {
 	name           string
 	method         string
@@ -79,7 +84,7 @@ func seedIssueForTest(t *testing.T) {
 	// Pre-populate DB for happy paths
 	// We need an issue with ID 1 for the task creation and issue update to work without DB errors (FK constraints or not found)
 	// CreateIssue uses AUTOINCREMENT, so first issue should be ID 1.
-	i := &Issue{Title: "Test Issue", Status: "todo", Position: 1}
+	i := &Issue{Title: testIssueTitle, Status: "todo", Position: 1}
 	if err := CreateIssue(i); err != nil {
 		t.Fatalf("Failed to create seed issue: %v", err)
 	}
@@ -107,7 +112,7 @@ func executeIssueTest(t *testing.T, tt issueRouteTestCase) {
 		handler.ServeHTTP(rr, req)
 
 		if status := rr.Code; status != tt.expectedStatus {
-			t.Errorf("handler returned wrong status code: got %v want %v",
+			t.Errorf(wrongStatusCodeMsg,
 				status, tt.expectedStatus)
 		}
 
@@ -118,4 +123,95 @@ func executeIssueTest(t *testing.T, tt issueRouteTestCase) {
 			}
 		}
 	})
+}
+
+// TestServerRoutes tests that the server routes are properly configured
+func TestServerRoutes(t *testing.T) {
+	// We can't test StartServer directly as it blocks with ListenAndServe
+	// But we can test that the routes work correctly by simulating requests
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create a test issue for route testing
+	CreateIssue(&Issue{Title: "Test Issue", Status: StatusOpen})
+
+	tests := []struct {
+		name           string
+		method         string
+		path           string
+		handler        http.HandlerFunc
+		expectedStatus int
+	}{
+		{
+			name:           "GET /api/issues",
+			method:         "GET",
+			path:           "/api/issues",
+			handler:        HandleIssues,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "GET /api/labels",
+			method:         "GET",
+			path:           "/api/labels",
+			handler:        HandleLabels,
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			rr := httptest.NewRecorder()
+
+			tt.handler(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf(wrongStatusCodeMsg,
+					status, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+// TestHandleIssuesRouteEdgeCases tests edge cases for HandleIssuesRoute
+func TestHandleIssuesRouteEdgeCases(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create test issue
+	CreateIssue(&Issue{Title: testIssueTitle, Status: StatusOpen})
+
+	tests := []struct {
+		name           string
+		method         string
+		url            string
+		expectedStatus int
+	}{
+		{
+			name:           "DELETE request to /api/issues/1/tasks",
+			method:         "DELETE",
+			url:            "/api/issues/1/tasks",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "GET request to /api/issues/1/tasks",
+			method:         "GET",
+			url:            "/api/issues/1/tasks",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.url, nil)
+			rr := httptest.NewRecorder()
+
+			HandleIssuesRoute(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf(wrongStatusCodeMsg,
+					status, tt.expectedStatus)
+			}
+		})
+	}
 }

@@ -2,6 +2,7 @@
 *.db*
 /bin
 coverage.out
+coverage.html
 .scannerwork
 
 # HA addon config
