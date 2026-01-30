@@ -638,6 +638,33 @@ describe('Modal Component', () => {
     });
   });
 
+  describe('Unload Listeners', () => {
+    it('should add unload listener when entering inline edit', () => {
+      const addSpy = vi.spyOn(globalThis, 'addEventListener');
+      const issue = { id: 1, title: 'Test' };
+      openModal(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+
+      expect(addSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+    });
+
+    it('should remove unload listener when canceling edit', () => {
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      const issue = { id: 1, title: 'Test' };
+      openModal(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+
+      const cancelBtn = document.getElementById('title-cancel-btn');
+      cancelBtn.dispatchEvent(new Event('mousedown'));
+
+      expect(removeSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+    });
+  });
+
   describe('Inline Editing Features', () => {
     it('should cancel inline title edit on cancel button', () => {
       const issue = { id: 1, title: 'Original' };
@@ -673,7 +700,7 @@ describe('Modal Component', () => {
       expect(titleInput.readOnly).toBe(true);
     });
 
-    it('should prompt save on title blur with changes', async () => {
+    it('should prompt save on done button click with changes', async () => {
       const issue = { id: 1, title: 'Original' };
       openModal(issue);
 
@@ -684,13 +711,85 @@ describe('Modal Component', () => {
       // Mock confirm true
       utils.showConfirm.mockResolvedValue(true);
 
-      titleInput.dispatchEvent(new Event('blur'));
+      const doneBtn = document.getElementById('done-btn');
+      doneBtn.click();
+
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).toHaveBeenCalled();
-      expect(api.updateIssue).toHaveBeenCalled();
+      // Since confirm is true, it should trigger save (which triggers updateIssue)
+      // Note: testing internal behavior of handleDone which triggers save logic
+      // In modal.js: if (await showConfirm(...)) { titleSaveBtn.dispatchEvent(...) }
+
+      // We need to wait for the save logic which is also async
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Changed'
+      }));
     });
 
+    it('should prompt save on done button click with description changes - save path', async () => {
+      const issue = { id: 1, description: 'Original' };
+      openModal(issue);
+
+      // Enter description edit
+      const descEditor = document.getElementById('description-editor');
+      descEditor.click();
+      descEditor.innerHTML = 'Changed Desc';
+
+      utils.showConfirm.mockResolvedValue(true);
+
+      const doneBtn = document.getElementById('done-btn');
+      doneBtn.click();
+
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+
+      await new Promise(process.nextTick);
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        description: 'Changed Desc'
+      }));
+    });
+
+    it('should prompt save on done button click with title changes - discard path', async () => {
+      const issue = { id: 1, title: 'Original' };
+      openModal(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = 'Changed';
+
+      utils.showConfirm.mockResolvedValue(false); // Discard
+
+      const doneBtn = document.getElementById('done-btn');
+      doneBtn.click();
+
+      await new Promise(process.nextTick);
+
+      // Should NOT update issue
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      // Should close modal? logic: cancelTitle -> closeModal
+      // handleDone calls closeModal at end.
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should NOT prompt if no changes on done click', async () => {
+      const issue = { id: 1, title: 'Original', description: 'Desc' };
+      openModal(issue);
+
+      // Enter edit mode but don't change anything
+      document.getElementById('title').click();
+
+      const doneBtn = document.getElementById('done-btn');
+      doneBtn.click();
+
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    });
     it('should enter description inline edit on click', () => {
       const issue = { id: 1, description: 'Desc' };
       openModal(issue);
@@ -704,6 +803,5 @@ describe('Modal Component', () => {
       expect(descEditor.contentEditable).toBe('true');
     });
   });
-
 });
 

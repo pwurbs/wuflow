@@ -15,7 +15,9 @@ export function setupModal(refreshApp) {
   // We use state.currentIssue.
 
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
-  document.getElementById('done-btn').addEventListener('click', closeModal);
+  document.getElementById('cancel-btn').addEventListener('click', closeModal);
+  document.getElementById('done-btn').addEventListener('click', handleDone);
+  form.addEventListener('submit', handleIssueSubmit);
   form.addEventListener('submit', handleIssueSubmit);
 
   document.getElementById('delete-issue-btn').addEventListener('click', handleDeleteIssue);
@@ -305,6 +307,7 @@ function setupInlineEditing() {
       titleInput.readOnly = false;
       titleEditActions.classList.remove('hidden');
       titleInput.focus();
+      addUnloadListener();
     }
   });
 
@@ -321,6 +324,7 @@ function setupInlineEditing() {
     titleInput.classList.remove('inline-editing');
     titleInput.readOnly = true;
     titleEditActions.classList.add('hidden');
+    checkRemoveUnloadListener();
   };
 
   const saveTitle = async () => {
@@ -336,23 +340,13 @@ function setupInlineEditing() {
     titleInput.classList.remove('inline-editing');
     titleInput.readOnly = true;
     titleEditActions.classList.add('hidden');
+    checkRemoveUnloadListener();
   };
 
   titleCancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelTitle(); });
   titleSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveTitle(); });
-  // Blur logic omitted for brevity/reliability, relying on buttons/keys, or add simple blur
-  titleInput.addEventListener('blur', async (e) => {
-    if (titleInput.classList.contains('inline-editing')) {
-      const currentVal = titleInput.value.trim();
-      if (currentVal === originalTitle) {
-        cancelTitle();
-      } else if (await showConfirm('Unsaved Changes', 'Save title?', 'Save', 'Discard', 'primary')) {
-        saveTitle();
-      } else {
-        cancelTitle();
-      }
-    }
-  });
+  // Blur logic removed to prevent popup on click outside.
+  // We now only check for changes when clicking Done or attempting to leave the page.
 
 
   // Description
@@ -373,6 +367,7 @@ function setupInlineEditing() {
       descEditor.contentEditable = "true";
       descEditActions.classList.remove('hidden');
       descEditor.focus();
+      addUnloadListener();
     }
   });
 
@@ -382,6 +377,7 @@ function setupInlineEditing() {
     descContainer.classList.remove('inline-editing');
     descEditor.contentEditable = "false";
     descEditActions.classList.add('hidden');
+    checkRemoveUnloadListener();
   };
 
   const saveDesc = async () => {
@@ -396,23 +392,77 @@ function setupInlineEditing() {
     descContainer.classList.remove('inline-editing');
     descEditor.contentEditable = "false";
     descEditActions.classList.add('hidden');
+    checkRemoveUnloadListener();
   };
 
   descCancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelDesc(); });
   descSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveDesc(); });
-  descEditor.addEventListener('blur', async () => {
-    if (descContainer.classList.contains('inline-editing')) {
-      const currentVal = descEditor.innerHTML;
-      if (currentVal === originalDesc) {
-        cancelDesc();
-      } else if (await showConfirm('Unsaved Changes', 'Save description?', 'Save', 'Discard', 'primary')) {
-        saveDesc();
-      } else {
-        cancelDesc();
-      }
-    }
-  });
+  // Blur logic removed.
 }
+
+async function handleDone() {
+  const titleInput = document.getElementById('title');
+  const descEditor = document.getElementById('description-editor');
+
+  // Check Title
+  if (titleInput.classList.contains('inline-editing')) {
+    await processFieldOnDone(
+      titleInput.value.trim(),
+      originalTitle,
+      'Title',
+      'title-save-btn',
+      'title-cancel-btn'
+    );
+  }
+
+  // Check Description
+  if (document.querySelector('.editor-container').classList.contains('inline-editing')) {
+    await processFieldOnDone(
+      descEditor.innerHTML,
+      originalDesc,
+      'Description',
+      'desc-save-btn',
+      'desc-cancel-btn'
+    );
+  }
+
+  closeModal();
+}
+
+async function processFieldOnDone(currentValue, originalValue, fieldName, saveBtnId, cancelBtnId) {
+  if (currentValue === originalValue) {
+    document.getElementById(cancelBtnId).dispatchEvent(new MouseEvent('mousedown'));
+    return;
+  }
+
+  if (await showConfirm('Unsaved Changes', `Save ${fieldName}?`, 'Save', 'Discard', 'primary')) {
+    document.getElementById(saveBtnId).dispatchEvent(new MouseEvent('mousedown'));
+  } else {
+    document.getElementById(cancelBtnId).dispatchEvent(new MouseEvent('mousedown'));
+  }
+}
+
+function preventNavigation(e) {
+  e.preventDefault();
+  e.returnValue = '';
+}
+
+function addUnloadListener() {
+  window.addEventListener('beforeunload', preventNavigation);
+}
+
+function removeUnloadListener() {
+  window.removeEventListener('beforeunload', preventNavigation);
+}
+
+function checkRemoveUnloadListener() {
+  const titleEditing = document.getElementById('title').classList.contains('inline-editing');
+  const descEditing = document.querySelector('.editor-container').classList.contains('inline-editing');
+  if (!titleEditing && !descEditing) {
+    removeUnloadListener();
+  }
+}
+
 function setupSidebarImmediateSave() {
   const plannedDateInput = document.getElementById('planned-date');
   const deadlineInput = document.getElementById('deadline');
