@@ -42,6 +42,19 @@
       ]
     },
     {
+      "label": "Run Playwright Tests",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/playwright"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Sonar Scanner",
       "type": "shell",
       "command": "sonar-scanner",
@@ -66,7 +79,23 @@
       "problemMatcher": []
     },
     {
-      "label": "Container Build",
+      "label": "Full Pipeline",
+      "dependsOn": [
+        "Go Test",
+        "JS Test",
+        "Go Build",
+        "Run Playwright Tests",
+        "Sonar Scanner"
+      ],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Container",
       "type": "shell",
       "command": "container build -t wuflow .",
       "group": "build",
@@ -77,12 +106,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Run Playwright Tests",
+      "label": "Start Container",
       "type": "shell",
-      "command": "npm test",
-      "options": {
-        "cwd": "${workspaceFolder}/playwright"
-      },
+      "command": "container rm -f wuflow-test || true && container run -d -p 8080:8080 --name wuflow-test wuflow",
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -90,26 +116,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Full Pipeline",
-      "dependsOn": [
-        "Go Test",
-        "JS Test",
-        "Go Build",
-        "Sonar Scanner",
-        "Container Build",
-        "Run Playwright Tests"
-      ],
-      "dependsOrder": "sequence",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "(Re-)Start Container",
+      "label": "Stop Container",
       "type": "shell",
-      "command": "container rm -f wuflow-test || true && container run -d -p 8080:8080 --name wuflow-test wuflow",
+      "command": "container stop wuflow-test || true",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

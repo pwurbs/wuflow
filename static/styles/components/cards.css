@@ -167,3 +167,41 @@ body:not(.is-dragging) .card:hover {
 body:not(.is-dragging) .card.high-priority:hover {
   background-color: rgba(255, 0, 0, 0.15) !important;
 }
+
+/* Card Move Controls */
+.card-move-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  gap: 4px;
+  /* Increased gap for better click targets */
+  opacity: 0;
+  transition: opacity 0.2s;
+  align-self: center;
+  /* Center vertically within the card flex container */
+}
+
+.card:hover .card-move-controls {
+  opacity: 1;
+}
+
+.move-up,
+.move-down {
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted-text);
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-weight: bold;
+  user-select: none;
+  letter-spacing: -2px;
+}
+
+.move-up:hover,
+.move-down:hover {
+  color: var(--accent-blue);
+  background-color: rgba(9, 30, 66, 0.08);
+}

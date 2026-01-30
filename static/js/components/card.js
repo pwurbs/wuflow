@@ -18,60 +18,21 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
   const openTasks = totalTasks - completedTasks;
 
   if (isBoard) {
-    // New Board Card Layout
-    card.innerHTML = `
-            <div class="board-card-title">${escapeHtml(issue.title)}</div>
-            <div class="board-card-label-space">
-                ${issue.label ? `<span class="label-chip" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</span>` : ''}
-            </div>
-            <div class="board-card-bottom">
-                <div class="board-card-id">#${issue.id}</div>
-                <div class="board-card-meta-right">
-                    ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
-                    <div class="board-task-info">
-                        <span class="board-task-icon">☐</span>
-                        <span>${openTasks}</span>
-                        ${issue.tasks && openTasks > 0 ? `
-                        <div class="board-task-tooltip">
-                            <ul>
-                                ${issue.tasks.filter(t => !t.done).map(t => `
-                                    <li>
-                                        <span class="tooltip-icon">☐</span>
-                                        <span class="tooltip-title">${escapeHtml(t.title)}</span>
-                                        ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
-                                    </li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
+    card.innerHTML = getBoardCardHTML(issue, openTasks);
   } else {
-    // Existing Backlog Card Layout
-    card.innerHTML = `
-            <div class="card-main-content">
-                <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
-                <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
-            </div>
-            ${'' /* Task list hidden for backlog view to match Open issues layout */}
-            ${(() => {
-        const hasDeadline = !!issue.deadline;
-        const showProgress = totalTasks > 0;
+    const showMoveControls = callbacks.onMoveTop && callbacks.onMoveBottom;
+    card.innerHTML = getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls);
 
-        if (!hasDeadline && !showProgress) return '';
-
-        return `<div class="card-meta">
-                    ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language)}</span>` : '<span></span>'}
-                    ${showProgress ? `<div class="board-task-info">
-                        <span class="board-task-icon">☐</span>
-                        <span>${openTasks}</span>
-                    </div>` : ''}
-                </div>`;
-      })()}
-      ${issue.label ? `<div class="backlog-card-label" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</div>` : ''}
-        `;
+    if (showMoveControls) {
+      card.querySelector('.move-up').addEventListener('click', (e) => {
+        e.stopPropagation();
+        callbacks.onMoveTop();
+      });
+      card.querySelector('.move-down').addEventListener('click', (e) => {
+        e.stopPropagation();
+        callbacks.onMoveBottom();
+      });
+    }
   }
 
   // Event Listeners
@@ -102,8 +63,6 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
     setDraggedCard(null);
     setDraggedCardOrigin(null);
 
-
-
     if (callbacks.onDragEnd) callbacks.onDragEnd(this, e);
   });
 
@@ -119,4 +78,67 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
   });
 
   return card;
+}
+
+function getBoardCardHTML(issue, openTasks) {
+  return `
+            <div class="board-card-title">${escapeHtml(issue.title)}</div>
+            <div class="board-card-label-space">
+                ${issue.label ? `<span class="label-chip" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</span>` : ''}
+            </div>
+            <div class="board-card-bottom">
+                <div class="board-card-id">#${issue.id}</div>
+                <div class="board-card-meta-right">
+                    ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    <div class="board-task-info">
+                        <span class="board-task-icon">☐</span>
+                        <span>${openTasks}</span>
+                        ${issue.tasks && openTasks > 0 ? `
+                        <div class="board-task-tooltip">
+                            <ul>
+                                ${issue.tasks.filter(t => !t.done).map(t => `
+                                    <li>
+                                        <span class="tooltip-icon">☐</span>
+                                        <span class="tooltip-title">${escapeHtml(t.title)}</span>
+                                        ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+}
+
+function getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls) {
+  return `
+            ${showMoveControls ? `
+            <div class="card-move-controls">
+                <div class="move-up" title="Move to Top">↑↑</div>
+                <div class="move-down" title="Move to Bottom">↓↓</div>
+            </div>
+            ` : ''}
+            <div class="card-main-content">
+                <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
+                <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
+            </div>
+            ${'' /* Task list hidden for backlog view to match Open issues layout */}
+            ${(() => {
+      const hasDeadline = !!issue.deadline;
+      const showProgress = totalTasks > 0;
+
+      if (!hasDeadline && !showProgress) return '';
+
+      return `<div class="card-meta">
+                    ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language)}</span>` : '<span></span>'}
+                    ${showProgress ? `<div class="board-task-info">
+                        <span class="board-task-icon">☐</span>
+                        <span>${openTasks}</span>
+                    </div>` : ''}
+                </div>`;
+    })()}
+      ${issue.label ? `<div class="backlog-card-label" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</div>` : ''}
+        `;
 }

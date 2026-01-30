@@ -26,17 +26,65 @@ export function renderBacklog(refreshApp, openModal) {
   const todoIssues = sortByPosition(filterByStatus(filteredIssues, 'Todo'));
 
   openIssues.forEach(issue => {
-    backlogList.appendChild(createCardElement(issue, false, { openModal: openModalCallback }));
+    backlogList.appendChild(createCardElement(issue, false, {
+      openModal: openModalCallback,
+      onMoveTop: () => handleMoveTop(issue, openIssues),
+      onMoveBottom: () => handleMoveBottom(issue, openIssues)
+    }));
   });
   todoIssues.forEach(issue => {
-    moveToTodoList.appendChild(createCardElement(issue, false, { openModal: openModalCallback }));
+    moveToTodoList.appendChild(createCardElement(issue, false, {
+      openModal: openModalCallback,
+      onMoveTop: () => handleMoveTop(issue, todoIssues),
+      onMoveBottom: () => handleMoveBottom(issue, todoIssues)
+    }));
   });
 
   backlogCount.textContent = openIssues.length;
   todoCount.textContent = todoIssues.length;
 }
 
+async function handleMoveTop(issue, allIssuesInList) {
+  if (allIssuesInList.length <= 1 || allIssuesInList[0].id === issue.id) return;
+
+  // Create a new array without the issue
+  const otherIssues = allIssuesInList.filter(i => i.id !== issue.id);
+  // Add the issue to the beginning
+  const newOrder = [issue, ...otherIssues];
+
+  await updatePositions(newOrder);
+}
+
+async function handleMoveBottom(issue, allIssuesInList) {
+  if (allIssuesInList.length <= 1 || allIssuesInList[allIssuesInList.length - 1].id === issue.id) return;
+
+  // Create a new array without the issue
+  const otherIssues = allIssuesInList.filter(i => i.id !== issue.id);
+  // Add the issue to the end
+  const newOrder = [...otherIssues, issue];
+
+  await updatePositions(newOrder);
+}
+
+async function updatePositions(orderedIssues) {
+  const updates = [];
+  orderedIssues.forEach((issue, index) => {
+    if (issue.position !== index) {
+      issue.position = index;
+      updates.push(updateIssue(issue));
+    }
+  });
+
+  if (updates.length > 0) {
+    await Promise.all(updates);
+    if (refreshAppCallback) refreshAppCallback();
+  }
+}
+
 export function setupBacklogView(refreshApp, openModal) {
+  if (refreshApp) refreshAppCallback = refreshApp;
+  if (openModal) openModalCallback = openModal;
+
   // Backlog Sections Drag Support (for dropping planning items on background)
   const setupSectionDrop = (id, targetStatus) => {
     const section = document.getElementById(id);
