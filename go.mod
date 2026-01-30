@@ -1,4 +1,4 @@
-module codeberg.org/wusolv/wuflow
+module github.com/pwurbs/wuflow
 
 go 1.25.5
 

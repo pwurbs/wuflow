@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"codeberg.org/wusolv/wuflow/backend"
+	"github.com/pwurbs/wuflow/backend"
 )
 
 // embeddedFiles holds the static files embedded into the binary.
