@@ -141,7 +141,9 @@ function setupEditModal(issue) {
     onTaskUpdate: () => refreshAppCallback?.(),
     onTaskOrderSave: async () => {
       await saveTaskOrder(issue);
-    }
+    },
+    onTaskEditStart: () => addUnloadListener(),
+    onTaskEditEnd: () => checkRemoveUnloadListener()
   });
   document.getElementById('delete-issue-btn').classList.remove('hidden');
 
@@ -426,6 +428,24 @@ async function handleDone() {
     );
   }
 
+  // Check Tasks
+  const editingTasks = document.querySelectorAll('.task-item.editing');
+  for (const taskItem of editingTasks) {
+    const input = taskItem.querySelector('.task-title-input');
+    const original = input.dataset.originalTitle;
+
+    // If original is undefined, we still need to prompt
+    if (!original || input.value.trim() !== original) {
+      if (await showConfirm('Unsaved Changes', 'Save Task?', 'Save', 'Discard', 'primary')) {
+        taskItem.querySelector('.inline-save-btn').dispatchEvent(new MouseEvent('mousedown'));
+      } else {
+        taskItem.querySelector('.inline-cancel-btn').dispatchEvent(new MouseEvent('mousedown'));
+      }
+    } else {
+      taskItem.querySelector('.inline-cancel-btn').dispatchEvent(new MouseEvent('mousedown'));
+    }
+  }
+
   closeModal();
 }
 
@@ -458,7 +478,8 @@ function removeUnloadListener() {
 function checkRemoveUnloadListener() {
   const titleEditing = document.getElementById('title').classList.contains('inline-editing');
   const descEditing = document.querySelector('.editor-container').classList.contains('inline-editing');
-  if (!titleEditing && !descEditing) {
+  const taskEditing = document.querySelector('.task-item.editing') !== null;
+  if (!titleEditing && !descEditing && !taskEditing) {
     removeUnloadListener();
   }
 }
@@ -647,7 +668,9 @@ async function handleTaskSubmit(e) {
   state.currentIssue.tasks.push(newTask);
   renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
     onTaskUpdate: () => refreshAppCallback?.(),
-    onTaskOrderSave: () => saveTaskOrder(state.currentIssue)
+    onTaskOrderSave: () => saveTaskOrder(state.currentIssue),
+    onTaskEditStart: () => addUnloadListener(),
+    onTaskEditEnd: () => checkRemoveUnloadListener()
   });
   resetTaskForm();
   if (refreshAppCallback) refreshAppCallback();

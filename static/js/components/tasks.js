@@ -59,7 +59,9 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       titleInput.readOnly = false;
       editActions.classList.remove('hidden');
       originalTitle = task.title;
+      titleInput.dataset.originalTitle = task.title; // Expose for modal.js
       titleInput.focus();
+      if (callbacks.onTaskEditStart) callbacks.onTaskEditStart();
     };
 
     const exitEditMode = () => {
@@ -67,6 +69,8 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       li.draggable = true;
       titleInput.readOnly = true;
       editActions.classList.add('hidden');
+      delete titleInput.dataset.originalTitle;
+      if (callbacks.onTaskEditEnd) callbacks.onTaskEditEnd();
     };
 
     const cancelEdit = () => {
@@ -99,15 +103,10 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       if (e.key === 'Enter') { e.preventDefault(); saveTask(); }
       else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
     });
-    titleInput.addEventListener('blur', async () => {
-      if (li.classList.contains('editing')) {
-        const currentVal = titleInput.value.trim();
-        if (currentVal === originalTitle) {
-          cancelEdit();
-        } else {
-          const save = await showConfirm('Unsaved Changes', 'Save changes?', 'Save', 'Discard', 'primary');
-          if (save) saveTask(); else cancelEdit();
-        }
+    titleInput.addEventListener('blur', () => {
+      // Only cancel if NO changes. If changes, stay in edit mode (no popup).
+      if (titleInput.value.trim() === originalTitle) {
+        cancelEdit();
       }
     });
 

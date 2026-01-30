@@ -134,4 +134,127 @@ describe('Tasks Component', () => {
     }));
     expect(callbacks.onTaskUpdate).toHaveBeenCalled();
   });
+
+  it('should call onTaskEditStart when entering edit mode', () => {
+    callbacks.onTaskEditStart = vi.fn();
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+
+    // Enter edit mode
+    input.click();
+
+    expect(callbacks.onTaskEditStart).toHaveBeenCalled();
+  });
+
+  it('should call onTaskEditEnd when exiting edit mode via cancel', () => {
+    callbacks.onTaskEditEnd = vi.fn();
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+    const cancelBtn = item.querySelector('.inline-cancel-btn');
+
+    // Enter edit mode
+    input.click();
+
+    // Cancel edit
+    cancelBtn.dispatchEvent(new Event('mousedown'));
+
+    expect(callbacks.onTaskEditEnd).toHaveBeenCalled();
+  });
+
+  it('should call onTaskEditEnd when exiting edit mode via save', async () => {
+    callbacks.onTaskEditEnd = vi.fn();
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+    const saveBtn = item.querySelector('.inline-save-btn');
+
+    // Enter edit mode
+    input.click();
+    input.value = 'New Title';
+
+    // Save
+    saveBtn.dispatchEvent(new Event('mousedown'));
+
+    await new Promise(process.nextTick);
+
+    expect(callbacks.onTaskEditEnd).toHaveBeenCalled();
+  });
+
+  it('should expose originalTitle in dataset when entering edit mode', () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+
+    // Should not have dataset before edit mode
+    expect(input.dataset.originalTitle).toBeUndefined();
+
+    // Enter edit mode
+    input.click();
+
+    // Should expose originalTitle
+    expect(input.dataset.originalTitle).toBe('Task A');
+  });
+
+  it('should remove originalTitle from dataset when exiting edit mode', () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+    const cancelBtn = item.querySelector('.inline-cancel-btn');
+
+    // Enter edit mode
+    input.click();
+    expect(input.dataset.originalTitle).toBe('Task A');
+
+    // Exit edit mode
+    cancelBtn.dispatchEvent(new Event('mousedown'));
+
+    // Should remove originalTitle
+    expect(input.dataset.originalTitle).toBeUndefined();
+  });
+
+  it('should stay in edit mode on blur if value changed', () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+
+    // Enter edit mode
+    input.click();
+    expect(item.classList.contains('editing')).toBe(true);
+
+    // Change value
+    input.value = 'Changed Value';
+
+    // Trigger blur
+    input.dispatchEvent(new Event('blur'));
+
+    // Should still be in edit mode
+    expect(item.classList.contains('editing')).toBe(true);
+  });
+
+  it('should exit edit mode on blur if value unchanged', () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+
+    // Enter edit mode
+    input.click();
+    expect(item.classList.contains('editing')).toBe(true);
+
+    // Don't change value
+
+    // Trigger blur
+    input.dispatchEvent(new Event('blur'));
+
+    // Should exit edit mode
+    expect(item.classList.contains('editing')).toBe(false);
+  });
 });

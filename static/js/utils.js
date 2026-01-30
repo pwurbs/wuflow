@@ -48,7 +48,7 @@ export function showModalNotification(message) {
   }, 3000);
 }
 
-export function showConfirm(title, message, okButtonText = 'Delete', cancelButtonText = 'Cancel', okButtonClass = 'danger') {
+export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel', okType = 'danger') {
   const confirmModal = document.getElementById('confirm-modal');
   const confirmTitle = document.getElementById('confirm-title');
   const confirmMessage = document.getElementById('confirm-message');
@@ -58,12 +58,12 @@ export function showConfirm(title, message, okButtonText = 'Delete', cancelButto
   return new Promise((resolve) => {
     confirmTitle.textContent = title;
     confirmMessage.textContent = message;
-    confirmOkBtn.textContent = okButtonText;
-    confirmCancelBtn.textContent = cancelButtonText;
+    confirmOkBtn.textContent = okText;
+    confirmCancelBtn.textContent = cancelText;
 
     // Reset classes and add specific one
     confirmOkBtn.className = 'btn';
-    confirmOkBtn.classList.add(okButtonClass);
+    confirmOkBtn.classList.add(okType);
 
     confirmModal.classList.remove('hidden');
 
