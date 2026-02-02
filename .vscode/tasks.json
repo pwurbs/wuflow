@@ -1,5 +1,13 @@
 {
   "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "imageversion",
+      "type": "promptString",
+      "description": "Image-Version",
+      "default": ""
+    }
+  ],
   "tasks": [
     {
       "label": "Go Test",
@@ -68,9 +76,9 @@
           ]
         }
       },
-      // Add your specific arguments here if not using a sonar-project.properties file
+      // Note: SONAR_TOKEN is a secret token that needs to be set in the environment
       "args": [
-        "-Dsonar.token=${env:SONAR_TOKEN}" // we keep it here to document that the envvar is used
+        "-Dsonar.token=${env:SONAR_TOKEN}"
       ],
       "presentation": {
         "reveal": "always",
@@ -95,9 +103,23 @@
       "problemMatcher": []
     },
     {
-      "label": "Build Container",
+      // Builds the container image (latest tag) and tags it with the given version
+      "label": "Build Image",
       "type": "shell",
-      "command": "container build -t wuflow .",
+      "command": "container build -t wuflow . && container image tag wuflow:latest wuflow:${input:imageversion}",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      // Logs in to registry, tags and pushes the container image to ghcr.io
+      // Note: GHCR_TOKEN is a secret token that needs to be set in the environment
+      "label": "Push Image",
+      "type": "shell",
+      "command": "echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container image tag wuflow:${input:imageversion} ghcr.io/pwurbs/wuflow:${input:imageversion} && container image push ghcr.io/pwurbs/wuflow:${input:imageversion}",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -108,7 +130,7 @@
     {
       "label": "Start Container",
       "type": "shell",
-      "command": "container rm -f wuflow-test || true && container run -d -p 8080:8080 --name wuflow-test wuflow",
+      "command": "container rm -f wuflow || true && container run -d -p 8080:8080 --name wuflow wuflow:latest",
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -118,7 +140,7 @@
     {
       "label": "Stop Container",
       "type": "shell",
-      "command": "container stop wuflow-test || true",
+      "command": "container stop wuflow || true",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

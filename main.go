@@ -19,8 +19,20 @@ var embeddedFiles embed.FS
 
 // main initializes the database, serves static files, and starts the HTTP server.
 func main() {
-	dbPath := flag.String("db", "wuflow.db", "Path to the SQLite database file")
-	port := flag.String("port", "8080", "Port to run the server on")
+	// Priority: Flag > Env > Default
+
+	defaultDBPath := "wuflow.db"
+	if envDBPath := os.Getenv("WF_DBPATH"); envDBPath != "" {
+		defaultDBPath = envDBPath
+	}
+
+	defaultPort := "8080"
+	if envPort := os.Getenv("WF_PORT"); envPort != "" {
+		defaultPort = envPort
+	}
+
+	dbPath := flag.String("dbpath", defaultDBPath, "Path to the SQLite database file")
+	port := flag.String("port", defaultPort, "Port to run the server on")
 	flag.Parse()
 
 	cwd, err := os.Getwd()

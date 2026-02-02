@@ -6,6 +6,7 @@ description: "Simple issue tracking app"
 arch:
   - aarch64
   - amd64
+image: ghcr.io/pwurbs/wuflow
 startup: application
 boot: auto
 map:
@@ -13,5 +14,6 @@ map:
     read_only: False
 ports:
   8080/tcp: 5555
-options: {}
-schema: {}
+environment:
+  WF_PORT: "8080"
+  WF_DBPATH: "/share/wuflow/wuflow.db"

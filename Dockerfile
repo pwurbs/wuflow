@@ -1,7 +1,7 @@
 
 #------- Build stage ---------------------------------------------------------
 # Use Debian-based Go image to match the runtime and ensure libc compatibility for CGO
-FROM golang:1.25-trixie AS builder
+FROM docker.io/library/golang:1.25-trixie AS builder
 
 # Arguments for cross-compilation
 ARG TARGETOS
@@ -47,14 +47,15 @@ RUN mkdir -p /data && chown -R appuser:appuser /data
 # Directory for data persistence
 VOLUME ["/data"]
 
-# Expose at port 8080
+# Expose at port 8080 as default, can be overridden by the "port" argument
 EXPOSE 8080
+
+# Set container image compatible default values
+ENV WF_DBPATH=/data/wuflow.db
+ENV WF_PORT=8080
 
 # Switch to appuser
 USER appuser
 
 # This is the executable that runs
 ENTRYPOINT ["/app/wuflow"]
-
-# Default arguments: Store DB in a volume-friendly path
-CMD ["-port", "8080", "-db", "/data/wuflow.db"]

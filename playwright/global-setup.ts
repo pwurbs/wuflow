@@ -77,7 +77,7 @@ async function globalSetup(config: FullConfig) {
 
     const projectRoot = isPlaywrightDir ? path.join(cwd, '..') : cwd;
 
-    const server = spawn('go', ['run', '.', `-port=${port}`, `-db=${dbPath}`], {
+    const server = spawn('go', ['run', '.', `-port=${port}`, `-dbpath=${dbPath}`], {
       detached: true,
       stdio: 'ignore',
       cwd: projectRoot
