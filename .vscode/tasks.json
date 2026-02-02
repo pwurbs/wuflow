@@ -39,7 +39,7 @@
     {
       "label": "Go Build",
       "type": "shell",
-      "command": "go build -v -o bin/wuflow main.go",
+      "command": "go build -v -ldflags \"-X main.Version=$(cat VERSION)\" -o bin/wuflow main.go",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -104,9 +104,10 @@
     },
     {
       // Builds the container image (latest tag) and tags it with the given version
+      // Uses --no-cache to ensure latest static files are embedded
       "label": "Build Image",
       "type": "shell",
-      "command": "container build -t wuflow . && container image tag wuflow:latest wuflow:${input:imageversion}",
+      "command": "export VERSION=$(cat VERSION) && container build --no-cache --build-arg VERSION=$VERSION -t wuflow . && container image tag wuflow:latest wuflow:$VERSION",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -119,7 +120,7 @@
       // Note: GHCR_TOKEN is a secret token that needs to be set in the environment
       "label": "Push Image",
       "type": "shell",
-      "command": "echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container image tag wuflow:${input:imageversion} ghcr.io/pwurbs/wuflow:${input:imageversion} && container image push ghcr.io/pwurbs/wuflow:${input:imageversion}",
+      "command": "export VERSION=$(cat VERSION) && echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container image tag wuflow:$VERSION ghcr.io/pwurbs/wuflow:$VERSION && container image push ghcr.io/pwurbs/wuflow:$VERSION",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -130,7 +131,7 @@
     {
       "label": "Start Container",
       "type": "shell",
-      "command": "container rm -f wuflow || true && container run -d -p 8080:8080 --name wuflow wuflow:latest",
+      "command": "export VERSION=$(cat VERSION) && container rm -f wuflow || true && container run -d -p 8080:8080 --name wuflow wuflow:$VERSION",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

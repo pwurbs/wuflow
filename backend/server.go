@@ -2,6 +2,7 @@ package backend
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
@@ -9,7 +10,8 @@ import (
 )
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
-func StartServer(port string, dbPath string, embeddedFiles embed.FS) {
+func StartServer(version string, port string, dbPath string, embeddedFiles embed.FS) {
+	fmt.Printf("Starting wuFlow version: %s\n", version)
 	fmt.Printf("Using database: %s\n", dbPath)
 	InitDB(dbPath)
 
@@ -27,6 +29,10 @@ func StartServer(port string, dbPath string, embeddedFiles embed.FS) {
 	http.HandleFunc("/api/tasks/", HandleTask)
 	http.HandleFunc("/api/labels", HandleLabels)
 	http.HandleFunc("/api/labels/", HandleLabel)
+	http.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"version": version})
+	})
 
 	fmt.Printf("Server starting on port %s\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))

@@ -17,6 +17,9 @@ import (
 //go:embed static
 var embeddedFiles embed.FS
 
+// Version is the current version of the application, set by ldflags or defaults to "dev"
+var Version = "dev"
+
 // main initializes the database, serves static files, and starts the HTTP server.
 func main() {
 	// Priority: Flag > Env > Default
@@ -45,5 +48,5 @@ func main() {
 		*dbPath = filepath.Join(cwd, *dbPath)
 	}
 
-	backend.StartServer(*port, *dbPath, embeddedFiles)
+	backend.StartServer(Version, *port, *dbPath, embeddedFiles)
 }

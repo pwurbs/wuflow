@@ -85,3 +85,14 @@ export async function deleteLabel(id) {
     throw new Error('Failed to delete label');
   }
 }
+
+export async function fetchVersion() {
+  try {
+    const res = await fetch(`${API_URL}/version`);
+    const data = await res.json();
+    return data.version || 'Unknown';
+  } catch (err) {
+    console.warn('Failed to fetch version:', err);
+    return 'Unknown';
+  }
+}

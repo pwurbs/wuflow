@@ -1,3 +1,10 @@
+## 0.9.2
+
+- Fixed Docker build caching issue
+
+## 0.9.1
+
+- Version number added to the UI
 
 ## 0.9.0
 

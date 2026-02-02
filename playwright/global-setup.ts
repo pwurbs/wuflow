@@ -76,8 +76,20 @@ async function globalSetup(config: FullConfig) {
     }
 
     const projectRoot = isPlaywrightDir ? path.join(cwd, '..') : cwd;
+    const versionPath = path.join(projectRoot, 'VERSION');
+    let version = 'dev';
+    try {
+      if (fs.existsSync(versionPath)) {
+        version = fs.readFileSync(versionPath, 'utf-8').trim();
+      }
+    } catch (e) {
+      console.log('Failed to read VERSION file, using default "dev":', e);
+    }
 
-    const server = spawn('go', ['run', '.', `-port=${port}`, `-dbpath=${dbPath}`], {
+    console.log(`Using application version: ${version}`);
+
+    // go run -ldflags "-X main.Version=..." . -port=...
+    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`], {
       detached: true,
       stdio: 'ignore',
       cwd: projectRoot

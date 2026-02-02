@@ -6,6 +6,7 @@ FROM docker.io/library/golang:1.25-trixie AS builder
 # Arguments for cross-compilation
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
 
 # Set working directory to separate build from GOPATH
 WORKDIR /app
@@ -21,7 +22,8 @@ COPY static ./static
 
 # Build static binary for the target architecture
 # Enable CGO for sqlite3 support
-RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -ldflags="-w -s" -o wuflow ./main.go
+RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
+    go build -ldflags="-w -s -X main.Version=${VERSION}" -o wuflow ./main.go
 
 
 #------- Package stage ---------------------------------------------------------

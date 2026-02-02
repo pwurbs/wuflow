@@ -1,4 +1,4 @@
-import { fetchIssues, fetchLabels } from './api.js';
+import { fetchIssues, fetchLabels, fetchVersion } from './api.js';
 import { state, setIssues, setFilterSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
@@ -39,6 +39,15 @@ async function init() {
     setupBacklogView(refreshApp, openModal);
     setupSetupView(refreshApp);
     setupModal(refreshApp); // Pass refresh callback
+
+    // Fetch and display version
+    fetchVersion().then(version => {
+        const versionEl = document.getElementById('app-version');
+        if (versionEl) {
+            versionEl.textContent = 'v' + version;
+        }
+    });
+
     await refreshApp();
 }
 

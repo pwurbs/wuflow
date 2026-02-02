@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
 
 test.describe('Landing Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -16,6 +18,25 @@ test.describe('Landing Page', () => {
 
     // Header title
     await expect(page.locator('header h1')).toContainText('wuFlow');
+  });
+
+  test('should display the correct version in the header', async ({ page }) => {
+    // Read expected version from the VERSION file
+    // We assume we are running from the 'playwright' directory, so VERSION is in ..
+    const versionPath = path.join(process.cwd(), '..', 'VERSION');
+    // Fallback checks just in case we are running from root
+    const finalVersionPath = fs.existsSync(versionPath) ? versionPath : path.join(process.cwd(), 'VERSION');
+
+    let expectedVersion = 'dev';
+    if (fs.existsSync(finalVersionPath)) {
+      expectedVersion = fs.readFileSync(finalVersionPath, 'utf-8').trim();
+    }
+
+    const versionElement = page.locator('#app-version');
+    await expect(versionElement).toBeVisible();
+
+    // The app prepends 'v' to the version
+    await expect(versionElement).toHaveText(`v${expectedVersion}`);
   });
 
   test('filter controls are visible', async ({ page }) => {
