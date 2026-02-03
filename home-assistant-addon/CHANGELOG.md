@@ -1,3 +1,7 @@
+## 0.10.0
+
+- Improved Planning panel
+
 ## 0.9.2
 
 - Fixed Docker build caching issue

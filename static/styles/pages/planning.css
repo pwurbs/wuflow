@@ -45,9 +45,7 @@
   border-style: dashed;
 }
 
-.planning-day.past .planning-date {
-  color: var(--danger-color);
-}
+
 
 .planning-item {
   padding: 3px 6px;
@@ -58,37 +56,53 @@
   cursor: grab;
   color: var(--text-color);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   transition: background-color 0.2s, border-color 0.2s;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
+}
+
+.planning-item-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planning-item-deadline {
+  font-size: 11px;
+  color: var(--primary-color);
+  white-space: nowrap;
+  padding: 2px 6px;
+  background-color: rgba(88, 166, 255, 0.1);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.planning-item-deadline.overdue {
+  color: var(--danger-color);
+  background-color: rgba(239, 68, 68, 0.15);
 }
 
 .planning-item-remove {
   color: var(--danger-color);
-  /* Or a specific red */
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
   opacity: 0.7;
   transition: opacity 0.2s;
   padding: 4px;
-  /* Increased padding slightly for touch target */
   border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .planning-item-remove:hover {
   opacity: 1;
   background-color: rgba(255, 0, 0, 0.1);
 }
-
-/* Removed .planning-item::before */
 
 .planning-item:hover {
   background-color: var(--hover-bg);
@@ -106,4 +120,38 @@
 
 .planning-day.empty:hover {
   opacity: 1;
+}
+
+/* Unscheduled Section */
+.planning-section-unscheduled {
+  margin-top: 16px;
+  padding: 8px 12px;
+  background-color: var(--card-bg);
+  border: 1px dashed var(--card-border);
+  border-radius: 4px;
+}
+
+.planning-section-header {
+  margin-bottom: 8px;
+}
+
+.planning-section-title {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--primary-color);
+}
+
+.planning-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.planning-item.unscheduled {
+  background-color: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.planning-item.unscheduled:hover {
+  background-color: rgba(239, 68, 68, 0.1);
 }

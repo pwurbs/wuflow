@@ -41,8 +41,8 @@ test.describe('Board Functionality', () => {
     await expect(page.locator('#col-todo .board-card:has-text("Pending Status Issue")')).toHaveCount(0);
   });
 
-  test('deadlines panel shows issues with deadlines', async ({ page }) => {
-    // Create issue with deadline and board status
+  test('planning panel shows issues with deadlines in unscheduled section', async ({ page }) => {
+    // Create issue with deadline and board status but no planned date
     // Set deadline to tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -53,26 +53,14 @@ test.describe('Board Functionality', () => {
       deadline: tomorrow.toISOString().split('T')[0]
     });
 
-    // Verify issue appears in deadline panel
-    await expect(page.locator('#deadline-list')).toContainText('Deadline Issue');
+    // Verify issue appears in unscheduled section of planning panel
+    await expect(page.locator('#unscheduled-section')).toContainText('Deadline Issue');
   });
 
-  test('toggle between Deadlines and Planning panels', async ({ page }) => {
-    // Deadlines panel should be visible by default
-    await expect(page.locator('#deadlines-panel')).toBeVisible();
-    await expect(page.locator('#planning-panel')).toBeHidden();
-
-    // Click Planning button
-    await page.click('#btn-planning');
-
-    // Now Planning panel should be visible
+  test('planning panel is always visible on board view', async ({ page }) => {
+    // Planning panel should be visible by default on board view
     await expect(page.locator('#planning-panel')).toBeVisible();
-    await expect(page.locator('#deadlines-panel')).toBeHidden();
-
-    // Click back to Deadlines
-    await page.click('#btn-deadlines');
-    await expect(page.locator('#deadlines-panel')).toBeVisible();
-    await expect(page.locator('#planning-panel')).toBeHidden();
+    await expect(page.locator('.sidebar')).toBeVisible();
   });
 
   test('drag issue between columns', async ({ page }) => {

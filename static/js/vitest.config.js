@@ -8,7 +8,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       reportsDirectory: './coverage',
-      include: ['filters.js', 'state.js', 'utils.js', 'components/board.js', 'components/modal.js', 'components/tasks.js', 'components/backlog.js'],
+      include: ['filters.js', 'state.js', 'utils.js', 'components/board.js', 'components/modal.js', 'components/tasks.js', 'components/backlog.js', 'components/planning.js'],
       exclude: ['tests/**', 'node_modules/**', 'coverage/**']
     }
   }

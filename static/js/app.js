@@ -3,7 +3,6 @@ import { state, setIssues, setFilterSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
-import { renderDeadlineList } from './components/deadlines.js';
 import { setupSetupView, renderSetupView } from './components/setup.js';
 import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
@@ -18,11 +17,6 @@ const boardView = document.querySelector('.board');
 const backlogView = document.getElementById('backlog-view');
 const setupView = document.getElementById('setup-view');
 const sidebar = document.querySelector('.sidebar');
-const viewToggles = document.querySelector('.view-toggles');
-const btnDeadlines = document.getElementById('btn-deadlines');
-const btnPlanning = document.getElementById('btn-planning');
-const deadlinesPanel = document.getElementById('deadlines-panel');
-const planningPanel = document.getElementById('planning-panel');
 const filterContainer = document.getElementById('filter-container');
 const searchInput = document.getElementById('search-input');
 
@@ -65,8 +59,7 @@ async function refreshApp() {
 
         renderBoard(refreshApp, openModal);
         renderBacklog(refreshApp, openModal);
-        renderPlanningPanel(refreshApp);
-        renderDeadlineList();
+        renderPlanningPanel(refreshApp, openModal);
     } catch (err) {
         console.error('Failed to refresh app:', err);
     }
@@ -80,10 +73,6 @@ function setupEventListeners() {
     navBacklog.addEventListener('click', () => switchView('backlog'));
     navSetup.addEventListener('click', () => switchView('setup'));
 
-    // Sidebar Toggles
-    btnDeadlines.addEventListener('click', () => toggleSidebar('deadlines'));
-    btnPlanning.addEventListener('click', () => toggleSidebar('planning'));
-
     // New Issue Btn
     document.getElementById('add-issue-btn').addEventListener('click', () => openModal(null));
 
@@ -94,8 +83,6 @@ function setupEventListeners() {
             refreshApp();
         }, 300));
     }
-
-
 
     // Custom Events
     document.addEventListener('nav-to-issue', (e) => {
@@ -123,7 +110,6 @@ function switchView(view) {
         navSetup.classList.remove('active');
 
         sidebar.classList.remove('hidden');
-        viewToggles.classList.remove('hidden');
         filterContainer.classList.remove('hidden');
     } else if (view === 'backlog') {
         boardView.classList.add('hidden');
@@ -135,7 +121,6 @@ function switchView(view) {
         navSetup.classList.remove('active');
 
         sidebar.classList.add('hidden');
-        viewToggles.classList.add('hidden');
         filterContainer.classList.remove('hidden');
     } else if (view === 'setup') {
         boardView.classList.add('hidden');
@@ -147,26 +132,9 @@ function switchView(view) {
         navSetup.classList.add('active');
 
         sidebar.classList.add('hidden');
-        viewToggles.classList.add('hidden');
         filterContainer.classList.add('hidden');
 
-
         renderSetupView(refreshApp);
-    }
-}
-
-function toggleSidebar(mode) {
-    if (mode === 'deadlines') {
-        deadlinesPanel.classList.remove('hidden');
-        planningPanel.classList.add('hidden');
-        btnDeadlines.classList.add('active');
-        btnPlanning.classList.remove('active');
-    } else {
-        deadlinesPanel.classList.add('hidden');
-        planningPanel.classList.remove('hidden');
-        btnDeadlines.classList.remove('active');
-        btnPlanning.classList.add('active');
-        renderPlanningPanel(refreshApp);
     }
 }
 

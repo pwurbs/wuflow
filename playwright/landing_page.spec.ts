@@ -53,11 +53,6 @@ test.describe('Landing Page', () => {
     await expect(page.locator('#search-input')).toBeVisible();
   });
 
-  test('view toggle buttons are visible', async ({ page }) => {
-    await expect(page.locator('#btn-deadlines')).toBeVisible();
-    await expect(page.locator('#btn-planning')).toBeVisible();
-  });
-
   test('navigation menu is visible with all buttons', async ({ page }) => {
     // New Issue button
     await expect(page.locator('#add-issue-btn')).toBeVisible();
@@ -86,9 +81,9 @@ test.describe('Landing Page', () => {
     await expect(page.locator('.column-header h2:has-text("Done")')).toBeVisible();
   });
 
-  test('sidebar panel is visible', async ({ page }) => {
-    // Deadlines panel is visible by default
-    await expect(page.locator('#deadlines-panel')).toBeVisible();
-    await expect(page.locator('.sidebar-header h3:has-text("Upcoming Deadlines")')).toBeVisible();
+  test('sidebar planning panel is visible', async ({ page }) => {
+    // Planning panel is visible by default on board view
+    await expect(page.locator('#planning-panel')).toBeVisible();
+    await expect(page.locator('.sidebar-header h3:has-text("Planning")')).toBeVisible();
   });
 });

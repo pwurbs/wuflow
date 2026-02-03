@@ -68,8 +68,8 @@ test.describe('Issue Edit Operations', () => {
     await page.click('#done-btn');
     await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Verify issue appears in deadline panel
-    await expect(page.locator('#deadline-list')).toContainText('Add Deadline Issue');
+    // Verify issue appears in unscheduled section of planning panel (no planned date yet)
+    await expect(page.locator('#unscheduled-section')).toContainText('Add Deadline Issue');
   });
 
   test('change existing deadline', async ({ page }) => {
@@ -115,8 +115,8 @@ test.describe('Issue Edit Operations', () => {
       deadline: deadline
     });
 
-    // Verify it appears in deadline panel
-    await expect(page.locator('#deadline-list')).toContainText('Remove Deadline Issue');
+    // Verify it appears in unscheduled section of planning panel
+    await expect(page.locator('#unscheduled-section')).toContainText('Remove Deadline Issue');
 
     // Open the issue
     await openIssueByTitle(page, 'Remove Deadline Issue');
@@ -128,8 +128,8 @@ test.describe('Issue Edit Operations', () => {
     await page.click('#done-btn');
     await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Verify it's removed from deadline panel
-    await expect(page.locator('#deadline-list')).not.toContainText('Remove Deadline Issue');
+    // Verify it's removed from unscheduled section
+    await expect(page.locator('#unscheduled-section')).not.toContainText('Remove Deadline Issue');
   });
 
   // Note: Label editing tests removed as the UI doesn't support changing labels

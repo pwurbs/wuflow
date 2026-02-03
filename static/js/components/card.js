@@ -66,15 +66,13 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
     if (callbacks.onDragEnd) callbacks.onDragEnd(this, e);
   });
 
-  // Hover handlers for planning/deadline highlighting
+  // Hover handlers for planning highlighting
   card.addEventListener('mouseenter', () => {
     document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
-    document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
   });
 
   card.addEventListener('mouseleave', () => {
     document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
-    document.querySelectorAll(`.deadline-item[data-issue-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
   });
 
   return card;
