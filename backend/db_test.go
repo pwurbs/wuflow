@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,9 +10,19 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var testDBCounter int
+
+const (
+	testDBURI         = "file:memdb%d?mode=memory&cache=shared"
+	expectedScanError = "expected scan error, got nil"
+)
+
 func setupTestDB() {
-	// Use shared cache to allow multiple connections (from pool) to see the same in-memory DB
-	InitDB("file::memory:?cache=shared")
+	testDBCounter++
+	// Use a unique name for each test database to avoid pollution,
+	// while still using cache=shared to support the connection pool.
+	dataSourceName := fmt.Sprintf(testDBURI, testDBCounter)
+	InitDB(dataSourceName)
 }
 
 func teardownTestDB() {
@@ -198,4 +210,135 @@ func TestDeleteTask(t *testing.T) {
 	if len(tasks) != 0 {
 		t.Errorf("Expected 0 tasks, got %d", len(tasks))
 	}
+}
+
+func TestDBErrors(t *testing.T) {
+	// Save original DB
+	oldDB := DB
+	defer func() {
+		DB = oldDB
+	}()
+
+	// Create a closed DB to force errors
+	closedDB, _ := sql.Open("sqlite3", ":memory:")
+	closedDB.Close()
+
+	// Swap global DB
+	DB = closedDB
+
+	tests := []struct {
+		name string
+		f    func() error
+	}{
+		{"GetAllIssues", func() error { _, err := GetAllIssues(); return err }},
+		{"GetTasksByIssueID", func() error { _, err := GetTasksByIssueID(1); return err }},
+		{"CreateIssue", func() error { return CreateIssue(&Issue{Title: "T"}) }},
+		{"UpdateIssue", func() error { return UpdateIssue(&Issue{ID: 1, Title: "T"}) }},
+		{"DeleteIssue", func() error { return DeleteIssue(1) }},
+		{"CreateTask", func() error { return CreateTask(&Task{IssueID: 1, Title: "T"}) }},
+		{"UpdateTask", func() error { return UpdateTask(&Task{ID: 1, Title: "T"}) }},
+		{"DeleteTask", func() error { return DeleteTask(1) }},
+		{"GetAllLabels", func() error { _, err := GetAllLabels(); return err }},
+		{"CreateLabel", func() error { return CreateLabel(&Label{Name: "L"}) }},
+		{"DeleteLabel", func() error { return DeleteLabel(1) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"_Error", func(t *testing.T) {
+			if tt.f() == nil {
+				t.Error("expected error, got nil")
+			}
+		})
+	}
+}
+
+func TestDBScanErrors(t *testing.T) {
+	// Use a private, non-shared in-memory DB for these tests to avoid polluting other tests
+	oldDB := DB
+	defer func() { DB = oldDB }()
+
+	// We use a different name for the shared cache to isolate from other tests
+	InitDB("file:scanerr?mode=memory&cache=shared")
+	defer DB.Close()
+
+	t.Run("GetAllIssues_ScanError", func(t *testing.T) {
+		_, _ = DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "todo", "not-an-int")
+		if _, err := GetAllIssues(); err == nil {
+			t.Error(expectedScanError)
+		}
+	})
+
+	t.Run("GetTasksByIssueID_ScanError", func(t *testing.T) {
+		// Reset for this subtest
+		testDBCounter++
+		InitDB(fmt.Sprintf(testDBURI, testDBCounter))
+		_, _ = DB.Exec("INSERT INTO issues(id, title, status, position) VALUES(1, 'T', 'todo', 1)")
+		_, _ = DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', 'not-an-int')")
+		if _, err := GetTasksByIssueID(1); err == nil {
+			t.Error(expectedScanError)
+		}
+	})
+
+	t.Run("GetAllLabels_ScanError", func(t *testing.T) {
+		testDBCounter++
+		InitDB(fmt.Sprintf(testDBURI, testDBCounter))
+		// name is TEXT, but we can't easily force Scan to fail on string unless we change the struct or use invalid data
+		// Let's use ID which is int
+		_, _ = DB.Exec("INSERT INTO labels(name, color) VALUES(?, ?)", "L", "#000")
+		// Mess with the table? No, SQLite is flexible.
+		// How about we drop the table and create it with different types
+		_, _ = DB.Exec("DROP TABLE labels")
+		_, _ = DB.Exec("CREATE TABLE labels (id TEXT, name TEXT, color TEXT)")
+		_, _ = DB.Exec("INSERT INTO labels(id, name, color) VALUES(?, ?, ?)", "not-an-int", "L", "#000")
+		if _, err := GetAllLabels(); err == nil {
+			t.Error(expectedScanError)
+		}
+	})
+}
+
+func TestDBConstraintErrors(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	const foreignKeyConst = "PRAGMA foreign_keys = ON"
+	const expectedErr = "expected constraint error, got nil"
+
+	t.Run("CreateIssue_ExecError", func(t *testing.T) {
+		_, _ = DB.Exec(foreignKeyConst)
+		if CreateIssue(&Issue{Title: "T", Status: "todo", Label: &Label{ID: 999}}) == nil {
+			t.Error(expectedErr)
+		}
+	})
+
+	t.Run("UpdateIssue_ExecError", func(t *testing.T) {
+		setupTestDB()
+		_, _ = DB.Exec(foreignKeyConst)
+		CreateIssue(&Issue{Title: "T", Status: "todo"})
+		if UpdateIssue(&Issue{ID: 1, Title: "T", Status: "todo", Label: &Label{ID: 999}}) == nil {
+			t.Error(expectedErr)
+		}
+	})
+
+	t.Run("CreateTask_ExecError", func(t *testing.T) {
+		setupTestDB()
+		_, _ = DB.Exec(foreignKeyConst)
+		if CreateTask(&Task{IssueID: 999, Title: "T"}) == nil {
+			t.Error(expectedErr)
+		}
+	})
+
+	t.Run("CreateLabel_ExecError", func(t *testing.T) {
+		// name is NOT NULL. In sqlite3 driver, we can trigger this by passing nil?
+		// Actually, let's try something else. Duplicate ID?
+		setupTestDB()
+		_, _ = DB.Exec("INSERT INTO labels(id, name, color) VALUES(1, 'L', '#000')")
+		_ = CreateLabel(&Label{ID: 1, Name: "L2", Color: "#111"})
+
+		// Let's force it to fail by making it too long? No SQLite doesn't care.
+		// How about a unique constraint?
+		_, _ = DB.Exec("CREATE UNIQUE INDEX idx_labels_name ON labels(name)")
+		if CreateLabel(&Label{Name: "L", Color: "#000"}) == nil {
+			t.Error(expectedErr)
+		}
+	})
 }

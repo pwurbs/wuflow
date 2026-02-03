@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -602,5 +603,57 @@ func TestHandleTasksPostInvalidURL(t *testing.T) {
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
+	}
+}
+
+// TestHandlersDBError tests handlers when the database is unavailable.
+func TestHandlersDBError(t *testing.T) {
+	// Save the original DB
+	oldDB := DB
+
+	// Create a closed DB to force errors
+	closedDB, _ := sql.Open("sqlite3", ":memory:")
+	closedDB.Close()
+
+	// Swap global DB
+	DB = closedDB
+
+	// Restore on exit
+	defer func() {
+		DB = oldDB
+	}()
+
+	issueBody, _ := json.Marshal(&Issue{Title: "Test"})
+	taskBody, _ := json.Marshal(&Task{Title: "Test"})
+	labelBody, _ := json.Marshal(&Label{Name: "Test"})
+
+	tests := []struct {
+		name    string
+		method  string
+		url     string
+		body    []byte
+		handler http.HandlerFunc
+	}{
+		{"HandleIssues_GET", "GET", apiIssues, nil, HandleIssues},
+		{"HandleIssues_POST", "POST", apiIssues, issueBody, HandleIssues},
+		{"HandleIssue_PUT", "PUT", apiIssues1, issueBody, HandleIssue},
+		{"HandleIssue_DELETE", "DELETE", apiIssues1, nil, HandleIssue},
+		{"HandleTasks_POST", "POST", apiIssues1Tasks, taskBody, HandleTasks},
+		{"HandleTask_PUT", "PUT", apiTasks1, taskBody, HandleTask},
+		{"HandleTask_DELETE", "DELETE", apiTasks1, nil, HandleTask},
+		{"HandleLabels_GET", "GET", apiLabels, nil, HandleLabels},
+		{"HandleLabels_POST", "POST", apiLabels, labelBody, HandleLabels},
+		{"HandleLabel_DELETE", "DELETE", apiLabels1, nil, HandleLabel},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name+"_Error", func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(tt.body))
+			rr := httptest.NewRecorder()
+			tt.handler(rr, req)
+			if rr.Code != http.StatusInternalServerError {
+				t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+			}
+		})
 	}
 }

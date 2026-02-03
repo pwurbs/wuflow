@@ -1,3 +1,7 @@
+## 0.10.1
+
+- Added comprehensive logging
+
 ## 0.10.0
 
 - Improved Planning panel
