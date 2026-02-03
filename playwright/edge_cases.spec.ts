@@ -239,4 +239,37 @@ test.describe('Edge Cases and Validation', () => {
     await page.waitForTimeout(500);
     await expect(page.locator('#issue-modal')).toBeVisible();
   });
+  test('drag outside of columns validation (cancellation)', async ({ page }) => {
+    // Create an issue in To-do
+    await createIssue(page, { title: 'Drag Cancel Test', status: 'Todo' });
+
+    const issueCard = page.locator('#col-todo .board-card:has-text("Drag Cancel Test")');
+    await expect(issueCard).toBeVisible();
+
+    // Get initial position/state
+    // We will drag it to the header or somewhere safe that is NOT a column
+
+    // Use manual drag to drop it "nowhere"
+    const box = await issueCard.boundingBox();
+
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      // Drag up to the header area (y=10)
+      await page.mouse.move(box.x + box.width / 2, 10, { steps: 5 });
+      await page.waitForTimeout(100);
+      await page.mouse.up();
+    }
+
+    // Give time for any potential (wrong) updates
+    await page.waitForTimeout(500);
+
+    // Verify it is STILL in To-do
+    await expect(page.locator('#col-todo .board-card:has-text("Drag Cancel Test")')).toBeVisible();
+
+    // Verify it is NOT in other columns
+    await expect(page.locator('#col-pending .board-card:has-text("Drag Cancel Test")')).toBeHidden();
+    await expect(page.locator('#col-working .board-card:has-text("Drag Cancel Test")')).toBeHidden();
+    await expect(page.locator('#col-done .board-card:has-text("Drag Cancel Test")')).toBeHidden();
+  });
 });

@@ -33,18 +33,18 @@ const (
 
 // Issue represents a task or bug to be tracked.
 type Issue struct {
-	ID          int           `json:"id"`
-	Title       string        `json:"title"`
-	Description string        `json:"description"`
-	Status      IssueStatus   `json:"status"`
-	Position    int           `json:"position"` // For manual sorting within a column
-	Deadline    *time.Time    `json:"deadline"`
-	PlannedDate *time.Time    `json:"planned_date"`
-	Priority    IssuePriority `json:"priority"`
-	Label       *Label        `json:"label"` // Pointer to manage nil label
-	Tasks       []Task        `json:"tasks"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	ID           int           `json:"id"`
+	Title        string        `json:"title"`
+	Description  string        `json:"description"`
+	Status       IssueStatus   `json:"status"`
+	Position     int           `json:"position"` // For manual sorting within a column
+	Deadline     *time.Time    `json:"deadline"`
+	PlannedDates []string      `json:"planned_dates"` // Stored as JSON array in DB
+	Priority     IssuePriority `json:"priority"`
+	Label        *Label        `json:"label"` // Pointer to manage nil label
+	Tasks        []Task        `json:"tasks"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
 }
 
 // Task represents a sub-task associated with an issue.

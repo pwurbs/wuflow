@@ -86,6 +86,28 @@ export function setupBoardView(refreshApp, openModal) {
       }
     });
 
+    colContent.addEventListener('dragleave', (e) => {
+      // Check if we are really leaving the column content (not entering a child)
+      if (e.relatedTarget && !colContent.contains(e.relatedTarget) && e.relatedTarget !== colContent) {
+        const draggedCard = getDraggedCard();
+        const origin = getDraggedCardOrigin();
+
+        // If we leave the column and we are dragging a card, visually revert it to origin
+        // This prevents it from "stuck" in the last column when moving to Planning Panel
+        if (draggedCard && origin && origin.parent) {
+          // We only revert if the card is technically IN this column currently (it should be, due to dragover)
+          // But checking content.contains might is enough/safer?
+          // Actually, just putting it back is safest behavior for "not dropping here".
+
+          if (origin.nextSibling) {
+            origin.nextSibling.before(draggedCard);
+          } else {
+            origin.parent.appendChild(draggedCard);
+          }
+        }
+      }
+    });
+
     colContent.addEventListener('drop', async (e) => {
       e.preventDefault();
       const draggedCard = getDraggedCard();

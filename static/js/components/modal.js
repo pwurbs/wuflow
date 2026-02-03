@@ -51,7 +51,10 @@ export function setupModal(refreshApp) {
 
   // Custom Date Input Click Handling
   document.querySelectorAll('.custom-date-input').forEach(container => {
-    container.addEventListener('click', () => {
+    container.addEventListener('click', (e) => {
+      // Skip if this is the planned dates wrapper (handled separately)
+      if (container.id === 'planned-dates-wrapper') return;
+
       const input = container.querySelector('input[type="date"]');
       if (input && typeof input.showPicker === 'function') {
         input.showPicker();
@@ -130,10 +133,12 @@ function setupEditModal(issue) {
   document.getElementById('issue-id').value = issue.id;
   document.getElementById('title').value = issue.title;
   document.getElementById('description-editor').innerHTML = issue.description || '';
-  document.getElementById('planned-date').value = issue.planned_date ? new Date(issue.planned_date).toISOString().slice(0, 10) : '';
+
+  // Planned Date Chip Logic
+  renderPlannedDateChips(issue);
+
   document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
 
-  updateDateInputStyle(document.getElementById('planned-date'));
   updateDateInputStyle(document.getElementById('deadline'));
 
   document.getElementById('tasks-section').classList.remove('hidden');
@@ -163,7 +168,8 @@ function setupNewModal() {
   document.getElementById('description-editor').innerHTML = '';
   document.getElementById('issue-id').value = '';
 
-  updateDateInputStyle(document.getElementById('planned-date'));
+  renderPlannedDateChips(null);
+
   updateDateInputStyle(document.getElementById('deadline'));
 
   document.getElementById('tasks-section').classList.add('hidden');
@@ -251,7 +257,10 @@ async function handleIssueSubmit(e) {
     title: document.getElementById('title').value,
     description: document.getElementById('description-editor').innerHTML,
     deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
-    planned_date: document.getElementById('planned-date').value ? new Date(document.getElementById('planned-date').value + 'T12:00:00') : null,
+    // planned_dates is handled by saving state.currentIssue instantly or by reading chips if new? 
+    // Actually, for NEW issues, we need to grab the dates from state or DOM.
+    // Let's assume for new issues we rely on the DOM container we built.
+    planned_dates: getPlannedDatesFromDOM(),
     status: statusInput.value,
     priority: document.getElementById('priority').value,
     position: state.currentIssue ? state.currentIssue.position : 0
@@ -485,7 +494,7 @@ function checkRemoveUnloadListener() {
 }
 
 function setupSidebarImmediateSave() {
-  const plannedDateInput = document.getElementById('planned-date');
+
   const deadlineInput = document.getElementById('deadline');
 
   const statusSelect = document.getElementById('status');
@@ -509,15 +518,8 @@ function setupSidebarImmediateSave() {
       if (refreshAppCallback) refreshAppCallback();
     }
   });
-  plannedDateInput.addEventListener('change', async () => {
-    if (state.currentIssue) {
-      const dateVal = plannedDateInput.value ? new Date(plannedDateInput.value + 'T12:00:00') : null;
-      state.currentIssue.planned_date = dateVal;
-      await updateIssue(state.currentIssue);
-      showModalNotification('Planned date updated');
-      if (refreshAppCallback) refreshAppCallback();
-    }
-  });
+
+  // Planned Date Input Listener REMOVED (Replaced by Chip Logic)
   deadlineInput.addEventListener('change', async () => {
     if (state.currentIssue) {
       const dateVal = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
@@ -795,4 +797,134 @@ function selectOption(inputId, textId, optionsId, value, text) {
   }
 
   options.classList.add('hidden');
+}
+
+
+// --- Planned Dates Chip UI ---
+
+function getPlannedDatesFromDOM() {
+  const container = document.getElementById('planned-dates-container');
+  if (!container) return [];
+  const chips = container.querySelectorAll('.date-chip');
+  const dates = [];
+  chips.forEach(chip => {
+    dates.push(chip.dataset.date);
+  });
+  return dates;
+}
+
+function renderPlannedDateChips(issue) {
+  const container = document.getElementById('planned-dates-container');
+  if (!container) return; // Ensure element exists in HTML
+
+  container.innerHTML = '';
+
+  const dates = (issue && issue.planned_dates) ? [...issue.planned_dates] : [];
+  dates.sort();
+
+  dates.forEach(dateStr => {
+    container.appendChild(createDateChip(dateStr));
+  });
+
+  // Add Button
+  const addBtn = document.createElement('div');
+  addBtn.className = 'date-chip-add';
+  addBtn.innerHTML = '+';
+  addBtn.title = 'Add Date';
+
+  // Hidden Date Input for picking
+  const picker = document.createElement('input');
+  picker.type = 'date';
+  picker.id = 'planned-date-picker';
+  picker.name = 'planned-date-picker';
+  picker.style.position = 'absolute';
+  picker.style.opacity = '0';
+  picker.style.bottom = '0';
+  picker.style.left = '0';
+  picker.style.width = '0';
+  picker.style.height = '0';
+
+  addBtn.appendChild(picker);
+
+  addBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (typeof picker.showPicker === 'function') {
+      picker.showPicker();
+    } else {
+      picker.click();
+    }
+  });
+
+  picker.addEventListener('change', async () => {
+    if (picker.value) {
+      await addPlannedDate(picker.value);
+      picker.value = ''; // Reset
+    }
+  });
+
+  container.appendChild(addBtn);
+}
+
+function createDateChip(dateStr) {
+  const chip = document.createElement('div');
+  chip.className = 'date-chip';
+  chip.dataset.date = dateStr;
+
+  const span = document.createElement('span');
+  span.textContent = new Date(dateStr).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' });
+
+  const remove = document.createElement('span');
+  remove.className = 'remove';
+  remove.innerHTML = '&times;';
+  remove.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await removePlannedDate(dateStr);
+  });
+
+  chip.appendChild(span);
+  chip.appendChild(remove);
+
+  return chip;
+}
+
+async function addPlannedDate(dateStr) {
+  // If editing existing issue
+  if (state.currentIssue) {
+    if (!state.currentIssue.planned_dates) state.currentIssue.planned_dates = [];
+    if (!state.currentIssue.planned_dates.includes(dateStr)) {
+      state.currentIssue.planned_dates.push(dateStr);
+      state.currentIssue.planned_dates.sort();
+
+      await updateIssue(state.currentIssue);
+      renderPlannedDateChips(state.currentIssue);
+      showModalNotification('Date added');
+      if (refreshAppCallback) refreshAppCallback();
+    }
+  } else {
+    // New Issue mode
+    const dates = getPlannedDatesFromDOM();
+    // Check dupe
+    if (!dates.includes(dateStr)) {
+      dates.push(dateStr);
+      dates.sort();
+      renderPlannedDateChips({ planned_dates: dates });
+    }
+  }
+}
+
+async function removePlannedDate(dateStr) {
+  if (state.currentIssue) {
+    if (state.currentIssue.planned_dates) {
+      state.currentIssue.planned_dates = state.currentIssue.planned_dates.filter(d => d !== dateStr);
+      await updateIssue(state.currentIssue);
+      renderPlannedDateChips(state.currentIssue);
+      showModalNotification('Date removed');
+      if (refreshAppCallback) refreshAppCallback();
+    }
+  } else {
+    // New Issue mode
+    const container = document.getElementById('planned-dates-container');
+    const chip = container.querySelector(`.date-chip[data-date="${dateStr}"]`);
+    if (chip) chip.remove();
+  }
 }

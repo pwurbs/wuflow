@@ -3,6 +3,7 @@ package backend
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ var testDBCounter int
 const (
 	testDBURI         = "file:memdb%d?mode=memory&cache=shared"
 	expectedScanError = "expected scan error, got nil"
+	testDate          = "2023-10-27"
 )
 
 func setupTestDB() {
@@ -53,6 +55,52 @@ func TestCreateIssue(t *testing.T) {
 	}
 	if issue.Position != 1 {
 		t.Errorf("Expected position to be 1, got %d", issue.Position)
+	}
+}
+
+func TestIssuePlannedDates(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// 1. Create with multiple dates
+	dates := []string{testDate, "2023-10-28"}
+	issue := &Issue{
+		Title:        "Planned Issue",
+		Status:       StatusOpen,
+		PlannedDates: dates,
+	}
+
+	err := CreateIssue(issue)
+	if err != nil {
+		t.Fatalf("Failed to create issue: %v", err)
+	}
+
+	// 2. Verify retrieval
+	issues, err := GetAllIssues()
+	if err != nil {
+		t.Fatalf("Failed to get issues: %v", err)
+	}
+	if len(issues) != 1 {
+		t.Fatalf("Expected 1 issue")
+	}
+	retrieved := issues[0]
+	if len(retrieved.PlannedDates) != 2 {
+		t.Errorf("Expected 2 planned dates, got %d", len(retrieved.PlannedDates))
+	}
+	if retrieved.PlannedDates[0] != "2023-10-27" || retrieved.PlannedDates[1] != "2023-10-28" {
+		t.Errorf("Planned dates mismatch: got %v", retrieved.PlannedDates)
+	}
+
+	// 3. Update dates
+	retrieved.PlannedDates = []string{"2023-10-29"}
+	err = UpdateIssue(&retrieved)
+	if err != nil {
+		t.Fatalf("Failed to update issue: %v", err)
+	}
+
+	issues, _ = GetAllIssues()
+	if len(issues[0].PlannedDates) != 1 || issues[0].PlannedDates[0] != "2023-10-29" {
+		t.Errorf("Expected updated date 2023-10-29, got %v", issues[0].PlannedDates)
 	}
 }
 
@@ -341,4 +389,43 @@ func TestDBConstraintErrors(t *testing.T) {
 			t.Error(expectedErr)
 		}
 	})
+}
+
+func TestScanIssueInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Manually insert invalid JSON into planned_dates
+	_, err := DB.Exec("INSERT INTO issues (title, description, status, position, planned_dates) VALUES (?, ?, ?, ?, ?)", "Invalid JSON Issue", "", "todo", 1, "{invalid-json}")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should not crash and should return issue with empty dates
+	issues, err := GetAllIssues()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(issues) != 1 {
+		t.Fatalf("Expected 1 issue")
+	}
+
+	if len(issues[0].PlannedDates) != 0 {
+		t.Errorf("Expected 0 planned dates due to parse error, got %d", len(issues[0].PlannedDates))
+	}
+}
+
+func TestInitDBFileCreation(t *testing.T) {
+	tempFile := "test_init_db.db"
+	defer os.Remove(tempFile)
+
+	// InitDB might call os.Exit(1) on failure, which is hard to test in-process.
+	// But we can test the "new database" logging branch and file creation.
+	InitDB(tempFile)
+	defer DB.Close()
+
+	if _, err := os.Stat(tempFile); os.IsNotExist(err) {
+		t.Error("Expected database file to be created")
+	}
 }

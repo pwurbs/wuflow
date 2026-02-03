@@ -175,3 +175,10 @@ input:-webkit-autofill:active,
   margin: 0;
   z-index: 10;
 }
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-color);
+}

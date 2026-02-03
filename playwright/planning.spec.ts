@@ -382,7 +382,7 @@ test.describe('Planning Panel', () => {
     const dayAfter = new Date();
     dayAfter.setDate(dayAfter.getDate() + 2);
     const dateStr2 = `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
-    await page.fill('#planned-date', dateStr2);
+    await page.fill('#planned-date-picker', dateStr2, { force: true });
 
     // Close modal
     await page.locator('#done-btn').click();
@@ -413,7 +413,7 @@ test.describe('Planning Panel', () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-    await page.fill('#planned-date', dateStr);
+    await page.fill('#planned-date-picker', dateStr, { force: true });
 
     // Add task with deadline (Day after tomorrow to avoid warning)
     await page.fill('#new-task-title', 'Subtask for Badge');
@@ -442,4 +442,156 @@ test.describe('Planning Panel', () => {
     await expect(badge).toBeVisible();
     await expect(badge).toHaveAttribute('title', 'Task Deadline');
   });
+
+  test('issue can be planned on multiple days', async ({ page }) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const todayStr = formatDate(today);
+    const tomorrowStr = formatDate(tomorrow);
+
+    await createIssue(page, {
+      title: 'Multi-Day Issue',
+      status: 'Todo',
+      plannedDates: [todayStr, tomorrowStr]
+    });
+
+    // Check Today
+    const todayContainer = page.locator(`#day-${todayStr}`);
+    await expect(todayContainer.locator('.planning-item', { hasText: 'Multi-Day Issue' })).toBeVisible();
+
+    // Check Tomorrow
+    const tomorrowContainer = page.locator(`#day-${tomorrowStr}`);
+    await expect(tomorrowContainer.locator('.planning-item', { hasText: 'Multi-Day Issue' })).toBeVisible();
+  });
+
+  test('dragging issue to future box is blocked (does not add date)', async ({ page }) => {
+    const title = 'Future Block Test ' + Date.now();
+    // Must have a deadline to appear in Unscheduled section
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + 5);
+    const deadlineStr = formatDate(deadline);
+
+    await createIssue(page, {
+      title: title,
+      status: 'Todo',
+      deadline: deadlineStr
+    });
+
+    const unscheduledSection = page.locator('#unscheduled-section');
+    await expect(unscheduledSection).toBeVisible();
+    const item = unscheduledSection.locator('.planning-item', { hasText: title });
+    await expect(item).toBeVisible();
+
+    // Ensure Future section is visible via trigger issue
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 20); // Far future
+    const futureDateStr = formatDate(futureDate);
+
+    await createIssue(page, {
+      title: 'Trigger Future Box',
+      status: 'Todo',
+      plannedDate: futureDateStr
+    });
+
+    const futureSection = page.locator('#day-future');
+    await expect(futureSection).toBeVisible();
+
+    // Now drag our 'Future Block Test' issue to the future box
+    await item.dragTo(futureSection);
+
+    // Wait for potential update (that shouldn't happen)
+    await page.waitForTimeout(500);
+
+    // Verify it is NOT in future section
+    await expect(futureSection.locator('.planning-item', { hasText: title })).toBeHidden();
+
+    // Verify it is still in Unscheduled
+    await expect(unscheduledSection.locator('.planning-item', { hasText: title })).toBeVisible();
+  });
+
+  test('smart late status: only late instance shows warning', async ({ page }) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const todayStr = formatDate(today);
+    const tomorrowStr = formatDate(tomorrow);
+
+    // Deadline is today
+    await createIssue(page, {
+      title: 'Smart Late Test',
+      status: 'Todo',
+      deadline: todayStr,
+      plannedDates: [todayStr, tomorrowStr]
+    });
+
+    const todayContainer = page.locator(`#day-${todayStr}`);
+    const todayItem = todayContainer.locator('.planning-item', { hasText: 'Smart Late Test' });
+    // It will have a "Deadline" badge because it has a deadline, but NOT overdue
+    await expect(todayItem.locator('.planning-item-deadline')).toHaveAttribute('title', 'Deadline');
+    await expect(todayItem.locator('.planning-item-deadline')).not.toHaveClass(/overdue/);
+
+    // Tomorrow instance: Late (Tomorrow > Today)
+    const tomorrowContainer = page.locator(`#day-${tomorrowStr}`);
+    const tomorrowItem = tomorrowContainer.locator('.planning-item', { hasText: 'Smart Late Test' });
+
+    const lateBadge = tomorrowItem.locator('.planning-item-deadline');
+    await expect(lateBadge).toBeVisible();
+    await expect(lateBadge).toHaveAttribute('title', 'Planned late!');
+    await expect(lateBadge).toHaveClass(/overdue/);
+  });
+
+  test('removing one day from multi-day plan does not remove others', async ({ page }) => {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const todayStr = formatDate(today);
+    const tomorrowStr = formatDate(tomorrow);
+
+    await createIssue(page, {
+      title: 'Partial Remove Test',
+      status: 'Todo',
+      plannedDates: [todayStr, tomorrowStr]
+    });
+
+    const todayContainer = page.locator(`#day-${todayStr}`);
+    const tomorrowContainer = page.locator(`#day-${tomorrowStr}`);
+
+    await expect(todayContainer.locator('.planning-item', { hasText: 'Partial Remove Test' })).toBeVisible();
+    await expect(tomorrowContainer.locator('.planning-item', { hasText: 'Partial Remove Test' })).toBeVisible();
+
+    const itemToRemove = todayContainer.locator('.planning-item', { hasText: 'Partial Remove Test' });
+    await itemToRemove.locator('.planning-item-remove').click();
+
+    await expect(todayContainer.locator('.planning-item', { hasText: 'Partial Remove Test' })).toBeHidden();
+    await expect(tomorrowContainer.locator('.planning-item', { hasText: 'Partial Remove Test' })).toBeVisible();
+  });
+
+  test('multiple past dates show as single item in past section', async ({ page }) => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dayBeforeYesterday = new Date();
+    dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
+
+    const dateStr1 = formatDate(yesterday);
+    const dateStr2 = formatDate(dayBeforeYesterday);
+
+    await createIssue(page, {
+      title: 'Dedupe Past Test',
+      status: 'Todo',
+      plannedDates: [dateStr1, dateStr2]
+    });
+
+    const pastContainer = page.locator('#day-past');
+    await expect(pastContainer).toBeVisible();
+
+    await expect(pastContainer.locator('.planning-item', { hasText: 'Dedupe Past Test' })).toBeVisible();
+    const count = await pastContainer.locator('.planning-item', { hasText: 'Dedupe Past Test' }).count();
+    expect(count).toBe(1);
+  });
+
+
 });

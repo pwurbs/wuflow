@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel } from '../components/planning.js';
+import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard } from '../components/planning.js';
+import * as api from '../api.js';
 import { state } from '../state.js'; // Imported from mock
 
 // Mock dependencies
@@ -30,6 +31,7 @@ describe('planning.js', () => {
       <span id="planning-count">0</span>
     `;
     state.issues = [];
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -46,7 +48,9 @@ describe('planning.js', () => {
     it('returns issue deadline if no tasks', () => {
       const issue = { id: 1, deadline: '2023-10-15', tasks: [] };
       const result = getEffectiveDeadlineInfo(issue);
-      expect(result).toEqual({ date: new Date('2023-10-15'), isTask: false });
+      const expected = new Date('2023-10-15');
+      expected.setHours(12, 0, 0, 0);
+      expect(result).toEqual({ date: expected, isTask: false });
     });
 
     it('returns task deadline if issue has no deadline', () => {
@@ -55,7 +59,9 @@ describe('planning.js', () => {
         tasks: [{ id: 't1', deadline: '2023-10-12', done: false }]
       };
       const result = getEffectiveDeadlineInfo(issue);
-      expect(result).toEqual({ date: new Date('2023-10-12'), isTask: true });
+      const expected = new Date('2023-10-12');
+      expected.setHours(12, 0, 0, 0);
+      expect(result).toEqual({ date: expected, isTask: true });
     });
 
     it('returns earliest deadline between issue and tasks', () => {
@@ -68,7 +74,9 @@ describe('planning.js', () => {
         ]
       };
       const result = getEffectiveDeadlineInfo(issue);
-      expect(result).toEqual({ date: new Date('2023-10-18'), isTask: true });
+      const expected = new Date('2023-10-18');
+      expected.setHours(12, 0, 0, 0);
+      expect(result).toEqual({ date: expected, isTask: true });
     });
 
     it('ignores done tasks', () => {
@@ -80,7 +88,9 @@ describe('planning.js', () => {
         ]
       };
       const result = getEffectiveDeadlineInfo(issue);
-      expect(result).toEqual({ date: new Date('2023-10-20'), isTask: false });
+      const expected = new Date('2023-10-20');
+      expected.setHours(12, 0, 0, 0);
+      expect(result).toEqual({ date: expected, isTask: false });
     });
   });
 
@@ -124,12 +134,25 @@ describe('planning.js', () => {
       const issue = {
         id: 1,
         deadline: '2023-10-12',
-        planned_date: '2023-10-15'
+        planned_dates: ['2023-10-15']
       };
-      const badge = createDeadlineBadge(issue);
+      const badge = createDeadlineBadge(issue, '2023-10-15');
 
       expect(badge.textContent).toContain('⚠️');
       expect(badge.classList.contains('overdue')).toBe(true);
+      expect(badge.title).toBe('Planned late!');
+    });
+
+    it('uses latest planned date for late warning if no specific date provided', () => {
+      const issue = {
+        id: 1,
+        deadline: '2023-10-12',
+        planned_dates: ['2023-10-10', '2023-10-15']
+      };
+      // No specificDateStr provided (e.g. general board view summary)
+      const badge = createDeadlineBadge(issue);
+
+      expect(badge.textContent).toContain('⚠️');
       expect(badge.title).toBe('Planned late!');
     });
   });
@@ -153,7 +176,7 @@ describe('planning.js', () => {
 
     it('renders unscheduled issues section', () => {
       state.issues = [
-        { id: 1, title: 'Unscheduled One', deadline: '2023-10-20', planned_date: null, status: 'Todo' }
+        { id: 1, title: 'Unscheduled One', deadline: '2023-10-20', planned_dates: [], status: 'Todo' }
       ];
 
       renderPlanningPanel();
@@ -167,8 +190,8 @@ describe('planning.js', () => {
 
     it('renders planned issues in correct day slot', () => {
       state.issues = [
-        { id: 1, title: 'Planned Today', planned_date: '2023-10-10', status: 'Todo' }, // Today
-        { id: 2, title: 'Planned Tomorrow', planned_date: '2023-10-11', status: 'Todo' } // Tomorrow
+        { id: 1, title: 'Planned Today', planned_dates: ['2023-10-10'], status: 'Todo' }, // Today
+        { id: 2, title: 'Planned Tomorrow', planned_dates: ['2023-10-11'], status: 'Todo' } // Tomorrow
       ];
 
       renderPlanningPanel();
@@ -189,7 +212,7 @@ describe('planning.js', () => {
 
     it('renders Past Planning section for overdue planned issues', () => {
       state.issues = [
-        { id: 1, title: 'Old Plan', planned_date: '2023-10-01', status: 'Todo' }
+        { id: 1, title: 'Old Plan', planned_dates: ['2023-10-01'], status: 'Todo' }
       ];
 
       renderPlanningPanel();
@@ -203,7 +226,7 @@ describe('planning.js', () => {
 
     it('renders Future Planning section for distant future issues', () => {
       state.issues = [
-        { id: 1, title: 'Far Future', planned_date: '2023-12-01', status: 'Todo' }
+        { id: 1, title: 'Far Future', planned_dates: ['2023-12-01'], status: 'Todo' }
       ];
 
       renderPlanningPanel();
@@ -219,6 +242,66 @@ describe('planning.js', () => {
       const list = document.getElementById('planning-list');
       const emptyDay = list.querySelector('.planning-day');
       expect(emptyDay.classList.contains('empty')).toBe(true);
+    });
+
+    it('removes date when clicking remove button on planning item', async () => {
+      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' };
+      state.issues = [issue];
+
+      renderPlanningPanel();
+
+      const list = document.getElementById('planning-list');
+      const item = list.querySelector('.planning-item');
+      const removeBtn = item.querySelector('.planning-item-remove');
+
+      await removeBtn.click();
+
+      expect(issue.planned_dates).toEqual([]);
+      expect(api.updateIssue).toHaveBeenCalled();
+    });
+  });
+
+  describe('processDroppedCard', () => {
+    it('adds new date to planned_dates when dragging from unscheduled', async () => {
+      const issue = { id: 1, title: 'Test', planned_dates: [] };
+      state.issues = [issue];
+
+      const draggedCard = document.createElement('div');
+      draggedCard.dataset.id = '1';
+      // sourceDateStr is undefined (from unscheduled)
+
+      await processDroppedCard(draggedCard, '2023-10-15');
+
+      expect(issue.planned_dates).toEqual(['2023-10-15']);
+      expect(api.updateIssue).toHaveBeenCalled();
+    });
+
+    it('moves instance when dragging between days', async () => {
+      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10', '2023-10-12'] };
+      state.issues = [issue];
+
+      const draggedCard = document.createElement('div');
+      draggedCard.dataset.id = '1';
+      draggedCard.dataset.dateInstance = '2023-10-10'; // Moving this one
+
+      await processDroppedCard(draggedCard, '2023-10-15');
+
+      // Removed 10-10, added 10-15
+      expect(issue.planned_dates).toEqual(['2023-10-12', '2023-10-15']);
+      expect(api.updateIssue).toHaveBeenCalled();
+    });
+
+    it('ignores drop if date already exists', async () => {
+      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'] };
+      state.issues = [issue];
+
+      const draggedCard = document.createElement('div');
+      draggedCard.dataset.id = '1';
+
+      await processDroppedCard(draggedCard, '2023-10-10');
+
+      expect(issue.planned_dates).toEqual(['2023-10-10']);
+      expect(api.updateIssue).not.toHaveBeenCalled();
     });
   });
 });

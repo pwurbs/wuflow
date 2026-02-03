@@ -2,6 +2,7 @@ package backend
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"time"
@@ -49,7 +50,7 @@ func createTables() {
 		status TEXT NOT NULL,
 		position INTEGER NOT NULL,
 		deadline DATETIME,
-		planned_date DATETIME,
+		planned_dates TEXT, -- JSON array of date strings
 		label_id INTEGER,
 		priority TEXT DEFAULT 'Normal',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -89,14 +90,16 @@ func createTables() {
 		slog.Error("Failed to create labels table", "error", err)
 		os.Exit(1)
 	}
+
 }
 
 // Helper functions for DB operations
 
 // GetAllIssues retrieves all issues from the database, including their associated tasks.
+// GetAllIssues retrieves all issues from the database, including their associated tasks.
 func GetAllIssues() ([]Issue, error) {
 	rows, err := DB.Query(`
-		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_date, i.priority, i.created_at, i.updated_at, 
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
 		       l.id, l.name, l.color 
 		FROM issues i 
 		LEFT JOIN labels l ON i.label_id = l.id 
@@ -109,36 +112,10 @@ func GetAllIssues() ([]Issue, error) {
 
 	var issues []Issue
 	for rows.Next() {
-		var i Issue
-		var deadline sql.NullTime
-		var plannedDate sql.NullTime
-		var lID sql.NullInt64
-		var lName sql.NullString
-
-		var lColor sql.NullString
-		var priority sql.NullString
-
-		if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDate, &priority, &i.CreatedAt, &i.UpdatedAt, &lID, &lName, &lColor); err != nil {
+		i, err := scanIssue(rows)
+		if err != nil {
 			slog.Error("Database Error: GetAllIssues Scan", "error", err)
 			return nil, err
-		}
-		if priority.Valid {
-			i.Priority = IssuePriority(priority.String)
-		} else {
-			i.Priority = PriorityNormal
-		}
-		if deadline.Valid {
-			i.Deadline = &deadline.Time
-		}
-		if plannedDate.Valid {
-			i.PlannedDate = &plannedDate.Time
-		}
-		if lID.Valid {
-			i.Label = &Label{
-				ID:    int(lID.Int64),
-				Name:  lName.String,
-				Color: lColor.String,
-			}
 		}
 
 		tasks, err := GetTasksByIssueID(i.ID)
@@ -182,7 +159,7 @@ func CreateIssue(i *Issue) error {
 	if i.Priority == "" {
 		i.Priority = PriorityNormal
 	}
-	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_date, priority, label_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		slog.Error("Database Error: CreateIssue Prepare", "error", err)
 		return err
@@ -205,7 +182,17 @@ func CreateIssue(i *Issue) error {
 		labelID = &id
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.Priority, labelID, i.UpdatedAt)
+	var plannedDatesJSON interface{}
+	if i.PlannedDates != nil {
+		b, err := json.Marshal(i.PlannedDates)
+		if err != nil {
+			slog.Error("Database Error: CreateIssue Marshal Dates", "error", err)
+			return err
+		}
+		plannedDatesJSON = string(b)
+	}
+
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.UpdatedAt)
 	if err != nil {
 		slog.Error("Database Error: CreateIssue Exec", "error", err)
 		return err
@@ -223,7 +210,7 @@ func CreateIssue(i *Issue) error {
 // UpdateIssue updates an existing issue in the database.
 func UpdateIssue(i *Issue) error {
 
-	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_date = ?, priority = ?, label_id = ?, updated_at = ? WHERE id = ?")
+	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
 		slog.Error("Database Error: UpdateIssue Prepare", "error", err)
 		return err
@@ -238,7 +225,17 @@ func UpdateIssue(i *Issue) error {
 		labelID = &id
 	}
 
-	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, i.PlannedDate, i.Priority, labelID, i.UpdatedAt, i.ID)
+	var plannedDatesJSON interface{}
+	if i.PlannedDates != nil {
+		b, err := json.Marshal(i.PlannedDates)
+		if err != nil {
+			slog.Error("Database Error: UpdateIssue Marshal Dates", "error", err)
+			return err
+		}
+		plannedDatesJSON = string(b)
+	}
+
+	_, err = stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.UpdatedAt, i.ID)
 	if err != nil {
 		slog.Error("Database Error: UpdateIssue Exec", "error", err)
 	}
@@ -366,4 +363,39 @@ func DeleteLabel(id int) error {
 		slog.Error("Database Error: DeleteLabel", "error", err)
 	}
 	return err
+}
+
+func scanIssue(rows *sql.Rows) (Issue, error) {
+	var i Issue
+	var deadline sql.NullTime
+	var plannedDatesStr sql.NullString
+	var lID sql.NullInt64
+	var lName sql.NullString
+	var lColor sql.NullString
+	var priority sql.NullString
+
+	if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDatesStr, &priority, &i.CreatedAt, &i.UpdatedAt, &lID, &lName, &lColor); err != nil {
+		return Issue{}, err
+	}
+	if priority.Valid {
+		i.Priority = IssuePriority(priority.String)
+	} else {
+		i.Priority = PriorityNormal
+	}
+	if deadline.Valid {
+		i.Deadline = &deadline.Time
+	}
+	if plannedDatesStr.Valid {
+		if err := json.Unmarshal([]byte(plannedDatesStr.String), &i.PlannedDates); err != nil {
+			slog.Error("Database Error: parsing planned_dates", "id", i.ID, "error", err)
+		}
+	}
+	if lID.Valid {
+		i.Label = &Label{
+			ID:    int(lID.Int64),
+			Name:  lName.String,
+			Color: lColor.String,
+		}
+	}
+	return i, nil
 }

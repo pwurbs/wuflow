@@ -11,6 +11,7 @@ export interface IssueData {
   priority?: 'Normal' | 'High';
   deadline?: string; // YYYY-MM-DD format
   plannedDate?: string; // YYYY-MM-DD format
+  plannedDates?: string[]; // Array of YYYY-MM-DD
   label?: string;
 }
 
@@ -87,9 +88,10 @@ export async function createIssue(page: Page, data: IssueData): Promise<void> {
     await page.fill('#deadline', data.deadline);
   }
 
-  // Set planned date if provided
-  if (data.plannedDate) {
-    await page.fill('#planned-date', data.plannedDate);
+  // Set planned date(s)
+  const datesToAdd = data.plannedDates || (data.plannedDate ? [data.plannedDate] : []);
+  for (const dateStr of datesToAdd) {
+    await page.fill('#planned-date-picker', dateStr, { force: true });
   }
 
   // Select label if provided

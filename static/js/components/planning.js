@@ -6,12 +6,20 @@ let refreshAppCallback = null;
 let openModalCallback = null;
 
 export function getEffectiveDeadlineInfo(issue) {
-  let minInfo = issue.deadline ? { date: new Date(issue.deadline), isTask: false } : null;
+  let minInfo = null;
+  if (issue.deadline) {
+    const d = new Date(issue.deadline);
+    d.setHours(12, 0, 0, 0);
+    minInfo = { date: d, isTask: false };
+  }
 
   if (issue.tasks && issue.tasks.length > 0) {
     issue.tasks.forEach(task => {
       if (!task.done && task.deadline) {
         const taskDeadline = new Date(task.deadline);
+        // Normalize time to noon to avoid timezone shift issues
+        taskDeadline.setHours(12, 0, 0, 0);
+
         if (!minInfo || taskDeadline < minInfo.date) {
           minInfo = { date: taskDeadline, isTask: true };
         }
@@ -41,10 +49,12 @@ export function renderPlanningPanel(refreshApp, openModal) {
   };
 
   // Add Unscheduled section FIRST (at top) for issues with deadline (or subtask deadline) but no planned date
+  // Now: Issue is unscheduled if planned_dates is empty or null
   const unscheduledIssues = state.issues
     .filter(issue => {
       const info = getEffectiveDeadlineInfo(issue);
-      return info && !issue.planned_date && issue.status !== 'Done';
+      const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
+      return info && isUnscheduled && issue.status !== 'Done';
     })
     .sort((a, b) => {
       const infoA = getEffectiveDeadlineInfo(a);
@@ -60,9 +70,13 @@ export function renderPlanningPanel(refreshApp, openModal) {
 
   // Past
   const hasPastIssues = state.issues.some(issue => {
-    if (!issue.planned_date) return false;
-    const planned = new Date(issue.planned_date);
-    return planned < today;
+    if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
+    return issue.planned_dates.some(dateStr => {
+      // Normalize strictly to avoid timezone issues? 
+      // planned_dates are YYYY-MM-DD. existing Date(str) works in UTC usually or Local? 
+      // safely:
+      return new Date(dateStr) < today;
+    });
   });
 
   if (hasPastIssues) {
@@ -83,10 +97,12 @@ export function renderPlanningPanel(refreshApp, openModal) {
   futureCutoff.setDate(today.getDate() + 10);
 
   const hasFutureIssues = state.issues.some(issue => {
-    if (!issue.planned_date) return false;
-    const planned = new Date(issue.planned_date);
-    planned.setHours(0, 0, 0, 0); // normalize
-    return planned >= futureCutoff;
+    if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
+    return issue.planned_dates.some(dateStr => {
+      const planned = new Date(dateStr);
+      planned.setHours(0, 0, 0, 0);
+      return planned >= futureCutoff;
+    });
   });
 
   if (hasFutureIssues) {
@@ -94,22 +110,36 @@ export function renderPlanningPanel(refreshApp, openModal) {
   }
 
   // Populate planned issues
+  const addedPastIssues = new Set();
+  const addedFutureIssues = new Set();
+
   state.issues.forEach(issue => {
-    if (issue.planned_date) {
-      const planned = new Date(issue.planned_date);
-      let targetId;
-      if (planned < today) {
-        targetId = 'day-past';
-      } else if (planned >= futureCutoff) {
-        targetId = 'day-future';
-      } else {
-        targetId = `day-${getLocalISODate(planned)}`;
-      }
-      const container = document.getElementById(targetId);
-      if (container) {
-        container.querySelector('.planning-day-content').appendChild(createPlanningItem(issue));
-        count++;
-      }
+    if (issue.planned_dates && issue.planned_dates.length > 0) {
+      issue.planned_dates.forEach(dateStr => {
+        const planned = new Date(dateStr);
+        // Normalize
+        planned.setHours(12, 0, 0, 0);
+
+        let targetId;
+        if (planned < today) {
+          if (addedPastIssues.has(issue.id)) return;
+          targetId = 'day-past';
+          addedPastIssues.add(issue.id);
+        } else if (planned >= futureCutoff) {
+          if (addedFutureIssues.has(issue.id)) return;
+          targetId = 'day-future';
+          addedFutureIssues.add(issue.id);
+        } else {
+          targetId = `day-${dateStr}`;
+        }
+
+        const container = document.getElementById(targetId);
+        if (container) {
+          // Pass distinct dateStr so we know WHICH instance this is
+          container.querySelector('.planning-day-content').appendChild(createPlanningItem(issue, dateStr));
+          count++;
+        }
+      });
     }
   });
 
@@ -162,7 +192,7 @@ function formatDeadlineBadge(deadline) {
 }
 
 
-export function createDeadlineBadge(issue) {
+export function createDeadlineBadge(issue, specificDateStr) {
   const effectiveInfo = getEffectiveDeadlineInfo(issue);
   if (!effectiveInfo) return null;
 
@@ -182,10 +212,23 @@ export function createDeadlineBadge(issue) {
     tooltip = 'Deadline';
   }
 
-  if (issue.planned_date) {
-    const planned = new Date(issue.planned_date);
+  // Check if THIS specific planned instance is late
+  if (specificDateStr) {
+    const planned = new Date(specificDateStr);
     planned.setHours(0, 0, 0, 0);
     if (planned > d) {
+      isWarning = true;
+      tooltip = 'Planned late!';
+    }
+  } else if (issue.planned_dates && issue.planned_dates.length > 0) {
+    // Fallback? Or maybe we don't warn if date is unknown?
+    // Current behavior was: check latest.
+    // Let's keep existing logic ONLY if specificDateStr is not provided (e.g. board view?)
+    const sortedDates = [...issue.planned_dates].sort();
+    const lastPlan = new Date(sortedDates[sortedDates.length - 1]);
+    lastPlan.setHours(0, 0, 0, 0);
+
+    if (lastPlan > d) {
       isWarning = true;
       tooltip = 'Planned late!';
     }
@@ -198,11 +241,13 @@ export function createDeadlineBadge(issue) {
   return badge;
 }
 
-function createPlanningItem(issue) {
+function createPlanningItem(issue, dateStr) {
   const div = document.createElement('div');
   div.className = `planning-item ${issue.status === 'Done' ? 'done' : ''}`;
   div.draggable = true;
   div.dataset.id = issue.id;
+  // Store the date of this specific instance
+  div.dataset.dateInstance = dateStr;
 
   const titleSpan = document.createElement('span');
   titleSpan.className = 'planning-item-title';
@@ -210,7 +255,7 @@ function createPlanningItem(issue) {
 
   div.appendChild(titleSpan);
 
-  const badge = createDeadlineBadge(issue);
+  const badge = createDeadlineBadge(issue, dateStr);
   if (badge) {
     div.appendChild(badge);
   }
@@ -224,9 +269,13 @@ function createPlanningItem(issue) {
   removeBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
     e.preventDefault();
-    issue.planned_date = null;
-    await updateIssue(issue);
-    if (refreshAppCallback) refreshAppCallback();
+
+    // Remove ONLY this date
+    if (issue.planned_dates) {
+      issue.planned_dates = issue.planned_dates.filter(d => d !== dateStr);
+      await updateIssue(issue);
+      if (refreshAppCallback) refreshAppCallback();
+    }
   });
 
   div.appendChild(removeBtn);
@@ -240,7 +289,7 @@ function createPlanningItem(issue) {
     setDraggedCard(div);
     // planning item acts as a card proxy for basic dragging but has different class
     div.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = 'copyMove'; // Allow either
   });
   div.addEventListener('dragend', () => {
     div.classList.remove('dragging');
@@ -334,25 +383,38 @@ async function handlePlanningDrop(e) {
   e.preventDefault();
   e.stopPropagation();
   this.classList.remove('drag-over');
-  const dateStr = this.dataset.date;
+  const targetDateStr = this.dataset.date;
+
+  if (targetDateStr === 'past' || targetDateStr === 'future') return; // Cannot drop in past/future container generally
 
   const draggedCard = getDraggedCard();
 
   if (draggedCard) {
     draggedCard.dataset.droppedInPlanning = 'true';
-    const issueId = Number.parseInt(draggedCard.dataset.id);
-    const issue = state.issues.find(i => i.id === issueId);
+    await processDroppedCard(draggedCard, targetDateStr);
+  }
+}
 
-    if (issue && dateStr !== 'past') {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const newDate = new Date(y, m - 1, d, 12, 0, 0, 0); // Noon to avoid timezone issues likely
+export async function processDroppedCard(draggedCard, targetDateStr) {
+  const issueId = Number.parseInt(draggedCard.dataset.id);
+  const issue = state.issues.find(i => i.id === issueId);
+  const sourceDateStr = draggedCard.dataset.dateInstance;
 
-      const oldDate = issue.planned_date ? new Date(issue.planned_date).setHours(12, 0, 0, 0) : 0;
-      if (newDate.getTime() !== oldDate) {
-        issue.planned_date = newDate;
-        await updateIssue(issue);
-        if (refreshAppCallback) refreshAppCallback();
-      }
+  if (issue) {
+    if (!issue.planned_dates) issue.planned_dates = [];
+    if (issue.planned_dates.includes(targetDateStr)) return;
+
+    const newDates = [...issue.planned_dates];
+    if (sourceDateStr) {
+      const idx = newDates.indexOf(sourceDateStr);
+      if (idx > -1) newDates.splice(idx, 1);
     }
+
+    newDates.push(targetDateStr);
+    newDates.sort();
+
+    issue.planned_dates = newDates;
+    await updateIssue(issue);
+    if (refreshAppCallback) refreshAppCallback();
   }
 }

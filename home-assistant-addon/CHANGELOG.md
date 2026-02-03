@@ -1,3 +1,7 @@
+## 0.11.0
+
+- Added the feature to set multiple planning days
+
 ## 0.10.1
 
 - Added comprehensive logging

@@ -69,7 +69,7 @@ describe('Modal Component', () => {
                      <button id="desc-save-btn"></button>
                 </div>
             </div>
-            <input id="planned-date" type="date">
+            <div id="planned-dates-container"></div>
             <input id="deadline" type="date">
 
             <!-- Custom Dropdowns -->
@@ -355,22 +355,6 @@ describe('Modal Component', () => {
   it('should handle custom date input click', () => {
     openModal(null);
 
-    const plannedDate = document.getElementById('planned-date');
-    // Mock showPicker if it exists (it might not in JSDOM)
-    plannedDate.showPicker = vi.fn();
-
-    // wrapper logic: .custom-date-input click -> input.showPicker() or click()
-    // We need to construct the DOM structure that matches what setupModal expects for this test?
-    // setupModal does: document.querySelectorAll('.custom-date-input').forEach...
-    // The test DOM in `beforeEach` has `<input id="planned-date">` but DOES NOT have the wrapper `.custom-date-input`.
-    // We need to check expected DOM. 
-    // Checking `modal.js`: `document.querySelectorAll('.custom-date-input').forEach...`
-    // Checking `modal.test.js` HTML: ` <input id="planned-date" type="date">` without wrapper.
-    // So that part of `setupModal` likely runs on nothing in the test currently.
-    // I should update the DOM setup in the test to include the wrapper to test this.
-    // But for now, let's skip this specific test or update DOM in this test block manually if possible, or assume it's low priority.
-    // I will update the DOM in this test case.
-
     const wrapper = document.createElement('div');
     wrapper.className = 'custom-date-input';
     const input = document.createElement('input');
@@ -380,7 +364,7 @@ describe('Modal Component', () => {
     document.body.appendChild(wrapper);
 
     // Re-run setup to attach listeners to new elements
-    setupModal(); // Re-binding: might duplicate listeners on old elements but we focus on new one
+    setupModal();
 
     wrapper.click();
     expect(input.showPicker).toHaveBeenCalled();
@@ -560,13 +544,15 @@ describe('Modal Component', () => {
         title: 'With Dates',
         status: 'Todo',
         tasks: [],
-        planned_date: '2024-02-01T12:00:00Z',
+        planned_dates: ['2024-02-01'],
         deadline: '2024-02-15T12:00:00Z'
       };
 
       openModal(issue);
 
-      expect(document.getElementById('planned-date').value).toBe('2024-02-01');
+      const container = document.getElementById('planned-dates-container');
+      expect(container.querySelectorAll('.date-chip').length).toBe(1);
+      expect(container.querySelector('.date-chip').dataset.date).toBe('2024-02-01');
       expect(document.getElementById('deadline').value).toBe('2024-02-15');
       expect(utils.updateDateInputStyle).toHaveBeenCalled();
     });
@@ -589,19 +575,19 @@ describe('Modal Component', () => {
       }));
     });
 
-    it('should update planned_date immediately on change', async () => {
-      const issue = { id: 1 };
+    it('should update planned_dates immediately on change via picker', async () => {
+      const issue = { id: 1, planned_dates: [] };
       openModal(issue);
 
-      const input = document.getElementById('planned-date');
-      input.value = '2025-01-01';
-      input.dispatchEvent(new Event('change'));
+      const picker = document.getElementById('planned-date-picker');
+      picker.value = '2025-01-01';
+      picker.dispatchEvent(new Event('change'));
 
       await new Promise(process.nextTick);
 
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 1,
-        planned_date: new Date('2025-01-01T12:00:00')
+        planned_dates: ['2025-01-01']
       }));
     });
 
@@ -801,6 +787,60 @@ describe('Modal Component', () => {
 
       expect(descContainer.classList.contains('inline-editing')).toBe(true);
       expect(descEditor.contentEditable).toBe('true');
+    });
+  });
+  describe('Multi-Day Date Management', () => {
+    it('should add a date via the picker in existing issue mode', async () => {
+      const issue = { id: 1, planned_dates: [] };
+      openModal(issue);
+
+      const picker = document.getElementById('planned-date-picker');
+      picker.value = '2025-05-20';
+      picker.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(issue.planned_dates).toContain('2025-05-20');
+      expect(api.updateIssue).toHaveBeenCalled();
+
+      const container = document.getElementById('planned-dates-container');
+      expect(container.querySelectorAll('.date-chip').length).toBe(1);
+    });
+
+    it('should remove a date via chip in existing issue mode', async () => {
+      const issue = { id: 1, planned_dates: ['2025-05-20'] };
+      openModal(issue);
+
+      const container = document.getElementById('planned-dates-container');
+      const chip = container.querySelector('.date-chip');
+      const removeBtn = chip.querySelector('.remove');
+
+      await removeBtn.click();
+      await new Promise(process.nextTick);
+
+      expect(issue.planned_dates).not.toContain('2025-05-20');
+      expect(api.updateIssue).toHaveBeenCalled();
+      expect(container.querySelectorAll('.date-chip').length).toBe(0);
+    });
+
+    it('should add/remove dates in New Issue mode (state-less)', async () => {
+      openModal(null);
+
+      const picker = document.getElementById('planned-date-picker');
+      picker.value = '2025-06-01';
+      picker.dispatchEvent(new Event('change'));
+
+      const container = document.getElementById('planned-dates-container');
+      expect(container.querySelectorAll('.date-chip').length).toBe(1);
+
+      const chip = container.querySelector('.date-chip');
+      expect(chip.dataset.date).toBe('2025-06-01');
+
+      const removeBtn = chip.querySelector('.remove');
+      await removeBtn.click();
+
+      expect(container.querySelectorAll('.date-chip').length).toBe(0);
+      expect(api.updateIssue).not.toHaveBeenCalled();
     });
   });
 });
