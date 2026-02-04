@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { updateIssue } from '../api.js';
 import { getDraggedCard, setDraggedCard } from '../drag.js';
+import { filterIssues } from '../filters.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
@@ -50,7 +51,10 @@ export function renderPlanningPanel(refreshApp, openModal) {
 
   // Add Unscheduled section FIRST (at top) for issues with deadline (or subtask deadline) but no planned date
   // Now: Issue is unscheduled if planned_dates is empty or null
-  const unscheduledIssues = state.issues
+
+  const filteredIssues = filterIssues(state.issues, state.filter);
+
+  const unscheduledIssues = filteredIssues
     .filter(issue => {
       const info = getEffectiveDeadlineInfo(issue);
       const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
@@ -69,7 +73,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
   }
 
   // Past
-  const hasPastIssues = state.issues.some(issue => {
+  const hasPastIssues = filteredIssues.some(issue => {
     if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
     return issue.planned_dates.some(dateStr => {
       // Normalize strictly to avoid timezone issues? 
@@ -96,7 +100,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
   const futureCutoff = new Date(today);
   futureCutoff.setDate(today.getDate() + 10);
 
-  const hasFutureIssues = state.issues.some(issue => {
+  const hasFutureIssues = filteredIssues.some(issue => {
     if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
     return issue.planned_dates.some(dateStr => {
       const planned = new Date(dateStr);
@@ -113,7 +117,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
   const addedPastIssues = new Set();
   const addedFutureIssues = new Set();
 
-  state.issues.forEach(issue => {
+  filteredIssues.forEach(issue => {
     if (issue.planned_dates && issue.planned_dates.length > 0) {
       issue.planned_dates.forEach(dateStr => {
         const planned = new Date(dateStr);

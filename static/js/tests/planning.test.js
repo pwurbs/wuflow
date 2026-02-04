@@ -6,7 +6,8 @@ import { state } from '../state.js'; // Imported from mock
 // Mock dependencies
 vi.mock('../state.js', () => ({
   state: {
-    issues: []
+    issues: [],
+    filter: { label: null, priority: null, search: '' }
   }
 }));
 
@@ -258,6 +259,24 @@ describe('planning.js', () => {
 
       expect(issue.planned_dates).toEqual([]);
       expect(api.updateIssue).toHaveBeenCalled();
+    });
+
+
+    it('filters issues based on state filter', () => {
+      state.issues = [
+        { id: 1, title: 'Keep', planned_dates: ['2023-10-10'], status: 'Todo' },
+        { id: 2, title: 'Filtered', planned_dates: ['2023-10-10'], status: 'Todo' }
+      ];
+      state.filter.search = 'Keep';
+
+      renderPlanningPanel();
+
+      const list = document.getElementById('planning-list');
+      const dayToday = list.querySelector('#day-2023-10-10');
+
+      expect(dayToday.querySelectorAll('.planning-item').length).toBe(1);
+      expect(dayToday.textContent).toContain('Keep');
+      expect(dayToday.textContent).not.toContain('Filtered');
     });
   });
 

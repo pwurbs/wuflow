@@ -106,3 +106,75 @@ test.describe('Filtering and Search', () => {
     await expect(page.locator('.board-card:has-text("Important Task Beta")')).toBeHidden();
   });
 });
+
+test.describe('Planning Panel Filtering', () => {
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    // Make sure planning panel is visible
+    await expect(page.locator('#planning-panel')).toBeVisible();
+  });
+
+  test('filters planned issues by text', async ({ page }) => {
+    const today = new Date();
+    const dateStr = formatDate(today);
+
+    await createIssue(page, { title: 'Plan Key', status: 'Todo', plannedDate: dateStr });
+    await createIssue(page, { title: 'Plan Hidden', status: 'Todo', plannedDate: dateStr });
+
+    const dayContainer = page.locator(`#day-${dateStr}`);
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Key' })).toBeVisible();
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Hidden' })).toBeVisible();
+
+    await page.fill('#search-input', 'Key');
+
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Key' })).toBeVisible();
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Hidden' })).toBeHidden();
+  });
+
+  test('filters planned issues by priority', async ({ page }) => {
+    const today = new Date();
+    const dateStr = formatDate(today);
+
+    await createIssue(page, { title: 'Plan High', status: 'Todo', priority: 'High', plannedDate: dateStr });
+    await createIssue(page, { title: 'Plan Normal', status: 'Todo', priority: 'Normal', plannedDate: dateStr });
+
+    const dayContainer = page.locator(`#day-${dateStr}`);
+
+    // Open priority filter
+    await page.click('#priority-filter-btn');
+    await page.click('#priority-filter-options .custom-option:has-text("High")');
+
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan High' })).toBeVisible();
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Normal' })).toBeHidden();
+  });
+
+  test('filters planned issues by label', async ({ page }) => {
+    const today = new Date();
+    const dateStr = formatDate(today);
+
+    // Create label
+    await navigateTo(page, 'setup');
+    await page.fill('#new-label-input', 'PlanLabel');
+    await page.click('#add-label-btn');
+    await navigateTo(page, 'board');
+
+    await createIssue(page, { title: 'Plan Labeled', status: 'Todo', label: 'PlanLabel', plannedDate: dateStr });
+    await createIssue(page, { title: 'Plan Unlabeled', status: 'Todo', plannedDate: dateStr });
+
+    const dayContainer = page.locator(`#day-${dateStr}`);
+
+    // Open label filter
+    await page.click('#label-filter-btn');
+    await page.click('#label-filter-options .custom-option:has-text("PlanLabel")');
+
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Labeled' })).toBeVisible();
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Unlabeled' })).toBeHidden();
+  });
+});

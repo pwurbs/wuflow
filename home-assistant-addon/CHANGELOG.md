@@ -1,3 +1,7 @@
+## 0.11.1
+
+- Added filter feature for planning panel too
+
 ## 0.11.0
 
 - Added the feature to set multiple planning days
