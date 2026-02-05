@@ -214,6 +214,9 @@ describe('Backlog Component', () => {
       const dragModule = await import('../drag.js');
       dragModule.getDraggedCard.mockReturnValue(mockDragEl);
 
+      Object.defineProperty(openSection, 'offsetParent', {
+        get() { return document.body; }
+      });
       const event = new Event('drop', { bubbles: true, cancelable: true });
       openSection.dispatchEvent(event);
 
@@ -256,6 +259,9 @@ describe('Backlog Component', () => {
       const dragModule = await import('../drag.js');
       dragModule.getDraggedCard.mockReturnValue(card2);
 
+      Object.defineProperty(backlogList, 'offsetParent', {
+        get() { return document.body; }
+      });
       const event = new Event('drop', { bubbles: true, cancelable: true });
       backlogList.dispatchEvent(event);
 

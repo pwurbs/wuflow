@@ -19,6 +19,8 @@ const (
 	StatusWorking IssueStatus = "Working"
 	// StatusDone represents an issue that is completed.
 	StatusDone IssueStatus = "Done"
+	// StatusArchive represents an issue that is archived.
+	StatusArchive IssueStatus = "Archive"
 )
 
 // IssuePriority represents the priority of an issue.

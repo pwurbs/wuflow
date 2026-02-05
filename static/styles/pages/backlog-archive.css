@@ -1,5 +1,6 @@
-/* Backlog View */
-#backlog-view {
+/* Backlog & Archive View */
+#backlog-view,
+#archive-view {
   flex: 1;
   background-color: transparent;
   border: none;
@@ -51,7 +52,9 @@
   font-weight: 600;
 }
 
-#move-to-todo-list {
+#move-to-todo-list,
+#archive-done-list,
+#archive-list {
   min-height: 80px;
   border-radius: 8px;
   background-color: transparent;
@@ -59,7 +62,9 @@
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-#move-to-todo-list.drag-over {
+#move-to-todo-list.drag-over,
+#archive-done-list.drag-over,
+#archive-list.drag-over {
   background-color: rgba(88, 166, 255, 0.1);
   border-color: var(--accent-blue);
 }

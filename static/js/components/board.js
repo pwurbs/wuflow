@@ -65,8 +65,8 @@ export function renderBoard(refreshApp, openModal) {
 
 // Export a setup function to be called once
 export function setupBoardView(refreshApp, openModal) {
-
-
+  if (refreshApp) refreshAppCallback = refreshApp;
+  if (openModal) openModalCallback = openModal;
   // Columns
   document.querySelectorAll('.column-content').forEach(colContent => {
     colContent.addEventListener('dragover', (e) => {
@@ -75,7 +75,7 @@ export function setupBoardView(refreshApp, openModal) {
       e.preventDefault();
       const afterElement = getDragAfterElement(colContent, e.clientY);
 
-      if (afterElement === draggedCard.nextElementSibling) {
+      if (colContent === draggedCard.parentElement && afterElement === draggedCard.nextElementSibling) {
         return;
       }
 

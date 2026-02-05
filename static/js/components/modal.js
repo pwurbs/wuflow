@@ -731,7 +731,7 @@ function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
 function renderStatusOptions() {
   const optionsContainer = document.getElementById('status-options');
   optionsContainer.innerHTML = '';
-  const statuses = ['Open', 'Todo', 'Pending', 'Working', 'Done'];
+  const statuses = ['Open', 'Todo', 'Pending', 'Working', 'Done', 'Archive'];
 
   statuses.forEach(status => {
     const div = document.createElement('div');

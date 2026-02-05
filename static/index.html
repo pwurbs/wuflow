@@ -90,6 +90,16 @@
                     </svg>
                     <span class="menu-tooltip">Board</span>
                 </button>
+                <button id="nav-archive" class="menu-btn" aria-label="Archive">
+                    <!-- Archive Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                        <rect x="1" y="3" width="22" height="5"></rect>
+                        <line x1="10" y1="12" x2="14" y2="12"></line>
+                    </svg>
+                    <span class="menu-tooltip">Archive</span>
+                </button>
                 <button id="nav-setup" class="menu-btn" aria-label="Setup">
                     <!-- Cogwheel -->
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -186,6 +196,27 @@
                     </div>
                     <div class="backlog-list" id="backlog-list">
                         <!-- Backlog issues will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="archive-view" class="hidden">
+                <div id="archive-done-section" class="backlog-section">
+                    <div class="backlog-header" data-status="Done">
+                        <h2>Move from Board (Done)</h2>
+                        <span class="count" id="done-count-archive">0</span>
+                    </div>
+                    <div class="backlog-list" id="archive-done-list">
+                    </div>
+                </div>
+
+                <div id="archive-archive-section" class="backlog-section">
+                    <div class="backlog-header" data-status="Archive">
+                        <h2>Archive</h2>
+                        <span class="count" id="archive-count">0</span>
+                    </div>
+                    <div class="backlog-list" id="archive-list">
+                        <!-- Archived issues will be injected here -->
                     </div>
                 </div>
             </div>

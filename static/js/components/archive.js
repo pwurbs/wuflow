@@ -3,57 +3,56 @@ import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement } from '../drag.js';
 import { handleMoveTop, handleMoveBottom, getListUpdates } from '../list-utils.js';
-
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
 
-export function renderBacklog(refreshApp, openModal) {
+export function renderArchive(refreshApp, openModal) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
 
-  const backlogList = document.getElementById('backlog-list');
-  const moveToTodoList = document.getElementById('move-to-todo-list');
-  const backlogCount = document.getElementById('backlog-count');
-  const todoCount = document.getElementById('todo-count');
+  const archiveList = document.getElementById('archive-list');
+  const doneList = document.getElementById('archive-done-list');
+  const archiveCount = document.getElementById('archive-count');
+  const doneCount = document.getElementById('done-count-archive');
 
   // Clear
-  backlogList.innerHTML = '';
-  moveToTodoList.innerHTML = '';
+  archiveList.innerHTML = '';
+  doneList.innerHTML = '';
 
-  // Filter and sort issues using extracted pure functions
+  // Filter and sort issues
   const filteredIssues = filterIssues(state.issues, state.filter);
-  const openIssues = sortByPosition(filterByStatus(filteredIssues, 'Open'));
-  const todoIssues = sortByPosition(filterByStatus(filteredIssues, 'Todo'));
+  const archivedIssues = sortByPosition(filterByStatus(filteredIssues, 'Archive'));
+  const doneIssues = sortByPosition(filterByStatus(filteredIssues, 'Done'));
 
-  openIssues.forEach(issue => {
-    backlogList.appendChild(createCardElement(issue, false, {
+  archivedIssues.forEach(issue => {
+    archiveList.appendChild(createCardElement(issue, false, {
       openModal: openModalCallback,
-      onMoveTop: () => handleMoveTop(issue, openIssues, refreshAppCallback),
-      onMoveBottom: () => handleMoveBottom(issue, openIssues, refreshAppCallback)
+      onMoveTop: () => handleMoveTop(issue, archivedIssues, refreshAppCallback),
+      onMoveBottom: () => handleMoveBottom(issue, archivedIssues, refreshAppCallback)
     }));
   });
-  todoIssues.forEach(issue => {
-    moveToTodoList.appendChild(createCardElement(issue, false, {
+  doneIssues.forEach(issue => {
+    doneList.appendChild(createCardElement(issue, false, {
       openModal: openModalCallback,
-      onMoveTop: () => handleMoveTop(issue, todoIssues, refreshAppCallback),
-      onMoveBottom: () => handleMoveBottom(issue, todoIssues, refreshAppCallback)
+      onMoveTop: () => handleMoveTop(issue, doneIssues, refreshAppCallback),
+      onMoveBottom: () => handleMoveBottom(issue, doneIssues, refreshAppCallback)
     }));
 
   });
 
-  backlogCount.textContent = openIssues.length;
-  todoCount.textContent = todoIssues.length;
+  archiveCount.textContent = archivedIssues.length;
+  doneCount.textContent = doneIssues.length;
 }
 
 
 
-export function setupBacklogView(refreshApp, openModal) {
+export function setupArchiveView(refreshApp, openModal) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
 
-  // Backlog Sections Drag Support (for dropping planning items on background)
+  // Archive Sections Drag Support (for dropping planning items on background)
   const setupSectionDrop = (id, targetStatus) => {
     const section = document.getElementById(id);
     if (!section) return;
@@ -82,8 +81,8 @@ export function setupBacklogView(refreshApp, openModal) {
     });
   };
 
-  setupSectionDrop('backlog-open-section', 'Open');
-  setupSectionDrop('backlog-todo-section', 'Todo');
+  setupSectionDrop('archive-archive-section', 'Archive');
+  setupSectionDrop('archive-done-section', 'Done');
 
   // List Drag Support
   const setupListDrag = (listId, status) => {
@@ -101,10 +100,6 @@ export function setupBacklogView(refreshApp, openModal) {
       }
     });
 
-    list.addEventListener('dragleave', (e) => {
-
-    });
-
     list.addEventListener('drop', async (e) => {
       if (list.offsetParent === null) return;
       e.preventDefault();
@@ -112,8 +107,8 @@ export function setupBacklogView(refreshApp, openModal) {
 
       if (draggedCard) {
         const updates = [
-          ...getListUpdates('backlog-list', 'Open'),
-          ...getListUpdates('move-to-todo-list', 'Todo')
+          ...getListUpdates('archive-list', 'Archive'),
+          ...getListUpdates('archive-done-list', 'Done')
         ];
 
         await Promise.all(updates);
@@ -122,8 +117,7 @@ export function setupBacklogView(refreshApp, openModal) {
     });
   };
 
-  setupListDrag('backlog-list', 'Open');
-  setupListDrag('move-to-todo-list', 'Todo');
+  setupListDrag('archive-list', 'Archive');
+  setupListDrag('archive-done-list', 'Done');
 }
-
 

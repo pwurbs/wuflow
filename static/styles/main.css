@@ -22,7 +22,7 @@
 @import "./components/toasts.css";
 
 /* Pages */
-@import "./pages/backlog.css";
+@import "./pages/backlog-archive.css";
 @import "./pages/board.css";
 @import "./pages/planning.css";
 @import "./pages/setup.css";

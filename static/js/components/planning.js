@@ -58,7 +58,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
     .filter(issue => {
       const info = getEffectiveDeadlineInfo(issue);
       const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
-      return info && isUnscheduled && issue.status !== 'Done';
+      return info && isUnscheduled && issue.status !== 'Done' && issue.status !== 'Archive';
     })
     .sort((a, b) => {
       const infoA = getEffectiveDeadlineInfo(a);

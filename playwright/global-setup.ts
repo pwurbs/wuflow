@@ -45,6 +45,11 @@ async function waitForServer(targetURL: string): Promise<void> {
 }
 
 async function globalSetup(config: FullConfig) {
+  if (process.env.SKIP_SETUP) {
+    console.log('Global Setup: Skipping (SKIP_SETUP env var is set). Assumes manual server start.');
+    return;
+  }
+
   console.log('Global Setup: Starting local Go server...');
 
   const port = '8081';

@@ -3,6 +3,7 @@ import { state, setIssues, setFilterSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
+import { renderArchive, setupArchiveView } from './components/archive.js';
 import { setupSetupView, renderSetupView } from './components/setup.js';
 import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
@@ -11,9 +12,11 @@ import { initPriorityFilter, updatePriorityFilterOptions } from './components/pr
 
 // DOM Elements
 const navBoard = document.getElementById('nav-board');
+const navArchive = document.getElementById('nav-archive');
 const navBacklog = document.getElementById('nav-backlog');
 const navSetup = document.getElementById('nav-setup');
 const boardView = document.querySelector('.board');
+const archiveView = document.getElementById('archive-view');
 const backlogView = document.getElementById('backlog-view');
 const setupView = document.getElementById('setup-view');
 const sidebar = document.querySelector('.sidebar');
@@ -31,6 +34,7 @@ async function init() {
     initPriorityFilter(refreshApp);
     setupBoardView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
+    setupArchiveView(refreshApp, openModal);
     setupSetupView(refreshApp);
     setupModal(refreshApp); // Pass refresh callback
 
@@ -59,6 +63,7 @@ async function refreshApp() {
 
         renderBoard(refreshApp, openModal);
         renderBacklog(refreshApp, openModal);
+        renderArchive(refreshApp, openModal);
         renderPlanningPanel(refreshApp, openModal);
     } catch (err) {
         console.error('Failed to refresh app:', err);
@@ -70,6 +75,7 @@ async function refreshApp() {
 function setupEventListeners() {
     // Navigation
     navBoard.addEventListener('click', () => switchView('board'));
+    navArchive.addEventListener('click', () => switchView('archive'));
     navBacklog.addEventListener('click', () => switchView('backlog'));
     navSetup.addEventListener('click', () => switchView('setup'));
 
@@ -103,20 +109,37 @@ function switchView(view) {
     if (view === 'board') {
         boardView.classList.remove('hidden');
         backlogView.classList.add('hidden');
+        archiveView.classList.add('hidden');
         setupView.classList.add('hidden');
 
         navBoard.classList.add('active');
         navBacklog.classList.remove('active');
+        navArchive.classList.remove('active');
         navSetup.classList.remove('active');
 
         sidebar.classList.remove('hidden');
         filterContainer.classList.remove('hidden');
-    } else if (view === 'backlog') {
+    } else if (view === 'archive') {
         boardView.classList.add('hidden');
-        backlogView.classList.remove('hidden');
+        backlogView.classList.add('hidden');
+        archiveView.classList.remove('hidden');
         setupView.classList.add('hidden');
 
         navBoard.classList.remove('active');
+        navArchive.classList.add('active');
+        navBacklog.classList.remove('active');
+        navSetup.classList.remove('active');
+
+        sidebar.classList.add('hidden');
+        filterContainer.classList.remove('hidden');
+    } else if (view === 'backlog') {
+        boardView.classList.add('hidden');
+        backlogView.classList.remove('hidden');
+        archiveView.classList.add('hidden');
+        setupView.classList.add('hidden');
+
+        navBoard.classList.remove('active');
+        navArchive.classList.remove('active');
         navBacklog.classList.add('active');
         navSetup.classList.remove('active');
 
@@ -125,9 +148,11 @@ function switchView(view) {
     } else if (view === 'setup') {
         boardView.classList.add('hidden');
         backlogView.classList.add('hidden');
+        archiveView.classList.add('hidden');
         setupView.classList.remove('hidden');
 
         navBoard.classList.remove('active');
+        navArchive.classList.remove('active');
         navBacklog.classList.remove('active');
         navSetup.classList.add('active');
 

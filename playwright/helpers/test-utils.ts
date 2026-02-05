@@ -7,7 +7,7 @@ import { Page, expect } from '@playwright/test';
 export interface IssueData {
   title: string;
   description?: string;
-  status?: 'Open' | 'Todo' | 'Pending' | 'Working' | 'Done';
+  status?: 'Open' | 'Todo' | 'Pending' | 'Working' | 'Done' | 'Archive';
   priority?: 'Normal' | 'High';
   deadline?: string; // YYYY-MM-DD format
   plannedDate?: string; // YYYY-MM-DD format
@@ -137,6 +137,6 @@ export async function openIssueByTitle(page: Page, title: string): Promise<void>
 /**
  * Navigates to a specific view
  */
-export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'setup'): Promise<void> {
+export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'setup' | 'archive'): Promise<void> {
   await page.click(`#nav-${view}`);
 }

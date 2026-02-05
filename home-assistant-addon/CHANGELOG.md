@@ -1,3 +1,7 @@
+## 0.12.0
+
+- Added Archive feature
+
 ## 0.11.1
 
 - Added filter feature for planning panel too
