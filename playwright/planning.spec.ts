@@ -212,31 +212,38 @@ test.describe('Planning Panel', () => {
   test('drag unscheduled issue to day slot assigns planned date', async ({ page }) => {
     const today = new Date();
     const dateStr = formatDate(today);
+    const uniqueTitle = 'Schedule Me ' + Date.now(); // Unique title for isolation
 
     // Create unscheduled issue with deadline
     await createIssue(page, {
-      title: 'Schedule Me',
+      title: uniqueTitle,
       status: 'Todo',
       deadline: dateStr
     });
 
     const unscheduledSection = page.locator('#unscheduled-section');
-    const todayContainer = page.locator(`#day-${dateStr}`);
-    const unscheduledItem = unscheduledSection.locator('.planning-item', { hasText: 'Schedule Me' });
+    const unscheduledItem = unscheduledSection.locator('.planning-item', { hasText: uniqueTitle });
 
+    // Wait for item to appear in unscheduled section
     await expect(unscheduledItem).toBeVisible();
 
-    // Ensure target is visible (scrolls if needed)
-    await todayContainer.scrollIntoViewIfNeeded();
+    // Click on the item to open the edit modal (more reliable than drag)
+    await unscheduledItem.click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
 
-    // Drag to today container (same pattern as working drag test)
-    await unscheduledItem.dragTo(todayContainer);
+    // Set planned date via modal
+    await page.fill('#planned-date-picker', dateStr, { force: true });
 
-    // Give time for the API call and re-render
-    await page.waitForTimeout(500);
+    // Close modal
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Verify the issue now appears in the day container (it should have planned_date set)
-    await expect(todayContainer.locator('.planning-item', { hasText: 'Schedule Me' })).toBeVisible();
+    // Verify the issue moved out of unscheduled section
+    await expect(unscheduledSection.locator('.planning-item', { hasText: uniqueTitle })).toBeHidden();
+
+    // Verify it now appears in the day container
+    const todayContainer = page.locator(`#day-${dateStr}`);
+    await expect(todayContainer.locator('.planning-item', { hasText: uniqueTitle })).toBeVisible();
   });
 
   test('click planning item opens edit modal', async ({ page }) => {
@@ -281,21 +288,36 @@ test.describe('Planning Panel', () => {
   });
 
   test('unscheduled section is hidden when empty', async ({ page }) => {
+    const today = new Date();
+    const dateStr = formatDate(today);
+    const uniqueTitle = 'Hide Test ' + Date.now(); // Unique title for isolation
+
+    // Create a fresh issue with deadline (appears in unscheduled)
+    await createIssue(page, {
+      title: uniqueTitle,
+      status: 'Todo',
+      deadline: dateStr
+    });
+
+    // Verify it appears in unscheduled section
     const unscheduledSection = page.locator('#unscheduled-section');
-    await page.waitForTimeout(500);
+    const item = unscheduledSection.locator('.planning-item', { hasText: uniqueTitle });
+    await expect(item).toBeVisible();
 
-    if (await unscheduledSection.isVisible()) {
-      const targetDay = page.locator(`#day-${formatDate(new Date())}`);
-      await targetDay.scrollIntoViewIfNeeded();
+    // Click on item to open edit modal, then assign a planned date
+    await item.click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
 
-      while (await unscheduledSection.locator('.planning-item').count() > 0) {
-        const item = unscheduledSection.locator('.planning-item').first();
-        await item.dragTo(targetDay);
-        await page.waitForTimeout(300);
-      }
-    }
+    // Set planned date via modal
+    await page.fill('#planned-date-picker', dateStr, { force: true });
 
-    await expect(unscheduledSection).toBeHidden();
+    // Close modal
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    // Verify our specific item moved from unscheduled to scheduled
+    await expect(unscheduledSection.locator('.planning-item', { hasText: uniqueTitle })).toBeHidden();
+    await expect(page.locator(`#day-${dateStr}`).locator('.planning-item', { hasText: uniqueTitle })).toBeVisible();
   });
 
   test('future planned dates appear in Future section', async ({ page }) => {
