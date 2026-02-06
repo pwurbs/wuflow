@@ -426,7 +426,12 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="button" id="delete-issue-btn" class="btn danger hidden">Delete Issue</button>
+                    <div class="left-actions" style="display: flex; gap: 8px;">
+                        <button type="button" id="delete-issue-btn" class="btn danger hidden">Delete Issue</button>
+                        <button type="button" id="archive-issue-btn" class="btn secondary hidden">Archive Issue</button>
+                        <button type="button" id="unarchive-issue-btn" class="btn secondary hidden">Unarchive
+                            Issue</button>
+                    </div>
                     <div class="right-actions">
                         <button type="button" id="cancel-btn" class="btn secondary">Cancel</button>
                         <button type="submit" id="save-issue-btn" class="btn primary">Save</button>

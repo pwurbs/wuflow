@@ -70,21 +70,25 @@ describe('Modal Component', () => {
                 </div>
             </div>
             <div id="planned-dates-container"></div>
-            <input id="deadline" type="date">
+            <input id="deadline" type="date" class="custom-date-input">
 
             <!-- Custom Dropdowns -->
-            <div id="status-dropdown"><div id="status-trigger"><span id="status-text"></span></div><div id="status-options" class="custom-select-options hidden"></div><input type="hidden" id="status"></div>
-            <div id="priority-dropdown"><div id="priority-trigger"><span id="priority-text"></span></div><div id="priority-options" class="custom-select-options hidden"></div><input type="hidden" id="priority"></div>
-            <div id="label-dropdown"><div id="label-trigger"><span id="label-text"></span></div><div id="label-options" class="custom-select-options hidden"></div><input type="hidden" id="label-select"></div>
+            <div id="status-dropdown"><div id="status-trigger" class="custom-select-trigger"><span id="status-text"></span></div><div id="status-options" class="custom-select-options hidden"></div><input type="hidden" id="status"></div>
+            <div id="priority-dropdown"><div id="priority-trigger" class="custom-select-trigger"><span id="priority-text"></span></div><div id="priority-options" class="custom-select-options hidden"></div><input type="hidden" id="priority"></div>
+            <div id="label-dropdown"><div id="label-trigger" class="custom-select-trigger"><span id="label-text"></span></div><div id="label-options" class="custom-select-options hidden"></div><input type="hidden" id="label-select"></div>
             
             <div id="tasks-section">
-                <input id="new-task-title" type="text">
-                <input id="new-task-deadline" type="date">
-                <button id="add-task-btn" type="button"></button>
+                <div id="task-form-container">
+                    <input id="new-task-title" type="text">
+                    <input id="new-task-deadline" type="date">
+                    <button id="add-task-btn" type="button"></button>
+                </div>
                  <ul id="task-list"></ul>
             </div>
 
             <button id="delete-issue-btn" type="button"></button>
+            <button id="archive-issue-btn" type="button"></button>
+            <button id="unarchive-issue-btn" type="button"></button>
             <div id="timestamp-container">
                  <span id="created-at-display"></span>
                  <span id="updated-at-display"></span>
@@ -239,6 +243,24 @@ describe('Modal Component', () => {
 
     expect(utils.showConfirm).toHaveBeenCalled();
     expect(api.deleteIssue).toHaveBeenCalledWith(99);
+    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+  });
+
+  it('should archive issue after confirmation', async () => {
+    const issue = { id: 100, title: 'To Archive', status: 'Open' };
+    openModal(issue);
+
+    utils.showConfirm.mockResolvedValue(true);
+
+    document.getElementById('archive-issue-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(utils.showConfirm).toHaveBeenCalled();
+    expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      id: 100,
+      status: 'Archive'
+    }));
+    expect(utils.showModalNotification).toHaveBeenCalledWith('Issue archived');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
   it('should drag and drop task', async () => {
@@ -422,12 +444,83 @@ describe('Modal Component', () => {
       expect(document.getElementById('delete-issue-btn').classList.contains('hidden')).toBe(false);
       expect(document.getElementById('done-btn').classList.contains('hidden')).toBe(false);
       expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('archive-issue-btn').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('unarchive-issue-btn').classList.contains('hidden')).toBe(true);
 
       // Check timestamps are rendered
       const createdDisplay = document.getElementById('created-at-display');
       const updatedDisplay = document.getElementById('updated-at-display');
       expect(createdDisplay.textContent).not.toBe('');
       expect(updatedDisplay.textContent).not.toBe('');
+    });
+
+    it('should show unarchive button when issue is already archived', () => {
+      const issue = {
+        id: 99,
+        title: 'Archived',
+        status: 'Archive',
+        tasks: []
+      };
+
+      openModal(issue);
+
+      expect(document.getElementById('archive-issue-btn').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('unarchive-issue-btn').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should unarchive issue after confirmation', async () => {
+      const issue = { id: 101, title: 'To Unarchive', status: 'Archive' };
+      openModal(issue);
+
+      utils.showConfirm.mockResolvedValue(true);
+
+      document.getElementById('unarchive-issue-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        id: 101,
+        status: 'Done'
+      }));
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Issue unarchived');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should set read-only mode for archived issues', () => {
+      const issue = {
+        id: 102,
+        title: 'Read Only',
+        status: 'Archive',
+        tasks: []
+      };
+
+      openModal(issue);
+
+      expect(document.getElementById('modal-title').textContent).toBe('Archived Issue #102');
+
+      const titleInput = document.getElementById('title');
+      const descEditor = document.getElementById('description-editor');
+      const taskForm = document.getElementById('task-form-container');
+
+      // Attempt to Enter Title Edit
+      titleInput.click();
+      expect(titleInput.classList.contains('inline-editing')).toBe(false);
+
+      // Attempt to Enter Desc Edit
+      descEditor.click();
+      const descContainer = document.querySelector('.editor-container');
+      expect(descContainer.classList.contains('inline-editing')).toBe(false);
+
+      // Task Form Hidden
+      expect(taskForm.classList.contains('hidden')).toBe(true);
+
+      // Date Inputs Pointer Events
+      const dateInputs = document.querySelectorAll('.custom-date-input');
+      expect(dateInputs[0].style.pointerEvents).toBe('none');
+
+      // Dropdown Triggers Disabled
+      const triggers = document.querySelectorAll('.custom-select-trigger');
+      expect(triggers[0].style.pointerEvents).toBe('none');
     });
 
     it('should setup new modal with correct button visibility', () => {

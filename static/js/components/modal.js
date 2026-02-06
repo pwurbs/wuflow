@@ -21,6 +21,8 @@ export function setupModal(refreshApp) {
   form.addEventListener('submit', handleIssueSubmit);
 
   document.getElementById('delete-issue-btn').addEventListener('click', handleDeleteIssue);
+  document.getElementById('archive-issue-btn').addEventListener('click', handleArchiveIssue);
+  document.getElementById('unarchive-issue-btn').addEventListener('click', handleUnarchiveIssue);
 
   setupInlineEditing();
   setupEditorToolbar();
@@ -129,7 +131,8 @@ function renderModalDropdowns(issue) {
 }
 
 function setupEditModal(issue) {
-  document.getElementById('modal-title').textContent = `Edit Issue #${issue.id}`;
+  const isArchived = issue.status === 'Archive';
+  document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Edit Issue #${issue.id}`;
   document.getElementById('issue-id').value = issue.id;
   document.getElementById('title').value = issue.title;
   document.getElementById('description-editor').innerHTML = issue.description || '';
@@ -142,7 +145,10 @@ function setupEditModal(issue) {
   updateDateInputStyle(document.getElementById('deadline'));
 
   document.getElementById('tasks-section').classList.remove('hidden');
+  document.getElementById('task-form-container').classList.toggle('hidden', isArchived);
+
   renderTasks(issue.tasks || [], document.getElementById('task-list'), issue, {
+    readOnly: isArchived,
     onTaskUpdate: () => refreshAppCallback?.(),
     onTaskOrderSave: async () => {
       await saveTaskOrder(issue);
@@ -151,10 +157,30 @@ function setupEditModal(issue) {
     onTaskEditEnd: () => checkRemoveUnloadListener()
   });
   document.getElementById('delete-issue-btn').classList.remove('hidden');
+  if (isArchived) {
+    document.getElementById('archive-issue-btn').classList.add('hidden');
+    document.getElementById('unarchive-issue-btn').classList.remove('hidden');
+  } else {
+    document.getElementById('archive-issue-btn').classList.remove('hidden');
+    document.getElementById('unarchive-issue-btn').classList.add('hidden');
+  }
 
   renderModalTimestamps(issue);
 
-  // Enable inline edit mode
+  // Read-Only UI Adjustments
+  const dateInputs = document.querySelectorAll('.custom-date-input');
+  dateInputs.forEach(el => {
+    el.style.pointerEvents = isArchived ? 'none' : '';
+    el.style.opacity = isArchived ? '0.7' : '';
+  });
+
+  const dropdownTriggers = document.querySelectorAll('.custom-select-trigger');
+  dropdownTriggers.forEach(el => {
+    el.style.pointerEvents = isArchived ? 'none' : '';
+    el.style.opacity = isArchived ? '0.7' : '';
+  });
+
+  // Enable inline edit mode (handlers will check for archive status)
   toggleInlineEditMode(true);
 
   document.getElementById('save-issue-btn').classList.add('hidden');
@@ -174,6 +200,8 @@ function setupNewModal() {
 
   document.getElementById('tasks-section').classList.add('hidden');
   document.getElementById('delete-issue-btn').classList.add('hidden');
+  document.getElementById('archive-issue-btn').classList.add('hidden');
+  document.getElementById('unarchive-issue-btn').classList.add('hidden');
   document.getElementById('timestamp-container')?.classList.add('hidden');
 
   toggleInlineEditMode(false);
@@ -293,6 +321,28 @@ async function handleDeleteIssue() {
   }
 }
 
+async function handleArchiveIssue() {
+  if (!state.currentIssue) return;
+  if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
+    state.currentIssue.status = 'Archive';
+    await updateIssue(state.currentIssue);
+    showModalNotification('Issue archived');
+    closeModal();
+    if (refreshAppCallback) refreshAppCallback();
+  }
+}
+
+async function handleUnarchiveIssue() {
+  if (!state.currentIssue) return;
+  if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
+    state.currentIssue.status = 'Done';
+    await updateIssue(state.currentIssue);
+    showModalNotification('Issue unarchived');
+    closeModal();
+    if (refreshAppCallback) refreshAppCallback();
+  }
+}
+
 // Inline Editing
 let originalTitle = '';
 let originalDesc = '';
@@ -311,6 +361,7 @@ function setupInlineEditing() {
 
   // Title
   titleInput.addEventListener('click', () => {
+    if (state.currentIssue?.status === 'Archive') return;
     if (titleInput.classList.contains('inline-editable')) {
       originalTitle = titleInput.value;
       titleInput.classList.remove('inline-editable');
@@ -362,6 +413,7 @@ function setupInlineEditing() {
 
   // Description
   descEditor.addEventListener('click', (e) => {
+    if (state.currentIssue?.status === 'Archive') return;
     let node = e.target;
     while (node && node !== descEditor) {
       if (node.tagName === 'A') {
@@ -706,6 +758,8 @@ function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
 
+    if (state.currentIssue?.status === 'Archive') return;
+
     const wasHidden = options.classList.contains('hidden');
 
     // Close others
@@ -731,7 +785,7 @@ function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
 function renderStatusOptions() {
   const optionsContainer = document.getElementById('status-options');
   optionsContainer.innerHTML = '';
-  const statuses = ['Open', 'Todo', 'Pending', 'Working', 'Done', 'Archive'];
+  const statuses = ['Open', 'Todo', 'Pending', 'Working', 'Done'];
 
   statuses.forEach(status => {
     const div = document.createElement('div');

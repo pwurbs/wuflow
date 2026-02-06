@@ -59,8 +59,9 @@ test.describe('Archive View', () => {
     // Set to Archive via modal
     await navigateTo(page, 'backlog');
     await page.click('.card:has-text("Archived Issue")');
-    await selectStatus(page, 'Archive');
-    await page.click('#done-btn');
+
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
 
     await navigateTo(page, 'archive');
 
@@ -75,6 +76,33 @@ test.describe('Archive View', () => {
 
     await expect(doneSection.locator('.card', { hasText: 'Archived Issue' })).toBeVisible();
     await expect(archiveSection.locator('.card', { hasText: 'Archived Issue' })).toBeHidden();
+
+  });
+
+  test('unarchive issue via modal', async ({ page }) => {
+    // 1. Create and archive an issue
+    await createIssue(page, { title: 'Unarchive Me' });
+    await navigateTo(page, 'backlog');
+    await page.click('.card:has-text("Unarchive Me")');
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
+
+    await navigateTo(page, 'archive');
+
+    // 2. Open modal from Archive view
+    await page.click('.card:has-text("Unarchive Me")');
+
+    // 3. Verify Archive button hidden, Unarchive visible
+    await expect(page.locator('#archive-issue-btn')).toBeHidden();
+    await expect(page.locator('#unarchive-issue-btn')).toBeVisible();
+
+    // 4. Click Unarchive
+    await page.click('#unarchive-issue-btn');
+    await page.click('#confirm-ok-btn');
+
+    // 5. Verify it moved to Done section in Archive view (or board Done col, but archive view shows Done too)
+    await expect(page.locator('#archive-done-list .card', { hasText: 'Unarchive Me' })).toBeVisible();
+    await expect(page.locator('#archive-list .card', { hasText: 'Unarchive Me' })).toBeHidden();
   });
 
   test('archive issue via modal', async ({ page }) => {
@@ -87,8 +115,9 @@ test.describe('Archive View', () => {
     await page.click('.card:has-text("Modal Archive Issue")');
 
     // Select Archive
-    await selectStatus(page, 'Archive');
-    await page.click('#done-btn');
+    // Select Archive
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
 
     // Go to Archive view
     await navigateTo(page, 'archive');
@@ -106,8 +135,8 @@ test.describe('Archive View', () => {
     // Archive it
     await navigateTo(page, 'backlog');
     await page.click('.card:has-text("Hidden on Board")');
-    await selectStatus(page, 'Archive');
-    await page.click('#done-btn');
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
 
     // Go to Board
     await navigateTo(page, 'board');
@@ -127,8 +156,8 @@ test.describe('Archive View', () => {
     // (Doing via modal for speed)
     const archiveViaModal = async (title: string) => {
       await page.locator(`.card:has-text("${title}")`).first().click();
-      await selectStatus(page, 'Archive');
-      await page.click('#done-btn');
+      await page.click('#archive-issue-btn');
+      await page.click('#confirm-ok-btn');
     };
 
     await navigateTo(page, 'backlog');
@@ -167,5 +196,55 @@ test.describe('Archive View', () => {
       const newIndexB = texts.findIndex(t => t.includes('Archive B'));
       return newIndexB < newIndexA; // B should now be before A
     }).toBe(true);
+  });
+
+  test('archived issue should be read-only in modal', async ({ page }) => {
+    await createIssue(page, { title: 'Read Only Issue' });
+
+    // Archive via modal
+    await navigateTo(page, 'backlog');
+    await page.click('.card:has-text("Read Only Issue")');
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
+
+    await navigateTo(page, 'archive');
+
+    // Open archived issue
+    await page.click('.card:has-text("Read Only Issue")');
+
+    // Verify Modal Title
+    await expect(page.locator('#modal-title')).toContainText('Archived Issue');
+
+    // Verify Read-Only State
+
+    // 1. Task form hidden
+    await expect(page.locator('#task-form-container')).toBeHidden();
+
+    // 2. Title not inline-editable (click doesn't change class to inline-editing)
+    await page.click('#title');
+    await expect(page.locator('#title')).not.toHaveClass(/inline-editing/);
+    await expect(page.locator('#title-edit-actions')).toBeHidden();
+
+    // 3. Description not inline-editable
+    await page.click('#description-editor');
+    await expect(page.locator('.editor-container')).not.toHaveClass(/inline-editing/);
+
+    // 4. Dropdowns disabled (by pointer-events, difficult to test directly with playwright interaction if blocked by CSS, check style)
+    await expect(page.locator('#status-trigger')).toHaveCSS('pointer-events', 'none');
+    await expect(page.locator('#priority-trigger')).toHaveCSS('pointer-events', 'none');
+
+    // 5. Date inputs disabled
+    await expect(page.locator('#deadline')).toHaveCSS('pointer-events', 'none');
+
+    // 6. Buttons visibility
+    await expect(page.locator('#save-issue-btn')).toBeHidden();
+    await expect(page.locator('#archive-issue-btn')).toBeHidden();
+    await expect(page.locator('#unarchive-issue-btn')).toBeVisible();
+
+    // 7. Verify task list is read-only if we had tasks (optional, but good)
+    // Create issue with task first? 
+    // Or just check that delete buttons on existing tasks are hidden if we had any. 
+    // Since we created a fresh issue without tasks, we can't test existing tasks here easily without setup.
+    // But the form container hidden check covers the "Add Task" inability.
   });
 });

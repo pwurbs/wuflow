@@ -39,118 +39,130 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
 
     // Checkbox Logic
     const checkbox = li.querySelector('input[type="checkbox"]');
-    checkbox.addEventListener('change', async () => {
-      task.done = checkbox.checked;
-      await updateTask(task);
-      li.className = `task-item ${task.done ? 'done' : ''}`;
-      if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
-    });
+    if (callbacks.readOnly) {
+      checkbox.disabled = true;
+      li.draggable = false;
+      li.querySelector('.task-drag-handle').style.opacity = '0.3';
+      li.querySelector('.task-drag-handle').style.cursor = 'default';
+      li.querySelector('.delete-task-btn').classList.add('hidden');
+      li.querySelector('.task-deadline-container').style.pointerEvents = 'none';
+    } else {
+      checkbox.addEventListener('change', async () => {
+        task.done = checkbox.checked;
+        await updateTask(task);
+        li.className = `task-item ${task.done ? 'done' : ''}`;
+        if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+      });
+
+      // Delete Logic
+      const deleteBtn = li.querySelector('.delete-task-btn');
+      deleteBtn.addEventListener('click', async () => {
+        if (await showConfirm('Delete Task', `Delete "${task.title}"?`, 'Delete')) {
+          await deleteTask(task.id);
+          // Remove from local array to update UI immediately if needed
+          const index = currentIssue.tasks.findIndex(t => t.id === task.id);
+          if (index > -1) currentIssue.tasks.splice(index, 1);
+
+          renderTasks(currentIssue.tasks, container, currentIssue, callbacks);
+          if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+        }
+      });
+
+      // Drag Events
+      li.addEventListener('dragstart', (e) => {
+        setDraggedTask(li);
+        li.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      li.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        setDraggedTask(null);
+        if (callbacks.onTaskOrderSave) callbacks.onTaskOrderSave();
+      });
+    }
 
     // Edit Mode Logic
     const titleInput = li.querySelector('.task-title-input');
-    const editActions = li.querySelector('.inline-edit-actions');
-    const cancelBtn = li.querySelector('.inline-cancel-btn');
-    const saveBtn = li.querySelector('.inline-save-btn');
-    let originalTitle = task.title;
 
-    const enterEditMode = () => {
-      li.classList.add('editing');
-      li.draggable = false;
-      titleInput.readOnly = false;
-      editActions.classList.remove('hidden');
-      originalTitle = task.title;
-      titleInput.dataset.originalTitle = task.title; // Expose for modal.js
-      titleInput.focus();
-      if (callbacks.onTaskEditStart) callbacks.onTaskEditStart();
-    };
+    if (!callbacks.readOnly) {
+      const editActions = li.querySelector('.inline-edit-actions');
+      const cancelBtn = li.querySelector('.inline-cancel-btn');
+      const saveBtn = li.querySelector('.inline-save-btn');
+      let originalTitle = task.title;
 
-    const exitEditMode = () => {
-      li.classList.remove('editing');
-      li.draggable = true;
-      titleInput.readOnly = true;
-      editActions.classList.add('hidden');
-      delete titleInput.dataset.originalTitle;
-      if (callbacks.onTaskEditEnd) callbacks.onTaskEditEnd();
-    };
+      const enterEditMode = () => {
+        li.classList.add('editing');
+        li.draggable = false;
+        titleInput.readOnly = false;
+        editActions.classList.remove('hidden');
+        originalTitle = task.title;
+        titleInput.dataset.originalTitle = task.title; // Expose for modal.js
+        titleInput.focus();
+        if (callbacks.onTaskEditStart) callbacks.onTaskEditStart();
+      };
 
-    const cancelEdit = () => {
-      titleInput.value = originalTitle;
-      exitEditMode();
-    };
+      const exitEditMode = () => {
+        li.classList.remove('editing');
+        li.draggable = true;
+        titleInput.readOnly = true;
+        editActions.classList.add('hidden');
+        delete titleInput.dataset.originalTitle;
+        if (callbacks.onTaskEditEnd) callbacks.onTaskEditEnd();
+      };
 
-    const saveTask = async () => {
-      const newTitle = titleInput.value.trim();
-      if (!newTitle) {
-        cancelEdit();
-        return;
-      }
-      if (newTitle !== task.title) {
-        task.title = newTitle;
+      const cancelEdit = () => {
+        titleInput.value = originalTitle;
+        exitEditMode();
+      };
+
+      const saveTask = async () => {
+        const newTitle = titleInput.value.trim();
+        if (!newTitle) {
+          cancelEdit();
+          return;
+        }
+        if (newTitle !== task.title) {
+          task.title = newTitle;
+          await updateTask(task);
+          showModalNotification('Task updated');
+          if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+        }
+        exitEditMode();
+      };
+
+      titleInput.addEventListener('click', () => {
+        if (!li.classList.contains('editing')) enterEditMode();
+      });
+
+      cancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelEdit(); });
+      saveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveTask(); });
+      titleInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); saveTask(); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+      });
+      titleInput.addEventListener('blur', () => {
+        // Only cancel if NO changes. If changes, stay in edit mode (no popup).
+        if (titleInput.value.trim() === originalTitle) {
+          cancelEdit();
+        }
+      });
+
+      // Deadline Logic (Interactive)
+      const deadlineContainer = li.querySelector('.task-deadline-container');
+      const deadlineInput = li.querySelector('.task-deadline-input');
+      deadlineContainer.addEventListener('click', () => deadlineInput.showPicker());
+      deadlineInput.addEventListener('change', async () => {
+        const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
+        task.deadline = newDate;
         await updateTask(task);
-        showModalNotification('Task updated');
+        showModalNotification('Task deadline updated');
+
+        const display = li.querySelector('.task-deadline-display');
+        display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
+        deadlineContainer.classList.toggle('no-deadline', !task.deadline);
         if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
-      }
-      exitEditMode();
-    };
-
-    titleInput.addEventListener('click', () => {
-      if (!li.classList.contains('editing')) enterEditMode();
-    });
-
-    cancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelEdit(); });
-    saveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveTask(); });
-    titleInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); saveTask(); }
-      else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
-    });
-    titleInput.addEventListener('blur', () => {
-      // Only cancel if NO changes. If changes, stay in edit mode (no popup).
-      if (titleInput.value.trim() === originalTitle) {
-        cancelEdit();
-      }
-    });
-
-    // Deadline Logic
-    const deadlineContainer = li.querySelector('.task-deadline-container');
-    const deadlineInput = li.querySelector('.task-deadline-input');
-    deadlineContainer.addEventListener('click', () => deadlineInput.showPicker());
-    deadlineInput.addEventListener('change', async () => {
-      const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
-      task.deadline = newDate;
-      await updateTask(task);
-      showModalNotification('Task deadline updated');
-
-      const display = li.querySelector('.task-deadline-display');
-      display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
-      deadlineContainer.classList.toggle('no-deadline', !task.deadline);
-      if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
-    });
-
-    // Delete Logic
-    const deleteBtn = li.querySelector('.delete-task-btn');
-    deleteBtn.addEventListener('click', async () => {
-      if (await showConfirm('Delete Task', `Delete "${task.title}"?`, 'Delete')) {
-        await deleteTask(task.id);
-        // Remove from local array to update UI immediately if needed
-        const index = currentIssue.tasks.findIndex(t => t.id === task.id);
-        if (index > -1) currentIssue.tasks.splice(index, 1);
-
-        renderTasks(currentIssue.tasks, container, currentIssue, callbacks);
-        if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
-      }
-    });
-
-    // Drag Events
-    li.addEventListener('dragstart', (e) => {
-      setDraggedTask(li);
-      li.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    li.addEventListener('dragend', () => {
-      li.classList.remove('dragging');
-      setDraggedTask(null);
-      if (callbacks.onTaskOrderSave) callbacks.onTaskOrderSave();
-    });
+      });
+    }
 
     container.appendChild(li);
   });

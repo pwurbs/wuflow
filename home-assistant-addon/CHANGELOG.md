@@ -1,3 +1,7 @@
+## 0.12.1
+
+- Improved Archive feature
+
 ## 0.12.0
 
 - Added Archive feature
