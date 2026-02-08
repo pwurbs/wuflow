@@ -9,11 +9,12 @@ import * as tasks from '../components/tasks.js';
 // Mock dependencies
 vi.mock('../api.js', () => ({
   createIssue: vi.fn(),
-  updateIssue: vi.fn(),
+  updateIssue: vi.fn().mockResolvedValue({ issue: {}, etag: '"test-etag"', conflict: false }),
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteIssue: vi.fn(),
-  fetchLabels: vi.fn()
+  fetchLabels: vi.fn(),
+  fetchIssueById: vi.fn()
 }));
 
 vi.mock('../state.js', () => ({
@@ -49,11 +50,20 @@ vi.mock('../drag.js', () => ({
   setDraggedTask: vi.fn()
 }));
 
+// Helper function to open modal with proper mocking for existing issues
+async function openModalWithMock(issue) {
+  if (issue) {
+    api.fetchIssueById.mockResolvedValue({ issue, etag: '"test-etag"' });
+  }
+  await openModal(issue);
+}
+
 describe('Modal Component', () => {
   beforeEach(() => {
     // Setup DOM
     document.body.innerHTML = `
       <div id="issue-modal" class="hidden">
+        <div class="modal-content">
         <h2 id="modal-title"></h2>
         <form id="issue-form">
             <input id="issue-id" type="hidden">
@@ -108,6 +118,7 @@ describe('Modal Component', () => {
             <button class="editor-btn" data-cmd="bold"></button>
             <button class="editor-btn" data-cmd="createLink"></button>
         </form>
+        </div>
       </div>
     `;
 
@@ -116,6 +127,7 @@ describe('Modal Component', () => {
 
     // Default mock returns
     api.fetchLabels.mockResolvedValue([{ id: 1, name: 'Bug' }, { id: 2, name: 'Feature' }]);
+    api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
     state.state.currentIssue = null;
     state.setCurrentIssue.mockImplementation((val) => { state.state.currentIssue = val; });
 
@@ -127,6 +139,8 @@ describe('Modal Component', () => {
     document.execCommand = vi.fn();
     HTMLElement.prototype.scrollIntoView = vi.fn();
   });
+
+
 
   it('should open modal for new issue', async () => {
     openModal(null);
@@ -147,7 +161,10 @@ describe('Modal Component', () => {
       tasks: []
     };
 
-    openModal(issue);
+    // Mock fetchIssueById to return this specific issue
+    api.fetchIssueById.mockResolvedValue({ issue, etag: '"test-etag"' });
+
+    await openModal(issue);
 
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('modal-title').textContent).toBe('Edit Issue #123');
@@ -196,7 +213,7 @@ describe('Modal Component', () => {
 
   it('should update existing issue on status change (inline save)', async () => {
     const issue = { id: 1, title: 'Old', status: 'Open' };
-    openModal(issue);
+    await openModalWithMock(issue);
 
     // Simulate status change
     const statusSelect = document.getElementById('status');
@@ -208,13 +225,13 @@ describe('Modal Component', () => {
     expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
       id: 1,
       status: 'Done'
-    }));
+    }), expect.any(String));
     expect(utils.showModalNotification).toHaveBeenCalled();
   });
 
   it('should handle task creation', async () => {
     const issue = { id: 1, title: 'Task Parent', tasks: [] };
-    openModal(issue);
+    await openModalWithMock(issue);
 
     document.getElementById('new-task-title').value = 'Subtask 1';
 
@@ -234,7 +251,7 @@ describe('Modal Component', () => {
 
   it('should delete issue after confirmation', async () => {
     const issue = { id: 99, title: 'To Delete' };
-    openModal(issue);
+    await openModalWithMock(issue);
 
     utils.showConfirm.mockResolvedValue(true);
 
@@ -248,7 +265,7 @@ describe('Modal Component', () => {
 
   it('should archive issue after confirmation', async () => {
     const issue = { id: 100, title: 'To Archive', status: 'Open' };
-    openModal(issue);
+    await openModalWithMock(issue);
 
     utils.showConfirm.mockResolvedValue(true);
 
@@ -259,7 +276,7 @@ describe('Modal Component', () => {
     expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
       id: 100,
       status: 'Archive'
-    }));
+    }), expect.any(String));
     expect(utils.showModalNotification).toHaveBeenCalledWith('Issue archived');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
@@ -317,7 +334,7 @@ describe('Modal Component', () => {
 
   it('should handle inline title editing keys', async () => {
     const issue = { id: 1, title: 'Original', status: 'Open' };
-    openModal(issue);
+    await openModalWithMock(issue);
 
     const titleInput = document.getElementById('title');
     // Enter edit mode
@@ -334,7 +351,7 @@ describe('Modal Component', () => {
 
     expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
       title: 'New Title'
-    }));
+    }), expect.any(String));
     expect(titleInput.classList.contains('inline-editing')).toBe(false);
   });
 
@@ -401,10 +418,7 @@ describe('Modal Component', () => {
         label: { id: 2, name: 'Feature' }
       };
 
-      openModal(issue);
-
-      // Wait for fetchLabels promise
-      await new Promise(process.nextTick);
+      await openModalWithMock(issue);
 
       expect(document.getElementById('status').value).toBe('Working');
       expect(document.getElementById('status-text').textContent).toBe('Working');
@@ -427,7 +441,7 @@ describe('Modal Component', () => {
       expect(document.getElementById('label-text').textContent).toBe('No Label');
     });
 
-    it('should setup edit modal with timestamps', () => {
+    it('should setup edit modal with timestamps', async () => {
       const issue = {
         id: 5,
         title: 'Edit Test',
@@ -438,7 +452,7 @@ describe('Modal Component', () => {
         updated_at: '2024-01-16T15:30:00Z'
       };
 
-      openModal(issue);
+      await openModalWithMock(issue);
 
       expect(document.getElementById('modal-title').textContent).toBe('Edit Issue #5');
       expect(document.getElementById('delete-issue-btn').classList.contains('hidden')).toBe(false);
@@ -454,7 +468,7 @@ describe('Modal Component', () => {
       expect(updatedDisplay.textContent).not.toBe('');
     });
 
-    it('should show unarchive button when issue is already archived', () => {
+    it('should show unarchive button when issue is already archived', async () => {
       const issue = {
         id: 99,
         title: 'Archived',
@@ -462,7 +476,7 @@ describe('Modal Component', () => {
         tasks: []
       };
 
-      openModal(issue);
+      await openModalWithMock(issue);
 
       expect(document.getElementById('archive-issue-btn').classList.contains('hidden')).toBe(true);
       expect(document.getElementById('unarchive-issue-btn').classList.contains('hidden')).toBe(false);
@@ -470,7 +484,7 @@ describe('Modal Component', () => {
 
     it('should unarchive issue after confirmation', async () => {
       const issue = { id: 101, title: 'To Unarchive', status: 'Archive' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       utils.showConfirm.mockResolvedValue(true);
 
@@ -481,12 +495,12 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 101,
         status: 'Done'
-      }));
+      }), expect.any(String));
       expect(utils.showModalNotification).toHaveBeenCalledWith('Issue unarchived');
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
-    it('should set read-only mode for archived issues', () => {
+    it('should set read-only mode for archived issues', async () => {
       const issue = {
         id: 102,
         title: 'Read Only',
@@ -494,7 +508,7 @@ describe('Modal Component', () => {
         tasks: []
       };
 
-      openModal(issue);
+      await openModalWithMock(issue);
 
       expect(document.getElementById('modal-title').textContent).toBe('Archived Issue #102');
 
@@ -533,9 +547,9 @@ describe('Modal Component', () => {
       expect(document.getElementById('tasks-section').classList.contains('hidden')).toBe(true);
     });
 
-    it('should toggle inline edit mode on', () => {
+    it('should toggle inline edit mode on', async () => {
       const issue = { id: 1, title: 'Test', status: 'Todo', tasks: [] };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       const descEditor = document.getElementById('description-editor');
@@ -560,7 +574,7 @@ describe('Modal Component', () => {
       expect(descEditor.contentEditable).toBe('true');
     });
 
-    it('should render timestamps with missing data gracefully', () => {
+    it('should render timestamps with missing data gracefully', async () => {
       const issue = {
         id: 6,
         title: 'No Timestamps',
@@ -568,7 +582,7 @@ describe('Modal Component', () => {
         tasks: []
       };
 
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const createdDisplay = document.getElementById('created-at-display');
       const updatedDisplay = document.getElementById('updated-at-display');
@@ -586,8 +600,7 @@ describe('Modal Component', () => {
         tasks: []
       };
 
-      openModal(issue);
-      await new Promise(process.nextTick);
+      await openModalWithMock(issue);
 
       expect(document.getElementById('priority').value).toBe('Normal');
       expect(document.getElementById('priority-text').textContent).toBe('Normal');
@@ -602,14 +615,13 @@ describe('Modal Component', () => {
         tasks: []
       };
 
-      openModal(issue);
-      await new Promise(process.nextTick);
+      await openModalWithMock(issue);
 
       expect(document.getElementById('label-select').value).toBe('');
       expect(document.getElementById('label-text').textContent).toBe('No Label');
     });
 
-    it('should render tasks section for edit modal', () => {
+    it('should render tasks section for edit modal', async () => {
       const issue = {
         id: 9,
         title: 'With Tasks',
@@ -617,7 +629,7 @@ describe('Modal Component', () => {
         tasks: [{ id: 1, title: 'Task 1', done: false }]
       };
 
-      openModal(issue);
+      await openModalWithMock(issue);
 
       expect(document.getElementById('tasks-section').classList.contains('hidden')).toBe(false);
       expect(tasks.renderTasks).toHaveBeenCalledWith(
@@ -631,7 +643,7 @@ describe('Modal Component', () => {
       );
     });
 
-    it('should set planned_date and deadline for edit modal', () => {
+    it('should set planned_date and deadline for edit modal', async () => {
       const issue = {
         id: 10,
         title: 'With Dates',
@@ -641,7 +653,7 @@ describe('Modal Component', () => {
         deadline: '2024-02-15T12:00:00Z'
       };
 
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const container = document.getElementById('planned-dates-container');
       expect(container.querySelectorAll('.date-chip').length).toBe(1);
@@ -654,7 +666,7 @@ describe('Modal Component', () => {
   describe('Sidebar Immediate Save', () => {
     it('should update priority immediately on change', async () => {
       const issue = { id: 1, priority: 'Normal' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const prioritySelect = document.getElementById('priority');
       prioritySelect.value = 'High';
@@ -665,12 +677,12 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 1,
         priority: 'High'
-      }));
+      }), expect.any(String));
     });
 
     it('should update planned_dates immediately on change via picker', async () => {
       const issue = { id: 1, planned_dates: [] };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const picker = document.getElementById('planned-date-picker');
       picker.value = '2025-01-01';
@@ -681,12 +693,12 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 1,
         planned_dates: ['2025-01-01']
-      }));
+      }), expect.any(String));
     });
 
     it('should update deadline immediately on change', async () => {
       const issue = { id: 1 };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const input = document.getElementById('deadline');
       input.value = '2025-12-31';
@@ -697,12 +709,12 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 1,
         deadline: new Date('2025-12-31T12:00:00')
-      }));
+      }), expect.any(String));
     });
 
     it('should update label immediately on change', async () => {
       const issue = { id: 1, label: null };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const select = document.getElementById('label-select');
       select.value = '2'; // ID 2
@@ -713,15 +725,15 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 1,
         label: { id: 2 }
-      }));
+      }), expect.any(String));
     });
   });
 
   describe('Unload Listeners', () => {
-    it('should add unload listener when entering inline edit', () => {
+    it('should add unload listener when entering inline edit', async () => {
       const addSpy = vi.spyOn(globalThis, 'addEventListener');
       const issue = { id: 1, title: 'Test' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       titleInput.click();
@@ -729,10 +741,10 @@ describe('Modal Component', () => {
       expect(addSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
     });
 
-    it('should remove unload listener when canceling edit', () => {
+    it('should remove unload listener when canceling edit', async () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
       const issue = { id: 1, title: 'Test' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       titleInput.click();
@@ -745,9 +757,9 @@ describe('Modal Component', () => {
   });
 
   describe('Inline Editing Features', () => {
-    it('should cancel inline title edit on cancel button', () => {
+    it('should cancel inline title edit on cancel button', async () => {
       const issue = { id: 1, title: 'Original' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       titleInput.click(); // Enter edit
@@ -762,7 +774,7 @@ describe('Modal Component', () => {
 
     it('should save inline title edit on save button', async () => {
       const issue = { id: 1, title: 'Original' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       titleInput.click();
@@ -775,13 +787,13 @@ describe('Modal Component', () => {
 
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         title: 'Saved Title'
-      }));
+      }), expect.any(String));
       expect(titleInput.readOnly).toBe(true);
     });
 
     it('should prompt save on done button click with changes', async () => {
       const issue = { id: 1, title: 'Original' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       titleInput.click();
@@ -805,12 +817,12 @@ describe('Modal Component', () => {
 
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         title: 'Changed'
-      }));
+      }), expect.any(String));
     });
 
     it('should prompt save on done button click with description changes - save path', async () => {
       const issue = { id: 1, description: 'Original' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       // Enter description edit
       const descEditor = document.getElementById('description-editor');
@@ -829,12 +841,12 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         description: 'Changed Desc'
-      }));
+      }), expect.any(String));
     });
 
     it('should prompt save on done button click with title changes - discard path', async () => {
       const issue = { id: 1, title: 'Original' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       titleInput.click();
@@ -856,7 +868,7 @@ describe('Modal Component', () => {
 
     it('should NOT prompt if no changes on done click', async () => {
       const issue = { id: 1, title: 'Original', description: 'Desc' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       // Enter edit mode but don't change anything
       document.getElementById('title').click();
@@ -869,9 +881,9 @@ describe('Modal Component', () => {
       expect(utils.showConfirm).not.toHaveBeenCalled();
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
-    it('should enter description inline edit on click', () => {
+    it('should enter description inline edit on click', async () => {
       const issue = { id: 1, description: 'Desc' };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const descContainer = document.querySelector('.editor-container');
       const descEditor = document.getElementById('description-editor');
@@ -885,7 +897,7 @@ describe('Modal Component', () => {
   describe('Multi-Day Date Management', () => {
     it('should add a date via the picker in existing issue mode', async () => {
       const issue = { id: 1, planned_dates: [] };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const picker = document.getElementById('planned-date-picker');
       picker.value = '2025-05-20';
@@ -902,7 +914,7 @@ describe('Modal Component', () => {
 
     it('should remove a date via chip in existing issue mode', async () => {
       const issue = { id: 1, planned_dates: ['2025-05-20'] };
-      openModal(issue);
+      await openModalWithMock(issue);
 
       const container = document.getElementById('planned-dates-container');
       const chip = container.querySelector('.date-chip');
@@ -936,5 +948,58 @@ describe('Modal Component', () => {
       expect(api.updateIssue).not.toHaveBeenCalled();
     });
   });
-});
 
+  describe('Conflict Handling', () => {
+    it('should show conflict dialog when updateIssue returns conflict', async () => {
+      const issue = { id: 1, title: 'Original', status: 'Todo' };
+      await openModalWithMock(issue);
+
+      // Mock updateIssue to return conflict
+      api.updateIssue.mockResolvedValue({ issue: null, etag: null, conflict: true });
+
+      // Mock showConfirm to simulate user clicking Reload
+      utils.showConfirm.mockResolvedValue(true);
+
+      // Trigger a save (e.g., change status)
+      const statusSelect = document.getElementById('status');
+      statusSelect.value = 'Done';
+      statusSelect.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      // Verify conflict dialog was shown
+      expect(utils.showConfirm).toHaveBeenCalledWith(
+        'Conflict Detected',
+        expect.stringContaining('modified by another user'),
+        'Reload',
+        'Cancel',
+        'primary'
+      );
+
+      // Modal should stay open after reload
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+
+      // Verify fresh data was fetched and modal was updated
+      expect(api.fetchIssueById).toHaveBeenCalledWith(1);
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Reloaded with latest data');
+    });
+
+    it('should keep modal open when user cancels conflict reload', async () => {
+      const issue = { id: 1, title: 'Original', status: 'Todo' };
+      await openModalWithMock(issue);
+
+      api.updateIssue.mockResolvedValue({ issue: null, etag: null, conflict: true });
+      utils.showConfirm.mockResolvedValue(false); // User cancels
+
+      const statusSelect = document.getElementById('status');
+      statusSelect.value = 'Done';
+      statusSelect.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+      // Modal stays open when user cancels
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+  });
+});

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -44,7 +45,7 @@ func HandleIssues(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleIssue handles PUT and DELETE requests for a single issue.
+// HandleIssue handles GET, PUT and DELETE requests for a single issue.
 func HandleIssue(w http.ResponseWriter, r *http.Request) {
 
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/issues/")
@@ -56,30 +57,93 @@ func HandleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.Method {
+	case "GET":
+		handleGetIssue(w, id)
 	case "PUT":
-		var i Issue
-		if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
-			slog.Warn("Failed to decode issue for update", "error", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		i.ID = id
-		if err := UpdateIssue(&i); err != nil {
-			slog.Error("UpdateIssue failed", "id", id, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		json.NewEncoder(w).Encode(i)
+		handlePutIssue(w, r, id)
 	case "DELETE":
-		if err := DeleteIssue(id); err != nil {
-			slog.Error("DeleteIssue failed", "id", id, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
+		handleDeleteIssue(w, id)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
+}
+
+// handleGetIssue retrieves a single issue by ID and serves it with an ETag header.
+func handleGetIssue(w http.ResponseWriter, id int) {
+	issue, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if issue == nil {
+		http.Error(w, "Issue not found", http.StatusNotFound)
+		return
+	}
+	// Set ETag header based on updated_at timestamp
+	etag := issue.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	w.Header().Set("ETag", `"`+etag+`"`)
+	json.NewEncoder(w).Encode(issue)
+}
+
+// handlePutIssue updates an existing issue, checking for conflicts via the If-Match header.
+func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
+	// Check If-Match header for optimistic locking
+	ifMatch := r.Header.Get("If-Match")
+	if ifMatch != "" {
+		if checkIfMatchConflict(w, id, ifMatch) {
+			return
+		}
+	}
+
+	var i Issue
+	if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
+		slog.Warn("Failed to decode issue for update", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	i.ID = id
+	if err := UpdateIssue(&i); err != nil {
+		slog.Error("UpdateIssue failed", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Return new ETag after update
+	newEtag := i.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	w.Header().Set("ETag", `"`+newEtag+`"`)
+	json.NewEncoder(w).Encode(i)
+}
+
+// checkIfMatchConflict verifies if the client's If-Match header matches the current issue's ETag.
+// Returns true if a conflict is detected (and sends 409 response), false otherwise.
+func checkIfMatchConflict(w http.ResponseWriter, id int, ifMatch string) bool {
+	current, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed for If-Match check", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return true
+	}
+	if current == nil {
+		http.Error(w, "Issue not found", http.StatusNotFound)
+		return true
+	}
+	currentEtag := `"` + current.UpdatedAt.UTC().Format(time.RFC3339Nano) + `"`
+	if ifMatch != currentEtag {
+		slog.Info("Conflict detected", "id", id, "client_etag", ifMatch, "current_etag", currentEtag)
+		http.Error(w, "Issue has been modified by another user", http.StatusConflict)
+		return true
+	}
+	return false
+}
+
+// handleDeleteIssue removes an issue by its ID.
+func handleDeleteIssue(w http.ResponseWriter, id int) {
+	if err := DeleteIssue(id); err != nil {
+		slog.Error("DeleteIssue failed", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // HandleTasks handles POST requests for creating tasks.

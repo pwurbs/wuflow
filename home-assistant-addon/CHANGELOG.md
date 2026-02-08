@@ -1,3 +1,7 @@
+## 0.13.0
+
+- Added optimistic locking for concurrent issue edits
+
 ## 0.12.1
 
 - Improved Archive feature

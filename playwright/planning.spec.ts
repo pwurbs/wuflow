@@ -230,9 +230,14 @@ test.describe('Planning Panel', () => {
     // Click on the item to open the edit modal (more reliable than drag)
     await unscheduledItem.click();
     await expect(page.locator('#issue-modal')).toBeVisible();
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Set planned date via modal
+    const savePromise = page.waitForResponse(response =>
+      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+    );
     await page.fill('#planned-date-picker', dateStr, { force: true });
+    await savePromise;
 
     // Close modal
     await page.click('#done-btn');
@@ -264,6 +269,7 @@ test.describe('Planning Panel', () => {
 
     // Verify modal opens
     await expect(page.locator('#issue-modal')).toBeVisible();
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
     await expect(page.locator('#title')).toHaveValue('Click Me');
   });
 
@@ -307,9 +313,14 @@ test.describe('Planning Panel', () => {
     // Click on item to open edit modal, then assign a planned date
     await item.click();
     await expect(page.locator('#issue-modal')).toBeVisible();
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Set planned date via modal
+    const savePromise = page.waitForResponse(response =>
+      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+    );
     await page.fill('#planned-date-picker', dateStr, { force: true });
+    await savePromise;
 
     // Close modal
     await page.click('#done-btn');
@@ -349,6 +360,7 @@ test.describe('Planning Panel', () => {
     // Open modal
     await page.locator('.card', { hasText: title }).first().click();
     await expect(page.locator('#issue-modal')).toBeVisible();
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Add task
     // Add task with deadline (Simplified)
@@ -393,18 +405,31 @@ test.describe('Planning Panel', () => {
     // Open modal
     await page.locator('.card', { hasText: title }).first().click();
     await expect(page.locator('#issue-modal')).toBeVisible();
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Set deadline to Tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dateStr1 = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+    const savePromise1 = Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+    ]);
     await page.fill('#deadline', dateStr1);
+    await savePromise1;
 
     // Set planned date to Day After Tomorrow
     const dayAfter = new Date();
     dayAfter.setDate(dayAfter.getDate() + 2);
     const dateStr2 = `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
+
+    const savePromise2 = Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+    ]);
     await page.fill('#planned-date-picker', dateStr2, { force: true });
+    await savePromise2;
 
     // Close modal
     await page.locator('#done-btn').click();

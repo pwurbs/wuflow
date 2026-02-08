@@ -11,6 +11,27 @@ export async function fetchIssues() {
   }
 }
 
+/**
+ * Fetch a single issue by ID. Returns { issue, etag } or { issue: null } if not found.
+ */
+export async function fetchIssueById(id) {
+  try {
+    const res = await fetch(`${API_URL}/issues/${id}`);
+    if (res.status === 404) {
+      return { issue: null, etag: null };
+    }
+    if (!res.ok) {
+      throw new Error(`Failed to fetch issue ${id}`);
+    }
+    const issue = await res.json();
+    const etag = res.headers.get('ETag');
+    return { issue, etag };
+  } catch (err) {
+    console.error('Failed to fetch issue:', err);
+    return { issue: null, etag: null };
+  }
+}
+
 export async function createIssue(issue) {
   const res = await fetch(`${API_URL}/issues`, {
     method: 'POST',
@@ -20,13 +41,29 @@ export async function createIssue(issue) {
   return res.json();
 }
 
-export async function updateIssue(issue) {
+/**
+ * Update an issue. If etag is provided, uses If-Match header for conflict detection.
+ * Returns { issue, etag, conflict } where conflict is true if 409 was returned.
+ */
+export async function updateIssue(issue, etag = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (etag) {
+    headers['If-Match'] = etag;
+  }
+
   const res = await fetch(`${API_URL}/issues/${issue.id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(issue)
   });
-  return res.json();
+
+  if (res.status === 409) {
+    return { issue: null, etag: null, conflict: true };
+  }
+
+  const updatedIssue = await res.json();
+  const newEtag = res.headers.get('ETag');
+  return { issue: updatedIssue, etag: newEtag, conflict: false };
 }
 
 export async function createTask(task) {

@@ -18,3 +18,5 @@ test-results
 
 # JavaScript unit tests
 static/js/coverage
+
+.agent

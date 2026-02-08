@@ -96,7 +96,6 @@ func createTables() {
 // Helper functions for DB operations
 
 // GetAllIssues retrieves all issues from the database, including their associated tasks.
-// GetAllIssues retrieves all issues from the database, including their associated tasks.
 func GetAllIssues() ([]Issue, error) {
 	rows, err := DB.Query(`
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
@@ -127,6 +126,63 @@ func GetAllIssues() ([]Issue, error) {
 		issues = append(issues, i)
 	}
 	return issues, nil
+}
+
+// GetIssueByID retrieves a single issue by ID, including its associated tasks.
+func GetIssueByID(id int) (*Issue, error) {
+	row := DB.QueryRow(`
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
+		       l.id, l.name, l.color 
+		FROM issues i 
+		LEFT JOIN labels l ON i.label_id = l.id 
+		WHERE i.id = ?`, id)
+
+	var issue Issue
+	var deadline sql.NullTime
+	var plannedDatesStr sql.NullString
+	var lID sql.NullInt64
+	var lName sql.NullString
+	var lColor sql.NullString
+	var priority sql.NullString
+
+	err := row.Scan(&issue.ID, &issue.Title, &issue.Description, &issue.Status, &issue.Position, &deadline, &plannedDatesStr, &priority, &issue.CreatedAt, &issue.UpdatedAt, &lID, &lName, &lColor)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		slog.Error("Database Error: GetIssueByID", "error", err)
+		return nil, err
+	}
+
+	if priority.Valid {
+		issue.Priority = IssuePriority(priority.String)
+	} else {
+		issue.Priority = PriorityNormal
+	}
+	if deadline.Valid {
+		issue.Deadline = &deadline.Time
+	}
+	if plannedDatesStr.Valid {
+		if err := json.Unmarshal([]byte(plannedDatesStr.String), &issue.PlannedDates); err != nil {
+			slog.Error("Database Error: GetIssueByID parsing planned_dates", "id", issue.ID, "error", err)
+		}
+	}
+	if lID.Valid {
+		issue.Label = &Label{
+			ID:    int(lID.Int64),
+			Name:  lName.String,
+			Color: lColor.String,
+		}
+	}
+
+	tasks, err := GetTasksByIssueID(issue.ID)
+	if err != nil {
+		slog.Error("Database Error: GetIssueByID GetTasksByIssueID", "error", err)
+		return nil, err
+	}
+	issue.Tasks = tasks
+
+	return &issue, nil
 }
 
 // GetTasksByIssueID retrieves all tasks associated with a specific issue.

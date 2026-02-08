@@ -1,11 +1,12 @@
 import { state, setCurrentIssue } from '../state.js';
-import { createIssue, updateIssue, createTask, updateTask, fetchLabels } from '../api.js';
+import { createIssue, updateIssue, createTask, updateTask, fetchLabels, fetchIssueById } from '../api.js';
 import { showNotification, showModalNotification, showConfirm, updateDateInputStyle } from '../utils.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
 let refreshAppCallback = null;
 let previousActiveNavBtn = null;
+let currentEtag = null; // Stores ETag for conflict detection
 
 export function setupModal(refreshApp) {
   refreshAppCallback = refreshApp;
@@ -87,16 +88,41 @@ export function setupModal(refreshApp) {
   });
 }
 
-export function openModal(issue = null) {
-  setCurrentIssue(issue);
+export async function openModal(issue = null) {
   const modal = document.getElementById('issue-modal');
   modal.classList.remove('hidden');
 
-  renderModalDropdowns(issue);
-
   if (issue) {
-    setupEditModal(issue);
+    // Show loading state to prevent interaction while fetching fresh data
+    const modalContent = modal.querySelector('.modal-content');
+    modalContent.classList.add('loading-state');
+
+    // Fetch fresh data from server to ensure we have latest version
+    try {
+      const { issue: freshIssue, etag } = await fetchIssueById(issue.id);
+
+      modalContent.classList.remove('loading-state');
+
+      if (!freshIssue) {
+        showModalNotification('Issue not found or was deleted');
+        modal.classList.add('hidden');
+        if (refreshAppCallback) refreshAppCallback();
+        return;
+      }
+      currentEtag = etag;
+      setCurrentIssue(freshIssue);
+      renderModalDropdowns(freshIssue);
+      setupEditModal(freshIssue);
+    } catch (e) {
+      modalContent.classList.remove('loading-state');
+      console.error(e);
+      showModalNotification('Failed to load issue');
+      modal.classList.add('hidden');
+    }
   } else {
+    currentEtag = null;
+    setCurrentIssue(null);
+    renderModalDropdowns(null);
     setupNewModal();
   }
   resetTaskForm();
@@ -275,7 +301,45 @@ export function closeModal() {
     }
   }
   setCurrentIssue(null);
+  currentEtag = null;
   resetTaskForm();
+}
+
+/**
+ * Helper function to save issue with conflict detection.
+ * Returns true if save succeeded, false if conflict occurred.
+ */
+async function saveIssueWithConflictCheck(issue, successMessage) {
+  const result = await updateIssue(issue, currentEtag);
+
+  if (result.conflict) {
+    const shouldReload = await showConfirm(
+      'Conflict Detected',
+      'This issue was modified by another user. Would you like to reload with the latest data?',
+      'Reload',
+      'Cancel',
+      'primary'
+    );
+    if (shouldReload) {
+      // Reload data in-place without closing modal
+      const { issue: freshIssue, etag } = await fetchIssueById(issue.id);
+      if (freshIssue) {
+        currentEtag = etag;
+        setCurrentIssue(freshIssue);
+        renderModalDropdowns(freshIssue);
+        setupEditModal(freshIssue);
+        showModalNotification('Reloaded with latest data');
+      }
+    }
+    // If Cancel clicked, do nothing - keep modal open with current data
+    return false;
+  }
+
+  // Update stored ETag with new value
+  currentEtag = result.etag;
+  showModalNotification(successMessage);
+  if (refreshAppCallback) refreshAppCallback();
+  return true;
 }
 
 async function handleIssueSubmit(e) {
@@ -325,10 +389,10 @@ async function handleArchiveIssue() {
   if (!state.currentIssue) return;
   if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
     state.currentIssue.status = 'Archive';
-    await updateIssue(state.currentIssue);
-    showModalNotification('Issue archived');
-    closeModal();
-    if (refreshAppCallback) refreshAppCallback();
+    const success = await saveIssueWithConflictCheck(state.currentIssue, 'Issue archived');
+    if (success) {
+      closeModal();
+    }
   }
 }
 
@@ -336,10 +400,10 @@ async function handleUnarchiveIssue() {
   if (!state.currentIssue) return;
   if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
     state.currentIssue.status = 'Done';
-    await updateIssue(state.currentIssue);
-    showModalNotification('Issue unarchived');
-    closeModal();
-    if (refreshAppCallback) refreshAppCallback();
+    const success = await saveIssueWithConflictCheck(state.currentIssue, 'Issue unarchived');
+    if (success) {
+      closeModal();
+    }
   }
 }
 
@@ -393,10 +457,12 @@ function setupInlineEditing() {
     const newTitle = titleInput.value.trim();
     if (!newTitle) { cancelTitle(); return; }
     if (newTitle !== state.currentIssue.title) {
-      state.currentIssue.title = newTitle;
-      await updateIssue(state.currentIssue);
-      showModalNotification('Title updated');
-      if (refreshAppCallback) refreshAppCallback();
+      // Create a copy to avoid mutating state before save succeeds
+      const updatedIssue = { ...state.currentIssue, title: newTitle };
+      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Title updated');
+      if (!saved) return; // Conflict occurred - state not updated, user can try again
+      // Only update state after successful save (check for null in case modal closed during save)
+      if (state.currentIssue) state.currentIssue.title = newTitle;
     }
     titleInput.classList.add('inline-editable');
     titleInput.classList.remove('inline-editing');
@@ -446,10 +512,12 @@ function setupInlineEditing() {
   const saveDesc = async () => {
     const newDesc = descEditor.innerHTML;
     if (newDesc !== state.currentIssue.description) {
-      state.currentIssue.description = newDesc;
-      await updateIssue(state.currentIssue);
-      showModalNotification('Description updated');
-      if (refreshAppCallback) refreshAppCallback();
+      // Create a copy to avoid mutating state before save succeeds
+      const updatedIssue = { ...state.currentIssue, description: newDesc };
+      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Description updated');
+      if (!saved) return; // Conflict occurred - state not updated, user can try again
+      // Only update state after successful save (check for null in case modal closed during save)
+      if (state.currentIssue) state.currentIssue.description = newDesc;
     }
     descContainer.classList.add('inline-editable');
     descContainer.classList.remove('inline-editing');
@@ -555,19 +623,17 @@ function setupSidebarImmediateSave() {
 
   prioritySelect.addEventListener('change', async () => {
     if (state.currentIssue) {
-      state.currentIssue.priority = prioritySelect.value;
-      await updateIssue(state.currentIssue);
-      showModalNotification('Priority updated');
-      if (refreshAppCallback) refreshAppCallback();
+      const updatedIssue = { ...state.currentIssue, priority: prioritySelect.value };
+      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Priority updated');
+      if (saved) state.currentIssue.priority = prioritySelect.value;
     }
   });
 
   statusSelect.addEventListener('change', async () => {
     if (state.currentIssue) {
-      state.currentIssue.status = statusSelect.value;
-      await updateIssue(state.currentIssue);
-      showModalNotification('Status updated');
-      if (refreshAppCallback) refreshAppCallback();
+      const updatedIssue = { ...state.currentIssue, status: statusSelect.value };
+      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Status updated');
+      if (saved) state.currentIssue.status = statusSelect.value;
     }
   });
 
@@ -575,21 +641,19 @@ function setupSidebarImmediateSave() {
   deadlineInput.addEventListener('change', async () => {
     if (state.currentIssue) {
       const dateVal = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
-      state.currentIssue.deadline = dateVal;
-      await updateIssue(state.currentIssue);
-      showModalNotification('Deadline updated');
-      if (refreshAppCallback) refreshAppCallback();
+      const updatedIssue = { ...state.currentIssue, deadline: dateVal };
+      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Deadline updated');
+      if (saved) state.currentIssue.deadline = dateVal;
     }
   });
-  if (refreshAppCallback) refreshAppCallback();
   if (labelSelect) {
     labelSelect.addEventListener('change', async () => {
       if (state.currentIssue) {
         const val = labelSelect.value;
-        state.currentIssue.label = val ? { id: Number.parseInt(val) } : null;
-        await updateIssue(state.currentIssue);
-        showModalNotification('Label updated');
-        if (refreshAppCallback) refreshAppCallback();
+        const labelVal = val ? { id: Number.parseInt(val) } : null;
+        const updatedIssue = { ...state.currentIssue, label: labelVal };
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Label updated');
+        if (saved) state.currentIssue.label = labelVal;
       }
     });
   }
@@ -944,15 +1008,15 @@ function createDateChip(dateStr) {
 async function addPlannedDate(dateStr) {
   // If editing existing issue
   if (state.currentIssue) {
-    if (!state.currentIssue.planned_dates) state.currentIssue.planned_dates = [];
-    if (!state.currentIssue.planned_dates.includes(dateStr)) {
-      state.currentIssue.planned_dates.push(dateStr);
-      state.currentIssue.planned_dates.sort();
-
-      await updateIssue(state.currentIssue);
-      renderPlannedDateChips(state.currentIssue);
-      showModalNotification('Date added');
-      if (refreshAppCallback) refreshAppCallback();
+    const currentDates = state.currentIssue.planned_dates || [];
+    if (!currentDates.includes(dateStr)) {
+      const newDates = [...currentDates, dateStr].sort();
+      const updatedIssue = { ...state.currentIssue, planned_dates: newDates };
+      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date added');
+      if (saved) {
+        state.currentIssue.planned_dates = newDates;
+        renderPlannedDateChips(state.currentIssue);
+      }
     }
   } else {
     // New Issue mode
@@ -969,11 +1033,13 @@ async function addPlannedDate(dateStr) {
 async function removePlannedDate(dateStr) {
   if (state.currentIssue) {
     if (state.currentIssue.planned_dates) {
-      state.currentIssue.planned_dates = state.currentIssue.planned_dates.filter(d => d !== dateStr);
-      await updateIssue(state.currentIssue);
-      renderPlannedDateChips(state.currentIssue);
-      showModalNotification('Date removed');
-      if (refreshAppCallback) refreshAppCallback();
+      const newDates = state.currentIssue.planned_dates.filter(d => d !== dateStr);
+      const updatedIssue = { ...state.currentIssue, planned_dates: newDates };
+      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date removed');
+      if (saved) {
+        state.currentIssue.planned_dates = newDates;
+        renderPlannedDateChips(state.currentIssue);
+      }
     }
   } else {
     // New Issue mode

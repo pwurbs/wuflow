@@ -57,12 +57,22 @@ test.describe('Issue Edit Operations', () => {
 
     // Open the issue
     await openIssueByTitle(page, 'Add Deadline Issue');
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Add deadline
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const deadlineStr = tomorrow.toISOString().split('T')[0];
+
+    // Wait for the PUT request (save) and GET request (refresh)
+    const savePromise = Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+    ]);
+
     await page.fill('#deadline', deadlineStr);
+
+    await savePromise;
 
     // Close modal
     await page.click('#done-btn');
@@ -86,12 +96,22 @@ test.describe('Issue Edit Operations', () => {
 
     // Open the issue
     await openIssueByTitle(page, 'Change Deadline Issue');
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Change deadline to a different date
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
     const newDeadline = nextWeek.toISOString().split('T')[0];
+
+    // Wait for save and refresh
+    const savePromise = Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+    ]);
+
     await page.fill('#deadline', newDeadline);
+
+    await savePromise;
 
     // Close modal
     await page.click('#done-btn');
@@ -120,9 +140,17 @@ test.describe('Issue Edit Operations', () => {
 
     // Open the issue
     await openIssueByTitle(page, 'Remove Deadline Issue');
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Clear the deadline
+    const savePromise = Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+    ]);
+
     await page.fill('#deadline', '');
+
+    await savePromise;
 
     // Close modal
     await page.click('#done-btn');

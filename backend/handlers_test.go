@@ -10,15 +10,16 @@ import (
 )
 
 const (
-	apiIssues       = "/api/issues"
-	apiIssues1      = "/api/issues/1"
-	apiIssues1Tasks = "/api/issues/1/tasks"
-	apiTasks1       = "/api/tasks/1"
-	apiLabels       = "/api/labels"
-	apiLabels1      = "/api/labels/1"
-	invalidJSON     = "invalid json"
-	wrongStatusCode = "handler returned wrong status code: got %v want %v"
-	toDelete        = "To Delete"
+	apiIssues            = "/api/issues"
+	apiIssues1           = "/api/issues/1"
+	apiIssues1Tasks      = "/api/issues/1/tasks"
+	apiTasks1            = "/api/tasks/1"
+	apiLabels            = "/api/labels"
+	apiLabels1           = "/api/labels/1"
+	invalidJSON          = "invalid json"
+	wrongStatusCode      = "handler returned wrong status code: got %v want %v"
+	toDelete             = "To Delete"
+	expectedTitleUpdated = "expected title 'Updated', got '%s'"
 )
 
 func TestHandleIssuesGet(t *testing.T) {
@@ -118,7 +119,7 @@ func TestHandleIssuePut(t *testing.T) {
 		t.Fatalf("Expected at least one issue")
 	}
 	if issues[0].Title != "Updated" {
-		t.Errorf("expected title 'Updated', got '%s'", issues[0].Title)
+		t.Errorf(expectedTitleUpdated, issues[0].Title)
 	}
 }
 
@@ -147,6 +148,130 @@ func TestHandleIssueDelete(t *testing.T) {
 	issues, _ := GetAllIssues()
 	if len(issues) != 0 {
 		t.Errorf("expected 0 issues, got %d", len(issues))
+	}
+}
+
+func TestHandleIssueGet(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Test Issue", Status: StatusOpen, Description: "Test Description"}
+	CreateIssue(issue)
+
+	req, err := http.NewRequest("GET", apiIssues1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleIssue)
+
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf(wrongStatusCode, status, http.StatusOK)
+	}
+
+	// Check ETag header is present
+	etag := rr.Header().Get("ETag")
+	if etag == "" {
+		t.Error("expected ETag header to be set")
+	}
+
+	var fetchedIssue Issue
+	if err := json.NewDecoder(rr.Body).Decode(&fetchedIssue); err != nil {
+		t.Fatal(err)
+	}
+
+	if fetchedIssue.Title != "Test Issue" {
+		t.Errorf("expected title 'Test Issue', got '%s'", fetchedIssue.Title)
+	}
+}
+
+func TestHandleIssueGetNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, err := http.NewRequest("GET", "/api/issues/999", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleIssue)
+
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, status, http.StatusNotFound)
+	}
+}
+
+func TestHandleIssuePutConflict(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Original", Status: StatusOpen}
+	CreateIssue(issue)
+
+	// Simulate a stale ETag (old timestamp)
+	staleEtag := `"2020-01-01T00:00:00Z"`
+
+	issue.Title = "Updated"
+	body, _ := json.Marshal(issue)
+
+	req, err := http.NewRequest("PUT", apiIssues1, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("If-Match", staleEtag)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleIssue)
+
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusConflict {
+		t.Errorf(wrongStatusCode, status, http.StatusConflict)
+	}
+}
+
+func TestHandleIssuePutWithValidEtag(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Original", Status: StatusOpen}
+	CreateIssue(issue)
+
+	// Get the current issue to obtain valid ETag
+	getReq, _ := http.NewRequest("GET", apiIssues1, nil)
+	getRr := httptest.NewRecorder()
+	HandleIssue(getRr, getReq)
+	validEtag := getRr.Header().Get("ETag")
+
+	// Now update with valid ETag
+	issue.Title = "Updated"
+	body, _ := json.Marshal(issue)
+
+	req, err := http.NewRequest("PUT", apiIssues1, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("If-Match", validEtag)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleIssue)
+
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf(wrongStatusCode, status, http.StatusOK)
+	}
+
+	// Verify the update was applied
+	issues, _ := GetAllIssues()
+	if issues[0].Title != "Updated" {
+		t.Errorf(expectedTitleUpdated, issues[0].Title)
 	}
 }
 
@@ -211,7 +336,7 @@ func TestHandleTaskPut(t *testing.T) {
 
 	tasks, _ := GetTasksByIssueID(issue.ID)
 	if tasks[0].Title != "Updated" {
-		t.Errorf("expected title 'Updated', got '%s'", tasks[0].Title)
+		t.Errorf(expectedTitleUpdated, tasks[0].Title)
 	}
 }
 
