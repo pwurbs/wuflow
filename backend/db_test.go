@@ -21,6 +21,7 @@ const (
 	initDBErrorMsg              = "InitDB failed: %v"
 	testIssueTitle              = "Test Issue"
 	testTaskTitle               = "Test Task"
+	dropTasksTable              = "DROP TABLE tasks"
 )
 
 func setupTestDB() {
@@ -376,150 +377,163 @@ func TestDBScanErrors(t *testing.T) {
 	oldDB := DB
 	defer func() { DB = oldDB }()
 
-	runScanErrorTest := func(name string, setup func() error) {
-		t.Run(name, func(t *testing.T) {
+	tests := []struct {
+		name string
+		fn   func(*testing.T) error
+	}{
+		{"GetAllActiveIssues_ScanError", scanErrorGetAllActiveIssues},
+		{"GetTasksByIssueID_ScanError", scanErrorGetTasksByIssueID},
+		{"GetAllLabels_ScanError", scanErrorGetAllLabels},
+		{"GetAllTasks_ScanError", scanErrorGetAllTasks},
+		{"GetArchivedIssues_ScanError", scanErrorGetArchivedIssues},
+		{"GetIssueByID_ScanError", scanErrorGetIssueByID},
+		{"GetTaskByID_ScanError", scanErrorGetTaskByID},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			// Reset DB for each subtest
 			testDBCounter++
 			if err := InitDB(fmt.Sprintf(testDBURI, testDBCounter)); err != nil {
 				t.Fatalf(initDBErrorMsg, err)
 			}
 			defer DB.Close()
-			if err := setup(); err != nil {
+			if err := tt.fn(t); err != nil {
 				t.Fatalf("Setup failed: %v", err)
 			}
 		})
 	}
+}
 
-	runScanErrorTest("GetAllActiveIssues_ScanError", func() error {
-		if _, err := DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "todo", notAnInt); err != nil {
-			return err
-		}
-		if _, err := GetAllActiveIssues(); err == nil {
-			t.Error(expectedScanError)
-		}
-		return nil
-	})
+func scanErrorGetAllActiveIssues(t *testing.T) error {
+	if _, err := DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "todo", notAnInt); err != nil {
+		return err
+	}
+	if _, err := GetAllActiveIssues(); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
+}
 
-	runScanErrorTest("GetTasksByIssueID_ScanError", func() error {
-		if _, err := DB.Exec("INSERT INTO issues(id, title, status, position) VALUES(1, 'T', 'todo', 1)"); err != nil {
-			return err
-		}
-		// Tasks schema expects integer/real for position, but we force text.
-		// However, sqlite might coerce. Let's drop and recreate to be sure we have a TEXT column which allows "not-an-int"
-		// and still is scanned into int struct field.
-		if _, err := DB.Exec("DROP TABLE tasks"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("CREATE TABLE tasks (id INTEGER PRIMARY KEY, issue_id INTEGER, title TEXT, done BOOLEAN, position TEXT, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
-			return err
-		}
+func scanErrorGetTasksByIssueID(t *testing.T) error {
+	if _, err := DB.Exec("INSERT INTO issues(id, title, status, position) VALUES(1, 'T', 'todo', 1)"); err != nil {
+		return err
+	}
+	// Tasks schema expects integer/real for position, but we force text.
+	// However, sqlite might coerce. Let's drop and recreate to be sure we have a TEXT column which allows "not-an-int"
+	// and still is scanned into int struct field.
+	if _, err := DB.Exec(dropTasksTable); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("CREATE TABLE tasks (id INTEGER PRIMARY KEY, issue_id INTEGER, title TEXT, done BOOLEAN, position TEXT, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
+		return err
+	}
 
-		if _, err := DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', ?)", notAnInt); err != nil {
-			return err
-		}
-		if _, err := GetTasksByIssueID(1); err == nil {
-			t.Error(expectedScanError)
-		}
-		return nil
-	})
+	if _, err := DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', ?)", notAnInt); err != nil {
+		return err
+	}
+	if _, err := GetTasksByIssueID(1); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
+}
 
-	runScanErrorTest("GetAllLabels_ScanError", func() error {
-		if _, err := DB.Exec("INSERT INTO labels(name, color) VALUES(?, ?)", "L", "#000"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("DROP TABLE labels"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("CREATE TABLE labels (id TEXT, name TEXT, color TEXT)"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("INSERT INTO labels(id, name, color) VALUES(?, ?, ?)", notAnInt, "L", "#000"); err != nil {
-			return err
-		}
-		if _, err := GetAllLabels(); err == nil {
-			t.Error(expectedScanError)
-		}
-		return nil
-	})
+func scanErrorGetAllLabels(t *testing.T) error {
+	if _, err := DB.Exec("INSERT INTO labels(name, color) VALUES(?, ?)", "L", "#000"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("DROP TABLE labels"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("CREATE TABLE labels (id TEXT, name TEXT, color TEXT)"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("INSERT INTO labels(id, name, color) VALUES(?, ?, ?)", notAnInt, "L", "#000"); err != nil {
+		return err
+	}
+	if _, err := GetAllLabels(); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
+}
 
-	runScanErrorTest("GetAllTasks_ScanError", func() error {
-		if _, err := DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', 1)"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("DROP TABLE tasks"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("CREATE TABLE tasks (id TEXT, issue_id INTEGER, title TEXT, done BOOLEAN, position INTEGER, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title) VALUES(?, ?, ?)", notAnInt, 1, "T"); err != nil {
-			return err
-		}
+func scanErrorGetAllTasks(t *testing.T) error {
+	if _, err := DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', 1)"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec(dropTasksTable); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("CREATE TABLE tasks (id TEXT, issue_id INTEGER, title TEXT, done BOOLEAN, position INTEGER, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title) VALUES(?, ?, ?)", notAnInt, 1, "T"); err != nil {
+		return err
+	}
 
-		if _, err := GetAllTasks(); err == nil {
-			t.Error(expectedScanError)
-		}
-		return nil
-	})
+	if _, err := GetAllTasks(); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
+}
 
-	runScanErrorTest("GetArchivedIssues_ScanError", func() error {
-		if _, err := DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "Archive", 1); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("DROP TABLE issues"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("CREATE TABLE issues (id TEXT, title TEXT, description TEXT, status TEXT, position INTEGER, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, created_at DATETIME, updated_at DATETIME)"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("INSERT INTO issues(id, title, status) VALUES(?, ?, ?)", notAnInt, "T", "Archive"); err != nil {
-			return err
-		}
+func scanErrorGetArchivedIssues(t *testing.T) error {
+	if _, err := DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "Archive", 1); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("DROP TABLE issues"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("CREATE TABLE issues (id TEXT, title TEXT, description TEXT, status TEXT, position INTEGER, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, created_at DATETIME, updated_at DATETIME)"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("INSERT INTO issues(id, title, status) VALUES(?, ?, ?)", notAnInt, "T", "Archive"); err != nil {
+		return err
+	}
 
-		if _, err := GetAllArchivedIssues(); err == nil {
-			t.Error(expectedScanError)
-		}
-		return nil
-	})
+	if _, err := GetAllArchivedIssues(); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
+}
 
-	runScanErrorTest("GetIssueByID_ScanError", func() error {
-		if _, err := DB.Exec("DROP TABLE issues"); err != nil {
-			return err
-		}
-		// id must be INTEGER or compatible for lookup to find it easily, but we want to break scan.
-		// Let's break position scan.
-		if _, err := DB.Exec("CREATE TABLE issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, status TEXT, position TEXT, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, created_at DATETIME, updated_at DATETIME)"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("INSERT INTO issues(id, title, position) VALUES(1, 'T', ?)", notAnInt); err != nil {
-			return err
-		}
+func scanErrorGetIssueByID(t *testing.T) error {
+	if _, err := DB.Exec("DROP TABLE issues"); err != nil {
+		return err
+	}
+	// id must be INTEGER or compatible for lookup to find it easily, but we want to break scan.
+	// Let's break position scan.
+	if _, err := DB.Exec("CREATE TABLE issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, status TEXT, position TEXT, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, created_at DATETIME, updated_at DATETIME)"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("INSERT INTO issues(id, title, position) VALUES(1, 'T', ?)", notAnInt); err != nil {
+		return err
+	}
 
-		if _, err := GetIssueByID(1); err == nil {
-			t.Error(expectedScanError)
-		}
-		return nil
-	})
+	if _, err := GetIssueByID(1); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
+}
 
-	runScanErrorTest("GetTaskByID_ScanError", func() error {
-		if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title) VALUES(1, 1, 'T')"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("DROP TABLE tasks"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("CREATE TABLE tasks (id INTEGER PRIMARY KEY, issue_id INTEGER, title TEXT, done BOOLEAN, position TEXT, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
-			return err
-		}
-		if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title, position) VALUES(1, 1, 'T', ?)", notAnInt); err != nil {
-			return err
-		}
+func scanErrorGetTaskByID(t *testing.T) error {
+	if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title) VALUES(1, 1, 'T')"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec(dropTasksTable); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("CREATE TABLE tasks (id INTEGER PRIMARY KEY, issue_id INTEGER, title TEXT, done BOOLEAN, position TEXT, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title, position) VALUES(1, 1, 'T', ?)", notAnInt); err != nil {
+		return err
+	}
 
-		if _, err := GetTaskByID(1); err == nil {
-			t.Error(expectedScanError)
-		}
-		return nil
-	})
+	if _, err := GetTaskByID(1); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
 }
 
 func TestDBConstraintErrors(t *testing.T) {
