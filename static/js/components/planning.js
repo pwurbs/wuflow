@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, isFilterActive } from '../state.js';
 import { updateIssue } from '../api.js';
 import { getDraggedCard, setDraggedCard } from '../drag.js';
 import { filterIssues } from '../filters.js';
@@ -148,6 +148,26 @@ export function renderPlanningPanel(refreshApp, openModal) {
   });
 
   planningCount.textContent = count;
+
+  if (isFilterActive()) {
+    let totalCount = 0;
+    state.issues.forEach(issue => {
+      if (issue.status !== 'Done' && issue.status !== 'Archive') {
+        // Unscheduled: has deadline/subtask-deadline but no planned dates
+        const info = getEffectiveDeadlineInfo(issue);
+        const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
+        if (info && isUnscheduled) {
+          totalCount++;
+        }
+        // Planned: count each planned date
+        if (issue.planned_dates && issue.planned_dates.length > 0) {
+          totalCount += issue.planned_dates.length;
+        }
+      }
+    });
+    planningCount.textContent = `${count}/${totalCount}`;
+  }
+
 
   document.querySelectorAll('.planning-day').forEach(day => {
     const content = day.querySelector('.planning-day-content');

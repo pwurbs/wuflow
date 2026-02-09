@@ -5,7 +5,8 @@ import {
   setFilterPriority,
   setFilterSearch,
   setIssues,
-  setCurrentIssue
+  setCurrentIssue,
+  isFilterActive
 } from '../state.js';
 
 describe('state', () => {
@@ -107,6 +108,37 @@ describe('state', () => {
       expect(state.filter.label).toBe('Bug');
       expect(state.filter.priority).toBe('High');
       expect(state.filter.search).toBe('login');
+    });
+  });
+
+  describe('isFilterActive', () => {
+    it('should return false when no filters are set', () => {
+      expect(isFilterActive()).toBe(false);
+    });
+
+    it('should return true when label filter is set', () => {
+      state.filter.label = 'Bug';
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return true when priority filter is set', () => {
+      state.filter.priority = 'High';
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return true when search filter is set', () => {
+      state.filter.search = 'test';
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return false when search is empty string', () => {
+      state.filter.search = '';
+      expect(isFilterActive()).toBe(false);
+    });
+
+    it('should return false when search is whitespace only', () => {
+      state.filter.search = '   ';
+      expect(isFilterActive()).toBe(false);
     });
   });
 });

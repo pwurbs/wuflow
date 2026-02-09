@@ -20,6 +20,12 @@ export function setIssues(newIssues) {
   state.issues = newIssues;
 }
 
+
 export function setCurrentIssue(issue) {
   state.currentIssue = issue;
+}
+
+export function isFilterActive() {
+  const { label, priority, search } = state.filter;
+  return !!(label !== null || priority !== null || (search && search.trim() !== ''));
 }

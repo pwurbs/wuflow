@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, isFilterActive } from '../state.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 
@@ -41,8 +41,8 @@ export function renderBacklog(refreshApp, openModal) {
 
   });
 
-  backlogCount.textContent = openIssues.length;
-  todoCount.textContent = todoIssues.length;
+  backlogCount.textContent = isFilterActive() ? `${openIssues.length}/${state.issues.filter(i => i.status === 'Open').length}` : openIssues.length;
+  todoCount.textContent = isFilterActive() ? `${todoIssues.length}/${state.issues.filter(i => i.status === 'Todo').length}` : todoIssues.length;
 }
 
 

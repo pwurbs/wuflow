@@ -8,7 +8,8 @@ vi.mock('../state.js', () => ({
   state: {
     issues: [],
     filter: {}
-  }
+  },
+  isFilterActive: vi.fn(),
 }));
 
 vi.mock('../api.js', () => ({

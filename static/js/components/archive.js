@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, isFilterActive } from '../state.js';
 import { fetchArchivedIssues } from '../api.js';
 import { createCardElement } from './card.js';
 import { getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
@@ -77,8 +77,8 @@ export async function renderArchive(refreshApp, openModal) {
     }));
   });
 
-  archiveCount.textContent = archivedIssues.length;
-  doneCount.textContent = doneIssues.length;
+  archiveCount.textContent = isFilterActive() ? `${archivedIssues.length}/${filterByStatus(state.issues, 'Archive').length}` : archivedIssues.length;
+  doneCount.textContent = isFilterActive() ? `${doneIssues.length}/${filterByStatus(state.issues, 'Done').length}` : doneIssues.length;
 }
 
 function groupByMonth(issues) {

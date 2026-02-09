@@ -1,3 +1,7 @@
+## 0.14.2
+
+- Improved column counters to show number of filtered issues
+
 ## 0.14.1
 
 - Further improved Archive feature and made the API more robust

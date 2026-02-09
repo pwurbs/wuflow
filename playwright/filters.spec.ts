@@ -105,6 +105,28 @@ test.describe('Filtering and Search', () => {
     await expect(page.locator('.board-card:has-text("Important Task Alpha")')).toBeVisible();
     await expect(page.locator('.board-card:has-text("Important Task Beta")')).toBeHidden();
   });
+
+  test('badges show filtered/total counts when filter is active', async ({ page }) => {
+    // Create 3 issues in To-do: 2 matching "Test", 1 not matching
+    await createIssue(page, { title: 'Test Issue 1', status: 'Todo' });
+    await createIssue(page, { title: 'Test Issue 2', status: 'Todo' });
+    await createIssue(page, { title: 'Other Issue', status: 'Todo' });
+
+    // Verify initial count (no filter) -> matches simple number
+    await expect(page.locator('.column[data-status="Todo"] .count')).toHaveText(/^\d+$/);
+
+    // Apply search filter "Test"
+    await page.fill('#search-input', 'Test');
+
+    // Verify badge shows "x/y" format
+    await expect(page.locator('.column[data-status="Todo"] .count')).toHaveText(/^\d+\/\d+$/);
+
+    // Clear filter
+    await page.fill('#search-input', '');
+
+    // Verify badge reverts to simple number
+    await expect(page.locator('.column[data-status="Todo"] .count')).toHaveText(/^\d+$/);
+  });
 });
 
 test.describe('Planning Panel Filtering', () => {

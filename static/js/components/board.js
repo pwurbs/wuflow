@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, isFilterActive } from '../state.js';
 import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
@@ -23,9 +23,17 @@ export function renderBoard(refreshApp, openModal) {
 
   // Counts
   const counts = { Todo: 0, Pending: 0, Working: 0, Done: 0 };
+  const totalCounts = { Todo: 0, Pending: 0, Working: 0, Done: 0 };
+
+  // Calculate total counts (unfiltered)
+  const nonBacklogIssues = state.issues.filter(issue => issue.status !== 'Open');
+  nonBacklogIssues.forEach(issue => {
+    if (totalCounts[issue.status] !== undefined) {
+      totalCounts[issue.status]++;
+    }
+  });
 
   // Filter and sort issues using extracted pure functions
-  const nonBacklogIssues = state.issues.filter(issue => issue.status !== 'Open');
   const filteredIssues = filterIssues(nonBacklogIssues, state.filter);
   const sortedIssues = sortByPosition(filteredIssues);
 
@@ -54,11 +62,16 @@ export function renderBoard(refreshApp, openModal) {
   });
 
   // Update Headers
+  const filterActive = isFilterActive();
   document.querySelectorAll('[data-status]').forEach(el => {
     const status = el.dataset.status;
     const countEl = el.querySelector('.count');
     if (countEl && counts[status] !== undefined) {
-      countEl.textContent = counts[status];
+      if (filterActive) {
+        countEl.textContent = `${counts[status]}/${totalCounts[status]}`;
+      } else {
+        countEl.textContent = counts[status];
+      }
     }
   });
 }
