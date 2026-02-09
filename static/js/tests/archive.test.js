@@ -44,6 +44,11 @@ vi.mock('../drag.js', () => ({
   getDragAfterElement: vi.fn(),
 }));
 
+vi.mock('../utils.js', () => ({
+  canArchive: vi.fn().mockReturnValue({ allowed: true }),
+  showConfirm: vi.fn().mockResolvedValue(true),
+}));
+
 describe('Archive Component', () => {
   beforeEach(() => {
     document.body.innerHTML = `
@@ -72,7 +77,8 @@ describe('Archive Component', () => {
       const archiveList = document.getElementById('archive-list');
       const doneList = document.getElementById('archive-done-list');
 
-      expect(archiveList.children.length).toBe(1);
+      // 1 archived issue + 1 month header
+      expect(archiveList.children.length).toBe(2);
       expect(doneList.children.length).toBe(1);
       expect(document.getElementById('archive-count').textContent).toBe('1');
       expect(document.getElementById('done-count-archive').textContent).toBe('1');
@@ -153,7 +159,7 @@ describe('Archive Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 100,
         status: 'Archive',
-        planned_date: null
+        planned_dates: []
       }));
       expect(refreshApp).toHaveBeenCalled();
     });
@@ -162,14 +168,14 @@ describe('Archive Component', () => {
   describe('Move Actions', () => {
     it('handleMoveTop should reorder issues', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Archive', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Archive', position: 1 },
-        { id: 3, title: 'Item 3', status: 'Archive', position: 2 }
+        { id: 1, title: 'Item 1', status: 'Done', position: 0 },
+        { id: 2, title: 'Item 2', status: 'Done', position: 1 },
+        { id: 3, title: 'Item 3', status: 'Done', position: 2 }
       ];
       state.state.issues = structuredClone(issues);
 
       await renderArchive(vi.fn(), vi.fn());
-      const card3 = document.getElementById('archive-list').children[2];
+      const card3 = document.getElementById('archive-done-list').children[2];
 
       // Trigger move top
       const onMoveTop = card3._callbacks.onMoveTop;
@@ -181,14 +187,14 @@ describe('Archive Component', () => {
 
     it('handleMoveBottom should reorder issues', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Archive', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Archive', position: 1 },
-        { id: 3, title: 'Item 3', status: 'Archive', position: 2 }
+        { id: 1, title: 'Item 1', status: 'Done', position: 0 },
+        { id: 2, title: 'Item 2', status: 'Done', position: 1 },
+        { id: 3, title: 'Item 3', status: 'Done', position: 2 }
       ];
       state.state.issues = structuredClone(issues);
 
       await renderArchive(vi.fn(), vi.fn());
-      const card1 = document.getElementById('archive-list').children[0];
+      const card1 = document.getElementById('archive-done-list').children[0];
 
       // Trigger move bottom
       const onMoveBottom = card1._callbacks.onMoveBottom;

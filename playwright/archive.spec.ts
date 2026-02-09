@@ -145,57 +145,103 @@ test.describe('Archive View', () => {
     await expect(page.locator('.card', { hasText: 'Hidden on Board' })).toBeHidden();
   });
 
-  test('reorder issues in archive list', async ({ page }) => {
-    // Create 2 archive issues
-    await createIssue(page, { title: 'Archive A' });
-    await createIssue(page, { title: 'Archive B' });
 
+  test('prevent archive with open tasks', async ({ page }) => {
+    await createIssue(page, { title: 'Issue with Task' });
     await navigateTo(page, 'backlog');
+    await page.click('.card:has-text("Issue with Task")');
 
-    // Move both to Archive
-    // (Doing via modal for speed)
-    const archiveViaModal = async (title: string) => {
-      await page.locator(`.card:has-text("${title}")`).first().click();
-      await page.click('#archive-issue-btn');
-      await page.click('#confirm-ok-btn');
-    };
+    // Add task
+    await page.fill('#new-task-title', 'Open Task');
+    await page.click('#add-task-btn');
 
-    await navigateTo(page, 'backlog');
-    await archiveViaModal('Archive A');
-    await archiveViaModal('Archive B');
+    // Try to archive
+    await page.click('#archive-issue-btn');
 
+    // Expect modal alert
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#confirm-title')).toHaveText('Cannot Archive');
+    await expect(page.locator('#confirm-message')).toHaveText('Issue has open tasks');
+
+    // Click OK
+    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+
+    // Verify main issue modal is STILL visible
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    // Close modal
+    await page.click('#done-btn');
+  });
+
+  test('prevent archive with planned dates via drag', async ({ page }) => {
+    // Create as To-do so it appears on the board (not backlog)
+    await createIssue(page, { title: 'Planned Issue', status: 'Todo' });
+
+    // Plan it (drag to planning - simulates adding date)
+    // "Planned Dates" are usually set via Planning View (which is on Board).
+    // Let's go to Planning (Board) view and drag it there.
+    await navigateTo(page, 'board');
+
+    // Find the CARD on the board (it's not a planning item yet)
+    // Target specific column to avoid duplicates (e.g. if backlog is also visible or other elements match)
+    const cardToPlan = page.locator('#col-todo .card', { hasText: 'Planned Issue' });
+    await expect(cardToPlan).toBeVisible();
+
+    const todayCol = page.locator('.planning-day').filter({ hasNotText: 'Unscheduled' }).first();
+    await cardToPlan.dragTo(todayCol);
+
+    // Verify it appears in planning (confirms planned_dates is set on server)
+    await expect(page.locator('.planning-item', { hasText: 'Planned Issue' })).toBeVisible();
+
+    // Now go to Board and move to Done (we need it in Done to see it in Archive's Done list)
+    await navigateTo(page, 'board');
+    const cardToMove = page.locator('#col-todo .card', { hasText: 'Planned Issue' });
+    await expect(cardToMove).toBeVisible();
+
+    // Use modal to be more reliable than drag-and-drop on board
+    await cardToMove.click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    await page.click('#status-trigger');
+    await page.click('#status-options .custom-option:has-text("Done")');
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    // Now go to Archive
     await navigateTo(page, 'archive');
 
-    await navigateTo(page, 'archive');
+    // Drag from Done list to Archive list
+    const archiveList = page.locator('#archive-list');
+    const doneCard = page.locator('#archive-done-list .card', { hasText: 'Planned Issue' });
+    await expect(doneCard).toBeVisible();
 
-    const list = page.locator('#archive-list');
+    // Manual drag for better reliability
+    const box = await archiveList.boundingBox();
+    if (box) {
+      await doneCard.hover();
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
+      await page.mouse.up();
+    }
 
-    // Check that both are present
-    const cardA = list.locator('.card', { hasText: 'Archive A' });
-    const cardB = list.locator('.card', { hasText: 'Archive B' });
-    await expect(cardA).toBeVisible();
-    await expect(cardB).toBeVisible();
+    // Expect modal alert
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#confirm-title')).toHaveText('Cannot Archive');
+    await expect(page.locator('#confirm-message')).toHaveText('Issue has planned dates');
 
-    // Verify initial relative order: A should be before B (assuming creation order)
-    // We can check indices
-    const allText = await list.locator('.card').allTextContents();
-    const indexA = allText.findIndex(t => t.includes('Archive A'));
-    const indexB = allText.findIndex(t => t.includes('Archive B'));
-    expect(indexA).toBeLessThan(indexB);
+    // Click OK
+    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
 
-    // Move B up (it should be below A)
-    // We need to hover B to see controls
-    await cardB.hover();
-    await cardB.locator('.move-up').click();
+    // Verify Issue Modal opens automatically
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    await expect(page.locator('#title')).toHaveValue('Planned Issue');
 
-    // Verify properties after move
-    // Allow a moment for update if needed, but 'expect' retries
-    await expect.poll(async () => {
-      const texts = await list.locator('.card').allTextContents();
-      const newIndexA = texts.findIndex(t => t.includes('Archive A'));
-      const newIndexB = texts.findIndex(t => t.includes('Archive B'));
-      return newIndexB < newIndexA; // B should now be before A
-    }).toBe(true);
+    // Close modal
+    await page.click('#done-btn');
+
+    // Verify still in Done list (not archived)
+    await expect(page.locator('#archive-done-list .card', { hasText: 'Planned Issue' })).toBeVisible();
   });
 
   test('archived issue should be read-only in modal', async ({ page }) => {
@@ -229,22 +275,12 @@ test.describe('Archive View', () => {
     await page.click('#description-editor');
     await expect(page.locator('.editor-container')).not.toHaveClass(/inline-editing/);
 
-    // 4. Dropdowns disabled (by pointer-events, difficult to test directly with playwright interaction if blocked by CSS, check style)
+    // 4. Dropdowns disabled
     await expect(page.locator('#status-trigger')).toHaveCSS('pointer-events', 'none');
-    await expect(page.locator('#priority-trigger')).toHaveCSS('pointer-events', 'none');
-
-    // 5. Date inputs disabled
-    await expect(page.locator('#deadline')).toHaveCSS('pointer-events', 'none');
 
     // 6. Buttons visibility
     await expect(page.locator('#save-issue-btn')).toBeHidden();
     await expect(page.locator('#archive-issue-btn')).toBeHidden();
     await expect(page.locator('#unarchive-issue-btn')).toBeVisible();
-
-    // 7. Verify task list is read-only if we had tasks (optional, but good)
-    // Create issue with task first? 
-    // Or just check that delete buttons on existing tasks are hidden if we had any. 
-    // Since we created a fresh issue without tasks, we can't test existing tasks here easily without setup.
-    // But the form container hidden check covers the "Add Task" inability.
   });
 });

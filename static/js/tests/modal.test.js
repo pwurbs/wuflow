@@ -37,7 +37,8 @@ vi.mock('../utils.js', () => ({
   showConfirm: vi.fn(),
   updateDateInputStyle: vi.fn(),
   stripHtml: vi.fn(s => s),
-  escapeHtml: vi.fn(s => s)
+  escapeHtml: vi.fn(s => s),
+  canArchive: vi.fn().mockReturnValue({ allowed: true })
 }));
 
 vi.mock('../components/tasks.js', () => ({

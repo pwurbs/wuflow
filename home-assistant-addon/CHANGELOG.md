@@ -1,3 +1,7 @@
+## 0.14.0
+
+- Improved Archive feature
+
 ## 0.13.1
 
 - Improved issue loading performance by adapting fetching tasks and distinguishing between active and archived issues

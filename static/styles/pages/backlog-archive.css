@@ -52,9 +52,10 @@
   font-weight: 600;
 }
 
-#move-to-todo-list,
-#archive-done-list,
-#archive-list {
+.backlog-list {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 8px;
   min-height: 80px;
   border-radius: 8px;
   background-color: transparent;
@@ -62,19 +63,11 @@
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-#move-to-todo-list.drag-over,
-#archive-done-list.drag-over,
-#archive-list.drag-over {
-  background-color: rgba(88, 166, 255, 0.1);
+.backlog-list.drag-over {
+  background-color: rgba(88, 166, 255, 0.2);
   border-color: var(--accent-blue);
 }
 
-.backlog-list {
-  display: flex;
-  flex-direction: column;
-  padding: 16px 20px 8px;
-  min-height: 80px;
-}
 
 .backlog-list .card {
   display: flex;
@@ -122,4 +115,18 @@
   white-space: nowrap;
   position: relative;
   top: -2px;
+}
+
+/* Archive Month Headers */
+.archive-month-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted-text);
+  margin: 24px 0 16px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#archive-list .archive-month-header:first-child {
+  margin-top: 8px;
 }

@@ -1,8 +1,6 @@
 import { state } from '../state.js';
-import { updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
-import { getDraggedCard, getDragAfterElement } from '../drag.js';
-import { handleMoveTop, handleMoveBottom, getListUpdates } from '../list-utils.js';
+import { handleMoveTop, handleMoveBottom, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 
@@ -53,77 +51,23 @@ export function setupBacklogView(refreshApp, openModal) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
 
-  // Backlog Sections Drag Support (for dropping planning items on background)
-  const setupSectionDrop = (id, targetStatus) => {
-    const section = document.getElementById(id);
-    if (!section) return;
-
-    section.addEventListener('dragover', (e) => {
-      if (section.offsetParent === null) return;
-      const draggedCard = getDraggedCard();
-      if (!draggedCard?.classList.contains('planning-item')) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    });
-
-    section.addEventListener('drop', async (e) => {
-      if (section.offsetParent === null) return;
-      e.preventDefault();
-      const draggedCard = getDraggedCard();
-      if (!draggedCard?.classList.contains('planning-item')) return;
-      const issueId = Number.parseInt(draggedCard.dataset.id);
-      const issue = state.issues.find(i => i.id === issueId);
-      if (issue) {
-        issue.planned_date = null;
-        issue.status = targetStatus;
-        await updateIssue(issue);
-        if (refreshAppCallback) refreshAppCallback();
-      }
-    });
+  const dropOptions = {
+    refreshApp: refreshAppCallback,
+    onDrop: async () => {
+      const updates = [
+        ...getListUpdates('backlog-list', 'Open'),
+        ...getListUpdates('move-to-todo-list', 'Todo')
+      ];
+      await Promise.all(updates);
+      if (refreshAppCallback) refreshAppCallback();
+    }
   };
 
-  setupSectionDrop('backlog-open-section', 'Open');
-  setupSectionDrop('backlog-todo-section', 'Todo');
+  setupSectionDrop('backlog-open-section', 'Open', { refreshApp: refreshAppCallback });
+  setupSectionDrop('backlog-todo-section', 'Todo', { refreshApp: refreshAppCallback });
 
-  // List Drag Support
-  const setupListDrag = (listId, status) => {
-    const list = document.getElementById(listId);
-    list.addEventListener('dragover', (e) => {
-      if (list.offsetParent === null) return;
-      const draggedCard = getDraggedCard();
-      if (!draggedCard?.classList.contains('card') && !draggedCard?.classList.contains('planning-item')) return;
-      e.preventDefault();
-      const afterElement = getDragAfterElement(list, e.clientY);
-      if (afterElement == null) {
-        list.appendChild(draggedCard);
-      } else {
-        afterElement.before(draggedCard);
-      }
-    });
-
-    list.addEventListener('dragleave', (e) => {
-
-    });
-
-    list.addEventListener('drop', async (e) => {
-      if (list.offsetParent === null) return;
-      e.preventDefault();
-      const draggedCard = getDraggedCard();
-
-      if (draggedCard) {
-        const updates = [
-          ...getListUpdates('backlog-list', 'Open'),
-          ...getListUpdates('move-to-todo-list', 'Todo')
-        ];
-
-        await Promise.all(updates);
-        if (refreshAppCallback) refreshAppCallback();
-      }
-    });
-  };
-
-  setupListDrag('backlog-list', 'Open');
-  setupListDrag('move-to-todo-list', 'Todo');
+  setupListDrag('backlog-list', 'Open', dropOptions);
+  setupListDrag('move-to-todo-list', 'Todo', dropOptions);
 }
 
 

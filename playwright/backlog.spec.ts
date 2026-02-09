@@ -191,11 +191,10 @@ test.describe('Backlog View', () => {
 
     // We expect them to appear in the list.
 
-    // Wait for all 3 to be there
-
-    // Wait for all 3 to be there
-    // Wait for all 3 to be there
-    await expect(page.locator('#backlog-list .card')).toHaveCount(8); // Adjusting to match current state or just remove strict count
+    // Verify items are present
+    await expect(page.locator('#backlog-list .card', { hasText: 'Issue A' })).toBeVisible();
+    await expect(page.locator('#backlog-list .card', { hasText: 'Issue B' })).toBeVisible();
+    await expect(page.locator('#backlog-list .card', { hasText: 'Issue C' })).toBeVisible();
 
 
     // Check initial order. If they are created sequentially, they should be in order or reverse order depending on default sort.

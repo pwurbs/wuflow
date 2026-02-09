@@ -59,7 +59,13 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
     confirmTitle.textContent = title;
     confirmMessage.textContent = message;
     confirmOkBtn.textContent = okText;
-    confirmCancelBtn.textContent = cancelText;
+
+    if (cancelText === null) {
+      confirmCancelBtn.classList.add('hidden');
+    } else {
+      confirmCancelBtn.classList.remove('hidden');
+      confirmCancelBtn.textContent = cancelText;
+    }
 
     // Reset classes and add specific one
     confirmOkBtn.className = 'btn';
@@ -87,7 +93,9 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
 
     const handleModalClick = (e) => {
       if (e.target === confirmModal) {
-        handleCancel();
+        if (cancelText !== null) {
+          handleCancel();
+        }
       }
     };
 
@@ -144,3 +152,17 @@ export function debounce(func, wait) {
   };
 }
 
+
+export function canArchive(issue) {
+  if (!issue) return { allowed: false, reason: 'No issue provided' };
+
+  if (issue.tasks && issue.tasks.some(t => !t.done)) {
+    return { allowed: false, reason: 'Issue has open tasks' };
+  }
+
+  if (issue.planned_dates && issue.planned_dates.length > 0) {
+    return { allowed: false, reason: 'Issue has planned dates' };
+  }
+
+  return { allowed: true };
+}

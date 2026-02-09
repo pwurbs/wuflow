@@ -1,5 +1,6 @@
 import { updateIssue } from './api.js';
 import { state } from './state.js';
+import { getDraggedCard, getDragAfterElement } from './drag.js';
 
 export async function handleMoveTop(issue, allIssuesInList, refreshCallback) {
   if (allIssuesInList.length <= 1 || allIssuesInList[0].id === issue.id) return;
@@ -54,4 +55,109 @@ export function getListUpdates(listId, targetStatus) {
     }
   });
   return updates;
+}
+
+/**
+ * Shared logic for section-level drop zones (e.g., dropping onto the column background)
+ */
+export function setupSectionDrop(sectionId, targetStatus, options = {}) {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+
+  const list = section.querySelector('.backlog-list');
+  const { onDrop, onValidate, refreshApp } = options;
+
+  section.addEventListener('dragover', (e) => {
+    if (section.offsetParent === null) return;
+    const draggedCard = getDraggedCard();
+    const isValidCard = draggedCard?.classList.contains('planning-item') || draggedCard?.classList.contains('card');
+    if (!isValidCard) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (list) list.classList.add('drag-over');
+  });
+
+  section.addEventListener('dragleave', (e) => {
+    if (!section.contains(e.relatedTarget) && list) {
+      list.classList.remove('drag-over');
+    }
+  });
+
+  section.addEventListener('drop', async (e) => {
+    if (section.offsetParent === null) return;
+    e.preventDefault();
+    if (list) list.classList.remove('drag-over');
+
+    const draggedCard = getDraggedCard();
+    const isValidCard = draggedCard?.classList.contains('planning-item') || draggedCard?.classList.contains('card');
+    if (!isValidCard) return;
+
+    const issueId = Number.parseInt(draggedCard.dataset.id);
+    const issue = state.issues.find(i => i.id === issueId);
+    if (!issue || issue.status === targetStatus) return;
+
+    if (onValidate && !(await onValidate(issue, targetStatus))) return;
+
+    issue.planned_dates = [];
+    issue.status = targetStatus;
+    await updateIssue(issue);
+    if (refreshApp) refreshApp();
+    if (onDrop) onDrop(issue);
+  });
+}
+
+/**
+ * Shared logic for list-level drag zones (e.g., dropping directly into a list for reordering)
+ */
+export function setupListDrag(listId, targetStatus, options = {}) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+
+  const { onDrop, onValidate, refreshApp, performReorder = true } = options;
+
+  list.addEventListener('dragover', (e) => {
+    if (list.offsetParent === null) return;
+    const draggedCard = getDraggedCard();
+    if (!draggedCard?.classList.contains('card') && !draggedCard?.classList.contains('planning-item')) return;
+
+    e.preventDefault();
+    list.classList.add('drag-over');
+
+    if (performReorder) {
+      const afterElement = getDragAfterElement(list, e.clientY);
+      if (afterElement == null) {
+        list.appendChild(draggedCard);
+      } else {
+        afterElement.before(draggedCard);
+      }
+    }
+  });
+
+  list.addEventListener('dragleave', (e) => {
+    if (!list.contains(e.relatedTarget)) {
+      list.classList.remove('drag-over');
+    }
+  });
+
+  list.addEventListener('drop', async (e) => {
+    if (list.offsetParent === null) return;
+    e.preventDefault();
+    list.classList.remove('drag-over');
+
+    const draggedCard = getDraggedCard();
+    if (!draggedCard) return;
+
+    const issueId = Number.parseInt(draggedCard.dataset.id);
+    const issue = state.issues.find(i => i.id === issueId);
+
+    if (onValidate && !(await onValidate(issue, targetStatus))) return;
+
+    if (onDrop) {
+      await onDrop(issue, targetStatus);
+    } else {
+      const updates = getListUpdates(listId, targetStatus);
+      await Promise.all(updates);
+      if (refreshApp) refreshApp();
+    }
+  });
 }

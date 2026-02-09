@@ -137,6 +137,8 @@ export async function openIssueByTitle(page: Page, title: string): Promise<void>
 /**
  * Navigates to a specific view
  */
+// ...
+
 export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'setup' | 'archive'): Promise<void> {
   await page.click(`#nav-${view}`);
 }

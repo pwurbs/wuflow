@@ -226,7 +226,7 @@ describe('Backlog Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         id: 99,
         status: 'Open',
-        planned_date: null
+        planned_dates: []
       }));
       expect(refreshApp).toHaveBeenCalled();
     });

@@ -1,6 +1,6 @@
 import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, createTask, updateTask, fetchLabels, fetchIssueById } from '../api.js';
-import { showNotification, showModalNotification, showConfirm, updateDateInputStyle } from '../utils.js';
+import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive } from '../utils.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
@@ -387,6 +387,13 @@ async function handleDeleteIssue() {
 
 async function handleArchiveIssue() {
   if (!state.currentIssue) return;
+
+  const check = canArchive(state.currentIssue);
+  if (!check.allowed) {
+    await showConfirm('Cannot Archive', check.reason, 'OK', null, 'primary');
+    return;
+  }
+
   if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
     state.currentIssue.status = 'Archive';
     const success = await saveIssueWithConflictCheck(state.currentIssue, 'Issue archived');

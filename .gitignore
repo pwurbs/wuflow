@@ -13,7 +13,7 @@ playwright/.playwright
 .tmp
 playwright/test-results
 playwright/playwright-report
-playwright/test-db
+playwright/test-data
 test-results
 
 # JavaScript unit tests
