@@ -13,6 +13,8 @@ const (
 	errMsgMethodNotAllowed = "Method not allowed"
 	errMsgInvalidID        = "Invalid ID"
 	errMsgIssueNotFound    = "Issue not found"
+	errMsgTaskNotFound     = "Task not found"
+	errMsgArchivedReadOnly = "Archived issues are read-only"
 )
 
 // HandleCreateIssue handles POST requests to create a new issue.
@@ -22,6 +24,12 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		var i Issue
 		if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
 			slog.Warn("Failed to decode issue", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := validateIssue(&i); err != nil {
+			slog.Warn("Issue validation failed", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -114,6 +122,18 @@ func handleGetIssue(w http.ResponseWriter, id int) {
 
 // handlePutIssue updates an existing issue, checking for conflicts via the If-Match header.
 func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
+	// Fetch current issue to check status and for unarchive check
+	current, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed for edit check", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if current == nil {
+		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+		return
+	}
+
 	// Check If-Match header for optimistic locking
 	ifMatch := r.Header.Get("If-Match")
 	if ifMatch != "" {
@@ -128,6 +148,19 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	if err := validateIssue(&i); err != nil {
+		slog.Warn("Issue update validation failed", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Block edits if archived and status NOT being changed to Done
+	if current.Status == StatusArchive && i.Status != StatusDone {
+		http.Error(w, errMsgArchivedReadOnly, http.StatusForbidden)
+		return
+	}
+
 	i.ID = id
 	if err := UpdateIssue(&i); err != nil {
 		if err == ErrIssueNotFound {
@@ -168,6 +201,21 @@ func checkIfMatchConflict(w http.ResponseWriter, id int, ifMatch string) bool {
 
 // handleDeleteIssue removes an issue by its ID.
 func handleDeleteIssue(w http.ResponseWriter, id int) {
+	issue, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed for delete check", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if issue == nil {
+		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+		return
+	}
+	if issue.Status == StatusArchive {
+		http.Error(w, "Archived issues cannot be deleted", http.StatusForbidden)
+		return
+	}
+
 	if err := DeleteIssue(id); err != nil {
 		if err == ErrIssueNotFound {
 			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
@@ -191,16 +239,34 @@ func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if err := validateTask(&t); err != nil {
+			slog.Warn("Task validation failed", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		if t.IssueID == 0 {
 			http.Error(w, "Issue ID is required", http.StatusBadRequest)
 			return
 		}
 
+		// Check if issue is archived
+		issue, err := GetIssueByID(t.IssueID)
+		if err != nil {
+			slog.Error("GetIssueByID failed for task creation check", "id", t.IssueID, "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if issue == nil {
+			http.Error(w, errMsgIssueNotFound, http.StatusBadRequest)
+			return
+		}
+		if issue.Status == StatusArchive {
+			http.Error(w, "Cannot add tasks to archived issues", http.StatusForbidden)
+			return
+		}
+
 		if err := CreateTask(&t); err != nil {
-			if err == ErrIssueNotFound {
-				http.Error(w, errMsgIssueNotFound, http.StatusBadRequest)
-				return
-			}
 			slog.Error("CreateTask failed", "issue_id", t.IssueID, "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -224,37 +290,98 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case "PUT":
-		var t Task
-		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-			slog.Warn("Failed to decode task for update", "error", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		t.ID = id
-		if err := UpdateTask(&t); err != nil {
-			if err == ErrTaskNotFound {
-				http.Error(w, "Task not found", http.StatusNotFound)
-				return
-			}
-			slog.Error("UpdateTask failed", "id", id, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		json.NewEncoder(w).Encode(t)
+		handlePutTask(w, r, id)
 	case "DELETE":
-		if err := DeleteTask(id); err != nil {
-			if err == ErrTaskNotFound {
-				http.Error(w, "Task not found", http.StatusNotFound)
-				return
-			}
-			slog.Error("DeleteTask failed", "id", id, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
+		handleDeleteTask(w, id)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
+}
+
+// handlePutTask updates an existing task, checking for archived issue status.
+func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
+	var t Task
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		slog.Warn("Failed to decode task for update", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := validateTask(&t); err != nil {
+		slog.Warn("Task update validation failed", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check if parent issue is archived
+	task, err := GetTaskByID(id)
+	if err != nil {
+		slog.Error("GetTaskByID failed for task update check", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if task == nil {
+		http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
+		return
+	}
+	issue, err := GetIssueByID(task.IssueID)
+	if err != nil {
+		slog.Error("GetIssueByID failed for task update check", "id", task.IssueID, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if issue != nil && issue.Status == StatusArchive {
+		http.Error(w, "Tasks of archived issues are read-only", http.StatusForbidden)
+		return
+	}
+
+	t.ID = id
+	if err := UpdateTask(&t); err != nil {
+		if err == ErrTaskNotFound {
+			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
+			return
+		}
+		slog.Error("UpdateTask failed", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(t)
+}
+
+// handleDeleteTask removes a task, checking for archived issue status.
+func handleDeleteTask(w http.ResponseWriter, id int) {
+	// Check if parent issue is archived
+	task, err := GetTaskByID(id)
+	if err != nil {
+		slog.Error("GetTaskByID failed for task delete check", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if task == nil {
+		http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
+		return
+	}
+	issue, err := GetIssueByID(task.IssueID)
+	if err != nil {
+		slog.Error("GetIssueByID failed for task delete check", "id", task.IssueID, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if issue != nil && issue.Status == StatusArchive {
+		http.Error(w, "Tasks of archived issues cannot be deleted", http.StatusForbidden)
+		return
+	}
+
+	if err := DeleteTask(id); err != nil {
+		if err == ErrTaskNotFound {
+			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
+			return
+		}
+		slog.Error("DeleteTask failed", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // HandleLabels handles GET and POST requests for labels.
@@ -272,6 +399,11 @@ func HandleLabels(w http.ResponseWriter, r *http.Request) {
 		var l Label
 		if err := json.NewDecoder(r.Body).Decode(&l); err != nil {
 			slog.Warn("Failed to decode label", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := validateLabel(&l); err != nil {
+			slog.Warn("Label validation failed", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

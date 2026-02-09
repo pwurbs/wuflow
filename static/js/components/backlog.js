@@ -63,11 +63,11 @@ export function setupBacklogView(refreshApp, openModal) {
     }
   };
 
-  setupSectionDrop('backlog-open-section', 'Open', { refreshApp: refreshAppCallback });
-  setupSectionDrop('backlog-todo-section', 'Todo', { refreshApp: refreshAppCallback });
+  setupSectionDrop('backlog-open-section', 'Open', { refreshApp: refreshAppCallback, showDragHighlight: false });
+  setupSectionDrop('backlog-todo-section', 'Todo', { refreshApp: refreshAppCallback, showDragHighlight: false });
 
-  setupListDrag('backlog-list', 'Open', dropOptions);
-  setupListDrag('move-to-todo-list', 'Todo', dropOptions);
+  setupListDrag('backlog-list', 'Open', { ...dropOptions, showDragHighlight: false });
+  setupListDrag('move-to-todo-list', 'Todo', { ...dropOptions, showDragHighlight: false });
 }
 
 

@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { fetchArchivedIssues } from '../api.js';
 import { createCardElement } from './card.js';
-import { handleMoveTop, handleMoveBottom, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
+import { getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 import { canArchive, showConfirm } from '../utils.js';
 
@@ -73,9 +73,7 @@ export async function renderArchive(refreshApp, openModal) {
   // Render Done (Standard List)
   doneIssues.forEach(issue => {
     doneList.appendChild(createCardElement(issue, false, {
-      openModal: openModalCallback,
-      onMoveTop: () => handleMoveTop(issue, doneIssues, refreshAppCallback),
-      onMoveBottom: () => handleMoveBottom(issue, doneIssues, refreshAppCallback)
+      openModal: openModalCallback
     }));
   });
 
@@ -99,6 +97,9 @@ function groupByMonth(issues) {
 
 
 async function validateArchiveDrop(issue, targetStatus) {
+  if (issue.status === 'Archive' && targetStatus !== 'Archive') {
+    return false;
+  }
   if (targetStatus === 'Archive' && issue.status !== 'Archive') {
     const check = canArchive(issue);
     if (!check.allowed) {
@@ -130,7 +131,8 @@ export function setupArchiveView(refreshApp, openModal) {
   });
   setupSectionDrop('archive-done-section', 'Done', {
     refreshApp: refreshAppCallback,
-    onValidate: validateArchiveDrop
+    onValidate: validateArchiveDrop,
+    showDragHighlight: false
   });
 
   setupListDrag('archive-list', 'Archive', {
@@ -148,6 +150,7 @@ export function setupArchiveView(refreshApp, openModal) {
   setupListDrag('archive-done-list', 'Done', {
     refreshApp: refreshAppCallback,
     onValidate: validateArchiveDrop,
+    showDragHighlight: false,
     onDrop: async () => {
       await performDropUpdate();
     }

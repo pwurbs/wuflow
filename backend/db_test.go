@@ -19,6 +19,8 @@ const (
 	testDate                    = "2023-10-27"
 	unexpectedGetAllIssuesError = "Failed to get all issues: %v"
 	initDBErrorMsg              = "InitDB failed: %v"
+	testIssueTitle              = "Test Issue"
+	testTaskTitle               = "Test Task"
 )
 
 func setupTestDB() {
@@ -43,7 +45,7 @@ func TestCreateIssue(t *testing.T) {
 
 	deadline := time.Now().Add(24 * time.Hour)
 	issue := &Issue{
-		Title:       "Test Issue",
+		Title:       testIssueTitle,
 		Description: "Test Description",
 		Status:      StatusOpen,
 		Deadline:    &deadline,
@@ -239,7 +241,7 @@ func TestCreateTask(t *testing.T) {
 
 	task := &Task{
 		IssueID: issue.ID,
-		Title:   "Test Task",
+		Title:   testTaskTitle,
 		Done:    false,
 	}
 
@@ -352,6 +354,10 @@ func TestDBErrors(t *testing.T) {
 		{"GetAllLabels", func() error { _, err := GetAllLabels(); return err }},
 		{"CreateLabel", func() error { return CreateLabel(&Label{Name: "L"}) }},
 		{"DeleteLabel", func() error { return DeleteLabel(1) }},
+		{"GetIssueByID", func() error { _, err := GetIssueByID(1); return err }},
+		{"GetTaskByID", func() error { _, err := GetTaskByID(1); return err }},
+		{"GetAllArchivedIssues", func() error { _, err := GetAllArchivedIssues(); return err }},
+		{"GetAllTasks", func() error { _, err := GetAllTasks(); return err }},
 	}
 
 	for _, tt := range tests {
@@ -520,5 +526,59 @@ func TestInitDBError(t *testing.T) {
 	err := InitDB("file::memory:?mode=ro")
 	if err == nil {
 		t.Error("Expected error when initializing read-only DB (create tables should fail), got nil")
+	}
+}
+
+func TestGetIssueByID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// 1. Not Found
+	issue, err := GetIssueByID(999)
+	if err != nil {
+		t.Fatalf("Expected nil error for not found, got %v", err)
+	}
+	if issue != nil {
+		t.Errorf("Expected nil issue for not found, got %v", issue)
+	}
+
+	// 2. Success
+	newIssue := &Issue{Title: testIssueTitle, Status: StatusOpen}
+	CreateIssue(newIssue)
+
+	storedIssue, err := GetIssueByID(newIssue.ID)
+	if err != nil {
+		t.Fatalf("Failed to get issue: %v", err) // Covered by TestDBErrors
+	}
+	if storedIssue.Title != testIssueTitle {
+		t.Errorf("Expected title '%s', got '%s'", testIssueTitle, storedIssue.Title)
+	}
+}
+
+func TestGetTaskByID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// 1. Not Found
+	task, err := GetTaskByID(999)
+	if err != nil {
+		t.Fatalf("Expected nil error for not found, got %v", err)
+	}
+	if task != nil {
+		t.Errorf("Expected nil task for not found, got %v", task)
+	}
+
+	// 2. Success
+	issue := &Issue{Title: "Issue", Status: StatusOpen}
+	CreateIssue(issue)
+	newTask := &Task{IssueID: issue.ID, Title: testTaskTitle}
+	CreateTask(newTask)
+
+	storedTask, err := GetTaskByID(newTask.ID)
+	if err != nil {
+		t.Fatalf("Failed to get task: %v", err)
+	}
+	if storedTask.Title != testTaskTitle {
+		t.Errorf("Expected title '%s', got '%s'", testTaskTitle, storedTask.Title)
 	}
 }

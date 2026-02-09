@@ -454,6 +454,26 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 	return tasks, nil
 }
 
+// GetTaskByID retrieves a single task by its ID.
+func GetTaskByID(id int) (*Task, error) {
+	row := DB.QueryRow("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE id = ?", id)
+
+	var t Task
+	var deadline sql.NullTime
+	err := row.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		slog.Error("Database Error: GetTaskByID", "error", err)
+		return nil, err
+	}
+	if deadline.Valid {
+		t.Deadline = &deadline.Time
+	}
+	return &t, nil
+}
+
 // UpdateTask updates an existing task in the database.
 func UpdateTask(t *Task) error {
 	stmt, err := DB.Prepare("UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ?")

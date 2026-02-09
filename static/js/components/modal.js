@@ -182,7 +182,8 @@ function setupEditModal(issue) {
     onTaskEditStart: () => addUnloadListener(),
     onTaskEditEnd: () => checkRemoveUnloadListener()
   });
-  document.getElementById('delete-issue-btn').classList.remove('hidden');
+
+  document.getElementById('delete-issue-btn').classList.toggle('hidden', isArchived);
   if (isArchived) {
     document.getElementById('archive-issue-btn').classList.add('hidden');
     document.getElementById('unarchive-issue-btn').classList.remove('hidden');

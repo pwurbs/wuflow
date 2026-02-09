@@ -48,10 +48,17 @@ export function getListUpdates(listId, targetStatus) {
   cards.forEach((card, index) => {
     const id = Number.parseInt(card.dataset.id);
     const issue = state.issues.find(i => i.id === id);
-    if (issue && (issue.status !== targetStatus || issue.position !== index)) {
-      issue.status = targetStatus;
-      issue.position = index;
-      updates.push(updateIssue(issue));
+    if (issue) {
+      const statusChanged = issue.status !== targetStatus;
+      const positionChanged = targetStatus !== 'Archive' && issue.position !== index;
+
+      if (statusChanged || positionChanged) {
+        issue.status = targetStatus;
+        if (targetStatus !== 'Archive') {
+          issue.position = index;
+        }
+        updates.push(updateIssue(issue));
+      }
     }
   });
   return updates;
@@ -65,7 +72,7 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
   if (!section) return;
 
   const list = section.querySelector('.backlog-list');
-  const { onDrop, onValidate, refreshApp } = options;
+  const { onDrop, onValidate, refreshApp, showDragHighlight = true } = options;
 
   section.addEventListener('dragover', (e) => {
     if (section.offsetParent === null) return;
@@ -74,7 +81,7 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
     if (!isValidCard) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (list) list.classList.add('drag-over');
+    if (list && showDragHighlight) list.classList.add('drag-over');
   });
 
   section.addEventListener('dragleave', (e) => {
@@ -96,7 +103,10 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
     const issue = state.issues.find(i => i.id === issueId);
     if (!issue || issue.status === targetStatus) return;
 
-    if (onValidate && !(await onValidate(issue, targetStatus))) return;
+    if (onValidate && !(await onValidate(issue, targetStatus))) {
+      if (refreshApp) refreshApp();
+      return;
+    }
 
     issue.planned_dates = [];
     issue.status = targetStatus;
@@ -113,7 +123,7 @@ export function setupListDrag(listId, targetStatus, options = {}) {
   const list = document.getElementById(listId);
   if (!list) return;
 
-  const { onDrop, onValidate, refreshApp, performReorder = true } = options;
+  const { onDrop, onValidate, refreshApp, performReorder = true, showDragHighlight = true } = options;
 
   list.addEventListener('dragover', (e) => {
     if (list.offsetParent === null) return;
@@ -121,7 +131,7 @@ export function setupListDrag(listId, targetStatus, options = {}) {
     if (!draggedCard?.classList.contains('card') && !draggedCard?.classList.contains('planning-item')) return;
 
     e.preventDefault();
-    list.classList.add('drag-over');
+    if (showDragHighlight) list.classList.add('drag-over');
 
     if (performReorder) {
       const afterElement = getDragAfterElement(list, e.clientY);
@@ -150,7 +160,10 @@ export function setupListDrag(listId, targetStatus, options = {}) {
     const issueId = Number.parseInt(draggedCard.dataset.id);
     const issue = state.issues.find(i => i.id === issueId);
 
-    if (onValidate && !(await onValidate(issue, targetStatus))) return;
+    if (onValidate && !(await onValidate(issue, targetStatus))) {
+      if (refreshApp) refreshApp();
+      return;
+    }
 
     if (onDrop) {
       await onDrop(issue, targetStatus);

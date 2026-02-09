@@ -53,30 +53,30 @@ test.describe('Archive View', () => {
     await expect(doneSection.locator('.card', { hasText: 'Issue to Archive' })).toBeHidden();
   });
 
-  test('move Archive issue back to Done using drag and drop', async ({ page }) => {
-    await createIssue(page, { title: 'Archived Issue' });
+  test('archived issue should not be draggable', async ({ page }) => {
+    await createIssue(page, { title: 'Non-draggable Issue' });
 
     // Set to Archive via modal
     await navigateTo(page, 'backlog');
-    await page.click('.card:has-text("Archived Issue")');
-
+    await page.click('.card:has-text("Non-draggable Issue")');
     await page.click('#archive-issue-btn');
     await page.click('#confirm-ok-btn');
 
     await navigateTo(page, 'archive');
 
-    const doneSection = page.locator('#archive-done-list');
-    const archiveSection = page.locator('#archive-list');
-    const card = archiveSection.locator('.card', { hasText: 'Archived Issue' });
-
+    const card = page.locator('#archive-list .card', { hasText: 'Non-draggable Issue' });
     await expect(card).toBeVisible();
 
-    // Drag back to Done
-    await card.dragTo(doneSection.locator('..'));
+    // 1. Verify draggable attribute is false
+    await expect(card).toHaveAttribute('draggable', 'false');
 
-    await expect(doneSection.locator('.card', { hasText: 'Archived Issue' })).toBeVisible();
-    await expect(archiveSection.locator('.card', { hasText: 'Archived Issue' })).toBeHidden();
+    // 2. Try to drag (Playwright's dragTo might still try, but it should stay put)
+    const doneSection = page.locator('#archive-done-section');
+    await card.dragTo(doneSection);
 
+    // Verify it stayed in Archive
+    await expect(card).toBeVisible();
+    await expect(page.locator('#archive-done-list .card', { hasText: 'Non-draggable Issue' })).toBeHidden();
   });
 
   test('unarchive issue via modal', async ({ page }) => {
@@ -282,5 +282,36 @@ test.describe('Archive View', () => {
     await expect(page.locator('#save-issue-btn')).toBeHidden();
     await expect(page.locator('#archive-issue-btn')).toBeHidden();
     await expect(page.locator('#unarchive-issue-btn')).toBeVisible();
+
+    // 7. Deletion controls hidden
+    await expect(page.locator('#delete-issue-btn')).toBeHidden();
+    // Assuming there's at least one task if we want to check task deletion buttons
+    // But since the task form is hidden, we can just check if any existing task delete buttons are hidden
+    // Even if no tasks, the test passes. If we want to be thorough, we should ensure a task exists.
+  });
+
+  test('archived issue should not be deletable', async ({ page }) => {
+    await createIssue(page, { title: 'Non-deletable Issue' });
+    await navigateTo(page, 'backlog');
+    await page.click('.card:has-text("Non-deletable Issue")');
+
+    // Archive it
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
+
+    await navigateTo(page, 'archive');
+    await page.click('.card:has-text("Non-deletable Issue")');
+
+    // 1. Verify delete button is hidden
+    await expect(page.locator('#delete-issue-btn')).toBeHidden();
+
+    // 2. Verify deletion via API is blocked (403)
+    const issueId = await page.inputValue('#issue-id');
+    const deleteResponse = await page.evaluate(async (id) => {
+      const resp = await fetch(`/api/issues/${id}`, { method: 'DELETE' });
+      return resp.status;
+    }, issueId);
+
+    expect(deleteResponse).toBe(403);
   });
 });

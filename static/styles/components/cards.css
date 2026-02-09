@@ -18,6 +18,16 @@ body:not(.is-dragging) .card:hover {
   z-index: 50;
 }
 
+.card.is-archived {
+  cursor: pointer;
+  /* Not grab */
+}
+
+body:not(.is-dragging) .card.is-archived:hover {
+  transform: none;
+  /* Don't move up */
+}
+
 .card.dragging {
   opacity: 0.5;
   pointer-events: none;

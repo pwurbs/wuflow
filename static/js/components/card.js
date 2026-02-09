@@ -7,8 +7,9 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
   if (isBoard) {
     card.classList.add('board-card');
   }
-  card.draggable = true;
+  card.draggable = issue.status !== 'Archive';
   card.dataset.id = issue.id;
+  card.classList.toggle('is-archived', issue.status === 'Archive');
   if (issue.priority === 'High') {
     card.classList.add('high-priority');
   }

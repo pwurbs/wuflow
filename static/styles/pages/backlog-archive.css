@@ -59,7 +59,7 @@
   min-height: 80px;
   border-radius: 8px;
   background-color: transparent;
-  border: 2px dashed transparent;
+  border: 1px dashed transparent;
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 

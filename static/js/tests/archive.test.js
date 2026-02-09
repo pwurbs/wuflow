@@ -82,6 +82,13 @@ describe('Archive Component', () => {
       expect(doneList.children.length).toBe(1);
       expect(document.getElementById('archive-count').textContent).toBe('1');
       expect(document.getElementById('done-count-archive').textContent).toBe('1');
+
+      // Verify that move callbacks are NOT passed (arrows disabled for alignment)
+      const doneListCards = doneList.querySelectorAll('.card');
+      doneListCards.forEach(cardEl => {
+        expect(cardEl._callbacks.onMoveTop).toBeUndefined();
+        expect(cardEl._callbacks.onMoveBottom).toBeUndefined();
+      });
     });
   });
 
@@ -162,46 +169,6 @@ describe('Archive Component', () => {
         planned_dates: []
       }));
       expect(refreshApp).toHaveBeenCalled();
-    });
-  });
-
-  describe('Move Actions', () => {
-    it('handleMoveTop should reorder issues', async () => {
-      const issues = [
-        { id: 1, title: 'Item 1', status: 'Done', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Done', position: 1 },
-        { id: 3, title: 'Item 3', status: 'Done', position: 2 }
-      ];
-      state.state.issues = structuredClone(issues);
-
-      await renderArchive(vi.fn(), vi.fn());
-      const card3 = document.getElementById('archive-done-list').children[2];
-
-      // Trigger move top
-      const onMoveTop = card3._callbacks.onMoveTop;
-      await onMoveTop();
-
-      // Item 3 moves to top. 1->1, 2->2.
-      expect(api.updateIssue).toHaveBeenCalledTimes(3);
-    });
-
-    it('handleMoveBottom should reorder issues', async () => {
-      const issues = [
-        { id: 1, title: 'Item 1', status: 'Done', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Done', position: 1 },
-        { id: 3, title: 'Item 3', status: 'Done', position: 2 }
-      ];
-      state.state.issues = structuredClone(issues);
-
-      await renderArchive(vi.fn(), vi.fn());
-      const card1 = document.getElementById('archive-done-list').children[0];
-
-      // Trigger move bottom
-      const onMoveBottom = card1._callbacks.onMoveBottom;
-      await onMoveBottom();
-
-      // Item 1 moves to bottom.
-      expect(api.updateIssue).toHaveBeenCalledTimes(3);
     });
   });
 });
