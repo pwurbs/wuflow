@@ -47,7 +47,10 @@ func StartServer(version string, port string, dbPath string, embeddedFiles embed
 	fmt.Printf("Starting wuFlow version: %s\n", version)
 	fmt.Printf("Using database: %s\n", dbPath)
 	fmt.Printf("Log level: %s\n", logLevel)
-	InitDB(dbPath)
+	if err := InitDB(dbPath); err != nil {
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
+	}
 
 	// Serve static files from embedded filesystem
 	fmt.Printf("Serving static files from: embedded in binary\n")
@@ -58,8 +61,11 @@ func StartServer(version string, port string, dbPath string, embeddedFiles embed
 	http.Handle("/", WithLogging(http.FileServer(http.FS(staticFS))))
 
 	// API endpoints
-	http.Handle("/api/issues", WithLogging(http.HandlerFunc(HandleIssues)))
-	http.Handle("/api/issues/", WithLogging(http.HandlerFunc(HandleIssuesRoute)))
+	http.Handle("/api/issues", WithLogging(http.HandlerFunc(HandleCreateIssue)))
+	http.Handle("/api/issues/active", WithLogging(http.HandlerFunc(HandleActiveIssues)))
+	http.Handle("/api/issues/archived", WithLogging(http.HandlerFunc(HandleArchivedIssues)))
+	http.Handle("/api/issues/", WithLogging(http.HandlerFunc(HandleIssue)))
+	http.Handle("/api/tasks", WithLogging(http.HandlerFunc(HandleCreateTask)))
 	http.Handle("/api/tasks/", WithLogging(http.HandlerFunc(HandleTask)))
 	http.Handle("/api/labels", WithLogging(http.HandlerFunc(HandleLabels)))
 	http.Handle("/api/labels/", WithLogging(http.HandlerFunc(HandleLabel)))
@@ -128,14 +134,4 @@ func (rw *responseWriterWrapper) Write(b []byte) (int, error) {
 	n, err := rw.ResponseWriter.Write(b)
 	rw.written += int64(n)
 	return n, err
-}
-
-// HandleIssuesRoute dispatches requests to HandleTasks or HandleIssue based on the URL path.
-func HandleIssuesRoute(w http.ResponseWriter, r *http.Request) {
-	// Differentiate between /api/issues/{id} and /api/issues/{id}/tasks
-	if strings := r.URL.Path; len(strings) > 12 && strings[len(strings)-6:] == "/tasks" {
-		HandleTasks(w, r)
-	} else {
-		HandleIssue(w, r)
-	}
 }

@@ -12,20 +12,12 @@ import (
 const (
 	errMsgMethodNotAllowed = "Method not allowed"
 	errMsgInvalidID        = "Invalid ID"
+	errMsgIssueNotFound    = "Issue not found"
 )
 
-// HandleIssues handles GET and POST requests for issues.
-func HandleIssues(w http.ResponseWriter, r *http.Request) {
-
+// HandleCreateIssue handles POST requests to create a new issue.
+func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET":
-		issues, err := GetAllIssues()
-		if err != nil {
-			slog.Error("GetAllIssues failed", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		json.NewEncoder(w).Encode(issues)
 	case "POST":
 		var i Issue
 		if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
@@ -33,13 +25,48 @@ func HandleIssues(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+
 		if err := CreateIssue(&i); err != nil {
 			slog.Error("CreateIssue failed", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(i)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleActiveIssues handles GET requests to get all active issues.
+func HandleActiveIssues(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		issues, err := GetAllActiveIssues()
+		if err != nil {
+			slog.Error("GetAllActiveIssues failed", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(issues)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleArchivedIssues handles GET requests to get all archived issues.
+func HandleArchivedIssues(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "GET":
+		issues, err := GetAllArchivedIssues()
+		if err != nil {
+			slog.Error("GetAllArchivedIssues failed", "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(issues)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
@@ -55,7 +82,6 @@ func HandleIssue(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
-
 	switch r.Method {
 	case "GET":
 		handleGetIssue(w, id)
@@ -77,7 +103,7 @@ func handleGetIssue(w http.ResponseWriter, id int) {
 		return
 	}
 	if issue == nil {
-		http.Error(w, "Issue not found", http.StatusNotFound)
+		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 		return
 	}
 	// Set ETag header based on updated_at timestamp
@@ -104,6 +130,10 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	}
 	i.ID = id
 	if err := UpdateIssue(&i); err != nil {
+		if err == ErrIssueNotFound {
+			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+			return
+		}
 		slog.Error("UpdateIssue failed", "id", id, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -124,7 +154,7 @@ func checkIfMatchConflict(w http.ResponseWriter, id int, ifMatch string) bool {
 		return true
 	}
 	if current == nil {
-		http.Error(w, "Issue not found", http.StatusNotFound)
+		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 		return true
 	}
 	currentEtag := `"` + current.UpdatedAt.UTC().Format(time.RFC3339Nano) + `"`
@@ -139,6 +169,10 @@ func checkIfMatchConflict(w http.ResponseWriter, id int, ifMatch string) bool {
 // handleDeleteIssue removes an issue by its ID.
 func handleDeleteIssue(w http.ResponseWriter, id int) {
 	if err := DeleteIssue(id); err != nil {
+		if err == ErrIssueNotFound {
+			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+			return
+		}
 		slog.Error("DeleteIssue failed", "id", id, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -146,39 +180,28 @@ func handleDeleteIssue(w http.ResponseWriter, id int) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// HandleTasks handles POST requests for creating tasks.
-func HandleTasks(w http.ResponseWriter, r *http.Request) {
-
+// HandleCreateTask handles POST requests for creating tasks.
+func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
-		// Extract issue ID from URL if needed, or from body.
-		// Here we assume body contains issue_id or the URL structure is /api/issues/{id}/tasks
-		// For simplicity let's stick to /api/tasks for creation if issue_id is in body,
-		// Parse URL to get issue ID
-		parts := strings.Split(r.URL.Path, "/")
-		// Expected: /api/issues/{id}/tasks
-		// parts: ["", "api", "issues", "{id}", "tasks"]
-		if len(parts) < 5 || parts[4] != "tasks" {
-			slog.Warn("Invalid URL structure for tasks", "path", r.URL.Path)
-			http.Error(w, "Invalid URL", http.StatusBadRequest)
-			return
-		}
-		issueID, err := strconv.Atoi(parts[3]) // /api/issues/{id}/tasks
-		if err != nil {
-			slog.Warn("Invalid Issue ID in tasks URL", "id_part", parts[3], "error", err)
-			http.Error(w, "Invalid Issue ID", http.StatusBadRequest)
-			return
-		}
-
 		var t Task
 		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 			slog.Warn("Failed to decode task", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		t.IssueID = issueID
+
+		if t.IssueID == 0 {
+			http.Error(w, "Issue ID is required", http.StatusBadRequest)
+			return
+		}
+
 		if err := CreateTask(&t); err != nil {
-			slog.Error("CreateTask failed", "issue_id", issueID, "error", err)
+			if err == ErrIssueNotFound {
+				http.Error(w, errMsgIssueNotFound, http.StatusBadRequest)
+				return
+			}
+			slog.Error("CreateTask failed", "issue_id", t.IssueID, "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -199,7 +222,6 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
-
 	switch r.Method {
 	case "PUT":
 		var t Task
@@ -210,6 +232,10 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 		}
 		t.ID = id
 		if err := UpdateTask(&t); err != nil {
+			if err == ErrTaskNotFound {
+				http.Error(w, "Task not found", http.StatusNotFound)
+				return
+			}
 			slog.Error("UpdateTask failed", "id", id, "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -217,6 +243,10 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(t)
 	case "DELETE":
 		if err := DeleteTask(id); err != nil {
+			if err == ErrTaskNotFound {
+				http.Error(w, "Task not found", http.StatusNotFound)
+				return
+			}
 			slog.Error("DeleteTask failed", "id", id, "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -270,6 +300,10 @@ func HandleLabel(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "DELETE":
 		if err := DeleteLabel(id); err != nil {
+			if err == ErrLabelNotFound {
+				http.Error(w, "Label not found", http.StatusNotFound)
+				return
+			}
 			slog.Error("DeleteLabel failed", "id", id, "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -78,7 +78,6 @@ export async function renderSetupView(refreshCallback) {
         if (confirmed) {
           try {
             await deleteLabel(label.id);
-            await deleteLabel(label.id);
             renderSetupView(refreshCallback); // Refresh
             if (refreshCallback) refreshCallback(); // Refresh board/app
             showModalNotification('Label deleted', 'success');

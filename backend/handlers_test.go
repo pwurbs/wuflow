@@ -12,7 +12,8 @@ import (
 const (
 	apiIssues            = "/api/issues"
 	apiIssues1           = "/api/issues/1"
-	apiIssues1Tasks      = "/api/issues/1/tasks"
+	invalidIssuePath     = "/api/issues/999"
+	apiTasks             = "/api/tasks"
 	apiTasks1            = "/api/tasks/1"
 	apiLabels            = "/api/labels"
 	apiLabels1           = "/api/labels/1"
@@ -22,7 +23,7 @@ const (
 	expectedTitleUpdated = "expected title 'Updated', got '%s'"
 )
 
-func TestHandleIssuesGet(t *testing.T) {
+func TestHandleActiveIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
@@ -34,7 +35,7 @@ func TestHandleIssuesGet(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssues)
+	handler := http.HandlerFunc(HandleActiveIssues)
 
 	handler.ServeHTTP(rr, req)
 
@@ -53,7 +54,7 @@ func TestHandleIssuesGet(t *testing.T) {
 	}
 }
 
-func TestHandleIssuesPost(t *testing.T) {
+func TestHandleCreateIssuePost(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
@@ -66,7 +67,7 @@ func TestHandleIssuesPost(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssues)
+	handler := http.HandlerFunc(HandleCreateIssue)
 
 	handler.ServeHTTP(rr, req)
 
@@ -111,7 +112,7 @@ func TestHandleIssuePut(t *testing.T) {
 			status, http.StatusOK)
 	}
 
-	issues, err := GetAllIssues()
+	issues, err := GetAllActiveIssues()
 	if err != nil {
 		t.Fatalf("Failed to get all issues: %v", err)
 	}
@@ -145,7 +146,7 @@ func TestHandleIssueDelete(t *testing.T) {
 			status, http.StatusNoContent)
 	}
 
-	issues, _ := GetAllIssues()
+	issues, _ := GetAllActiveIssues()
 	if len(issues) != 0 {
 		t.Errorf("expected 0 issues, got %d", len(issues))
 	}
@@ -269,30 +270,30 @@ func TestHandleIssuePutWithValidEtag(t *testing.T) {
 	}
 
 	// Verify the update was applied
-	issues, _ := GetAllIssues()
+	issues, _ := GetAllActiveIssues()
 	if issues[0].Title != "Updated" {
 		t.Errorf(expectedTitleUpdated, issues[0].Title)
 	}
 }
 
-func TestHandleTasksPost(t *testing.T) {
+func TestHandleCreateTaskPost(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen}
 	CreateIssue(issue)
 
-	task := &Task{Title: "New Task"}
+	task := &Task{Title: "New Task", IssueID: issue.ID}
 	body, _ := json.Marshal(task)
 
-	// URL path structure: /api/issues/{id}/tasks
-	req, err := http.NewRequest("POST", apiIssues1Tasks, bytes.NewBuffer(body))
+	// URL path structure: /api/tasks
+	req, err := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTasks)
+	handler := http.HandlerFunc(HandleCreateTask)
 
 	handler.ServeHTTP(rr, req)
 
@@ -370,14 +371,14 @@ func TestHandleTaskDelete(t *testing.T) {
 	}
 }
 
-func TestHandleIssuesPostInvalidJSON(t *testing.T) {
+func TestHandleActiveIssuesPostInvalidJSON(t *testing.T) {
 	req, err := http.NewRequest("POST", apiIssues, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssues)
+	handler := http.HandlerFunc(HandleCreateIssue)
 
 	handler.ServeHTTP(rr, req)
 
@@ -421,14 +422,14 @@ func TestHandleIssuePutInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleTasksPostInvalidJSON(t *testing.T) {
-	req, err := http.NewRequest("POST", apiIssues1Tasks, bytes.NewBufferString(invalidJSON))
+func TestHandleCreateTaskPostInvalidJSON(t *testing.T) {
+	req, err := http.NewRequest("POST", apiTasks, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTasks)
+	handler := http.HandlerFunc(HandleCreateTask)
 
 	handler.ServeHTTP(rr, req)
 
@@ -438,14 +439,18 @@ func TestHandleTasksPostInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleTasksPostInvalidIssueID(t *testing.T) {
-	req, err := http.NewRequest("POST", "/api/issues/invalid/tasks", nil)
+func TestHandleCreateTaskMissingIssueID(t *testing.T) {
+	// Post task without IssueID
+	task := &Task{Title: "Orphan Task"} // IssueID is 0
+	body, _ := json.Marshal(task)
+
+	req, err := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTasks)
+	handler := http.HandlerFunc(HandleCreateTask)
 
 	handler.ServeHTTP(rr, req)
 
@@ -489,14 +494,14 @@ func TestHandleTaskPutInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleIssuesMethodNotAllowed(t *testing.T) {
+func TestHandleActiveIssuesMethodNotAllowed(t *testing.T) {
 	req, err := http.NewRequest("DELETE", apiIssues, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssues)
+	handler := http.HandlerFunc(HandleActiveIssues)
 
 	handler.ServeHTTP(rr, req)
 
@@ -523,14 +528,14 @@ func TestHandleIssueMethodNotAllowed(t *testing.T) {
 	}
 }
 
-func TestHandleTasksMethodNotAllowed(t *testing.T) {
-	req, err := http.NewRequest("GET", apiIssues1Tasks, nil)
+func TestHandleCreateTaskMethodNotAllowed(t *testing.T) {
+	req, err := http.NewRequest("GET", apiTasks, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTasks)
+	handler := http.HandlerFunc(HandleCreateTask)
 
 	handler.ServeHTTP(rr, req)
 
@@ -714,23 +719,6 @@ func TestHandleLabelMethodNotAllowed(t *testing.T) {
 
 // Additional error path tests for better coverage
 
-func TestHandleTasksPostInvalidURL(t *testing.T) {
-	// Test with URL that doesn't match expected pattern
-	req, err := http.NewRequest("POST", "/api/issues/tasks", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTasks)
-
-	handler.ServeHTTP(rr, req)
-
-	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
-	}
-}
-
 // TestHandlersDBError tests handlers when the database is unavailable.
 func TestHandlersDBError(t *testing.T) {
 	// Save the original DB
@@ -749,7 +737,7 @@ func TestHandlersDBError(t *testing.T) {
 	}()
 
 	issueBody, _ := json.Marshal(&Issue{Title: "Test"})
-	taskBody, _ := json.Marshal(&Task{Title: "Test"})
+	taskBody, _ := json.Marshal(&Task{Title: "Test", IssueID: 1})
 	labelBody, _ := json.Marshal(&Label{Name: "Test"})
 
 	tests := []struct {
@@ -759,11 +747,11 @@ func TestHandlersDBError(t *testing.T) {
 		body    []byte
 		handler http.HandlerFunc
 	}{
-		{"HandleIssues_GET", "GET", apiIssues, nil, HandleIssues},
-		{"HandleIssues_POST", "POST", apiIssues, issueBody, HandleIssues},
+		{"HandleActiveIssues_GET", "GET", apiIssues, nil, HandleActiveIssues},
+		{"HandleActiveIssues_POST", "POST", apiIssues, issueBody, HandleCreateIssue},
 		{"HandleIssue_PUT", "PUT", apiIssues1, issueBody, HandleIssue},
 		{"HandleIssue_DELETE", "DELETE", apiIssues1, nil, HandleIssue},
-		{"HandleTasks_POST", "POST", apiIssues1Tasks, taskBody, HandleTasks},
+		{"HandleCreateTask_POST", "POST", apiTasks, taskBody, HandleCreateTask},
 		{"HandleTask_PUT", "PUT", apiTasks1, taskBody, HandleTask},
 		{"HandleTask_DELETE", "DELETE", apiTasks1, nil, HandleTask},
 		{"HandleLabels_GET", "GET", apiLabels, nil, HandleLabels},
@@ -780,5 +768,95 @@ func TestHandlersDBError(t *testing.T) {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 			}
 		})
+	}
+}
+
+func TestHandleIssueRefOnNonExistentID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// 1. PUT non-existent issue
+	issue := &Issue{Title: "Updated Title", Status: StatusOpen}
+	body, _ := json.Marshal(issue)
+	req, _ := http.NewRequest("PUT", invalidIssuePath, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleIssue)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("PUT %s: handler returned wrong status code: got %v want %v",
+			invalidIssuePath, status, http.StatusNotFound)
+	}
+
+	// 2. DELETE non-existent issue
+	req, _ = http.NewRequest("DELETE", invalidIssuePath, nil)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("DELETE %s: handler returned wrong status code: got %v want %v",
+			invalidIssuePath, status, http.StatusNotFound)
+	}
+}
+
+func TestHandleTaskRefOnNonExistentID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// 1. PUT non-existent task
+	task := &Task{Title: "Updated Task", Done: true}
+	body, _ := json.Marshal(task)
+	req, _ := http.NewRequest("PUT", "/api/tasks/999", bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleTask)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("PUT /api/tasks/999: handler returned wrong status code: got %v want %v",
+			status, http.StatusNotFound)
+	}
+
+	// 2. DELETE non-existent task
+	req, _ = http.NewRequest("DELETE", "/api/tasks/999", nil)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("DELETE /api/tasks/999: handler returned wrong status code: got %v want %v",
+			status, http.StatusNotFound)
+	}
+}
+
+func TestHandleCreateTaskWithNonExistentIssueID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// POST task for non-existent issue
+	task := &Task{IssueID: 999, Title: "Orphan Task"}
+	body, _ := json.Marshal(task)
+	req, _ := http.NewRequest("POST", "/api/tasks", bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleCreateTask)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("POST /api/tasks (issue_id=999): handler returned wrong status code: got %v want %v",
+			status, http.StatusBadRequest)
+	}
+}
+
+func TestHandleDeleteLabelWithNonExistentID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// DELETE non-existent label
+	req, _ := http.NewRequest("DELETE", "/api/labels/999", nil)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleLabel)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusNotFound {
+		t.Errorf("DELETE /api/labels/999: handler returned wrong status code: got %v want %v",
+			status, http.StatusNotFound)
 	}
 }

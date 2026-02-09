@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderArchive, setupArchiveView } from '../components/archive.js';
+import { renderArchive, setupArchiveView, resetArchivedLoaded } from '../components/archive.js';
 import * as state from '../state.js';
 import * as api from '../api.js';
 
@@ -12,7 +12,8 @@ vi.mock('../state.js', () => ({
 }));
 
 vi.mock('../api.js', () => ({
-  updateIssue: vi.fn().mockResolvedValue({})
+  updateIssue: vi.fn().mockResolvedValue({}),
+  fetchArchivedIssues: vi.fn().mockResolvedValue([])
 }));
 
 const { mockCreateCardElement } = vi.hoisted(() => {
@@ -55,17 +56,18 @@ describe('Archive Component', () => {
     `;
     vi.clearAllMocks();
     mockCreateCardElement.mockClear();
+    resetArchivedLoaded(); // Reset lazy-load state between tests
   });
 
   describe('renderArchive', () => {
-    it('should render cards in correct columns', () => {
+    it('should render cards in correct columns', async () => {
       const issues = [
         { id: 1, title: 'Item 1', status: 'Archive', position: 0 },
         { id: 2, title: 'Item 2', status: 'Done', position: 0 }
       ];
       state.state.issues = issues;
 
-      renderArchive(vi.fn(), vi.fn());
+      await renderArchive(vi.fn(), vi.fn());
 
       const archiveList = document.getElementById('archive-list');
       const doneList = document.getElementById('archive-done-list');
@@ -166,7 +168,7 @@ describe('Archive Component', () => {
       ];
       state.state.issues = structuredClone(issues);
 
-      renderArchive(vi.fn(), vi.fn());
+      await renderArchive(vi.fn(), vi.fn());
       const card3 = document.getElementById('archive-list').children[2];
 
       // Trigger move top
@@ -185,7 +187,7 @@ describe('Archive Component', () => {
       ];
       state.state.issues = structuredClone(issues);
 
-      renderArchive(vi.fn(), vi.fn());
+      await renderArchive(vi.fn(), vi.fn());
       const card1 = document.getElementById('archive-list').children[0];
 
       // Trigger move bottom

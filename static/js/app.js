@@ -1,9 +1,9 @@
-import { fetchIssues, fetchLabels, fetchVersion } from './api.js';
+import { fetchActiveIssues, fetchLabels, fetchVersion } from './api.js';
 import { state, setIssues, setFilterSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
-import { renderArchive, setupArchiveView } from './components/archive.js';
+import { renderArchive, setupArchiveView, resetArchivedLoaded } from './components/archive.js';
 import { setupSetupView, renderSetupView } from './components/setup.js';
 import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
@@ -51,7 +51,10 @@ async function init() {
 
 async function refreshApp() {
     try {
-        const issues = await fetchIssues();
+        // Reset archived loaded flag so we fetch fresh data on next Archive view
+        resetArchivedLoaded();
+
+        const issues = await fetchActiveIssues();
         setIssues(issues);
 
         // Refresh Label Filter
@@ -63,7 +66,10 @@ async function refreshApp() {
 
         renderBoard(refreshApp, openModal);
         renderBacklog(refreshApp, openModal);
-        renderArchive(refreshApp, openModal);
+
+        if (!archiveView.classList.contains('hidden')) {
+            await renderArchive(refreshApp, openModal);
+        }
         renderPlanningPanel(refreshApp, openModal);
     } catch (err) {
         console.error('Failed to refresh app:', err);
@@ -132,6 +138,8 @@ function switchView(view) {
 
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
+
+        renderArchive(refreshApp, openModal);
     } else if (view === 'backlog') {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');

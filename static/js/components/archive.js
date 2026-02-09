@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { updateIssue } from '../api.js';
+import { updateIssue, fetchArchivedIssues } from '../api.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement } from '../drag.js';
 import { handleMoveTop, handleMoveBottom, getListUpdates } from '../list-utils.js';
@@ -7,10 +7,28 @@ import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
+let archivedLoaded = false;
 
-export function renderArchive(refreshApp, openModal) {
+export function resetArchivedLoaded() {
+  archivedLoaded = false;
+}
+
+export async function renderArchive(refreshApp, openModal) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+
+  // Lazy-load archived issues if not already loaded
+  if (!archivedLoaded) {
+    const archivedIssues = await fetchArchivedIssues();
+    // Merge into state, avoiding duplicates
+    const existingIds = new Set(state.issues.map(i => i.id));
+    for (const issue of archivedIssues) {
+      if (!existingIds.has(issue.id)) {
+        state.issues.push(issue);
+      }
+    }
+    archivedLoaded = true;
+  }
 
   const archiveList = document.getElementById('archive-list');
   const doneList = document.getElementById('archive-done-list');

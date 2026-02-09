@@ -1,3 +1,7 @@
+## 0.13.1
+
+- Improved issue loading performance by adapting fetching tasks and distinguishing between active and archived issues
+
 ## 0.13.0
 
 - Added optimistic locking for concurrent issue edits

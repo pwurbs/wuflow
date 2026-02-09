@@ -60,9 +60,10 @@ async function globalSetup(config: FullConfig) {
   const isPlaywrightDir = path.basename(cwd) === 'playwright';
 
   const dbDir = isPlaywrightDir
-    ? path.join(cwd, 'test-db')
-    : path.join(cwd, 'playwright', 'test-db');
+    ? path.join(cwd, 'test-data')
+    : path.join(cwd, 'playwright', 'test-data');
   const dbPath = path.join(dbDir, 'wuflow.db');
+  const logPath = path.join(dbDir, 'backend.log');
 
   // 1. Cleanup
   try {
@@ -80,6 +81,8 @@ async function globalSetup(config: FullConfig) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
 
+    const logFile = fs.openSync(logPath, 'w');
+
     const projectRoot = isPlaywrightDir ? path.join(cwd, '..') : cwd;
     const versionPath = path.join(projectRoot, 'VERSION');
     let version = 'dev';
@@ -92,11 +95,11 @@ async function globalSetup(config: FullConfig) {
     }
 
     console.log(`Using application version: ${version}`);
+    console.log(`Redirecting backend logs to: ${logPath}`);
 
-    // go run -ldflags "-X main.Version=..." . -port=...
     const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`], {
       detached: true,
-      stdio: 'ignore',
+      stdio: ['ignore', logFile, logFile],
       cwd: projectRoot
     });
 

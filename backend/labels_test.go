@@ -66,7 +66,7 @@ func TestLabelAssociation(t *testing.T) {
 	}
 
 	// Verify Association
-	fetchedIssues, err := GetAllIssues()
+	fetchedIssues, err := GetAllActiveIssues()
 	if err != nil {
 		t.Fatalf("Failed to fetch issues: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestLabelAssociation(t *testing.T) {
 		t.Fatalf("Failed to delete label: %v", err)
 	}
 
-	fetchedIssues, err = GetAllIssues()
+	fetchedIssues, err = GetAllActiveIssues()
 	if err != nil {
 		t.Fatalf("Failed to fetch issues: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestLabelAssociation(t *testing.T) {
 	}
 
 	// The label pointer itself might be nil or the struct might be empty depending on implementation?
-	// In db.go GetAllIssues, we check `if lID.Valid`. If label deleted -> lID is NULL -> i.Label is nil.
+	// In db.go GetAllActiveIssues, we check `if lID.Valid`. If label deleted -> lID is NULL -> i.Label is nil.
 	if fetchedIssues[0].Label != nil {
 		t.Errorf("Expected issue label to be nil after label deletion (SET NULL), got %v", fetchedIssues[0].Label)
 	}

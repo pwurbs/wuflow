@@ -1,12 +1,23 @@
 const API_URL = '/api';
 
-export async function fetchIssues() {
+export async function fetchActiveIssues() {
   try {
-    const res = await fetch(`${API_URL}/issues`);
+    const res = await fetch(`${API_URL}/issues/active`);
     const data = await res.json();
     return data || [];
   } catch (err) {
     console.error('Failed to fetch issues:', err);
+    return [];
+  }
+}
+
+export async function fetchArchivedIssues() {
+  try {
+    const res = await fetch(`${API_URL}/issues/archived`);
+    const data = await res.json();
+    return data || [];
+  } catch (err) {
+    console.error('Failed to fetch archived issues:', err);
     return [];
   }
 }
@@ -67,7 +78,7 @@ export async function updateIssue(issue, etag = null) {
 }
 
 export async function createTask(task) {
-  const res = await fetch(`${API_URL}/issues/${task.issue_id}/tasks`, {
+  const res = await fetch(`${API_URL}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
