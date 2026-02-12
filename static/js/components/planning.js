@@ -333,6 +333,8 @@ function createPlanningItem(issue, dateStr) {
   return div;
 }
 
+let isFarTermUnscheduledExpanded = false;
+
 function createUnscheduledSection(issues) {
   const section = document.createElement('div');
   section.className = 'planning-section-unscheduled';
@@ -340,16 +342,73 @@ function createUnscheduledSection(issues) {
 
   const header = document.createElement('div');
   header.className = 'planning-section-header';
-  header.innerHTML = `<span class="planning-section-title">Unscheduled Issues with Deadline</span>`;
+  header.innerHTML = `<span class="planning-section-title">Unplanned Deadlines</span>`;
+  section.appendChild(header);
 
   const content = document.createElement('div');
   content.className = 'planning-section-content';
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tenDaysFromNow = new Date(today);
+  tenDaysFromNow.setDate(today.getDate() + 10);
+
+  const nearTermIssues = [];
+  const farTermIssues = [];
+
   issues.forEach(issue => {
+    const info = getEffectiveDeadlineInfo(issue);
+    if (info && info.date) {
+      const deadline = new Date(info.date);
+      deadline.setHours(0, 0, 0, 0);
+      if (deadline > tenDaysFromNow) {
+        farTermIssues.push(issue);
+      } else {
+        nearTermIssues.push(issue);
+      }
+    } else {
+      // No effective deadline? Should theoretically not happen given filter in renderPlanningPanel
+      nearTermIssues.push(issue);
+    }
+  });
+
+  // Render Near Term
+  nearTermIssues.forEach(issue => {
     content.appendChild(createUnscheduledItem(issue));
   });
 
-  section.appendChild(header);
+  // Render Far Term if exists
+  if (farTermIssues.length > 0) {
+    const farHeader = document.createElement('div');
+    farHeader.className = 'planning-section-subheader';
+    farHeader.style.cursor = 'pointer';
+    farHeader.style.marginTop = '8px';
+    farHeader.style.userSelect = 'none';
+
+    // Toggle icon (optional, or just text)
+    const arrow = isFarTermUnscheduledExpanded ? '▼' : '▶';
+    farHeader.innerHTML = `<span class="planning-section-subtitle">${arrow} 10+ days away [${farTermIssues.length}]</span>`;
+
+    const farContent = document.createElement('div');
+    farContent.className = 'planning-section-content far-term';
+    farContent.style.marginTop = '4px';
+    farContent.style.display = isFarTermUnscheduledExpanded ? 'flex' : 'none';
+
+    farTermIssues.forEach(issue => {
+      farContent.appendChild(createUnscheduledItem(issue));
+    });
+
+    farHeader.addEventListener('click', () => {
+      isFarTermUnscheduledExpanded = !isFarTermUnscheduledExpanded;
+      farContent.style.display = isFarTermUnscheduledExpanded ? 'flex' : 'none';
+      const arrow = isFarTermUnscheduledExpanded ? '▼' : '▶';
+      farHeader.querySelector('.planning-section-subtitle').innerHTML = `${arrow} 10+ days away [${farTermIssues.length}]`;
+    });
+
+    content.appendChild(farHeader);
+    content.appendChild(farContent);
+  }
+
   section.appendChild(content);
 
   return section;

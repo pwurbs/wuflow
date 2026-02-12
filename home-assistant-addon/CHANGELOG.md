@@ -1,3 +1,8 @@
+
+## 0.14.3
+
+- Improved the Unplanned Issues section in the Planning panel
+
 ## 0.14.2
 
 - Improved column counters to show number of filtered issues

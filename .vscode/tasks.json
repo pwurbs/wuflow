@@ -65,7 +65,9 @@
     {
       "label": "Sonar Scanner",
       "type": "shell",
-      "command": "sonar-scanner",
+      // SONAR_TOKEN is a secret token that needs to be set in the environment
+      // projectVersion must be set to get correct "new code" related results in SonarQube
+      "command": "export VERSION=$(cat VERSION) && sonar-scanner -Dsonar.token=${env:SONAR_TOKEN} -Dsonar.projectVersion=$VERSION",
       // Use a login interactive shell to ensure the user's PATH and SONAR_TOKEN are loaded correctly (finding sonar-scanner binary)
       "options": {
         "shell": {
@@ -76,10 +78,6 @@
           ]
         }
       },
-      // Note: SONAR_TOKEN is a secret token that needs to be set in the environment
-      "args": [
-        "-Dsonar.token=${env:SONAR_TOKEN}"
-      ],
       "presentation": {
         "reveal": "always",
         "panel": "shared"

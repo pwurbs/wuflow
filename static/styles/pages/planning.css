@@ -124,7 +124,6 @@
 
 /* Unscheduled Section */
 .planning-section-unscheduled {
-  margin-top: 16px;
   padding: 8px 12px;
   background-color: var(--card-bg);
   border: 1px dashed var(--card-border);
@@ -141,6 +140,19 @@
   color: var(--primary-color);
 }
 
+.planning-section-subheader {
+  display: flex;
+  align-items: center;
+  color: var(--primary-color);
+  font-size: 12px;
+}
+
+.planning-section-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .planning-section-content {
   display: flex;
   flex-direction: column;
@@ -149,7 +161,7 @@
 
 .planning-item.unscheduled {
   background-color: rgba(239, 68, 68, 0.05);
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: var(--card-border);
 }
 
 .planning-item.unscheduled:hover {

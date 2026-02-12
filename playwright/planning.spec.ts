@@ -640,5 +640,43 @@ test.describe('Planning Panel', () => {
     expect(count).toBe(1);
   });
 
+  test('unplanned issue with distant deadline is hidden behind collapsed header', async ({ page }) => {
+    const today = new Date();
+    const distantDate = new Date(today);
+    distantDate.setDate(today.getDate() + 15);
+
+    // Format date manually
+    const year = distantDate.getFullYear();
+    const month = String(distantDate.getMonth() + 1).padStart(2, '0');
+    const day = String(distantDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
+    const uniqueTitle = 'Distant Deadline ' + Date.now();
+
+    // Create issue with distant deadline
+    await createIssue(page, {
+      title: uniqueTitle,
+      status: 'Todo',
+      deadline: dateStr
+    });
+
+    const unscheduledSection = page.locator('#unscheduled-section');
+    await expect(unscheduledSection).toBeVisible();
+
+    // The header should be visible
+    const toggleHeader = unscheduledSection.locator('.planning-section-subheader');
+    await expect(toggleHeader).toBeVisible();
+    await expect(toggleHeader).toContainText('10+ days away [1]');
+
+    // The item should be in the DOM but hidden
+    const item = unscheduledSection.locator('.planning-item', { hasText: uniqueTitle });
+    await expect(item).toBeHidden();
+
+    // Click to expand
+    await toggleHeader.click();
+
+    // Now it should be visible
+    await expect(item).toBeVisible();
+  });
 
 });

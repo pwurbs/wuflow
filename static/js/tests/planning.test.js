@@ -176,18 +176,49 @@ describe('planning.js', () => {
       expect(document.getElementById('planning-count').textContent).toBe('0');
     });
 
-    it('renders unscheduled issues section', () => {
+    it('renders unscheduled issues section with near and far term splitting', () => {
+      // Mock date is 2023-10-10
       state.issues = [
-        { id: 1, title: 'Unscheduled One', deadline: '2023-10-20', planned_dates: [], status: 'Todo' }
+        { id: 1, title: 'Near Term', deadline: '2023-10-15', planned_dates: [], status: 'Todo' }, // +5 days
+        { id: 2, title: 'Far Term', deadline: '2023-10-25', planned_dates: [], status: 'Todo' }  // +15 days
       ];
 
       renderPlanningPanel();
 
       const unscheduledSection = document.getElementById('planning-list').querySelector('.planning-section-unscheduled');
       expect(unscheduledSection).not.toBeNull();
-      expect(unscheduledSection.textContent).toContain('Unscheduled Issues');
-      expect(unscheduledSection.querySelectorAll('.planning-item').length).toBe(1);
-      expect(document.getElementById('planning-count').textContent).toBe('1');
+      expect(unscheduledSection.querySelector('.planning-section-title').textContent).toBe('Unplanned Deadlines');
+
+      // Near term should be directly in the content
+      const planningItems = unscheduledSection.querySelectorAll('.planning-item');
+      // Both are in the DOM, but one is in the far-term container
+      expect(planningItems.length).toBe(2);
+
+      const farHeader = unscheduledSection.querySelector('.planning-section-subheader');
+      expect(farHeader).not.toBeNull();
+      expect(farHeader.textContent).toContain('10+ days away [1]');
+
+      const farContent = unscheduledSection.querySelector('.planning-section-content.far-term');
+      expect(farContent.style.display).toBe('none'); // Default collapsed
+    });
+
+    it('toggles far term section visibility', () => {
+      state.issues = [
+        { id: 2, title: 'Far Term', deadline: '2023-10-25', planned_dates: [], status: 'Todo' }
+      ];
+
+      renderPlanningPanel();
+      const unscheduledSection = document.getElementById('planning-list').querySelector('.planning-section-unscheduled');
+      const farHeader = unscheduledSection.querySelector('.planning-section-subheader');
+      const farContent = unscheduledSection.querySelector('.planning-section-content.far-term');
+
+      // Click to expand
+      farHeader.click();
+      expect(farContent.style.display).toBe('flex');
+
+      // Click to collapse
+      farHeader.click();
+      expect(farContent.style.display).toBe('none');
     });
 
     it('renders planned issues in correct day slot', () => {
