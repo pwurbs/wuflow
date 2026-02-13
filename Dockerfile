@@ -1,7 +1,7 @@
 
 #------- Build stage ---------------------------------------------------------
 # Use Debian-based Go image to match the runtime and ensure libc compatibility for CGO
-FROM docker.io/library/golang:1.25-trixie AS builder
+FROM docker.io/library/golang:1.25-bookworm AS builder
 
 # Arguments for cross-compilation
 ARG TARGETOS
@@ -55,6 +55,9 @@ EXPOSE 8080
 # Set container image compatible default values
 ENV WF_DBPATH=/data/wuflow.db
 ENV WF_PORT=8080
+
+# Placeholder for the external injection of the initial admin password for first run
+ENV WF_INITIAL_ADMIN_PASSWORD=
 
 # Switch to appuser
 USER appuser

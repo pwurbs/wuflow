@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
@@ -167,5 +170,208 @@ func TestServerRoutes(t *testing.T) {
 					status, tt.expectedStatus)
 			}
 		})
+	}
+}
+
+func TestIsStaticAsset(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{"/style.css", true},
+		{"/script.js", true},
+		{"/image.png", true},
+		{"/image.jpg", true},
+		{"/font.woff2", true},
+		{"/login.html", false}, // .html is not in the list
+		{"/api/users", false},
+	}
+
+	for _, tt := range tests {
+		if got := isStaticAsset(tt.path); got != tt.expected {
+			t.Errorf("isStaticAsset(%q) = %v, want %v", tt.path, got, tt.expected)
+		}
+	}
+}
+
+func TestIsPublicAsset(t *testing.T) {
+	tests := []struct {
+		path     string
+		expected bool
+	}{
+		{"/logo.png", true},
+		{"/js/login.js", true},
+		{"/styles/pages/login.css", true},
+		{"/js/app.js", false},
+		{"/styles/main.css", false},
+		{"/index.html", false},
+	}
+
+	for _, tt := range tests {
+		if got := isPublicAsset(tt.path); got != tt.expected {
+			t.Errorf("isPublicAsset(%q) = %v, want %v", tt.path, got, tt.expected)
+		}
+	}
+}
+
+func TestHandleLoginHTML(t *testing.T) {
+	// Create a dummy handler that checks the path
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login.html" {
+			t.Errorf("Expected path /login.html, got %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := HandleLoginHTML(nextHandler)
+	req := httptest.NewRequest("GET", "/login", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleStaticFiles(t *testing.T) {
+	InitJWTSecret("testsecret")
+
+	t.Run("Public Asset", testPublicAsset)
+	t.Run("Private Asset No Auth", testPrivateAssetNoAuth)
+	t.Run("HTML No Auth", testHTMLNoAuth)
+	t.Run("HTML Valid Auth", testHTMLValidAuth)
+	t.Run("HTML Expired Access Valid Refresh", testHTMLExpiredAccessValidRefresh)
+}
+
+func testPublicAsset(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := HandleStaticFiles(nextHandler)
+	req := httptest.NewRequest("GET", "/js/login.js", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for public asset, got %d", rr.Code)
+	}
+}
+
+func testPrivateAssetNoAuth(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Next handler should not be called for private asset without auth")
+	})
+	handler := HandleStaticFiles(nextHandler)
+	req := httptest.NewRequest("GET", "/js/app.js", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusFound {
+		t.Errorf("Expected 302 Redirect for private asset, got %d", rr.Code)
+	}
+}
+
+func testHTMLNoAuth(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("Next handler should not be called")
+	})
+	handler := HandleStaticFiles(nextHandler)
+	req := httptest.NewRequest("GET", "/index.html", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusFound {
+		t.Errorf("Expected 302 Redirect, got %d", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/login" {
+		t.Errorf("Expected redirect to /login, got %s", loc)
+	}
+}
+
+func testHTMLValidAuth(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := HandleStaticFiles(nextHandler)
+	req := httptest.NewRequest("GET", "/", nil)
+
+	// Create valid token
+	user := &User{ID: 1, Email: "test@example.com", Role: RoleAdmin}
+	token, _ := GenerateAccessToken(user)
+	req.AddCookie(&http.Cookie{Name: cookieAccessToken, Value: token})
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for authenticated request, got %d", rr.Code)
+	}
+}
+
+func testHTMLExpiredAccessValidRefresh(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	InitJWTSecret("testsecret")
+
+	// Create user
+	user := &User{Email: "refresh@example.com", Role: RoleUser, Active: true}
+	if err := CreateUser(user); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	// Fetch user to get ID
+	u, _ := GetUserByEmail("refresh@example.com")
+	user.ID = u.ID // Ensure ID is set
+
+	// Create expired access token manually
+	claims := CustomClaims{
+		UserID: u.ID,
+		Email:  u.Email,
+		Role:   u.Role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)), // Expired 1 min ago
+			Subject:   u.Email,
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	expiredAccessToken, _ := token.SignedString(jwtSecret)
+
+	// Create valid refresh token
+	validRefreshToken, _ := GenerateRefreshToken(u)
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := HandleStaticFiles(nextHandler)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: cookieAccessToken, Value: expiredAccessToken})
+	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: validRefreshToken})
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK (refreshed), got %d. Location: %s", rr.Code, rr.Header().Get("Location"))
+	}
+
+	// Check for new cookies (Set-Cookie header)
+	cookies := rr.Result().Cookies()
+	foundAccess := false
+	foundRefresh := false
+	for _, c := range cookies {
+		if c.Name == cookieAccessToken {
+			foundAccess = true
+			if c.Value == expiredAccessToken {
+				t.Error("Access token cookie was not updated")
+			}
+		}
+		if c.Name == cookieRefreshToken {
+			foundRefresh = true
+		}
+	}
+
+	if !foundAccess {
+		t.Error("Expected new access token cookie to be set")
+	}
+	if !foundRefresh {
+		t.Error("Expected new refresh token cookie to be set")
 	}
 }

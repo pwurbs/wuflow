@@ -1,6 +1,7 @@
 export const state = {
   issues: [],
   currentIssue: null,
+  currentUser: null,
   filter: { label: null, priority: null, search: '' }
 };
 
@@ -23,6 +24,10 @@ export function setIssues(newIssues) {
 
 export function setCurrentIssue(issue) {
   state.currentIssue = issue;
+}
+
+export function setCurrentUser(user) {
+  state.currentUser = user;
 }
 
 export function isFilterActive() {

@@ -2,12 +2,14 @@ package backend
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 )
 
 const (
@@ -620,6 +622,7 @@ func TestHandleLabelsPost(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabels)
 
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
@@ -645,6 +648,7 @@ func TestHandleLabelsPostInvalidJSON(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabels)
 
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
@@ -773,6 +777,7 @@ func TestHandlersDBError(t *testing.T) {
 		t.Run(tt.name+"_Error", func(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(tt.body))
 			rr := httptest.NewRecorder()
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 			tt.handler(rr, req)
 			if rr.Code != http.StatusInternalServerError {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -861,6 +866,7 @@ func TestHandleLabelInvalidInput(t *testing.T) {
 			req, _ := http.NewRequest("POST", apiLabels, bytes.NewBuffer(body))
 			rr := httptest.NewRecorder()
 			handle := http.HandlerFunc(HandleLabels)
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 			handle.ServeHTTP(rr, req)
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1069,6 +1075,9 @@ func TestHandlersDBErrors(t *testing.T) {
 			}
 
 			rr := httptest.NewRecorder()
+			// Inject admin role into context so handlers with internal role checks pass
+			ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+			req = req.WithContext(ctx)
 			tt.handler.ServeHTTP(rr, req)
 
 			if rr.Code != http.StatusInternalServerError {
@@ -1076,5 +1085,258 @@ func TestHandlersDBErrors(t *testing.T) {
 					tt.name, rr.Code, http.StatusInternalServerError)
 			}
 		})
+	}
+}
+
+func TestUpdateUserPassword(t *testing.T) {
+	InitJWTSecret("testsecret")
+
+	user := &User{Email: "test@example.com"}
+
+	// 1. Empty password -> No change, no error
+	err := updateUserPassword(user, "")
+	if err != nil {
+		t.Errorf("Expected nil error for empty password, got %v", err)
+	}
+	if user.PasswordHash != "" {
+		t.Error("Expected password hash to remain empty")
+	}
+
+	// 2. Invalid password (too short)
+	err = updateUserPassword(user, "short")
+	if err == nil {
+		t.Error("Expected error for short password, got nil")
+	}
+
+	// 3. Valid password
+	err = updateUserPassword(user, testPassword)
+	if err != nil {
+		t.Errorf("Expected success for valid password, got %v", err)
+	}
+	if user.PasswordHash == "" {
+		t.Error("Expected password hash to be set")
+	}
+	if !CheckPassword(user.PasswordHash, testPassword) {
+		t.Error("Hash validation failed")
+	}
+}
+
+func TestCheckIfMatchConflict(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create issue
+	issue := &Issue{Title: "Orignal", Status: StatusOpen}
+	CreateIssue(issue)
+	originalEtag := `"` + issue.UpdatedAt.UTC().Format(time.RFC3339Nano) + `"`
+
+	// 1. No Conflict (Match)
+	rr := httptest.NewRecorder()
+	conflict := checkIfMatchConflict(rr, issue.ID, originalEtag)
+	if conflict {
+		t.Error("Expected no conflict, got true")
+	}
+
+	// 2. Conflict (Mismatch)
+	rr = httptest.NewRecorder()
+	conflict = checkIfMatchConflict(rr, issue.ID, "\"old-etag\"")
+	if !conflict {
+		t.Error("Expected conflict, got false")
+	}
+	if rr.Code != http.StatusConflict {
+		t.Errorf("Expected 409 Conflict, got %d", rr.Code)
+	}
+
+	// 3. Issue Not Found
+	rr = httptest.NewRecorder()
+	conflict = checkIfMatchConflict(rr, 999, originalEtag)
+	if !conflict {
+		t.Error("Expected conflict (as true) for not found, got false") // Logic returns true to stop processing
+	}
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 Not Found, got %d", rr.Code)
+	}
+}
+
+func TestHandlePutIssueReadOnlyArchived(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create archived issue
+	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	CreateIssue(issue)
+	path := apiIssuesBase + strconv.Itoa(issue.ID)
+
+	// Try to update title (not allowed)
+	updateBody := map[string]interface{}{
+		"title":    "Updated Title",
+		"status":   "Archive",
+		"priority": "Normal",
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for editing archived issue, got %d", rr.Code)
+	}
+}
+
+func TestHandleDeleteIssueArchived(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	CreateIssue(issue)
+	path := apiIssuesBase + strconv.Itoa(issue.ID)
+
+	req := httptest.NewRequest("DELETE", path, nil)
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for deleting archived issue, got %d", rr.Code)
+	}
+}
+
+func TestHandleUpdateUserLastAdminProtection(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create single admin
+	hash, _ := HashPassword(testPassword)
+	user := &User{Email: "admin@local", Role: RoleAdmin, Active: true, PasswordHash: hash}
+	CreateUser(user)
+	path := apiUsersBase + strconv.Itoa(user.ID)
+
+	// Try to demote
+	updateBody := map[string]interface{}{
+		"email":      "admin@local",
+		"first_name": "Admin",
+		"last_name":  "User",
+		"role":       "user", // Demoting
+		"active":     true,
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	HandleUser(rr, req) // This tests handleUpdateUser which calls checkLastAdminProtection
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for last admin demotion, got %d", rr.Code)
+	}
+}
+
+func TestHandlePutTaskArchivedIssue(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	CreateIssue(issue)
+	task := &Task{Title: "Task", IssueID: issue.ID, Done: false}
+	CreateTask(task)
+	path := apiTasksBase + strconv.Itoa(task.ID)
+
+	updateBody := map[string]interface{}{
+		"title":    "Updated Task",
+		"issue_id": issue.ID,
+		"done":     true,
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	HandleTask(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for updating task of archived issue, got %d", rr.Code)
+	}
+}
+
+func TestHandleDeleteTaskArchivedIssue(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	CreateIssue(issue)
+	task := &Task{Title: "Task", IssueID: issue.ID, Done: false}
+	CreateTask(task)
+	path := apiTasksBase + strconv.Itoa(task.ID)
+
+	req := httptest.NewRequest("DELETE", path, nil)
+	rr := httptest.NewRecorder()
+
+	HandleTask(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for deleting task of archived issue, got %d", rr.Code)
+	}
+}
+
+func TestHandlePutIssueUnarchive(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create archived issue
+	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	CreateIssue(issue)
+	path := apiIssuesBase + strconv.Itoa(issue.ID)
+
+	// Unarchive it (set status to Done)
+	updateBody := map[string]interface{}{
+		"title":    "Archived",
+		"status":   "Done", // Valid transition
+		"priority": "Normal",
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for unarchiving issue, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	updated, _ := GetIssueByID(issue.ID)
+	if updated.Status != StatusDone {
+		t.Errorf("Expected status Done, got %s", updated.Status)
+	}
+}
+
+func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	hash, _ := HashPassword("oldpass")
+	user := &User{Email: "t@t.com", PasswordHash: hash, Active: true, Role: RoleUser}
+	CreateUser(user)
+	path := apiUsersBase + strconv.Itoa(user.ID)
+
+	// Update with new password
+	updateBody := map[string]interface{}{
+		"email":      "t@t.com",
+		"first_name": "Test",
+		"last_name":  "User",
+		"password":   testPassword,
+		"role":       "user",
+		"active":     true,
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	HandleUser(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d", rr.Code)
+	}
+
+	updated, _ := GetUserByID(user.ID)
+	if !CheckPassword(updated.PasswordHash, testPassword) {
+		t.Error("Password was not updated correctly")
 	}
 }

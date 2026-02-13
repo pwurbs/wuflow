@@ -1,5 +1,5 @@
-import { fetchActiveIssues, fetchLabels, fetchVersion } from './api.js';
-import { state, setIssues, setFilterSearch } from './state.js';
+import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser, logout } from './api.js';
+import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
@@ -29,6 +29,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function init() {
+    // Check authentication before anything else
+    const user = await fetchCurrentUser();
+    if (!user) {
+        globalThis.location.href = '/login';
+        return;
+    }
+    setCurrentUser(user);
+
+    // Hide Setup nav for non-admin users
+    if (user.role !== 'admin') {
+        navSetup.classList.add('hidden');
+    }
+
     setupEventListeners();
     initLabelFilter(refreshApp);
     initPriorityFilter(refreshApp);
@@ -85,6 +98,12 @@ function setupEventListeners() {
     navBacklog.addEventListener('click', () => switchView('backlog'));
     navSetup.addEventListener('click', () => switchView('setup'));
 
+    // Logout
+    const logoutBtn = document.getElementById('nav-logout');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => logout());
+    }
+
     // New Issue Btn
     document.getElementById('add-issue-btn').addEventListener('click', () => openModal(null));
 
@@ -125,6 +144,8 @@ function switchView(view) {
 
         sidebar.classList.remove('hidden');
         filterContainer.classList.remove('hidden');
+
+        refreshApp();
     } else if (view === 'archive') {
         boardView.classList.add('hidden');
         backlogView.classList.add('hidden');
@@ -139,7 +160,7 @@ function switchView(view) {
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
 
-        renderArchive(refreshApp, openModal);
+        refreshApp();
     } else if (view === 'backlog') {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');
@@ -153,6 +174,8 @@ function switchView(view) {
 
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
+
+        refreshApp();
     } else if (view === 'setup') {
         boardView.classList.add('hidden');
         backlogView.classList.add('hidden');

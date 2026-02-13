@@ -67,3 +67,26 @@ type Label struct {
 	Name  string `json:"name"`
 	Color string `json:"color"`
 }
+
+// UserRole represents a user's role in the system.
+type UserRole string
+
+const (
+	// RoleAdmin grants full access including user management.
+	RoleAdmin UserRole = "admin"
+	// RoleUser grants standard access to the application.
+	RoleUser UserRole = "user"
+)
+
+// User represents an authenticated user of the application.
+type User struct {
+	ID           int       `json:"id"`
+	Email        string    `json:"email"`
+	FirstName    string    `json:"first_name"`
+	LastName     string    `json:"last_name"`
+	PasswordHash string    `json:"-"` // never exposed via API
+	Role         UserRole  `json:"role"`
+	Active       bool      `json:"active"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}

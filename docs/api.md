@@ -2,23 +2,139 @@
 
 Base URL: `/api`
 
+## Authentication
+
+All API endpoints except `/api/auth/login` require authentication via HTTPOnly cookies. The server uses JWT tokens with automatic refresh.
+
+### Auth Requirements Legend
+- **Public**: No authentication required
+- **Required**: Valid access token required (any authenticated user)
+- **Admin**: Valid access token required with admin role
+- **Refresh Token**: Valid refresh token required (for token renewal)
+
 ## Handler Mapping
 
-| Endpoint | Method | Handler | Description |
-| :--- | :--- | :--- | :--- |
-| `/issues/active` | GET | `HandleActiveIssues` | Get all active issues |
-| `/issues/archived` | GET | `HandleArchivedIssues` | Get all archived issues |
-| `/issues` | POST | `HandleCreateIssue` | Create a new issue |
-| `/issues/:id` | GET | `HandleIssue` | Get issue details |
-| `/issues/:id` | PUT | `HandleIssue` | Update issue |
-| `/issues/:id` | DELETE | `HandleIssue` | Delete issue |
-| `/tasks` | POST | `HandleCreateTask` | Create task (IssueID in body) |
-| `/tasks/:id` | PUT | `HandleTask` | Update task |
-| `/tasks/:id` | DELETE | `HandleTask` | Delete task |
-| `/labels` | GET | `HandleLabels` | Get all labels |
-| `/labels` | POST | `HandleLabels` | Create label |
-| `/labels/:id` | DELETE | `HandleLabel` | Delete label |
-| `/version` | GET | `Anonymous Func` | Get app version |
+| Endpoint | Method | Handler | Auth | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `/auth/login` | POST | `HandleLogin` | Public | Authenticate user |
+| `/auth/logout` | POST | `HandleLogout` | Public | Clear auth cookies |
+| `/auth/refresh` | POST | `HandleRefresh` | Refresh Token | Refresh access token |
+| `/auth/me` | GET | `HandleCurrentUser` | Required | Get current user |
+| `/users` | GET | `HandleUsers` | Admin | List all users |
+| `/users` | POST | `HandleUsers` | Admin | Create new user |
+| `/users/:id` | GET | `HandleUser` | Admin | Get user details |
+| `/users/:id` | PUT | `HandleUser` | Admin | Update user |
+| `/issues/active` | GET | `HandleActiveIssues` | Required | Get all active issues |
+| `/issues/archived` | GET | `HandleArchivedIssues` | Required | Get all archived issues |
+| `/issues` | POST | `HandleCreateIssue` | Required | Create a new issue |
+| `/issues/:id` | GET | `HandleIssue` | Required | Get issue details |
+| `/issues/:id` | PUT | `HandleIssue` | Required | Update issue |
+| `/issues/:id` | DELETE | `HandleIssue` | Required | Delete issue |
+| `/tasks` | POST | `HandleCreateTask` | Required | Create task (IssueID in body) |
+| `/tasks/:id` | PUT | `HandleTask` | Required | Update task |
+| `/tasks/:id` | DELETE | `HandleTask` | Required | Delete task |
+| `/labels` | GET | `HandleLabels` | Required | Get all labels |
+| `/labels` | POST | `HandleLabels` | Admin | Create label |
+| `/labels/:id` | DELETE | `HandleLabel` | Admin | Delete label |
+| `/version` | GET | `Anonymous Func` | Public | Get app version |
+
+## Authentication & Users
+
+### Login
+Authenticates a user and sets HTTPOnly cookies for access and refresh tokens.
+- **POST** `/auth/login`
+- **Body**:
+  ```json
+  {
+    "email": "admin@local",
+    "password": "YourPassword123!"
+  }
+  ```
+- **Response**: User object with role and active status
+- **Errors**: 
+  - `401 Unauthorized` - Invalid credentials or inactive account
+
+### Logout
+Clears authentication cookies.
+- **POST** `/auth/logout`
+- **Response**: `204 No Content`
+
+### Refresh Token
+Refreshes the access token using the refresh token cookie.
+- **POST** `/auth/refresh`
+- **Response**: Sets new access token cookie
+- **Errors**:
+  - `401 Unauthorized` - Invalid or expired refresh token, or inactive user
+
+### Get Current User
+Retrieves the authenticated user's details.
+- **GET** `/auth/me`
+- **Response**: User object
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
+
+### List Users
+Retrieves all users (Admin only).
+- **GET** `/users`
+- **Response**: Array of user objects
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin
+
+### Create User
+Creates a new user (Admin only).
+- **POST** `/users`
+- **Body**:
+  ```json
+  {
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "password": "SecurePass123!",
+    "role": "user",
+    "active": true
+  }
+  ```
+- **Response**: Created user object
+- **Errors**:
+  - `400 Bad Request` - Validation failed (password policy, invalid email, etc.)
+  - `409 Conflict` - Email already exists
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin
+
+### Get User
+Retrieves a specific user by ID (Admin only).
+- **GET** `/users/:id`
+- **Response**: User object
+- **Errors**:
+  - `404 Not Found` - User doesn't exist
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin
+
+### Update User
+Updates an existing user (Admin only).
+- **PUT** `/users/:id`
+- **Body**:
+  ```json
+  {
+    "email": "updated@example.com",
+    "first_name": "Jane",
+    "last_name": "Smith",
+    "password": "",
+    "role": "admin",
+    "active": false
+  }
+  ```
+- **Notes**: 
+  - Password is optional; leave empty to keep current password
+  - Cannot deactivate or demote the last active admin
+- **Response**: Updated user object
+- **Errors**:
+  - `400 Bad Request` - Validation failed or trying to deactivate last admin
+  - `404 Not Found` - User doesn't exist
+  - `409 Conflict` - Email already in use
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin
 
 ## Issues
 
@@ -88,11 +204,11 @@ Deletes a task.
 ## Labels
 
 ### Get All Labels
-Retrieves all available labels.
+Retrieves all available labels. Accessible to all authenticated users.
 - **GET** `/labels`
 
 ### Create Label
-Creates a new label.
+Creates a new label (Admin only).
 - **POST** `/labels`
 - **Body**:
   ```json
@@ -103,7 +219,7 @@ Creates a new label.
   ```
 
 ### Delete Label
-Deletes a label.
+Deletes a label (Admin only).
 - **DELETE** `/labels/:id`
 
 ## System

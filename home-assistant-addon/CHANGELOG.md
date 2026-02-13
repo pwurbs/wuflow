@@ -1,4 +1,8 @@
 
+## 0.15.0
+
+- Added User Management
+
 ## 0.14.3
 
 - Improved the Unplanned Issues section in the Planning panel

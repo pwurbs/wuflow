@@ -105,8 +105,7 @@ export async function openModal(issue = null) {
 
       if (!freshIssue) {
         showModalNotification('Issue not found or was deleted');
-        modal.classList.add('hidden');
-        if (refreshAppCallback) refreshAppCallback();
+        closeModal();
         return;
       }
       currentEtag = etag;
@@ -304,6 +303,7 @@ export function closeModal() {
   setCurrentIssue(null);
   currentEtag = null;
   resetTaskForm();
+  if (refreshAppCallback) refreshAppCallback();
 }
 
 /**
@@ -374,7 +374,6 @@ async function handleIssueSubmit(e) {
     showNotification(`Issue #${newIssue.id} created successfully`);
   }
   closeModal();
-  if (refreshAppCallback) refreshAppCallback();
 }
 
 async function handleDeleteIssue() {
@@ -382,7 +381,6 @@ async function handleDeleteIssue() {
   if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
     await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id));
     closeModal();
-    if (refreshAppCallback) refreshAppCallback();
   }
 }
 

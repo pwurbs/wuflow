@@ -111,6 +111,17 @@
                     </svg>
                     <span class="menu-tooltip">Setup</span>
                 </button>
+                <div class="menu-spacer"></div>
+                <button id="nav-logout" class="menu-btn" aria-label="Logout">
+                    <!-- Logout Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span class="menu-tooltip">Logout</span>
+                </button>
             </nav>
             <div id="setup-view" class="hidden">
                 <div class="setup-section">
@@ -121,12 +132,81 @@
                         <div class="label-input-group">
                             <input type="text" id="new-label-input" placeholder="New label (max 15 chars)"
                                 class="setup-input" maxlength="15">
-                            <button id="add-label-btn" class="btn secondary">Add</button>
+                            <button id="add-label-btn" class="btn secondary">+ Add</button>
                         </div>
                         <div id="labels-list" class="labels-grid">
                             <!-- Labels injected here -->
                         </div>
                     </div>
+                </div>
+                <!-- User Management Section (admin only) -->
+                <div id="user-management-section" class="setup-section" style="margin-top: 24px;">
+                    <div class="column-header">
+                        <h2>User Management</h2>
+                    </div>
+                    <div class="setup-content">
+                        <button id="add-user-btn" class="btn secondary">+ Add User</button>
+                        <div id="users-list" class="users-list">
+                            <!-- Users injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Modal -->
+            <div id="user-modal-overlay" class="modal-overlay hidden">
+                <div class="user-modal">
+                    <div class="user-modal-header">
+                        <h2 id="user-modal-title">New User</h2>
+                    </div>
+                    <form id="user-form" autocomplete="off">
+                        <div class="form-group">
+                            <label for="user-email">Email</label>
+                            <input type="text" id="user-email" required placeholder="user@example.com"
+                                pattern="[^@\s]+@[^@\s]+" title="Email address (e.g. user@domain)">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="user-first-name">First Name</label>
+                                <input type="text" id="user-first-name" required placeholder="First name">
+                            </div>
+                            <div class="form-group">
+                                <label for="user-last-name">Last Name</label>
+                                <input type="text" id="user-last-name" required placeholder="Last name">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="user-password">Password</label>
+                            <input type="password" id="user-password">
+                            <small id="user-password-hint" class="form-hint">Leave empty to keep current password (edit
+                                only)</small>
+                        </div>
+                        <div class="form-row user-options-row">
+                            <div class="form-group role-group">
+                                <label for="user-role-trigger">Role</label>
+                                <div class="custom-select-wrapper" id="user-role-dropdown">
+                                    <input type="hidden" id="user-role" name="role" value="user">
+                                    <button type="button" class="custom-select-trigger" id="user-role-trigger">
+                                        <span id="user-role-text">User</span>
+                                        <span class="filter-icon-arrow">▼</span>
+                                    </button>
+                                    <div class="custom-select-options hidden" id="user-role-options">
+                                        <div class="custom-option" data-value="user">User</div>
+                                        <div class="custom-option" data-value="admin">Admin</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group form-checkbox active-group">
+                                <input type="checkbox" id="user-active" name="active" checked>
+                                <label for="user-active">Active User</label>
+                            </div>
+                        </div>
+                        <div id="user-modal-error" class="form-error hidden" role="alert"></div>
+                        <div class="form-actions">
+                            <button type="button" id="user-modal-cancel" class="btn secondary">Cancel</button>
+                            <button type="submit" id="user-modal-save" class="btn primary">Save</button>
+                        </div>
+                    </form>
                 </div>
             </div>
             <div class="board">

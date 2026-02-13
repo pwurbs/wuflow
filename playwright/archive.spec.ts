@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, navigateTo, selectStatus } from './helpers/test-utils';
+import { createIssue, navigateTo, selectStatus, login } from './helpers/test-utils';
 
 test.describe('Archive View', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await login(page);
   });
 
   test('navigate to Archive view', async ({ page }) => {

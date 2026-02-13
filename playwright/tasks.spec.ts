@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, openIssueByTitle, login } from './helpers/test-utils';
 
 test.describe('Task (Subtask) Management', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await login(page);
   });
 
   test('tasks section is visible when editing an existing issue', async ({ page }) => {

@@ -2,6 +2,7 @@ package backend
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -10,11 +11,20 @@ import (
 )
 
 const (
-	errMsgMethodNotAllowed = "Method not allowed"
-	errMsgInvalidID        = "Invalid ID"
-	errMsgIssueNotFound    = "Issue not found"
-	errMsgTaskNotFound     = "Task not found"
-	errMsgArchivedReadOnly = "Archived issues are read-only"
+	errMsgForbidden           = "Forbidden"
+	errMsgMethodNotAllowed    = "Method not allowed"
+	errMsgInvalidID           = "Invalid ID"
+	errMsgIssueNotFound       = "Issue not found"
+	errMsgTaskNotFound        = "Task not found"
+	errMsgArchivedReadOnly    = "Archived issues are read-only"
+	errMsgInternalServerError = "Internal server error"
+	errMsgUserNotFound        = "User not found"
+	headerContentType         = "Content-Type"
+	contentTypeJSON           = "application/json"
+	loginPath                 = "/login"
+	errMsgInvalidRequestBody  = "Invalid request body"
+	errMsgFailedLogin         = "Failed login attempt"
+	errMsgInvalidCreds        = "Invalid email or password"
 )
 
 // HandleCreateIssue handles POST requests to create a new issue.
@@ -396,6 +406,13 @@ func HandleLabels(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(labels)
 	case "POST":
+		// Only admins can create labels
+		role, ok := r.Context().Value(contextKeyRole).(UserRole)
+		if !ok || role != RoleAdmin {
+			http.Error(w, errMsgForbidden, http.StatusForbidden)
+			return
+		}
+
 		var l Label
 		if err := json.NewDecoder(r.Body).Decode(&l); err != nil {
 			slog.Warn("Failed to decode label", "error", err)
@@ -444,4 +461,409 @@ func HandleLabel(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
+}
+
+// -----------------------------------------------------------------------------
+// Auth Handlers
+// -----------------------------------------------------------------------------
+
+// loginRequest represents the expected JSON body for login.
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// HandleLogin handles POST /api/auth/login.
+// Validates credentials and sets JWT cookies on success.
+func HandleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req loginRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+		return
+	}
+
+	user, err := GetUserByEmail(req.Email)
+	if err != nil {
+		slog.Error("Login: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if user == nil {
+		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "user_not_found")
+		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
+		return
+	}
+
+	if !CheckPassword(user.PasswordHash, req.Password) {
+		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "invalid_password")
+		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
+		return
+	}
+
+	if !user.Active {
+		slog.Warn("Failed login attempt", "email", user.Email, "reason", "inactive_user")
+		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
+		return
+	}
+
+	accessToken, err := GenerateAccessToken(user)
+	if err != nil {
+		slog.Error("Login: failed to generate access token", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	refreshToken, err := GenerateRefreshToken(user)
+	if err != nil {
+		slog.Error("Login: failed to generate refresh token", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	SetAuthCookies(w, accessToken, refreshToken)
+	slog.Info("Successful login", "email", user.Email)
+
+	w.Header().Set(headerContentType, contentTypeJSON)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"user": user,
+	})
+}
+
+// HandleLogout handles POST /api/auth/logout.
+// Clears auth cookies.
+func HandleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract user email for logging before clearing cookies
+	email := "unknown"
+	if cookie, err := r.Cookie(cookieAccessToken); err == nil {
+		if claims, err := ValidateToken(cookie.Value); err == nil {
+			email = claims.Email
+		}
+	}
+
+	ClearAuthCookies(w)
+	slog.Info("Successful logout", "email", email)
+
+	w.Header().Set(headerContentType, contentTypeJSON)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Logged out"})
+}
+
+// HandleRefresh handles POST /api/auth/refresh.
+// Validates the refresh token, checks user is still active, and issues a new access token.
+func HandleRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		return
+	}
+
+	cookie, err := r.Cookie(cookieRefreshToken)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	claims, err := ValidateToken(cookie.Value)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Re-check user is still active (revocation check)
+	user, err := GetUserByID(claims.UserID)
+	if err != nil {
+		slog.Error("Refresh: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if user == nil || !user.Active {
+		ClearAuthCookies(w)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	accessToken, err := GenerateAccessToken(user)
+	if err != nil {
+		slog.Error("Refresh: failed to generate access token", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	// Set only the new access token cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieAccessToken,
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   int(accessTokenDuration.Seconds()),
+	})
+
+	slog.Info("Token refresh successful", "email", claims.Email)
+
+	w.Header().Set(headerContentType, contentTypeJSON)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"user": user,
+	})
+}
+
+// HandleCurrentUser handles GET /api/auth/me.
+// Returns the currently authenticated user's info.
+func HandleCurrentUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := GetUserIDFromContext(r.Context())
+	user, err := GetUserByID(userID)
+	if err != nil {
+		slog.Error("CurrentUser: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if user == nil {
+		http.Error(w, errMsgUserNotFound, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set(headerContentType, contentTypeJSON)
+	json.NewEncoder(w).Encode(user)
+}
+
+// -----------------------------------------------------------------------------
+// User Management Handlers
+// -----------------------------------------------------------------------------
+
+// createUserRequest represents the expected JSON body for creating/updating a user.
+type createUserRequest struct {
+	Email     string   `json:"email"`
+	FirstName string   `json:"first_name"`
+	LastName  string   `json:"last_name"`
+	Password  string   `json:"password,omitempty"`
+	Role      UserRole `json:"role"`
+	Active    bool     `json:"active"`
+}
+
+// HandleUsers handles GET /api/users (list) and POST /api/users (create).
+// Requires admin role.
+func HandleUsers(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		handleListUsers(w)
+	case http.MethodPost:
+		handleCreateUser(w, r)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+func handleListUsers(w http.ResponseWriter) {
+	users, err := GetAllUsers()
+	if err != nil {
+		slog.Error("ListUsers: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set(headerContentType, contentTypeJSON)
+	json.NewEncoder(w).Encode(users)
+}
+
+func handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	var req createUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Warn("CreateUser: invalid request body", "error", err)
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+		return
+	}
+
+	user := &User{
+		Email:     strings.TrimSpace(req.Email),
+		FirstName: strings.TrimSpace(req.FirstName),
+		LastName:  strings.TrimSpace(req.LastName),
+		Role:      req.Role,
+		Active:    req.Active,
+	}
+
+	if err := validateUser(user); err != nil {
+		slog.Warn("CreateUser: validation failed", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Password == "" {
+		slog.Warn("CreateUser: password missing")
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := ValidatePassword(req.Password, user.Email); err != nil {
+		slog.Warn("CreateUser: password validation failed", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	hash, err := HashPassword(req.Password)
+	if err != nil {
+		slog.Error("CreateUser: failed to hash password", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	user.PasswordHash = hash
+
+	if err := CreateUser(user); err != nil {
+		if err == ErrDuplicateEmail {
+			slog.Warn("CreateUser: duplicate email", "email", user.Email)
+			http.Error(w, "Email already exists", http.StatusConflict)
+			return
+		}
+		slog.Error("CreateUser: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("User created", "email", user.Email, "role", user.Role)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(user)
+}
+
+// HandleUser handles GET /api/users/{id} and PUT /api/users/{id}.
+// Requires admin role.
+func HandleUser(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from URL path: /api/users/{id}
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/users/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		handleGetUser(w, id)
+	case http.MethodPut:
+		handleUpdateUser(w, r, id)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+func handleGetUser(w http.ResponseWriter, id int) {
+	user, err := GetUserByID(id)
+	if err != nil {
+		slog.Error("GetUser: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if user == nil {
+		http.Error(w, errMsgUserNotFound, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set(headerContentType, contentTypeJSON)
+	json.NewEncoder(w).Encode(user)
+}
+
+func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
+	// Load existing user first
+	existing, err := GetUserByID(id)
+	if err != nil {
+		slog.Error("UpdateUser: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		http.Error(w, errMsgUserNotFound, http.StatusNotFound)
+		return
+	}
+
+	var req createUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Warn("UpdateUser: invalid request body", "error", err)
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+		return
+	}
+
+	existing.Email = strings.TrimSpace(req.Email)
+	existing.FirstName = strings.TrimSpace(req.FirstName)
+	existing.LastName = strings.TrimSpace(req.LastName)
+
+	if err := checkLastAdminProtection(existing, req.Role, req.Active); err != nil {
+		slog.Warn("UpdateUser: last admin protection triggered", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	existing.Role = req.Role
+	existing.Active = req.Active
+
+	if err := validateUser(existing); err != nil {
+		slog.Warn("UpdateUser: validation failed", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := updateUserPassword(existing, req.Password); err != nil {
+		slog.Error("UpdateUser: password error", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := UpdateUser(existing); err != nil {
+		if err == ErrDuplicateEmail {
+			slog.Warn("UpdateUser: duplicate email", "email", existing.Email)
+			http.Error(w, "Email already exists", http.StatusConflict)
+			return
+		}
+		slog.Error("UpdateUser: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("User updated", "id", id, "email", existing.Email)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	json.NewEncoder(w).Encode(existing)
+}
+
+func checkLastAdminProtection(existing *User, newRole UserRole, newActive bool) error {
+	// Prevent deactivating or demoting the last active administrator
+	if existing.Role == RoleAdmin && existing.Active {
+		if newRole != RoleAdmin || !newActive {
+			adminCount, err := CountActiveAdmins()
+			if err != nil {
+				return fmt.Errorf("failed to check admin count")
+			}
+			if adminCount <= 1 {
+				return fmt.Errorf("Cannot deactivate or demote the last active administrator")
+			}
+		}
+	}
+	return nil
+}
+
+func updateUserPassword(user *User, newPassword string) error {
+	if newPassword == "" {
+		return nil
+	}
+	if err := ValidatePassword(newPassword, user.Email); err != nil {
+		return err
+	}
+	hash, err := HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password")
+	}
+	user.PasswordHash = hash
+	return nil
 }

@@ -18,11 +18,11 @@ import (
 var logLevel string
 
 func init() {
-	flag.StringVar(&logLevel, "log_level", "", "Log level (debug, info, warn, error)")
+	flag.StringVar(&logLevel, "log-level", "", "Log level (debug, info, warn, error)")
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
-func StartServer(version string, port string, dbPath string, embeddedFiles embed.FS) {
+func StartServer(version string, port string, dbPath string, initialAdminPassword string, jwtSecret string, embeddedFiles embed.FS) {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -52,31 +52,159 @@ func StartServer(version string, port string, dbPath string, embeddedFiles embed
 		os.Exit(1)
 	}
 
+	// Initialize JWT secret
+	InitJWTSecret(jwtSecret)
+
+	// Create initial admin user if no users exist
+	if err := EnsureInitialAdmin(initialAdminPassword); err != nil {
+		slog.Error("Failed to ensure initial admin user", "error", err)
+		os.Exit(1)
+	}
+
 	// Serve static files from embedded filesystem
 	fmt.Printf("Serving static files from: embedded in binary\n")
 	staticFS, err := fs.Sub(embeddedFiles, "static")
 	if err != nil {
 		log.Fatal(err)
 	}
-	http.Handle("/", WithLogging(http.FileServer(http.FS(staticFS))))
+	fileServer := http.FileServer(http.FS(staticFS))
 
-	// API endpoints
-	http.Handle("/api/issues", WithLogging(http.HandlerFunc(HandleCreateIssue)))
-	http.Handle("/api/issues/active", WithLogging(http.HandlerFunc(HandleActiveIssues)))
-	http.Handle("/api/issues/archived", WithLogging(http.HandlerFunc(HandleArchivedIssues)))
-	http.Handle("/api/issues/", WithLogging(http.HandlerFunc(HandleIssue)))
-	http.Handle("/api/tasks", WithLogging(http.HandlerFunc(HandleCreateTask)))
-	http.Handle("/api/tasks/", WithLogging(http.HandlerFunc(HandleTask)))
-	http.Handle("/api/labels", WithLogging(http.HandlerFunc(HandleLabels)))
-	http.Handle("/api/labels/", WithLogging(http.HandlerFunc(HandleLabel)))
-	http.Handle("/api/version", WithLogging(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	// Login page — served without auth
+	http.Handle(loginPath, WithLogging(CSPMiddleware(HandleLoginHTML(fileServer))))
+
+	// Public auth endpoints (no auth middleware)
+	http.Handle("/api/auth/login", WithLogging(CSPMiddleware(http.HandlerFunc(HandleLogin))))
+	http.Handle("/api/auth/logout", WithLogging(CSPMiddleware(http.HandlerFunc(HandleLogout))))
+	http.Handle("/api/auth/refresh", WithLogging(CSPMiddleware(http.HandlerFunc(HandleRefresh))))
+
+	// Authenticated auth endpoint
+	http.Handle("/api/auth/me", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleCurrentUser)))))
+
+	// Authenticated API endpoints
+	http.Handle("/api/issues", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleCreateIssue)))))
+	http.Handle("/api/issues/active", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleActiveIssues)))))
+	http.Handle("/api/issues/archived", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleArchivedIssues)))))
+	http.Handle("/api/issues/", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleIssue)))))
+	http.Handle("/api/tasks", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleCreateTask)))))
+	http.Handle("/api/tasks/", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleTask)))))
+	http.Handle("/api/labels", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleLabels)))))
+	http.Handle("/api/version", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(headerContentType, contentTypeJSON)
 		json.NewEncoder(w).Encode(map[string]string{"version": version})
-	})))
+	})))))
+
+	// Admin-only API endpoints (user management)
+	http.Handle("/api/users", WithLogging(CSPMiddleware(AuthMiddleware(AdminMiddleware(http.HandlerFunc(HandleUsers))))))
+	http.Handle("/api/users/", WithLogging(CSPMiddleware(AuthMiddleware(AdminMiddleware(http.HandlerFunc(HandleUser))))))
+	http.Handle("/api/labels/", WithLogging(CSPMiddleware(AuthMiddleware(AdminMiddleware(http.HandlerFunc(HandleLabel))))))
+
+	// Static files — require auth, redirect to login if not authenticated
+	http.Handle("/", WithLogging(CSPMiddleware(HandleStaticFiles(fileServer))))
 
 	fmt.Printf("Server starting on port %s\n", port)
 	slog.Info("Server starting", "port", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+// HandleLoginHTML serves the login page.
+func HandleLoginHTML(next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.URL.Path = "/login.html"
+		next.ServeHTTP(w, r)
+	}
+}
+
+// HandleStaticFiles checks auth for HTML pages and serves static assets directly.
+func HandleStaticFiles(next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Check public assets first — no need to process cookies/auth for these
+		if isPublicAsset(path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Check auth for HTML pages — redirect to login if not authenticated
+		accessTokenCookie, err := r.Cookie(cookieAccessToken)
+		authenticated := false
+		if err == nil && accessTokenCookie.Value != "" {
+			if _, err := ValidateToken(accessTokenCookie.Value); err == nil {
+				authenticated = true
+			}
+		}
+
+		// Access token missing or expired — try refresh token
+		if !authenticated && tryRefreshSession(w, r) {
+			authenticated = true
+		}
+
+		if authenticated {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// If we get here, no valid session exists and it's not a public asset
+		http.Redirect(w, r, loginPath, http.StatusFound)
+	}
+}
+
+// isPublicAsset returns true if the path is explicitly allowed without authentication.
+func isPublicAsset(path string) bool {
+	publicAssets := map[string]bool{
+		"/logo.png":                       true,
+		"/js/login.js":                    true,
+		"/styles/abstracts/variables.css": true,
+		"/styles/base/reset.css":          true,
+		"/styles/pages/login.css":         true,
+	}
+	return publicAssets[path]
+}
+
+// tryRefreshSession attempts to refresh the session using the refresh token cookie.
+// Returns true if successful, false otherwise.
+func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
+	refreshTokenCookie, err := r.Cookie(cookieRefreshToken)
+	if err != nil || refreshTokenCookie.Value == "" {
+		return false
+	}
+
+	claims, err := ValidateToken(refreshTokenCookie.Value)
+	if err != nil {
+		return false
+	}
+
+	// Token valid, check if user is still active
+	user, err := GetUserByID(claims.UserID)
+	if err != nil || user == nil || !user.Active {
+		return false
+	}
+
+	// User valid, generate new tokens
+	newAccessToken, err := GenerateAccessToken(user)
+	if err != nil {
+		return false
+	}
+
+	// We also rotate the refresh token to create a sliding session
+	newRefreshToken, err := GenerateRefreshToken(user)
+	if err != nil {
+		return false
+	}
+
+	SetAuthCookies(w, newAccessToken, newRefreshToken)
+	slog.Info("Token refresh successful (static)", "email", user.Email)
+	return true
+}
+
+// isStaticAsset returns true for paths that are static assets (CSS, JS, images, fonts).
+func isStaticAsset(path string) bool {
+	for _, ext := range []string{".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".map"} {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseLogLevel(levelStr string) (slog.Level, error) {

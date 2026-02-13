@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { login } from './helpers/test-utils';
 import fs from 'node:fs';
 import path from 'node:path';
 
 test.describe('Landing Page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await login(page);
   });
 
   test('page loads with correct title', async ({ page }) => {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	// Import sqlite3 driver for side effects (registration)
@@ -23,6 +24,12 @@ var ErrTaskNotFound = errors.New("task not found")
 
 // ErrLabelNotFound is returned when a label is not found.
 var ErrLabelNotFound = errors.New("label not found")
+
+// ErrUserNotFound is returned when a user is not found.
+var ErrUserNotFound = errors.New("user not found")
+
+// ErrDuplicateEmail is returned when a user with the same email already exists.
+var ErrDuplicateEmail = errors.New("email already exists")
 
 // InitDB initializes the database connection and creates tables if they don't exist.
 func InitDB(dataSourceName string) error {
@@ -101,6 +108,23 @@ func createTables() error {
 	);`
 	if _, err := DB.Exec(createLabelsTable); err != nil {
 		slog.Error("Failed to create labels table", "error", err)
+		return err
+	}
+
+	createUsersTable := `
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		email TEXT NOT NULL UNIQUE,
+		first_name TEXT NOT NULL,
+		last_name TEXT NOT NULL,
+		password_hash TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT 'user',
+		active BOOLEAN NOT NULL DEFAULT 1,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+	if _, err := DB.Exec(createUsersTable); err != nil {
+		slog.Error("Failed to create users table", "error", err)
 		return err
 	}
 	return nil
@@ -617,4 +641,137 @@ func scanIssue(rows *sql.Rows) (Issue, error) {
 		}
 	}
 	return i, nil
+}
+
+// CreateUser inserts a new user into the database.
+func CreateUser(u *User) error {
+	stmt, err := DB.Prepare("INSERT INTO users(email, first_name, last_name, password_hash, role, active, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		slog.Error("Database Error: CreateUser Prepare", "error", err)
+		return err
+	}
+	defer stmt.Close()
+
+	u.UpdatedAt = time.Now()
+	res, err := stmt.Exec(u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return ErrDuplicateEmail
+		}
+		slog.Error("Database Error: CreateUser Exec", "error", err)
+		return err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		slog.Error("Database Error: CreateUser LastInsertId", "error", err)
+		return err
+	}
+	u.ID = int(id)
+	return nil
+}
+
+// GetUserByEmail retrieves a user by their email address.
+func GetUserByEmail(email string) (*User, error) {
+	row := DB.QueryRow("SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE email = ?", email)
+
+	var u User
+	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		slog.Error("Database Error: GetUserByEmail", "error", err)
+		return nil, err
+	}
+	return &u, nil
+}
+
+// GetUserByID retrieves a user by their ID.
+func GetUserByID(id int) (*User, error) {
+	row := DB.QueryRow("SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE id = ?", id)
+
+	var u User
+	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		slog.Error("Database Error: GetUserByID", "error", err)
+		return nil, err
+	}
+	return &u, nil
+}
+
+// GetAllUsers retrieves all users from the database.
+func GetAllUsers() ([]User, error) {
+	rows, err := DB.Query("SELECT id, email, first_name, last_name, role, active, created_at, updated_at FROM users ORDER BY id ASC")
+	if err != nil {
+		slog.Error("Database Error: GetAllUsers", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := []User{}
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			slog.Error("Database Error: GetAllUsers Scan", "error", err)
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+// UpdateUser updates an existing user in the database.
+func UpdateUser(u *User) error {
+	stmt, err := DB.Prepare("UPDATE users SET email = ?, first_name = ?, last_name = ?, password_hash = ?, role = ?, active = ?, updated_at = ? WHERE id = ?")
+	if err != nil {
+		slog.Error("Database Error: UpdateUser Prepare", "error", err)
+		return err
+	}
+	defer stmt.Close()
+
+	u.UpdatedAt = time.Now()
+	res, err := stmt.Exec(u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt, u.ID)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return ErrDuplicateEmail
+		}
+		slog.Error("Database Error: UpdateUser Exec", "error", err)
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: UpdateUser RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+// CountUsers returns the total number of users in the database.
+func CountUsers() (int, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	if err != nil {
+		slog.Error("Database Error: CountUsers", "error", err)
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountActiveAdmins returns the number of active users with admin role.
+func CountActiveAdmins() (int, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = ? AND active = 1", RoleAdmin).Scan(&count)
+	if err != nil {
+		slog.Error("Database Error: CountActiveAdmins", "error", err)
+		return 0, err
+	}
+	return count, nil
 }

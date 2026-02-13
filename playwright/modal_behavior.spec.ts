@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, login, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Issue Edit Modal Behavior', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await login(page);
   });
 
   test('should not show popup when clicking outside modified title', async ({ page }) => {

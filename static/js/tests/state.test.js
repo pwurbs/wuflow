@@ -6,6 +6,7 @@ import {
   setFilterSearch,
   setIssues,
   setCurrentIssue,
+  setCurrentUser,
   isFilterActive
 } from '../state.js';
 
@@ -96,6 +97,20 @@ describe('state', () => {
       setCurrentIssue({ id: 1, title: 'Test' });
       setCurrentIssue(null);
       expect(state.currentIssue).toBeNull();
+    });
+  });
+
+  describe('setCurrentUser', () => {
+    it('should set current user', () => {
+      const user = { id: 1, email: 'test@example.com' };
+      setCurrentUser(user);
+      expect(state.currentUser).toEqual(user);
+    });
+
+    it('should clear current user when set to null', () => {
+      setCurrentUser({ id: 1 });
+      setCurrentUser(null);
+      expect(state.currentUser).toBeNull();
     });
   });
 

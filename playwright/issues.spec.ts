@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, selectStatus } from './helpers/test-utils';
+import { createIssue, login, selectStatus } from './helpers/test-utils';
 
 test.describe('Issue CRUD Operations', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await login(page);
   });
 
   test('create a new issue', async ({ page }) => {
-    const title = `Test Issue ${Date.now()}`;
+    const title = `Test Issue ${Date.now()} `;
     // Create a new issue using helper
     await createIssue(page, { title, status: 'Todo' });
 
@@ -16,7 +16,7 @@ test.describe('Issue CRUD Operations', () => {
   });
 
   test('create issue with all properties', async ({ page }) => {
-    const title = `Complete Issue ${Date.now()}`;
+    const title = `Complete Issue ${Date.now()} `;
     // Create issue with all properties
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -35,7 +35,7 @@ test.describe('Issue CRUD Operations', () => {
   });
 
   test('edit an existing issue title', async ({ page }) => {
-    const title = `Issue to Edit ${Date.now()}`;
+    const title = `Issue to Edit ${Date.now()} `;
     // First create an issue
     // First create an issue
     await createIssue(page, { title, status: 'Todo' });
@@ -62,7 +62,7 @@ test.describe('Issue CRUD Operations', () => {
   });
 
   test('change issue status', async ({ page }) => {
-    const title = `Status Change Test ${Date.now()}`;
+    const title = `Status Change Test ${Date.now()} `;
     // Create an issue in To-Do
     // Create an issue in To-Do
     await createIssue(page, { title, status: 'Todo' });
@@ -86,7 +86,7 @@ test.describe('Issue CRUD Operations', () => {
   });
 
   test('delete an issue', async ({ page }) => {
-    const title = `Issue to Delete ${Date.now()}`;
+    const title = `Issue to Delete ${Date.now()} `;
     // Create an issue to delete
     // Create an issue to delete
     await createIssue(page, { title, status: 'Todo' });

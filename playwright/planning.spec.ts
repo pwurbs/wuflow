@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createIssue } from './helpers/test-utils';
+import { createIssue, login } from './helpers/test-utils';
 
 test.describe('Planning Panel', () => {
   // Helper to format date as YYYY-MM-DD for input and ID matching
@@ -11,7 +11,7 @@ test.describe('Planning Panel', () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await login(page);
     // Planning panel is now always visible on board view
     await expect(page.locator('#planning-panel')).toBeVisible();
   });

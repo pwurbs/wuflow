@@ -80,3 +80,7 @@
   opacity: 1;
   transform: translateY(-50%) translateX(14px);
 }
+
+.menu-spacer {
+  flex: 1;
+}

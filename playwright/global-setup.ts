@@ -97,7 +97,14 @@ async function globalSetup(config: FullConfig) {
     console.log(`Using application version: ${version}`);
     console.log(`Redirecting backend logs to: ${logPath}`);
 
-    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`], {
+    const crypto = await import('node:crypto');
+    const adminPassword = `${crypto.randomBytes(16).toString('hex')}A1!`;
+    const adminConfigPath = path.join(dbDir, 'admin.json');
+
+    fs.writeFileSync(adminConfigPath, JSON.stringify({ password: adminPassword }));
+    console.log(`Generated initial admin password and saved to ${adminConfigPath}`);
+
+    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-password=${adminPassword}`], {
       detached: true,
       stdio: ['ignore', logFile, logFile],
       cwd: projectRoot
