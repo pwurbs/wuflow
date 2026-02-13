@@ -88,20 +88,10 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
     const cleanup = () => {
       confirmOkBtn.removeEventListener('click', handleOk);
       confirmCancelBtn.removeEventListener('click', handleCancel);
-      confirmModal.removeEventListener('click', handleModalClick);
-    };
-
-    const handleModalClick = (e) => {
-      if (e.target === confirmModal) {
-        if (cancelText !== null) {
-          handleCancel();
-        }
-      }
     };
 
     confirmOkBtn.addEventListener('click', handleOk);
     confirmCancelBtn.addEventListener('click', handleCancel);
-    confirmModal.addEventListener('click', handleModalClick);
   });
 }
 

@@ -113,7 +113,6 @@ let editingUserId = null;
 
 function setupUserModal(refreshCallback) {
   const addUserBtn = document.getElementById('add-user-btn');
-  const overlay = document.getElementById('user-modal-overlay');
   const cancelBtn = document.getElementById('user-modal-cancel');
   const form = document.getElementById('user-form');
 
@@ -123,11 +122,6 @@ function setupUserModal(refreshCallback) {
 
   if (cancelBtn) {
     cancelBtn.addEventListener('click', closeUserModal);
-  }
-  if (overlay) {
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeUserModal();
-    });
   }
 
   if (form) {

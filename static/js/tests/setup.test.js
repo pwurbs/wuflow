@@ -259,12 +259,12 @@ describe('setup.js component', () => {
       expect(document.getElementById('user-modal-error').classList.contains('hidden')).toBe(false);
     });
 
-    it('should close on overlay click', () => {
+    it('should NOT close on overlay click', () => {
       setupSetupView();
       document.getElementById('add-user-btn').click();
       const overlay = document.getElementById('user-modal-overlay');
       overlay.click();
-      expect(overlay.classList.contains('hidden')).toBe(true);
+      expect(overlay.classList.contains('hidden')).toBe(false);
     });
   });
 
