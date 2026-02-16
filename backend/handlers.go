@@ -511,22 +511,16 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := GenerateAccessToken(user)
+	// Use Auth Service to create session
+	session, accessToken, refreshToken, err := CreateUserSession(user)
 	if err != nil {
-		slog.Error("Login: failed to generate access token", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-
-	refreshToken, err := GenerateRefreshToken(user)
-	if err != nil {
-		slog.Error("Login: failed to generate refresh token", "error", err)
+		slog.Error("Login: failed to create session", "error", err)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 
 	SetAuthCookies(w, accessToken, refreshToken)
-	slog.Info("Successful login", "email", user.Email)
+	slog.Info("Successful login", "email", user.Email, "session_id", session.ID)
 
 	w.Header().Set(headerContentType, contentTypeJSON)
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -540,6 +534,17 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
+	}
+
+	// Parse refresh token to find session ID
+	if cookie, err := r.Cookie(cookieRefreshToken); err == nil {
+		sessionID, _, err := ValidateRefreshToken(cookie.Value)
+		if err == nil {
+			// Revoke via service method
+			if err := RevokeSession(sessionID); err != nil {
+				slog.Error("Logout: failed to revoke session", "session_id", sessionID, "error", err)
+			}
+		}
 	}
 
 	// Extract user email for logging before clearing cookies
@@ -572,44 +577,24 @@ func HandleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := ValidateToken(cookie.Value)
+	// Use Auth Service to refresh session
+	user, accessToken, newRefreshToken, err := RefreshSession(cookie.Value)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+		// Log specific error for debugging
+		slog.Warn("Refresh failed", "error", err)
 
-	// Re-check user is still active (revocation check)
-	user, err := GetUserByID(claims.UserID)
-	if err != nil {
-		slog.Error("Refresh: database error", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if user == nil || !user.Active {
+		// If it was a reuse detection or invalid token, RefreshSession already handled cleanup/revocation logic implicitly?
+		// Actually RefreshSession does cleanup (DeleteSession) on errors.
+		// We just need to clear cookies and return 401.
 		ClearAuthCookies(w)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	accessToken, err := GenerateAccessToken(user)
-	if err != nil {
-		slog.Error("Refresh: failed to generate access token", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
+	// Set Cookies
+	SetAuthCookies(w, accessToken, newRefreshToken)
 
-	// Set only the new access token cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieAccessToken,
-		Value:    accessToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   int(accessTokenDuration.Seconds()),
-	})
-
-	slog.Info("Token refresh successful", "email", claims.Email)
+	slog.Info("Token refresh successful (rotated)", "email", user.Email, "user_id", user.ID)
 
 	w.Header().Set(headerContentType, contentTypeJSON)
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -815,6 +800,12 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
+	// Check if we need to revoke sessions (Security: Immediate Logout)
+	revokeSessions := false
+	if !req.Active || req.Password != "" {
+		revokeSessions = true
+	}
+
 	if err := updateUserPassword(existing, req.Password); err != nil {
 		slog.Error("UpdateUser: password error", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -830,6 +821,16 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 		slog.Error("UpdateUser: database error", "error", err)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
+	}
+
+	// If deactivated or password changed, revoke all sessions immediately
+	if revokeSessions {
+		if err := RevokeUserSessions(id); err != nil {
+			slog.Error("UpdateUser: failed to revoke sessions", "user_id", id, "error", err)
+			// Non-fatal for the update, but log it as error
+		} else {
+			slog.Info("UpdateUser: sessions revoked", "user_id", id)
+		}
 	}
 
 	slog.Info("User updated", "id", id, "email", existing.Email)

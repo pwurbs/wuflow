@@ -44,12 +44,20 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
 
-	fmt.Printf("Starting wuFlow version: %s\n", version)
+	fmt.Printf("Starting wuFlow version: %s at %s\n", version, time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Printf("Using database: %s\n", dbPath)
 	fmt.Printf("Log level: %s\n", logLevel)
 	if err := InitDB(dbPath); err != nil {
 		slog.Error("Failed to initialize database", "error", err)
 		os.Exit(1)
+	}
+
+	// Clean up expired sessions on startup
+	deletedSessions, err := DeleteExpiredSessions()
+	if err != nil {
+		slog.Warn("Failed to cleanup expired sessions", "error", err)
+	} else {
+		slog.Info("Cleaned up expired sessions", "count", deletedSessions)
 	}
 
 	// Initialize JWT secret
@@ -159,42 +167,6 @@ func isPublicAsset(path string) bool {
 		"/styles/pages/login.css":         true,
 	}
 	return publicAssets[path]
-}
-
-// tryRefreshSession attempts to refresh the session using the refresh token cookie.
-// Returns true if successful, false otherwise.
-func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
-	refreshTokenCookie, err := r.Cookie(cookieRefreshToken)
-	if err != nil || refreshTokenCookie.Value == "" {
-		return false
-	}
-
-	claims, err := ValidateToken(refreshTokenCookie.Value)
-	if err != nil {
-		return false
-	}
-
-	// Token valid, check if user is still active
-	user, err := GetUserByID(claims.UserID)
-	if err != nil || user == nil || !user.Active {
-		return false
-	}
-
-	// User valid, generate new tokens
-	newAccessToken, err := GenerateAccessToken(user)
-	if err != nil {
-		return false
-	}
-
-	// We also rotate the refresh token to create a sliding session
-	newRefreshToken, err := GenerateRefreshToken(user)
-	if err != nil {
-		return false
-	}
-
-	SetAuthCookies(w, newAccessToken, newRefreshToken)
-	slog.Info("Token refresh successful (static)", "email", user.Email)
-	return true
 }
 
 // isStaticAsset returns true for paths that are static assets (CSS, JS, images, fonts).

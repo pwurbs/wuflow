@@ -1,4 +1,8 @@
 
+## 0.16.0
+
+- Improved Access and Refresh token handling
+
 ## 0.15.0
 
 - Added User Management

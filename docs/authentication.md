@@ -2,7 +2,10 @@
 
 ## Overview
 
-wuFlow uses JWT-based authentication with HTTPOnly cookies. Access is restricted by user roles, and all sessions are stateless.
+wuFlow uses a **Hybrid Authentication** model with HTTPOnly cookies.
+- **Access** is stateless (JWT).
+- **Sessions** are stateful (Opaque Tokens stored in DB), allowing for secure revocation and rotation.
+- Access is restricted by user roles.
 
 ## User Roles
 
@@ -28,36 +31,117 @@ WF_INITIAL_ADMIN_PASSWORD=YourSecurePass123! ./wuflow
 
 ## Authentication Flow
 
-```
-Login → Access Token (15 min) + Refresh Token (24 h) → stored as HTTPOnly cookies
+wuFlow uses a **Hybrid Authentication** model:
+- **Access Tokens**: Short-lived, stateless JWTs (JSON Web Tokens) for high-performance API authorization.
+- **Refresh Tokens**: Long-lived, stateful **Opaque Tokens** (Random Strings) backed by a database session for enhanced security.
+
+### 1. Normal Operation
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as Client
+    participant S as Server
+    participant DB as Database
+
+    %% Login
+    U->>C: Enter Credentials
+    C->>S: POST /login (user, pass)
+    S->>S: Generate SessionID & Opaque Secret
+    S->>S: Hash(Secret)
+    S->>DB: Insert Session(User, Hash)
+    S-->>C: Set-Cookie: AccessToken(JWT), RefreshToken(Opaque)
+
+    %% Access (Stateless)
+    Note over C, S: User makes API calls
+    C->>S: GET /api/data (Bearer JWT)
+    S->>S: Verify JWT Signature & Expiry
+    S-->>C: 200 OK (Data)
+
+    %% Refresh (Stateful & Rotation)
+    Note over C, S: JWT Expires (15m)
+    C->>S: POST /refresh (Cookie: OpaqueToken)
+    S->>DB: Get Session (Verify Hash)
+    Note right of S: Valid! Rotate.
+    S->>S: Generate New Secret & Hash
+    S->>DB: Update Session Hash
+    S-->>C: Set-Cookie: New AccessToken, New RefreshToken
+
+    %% Logout
+    U->>C: Click Logout
+    C->>S: POST /logout
+    S->>DB: DELETE Session
+    S-->>C: Clear Cookies
 ```
 
-1. **Login**: User submits email + password to `/api/auth/login`. On success, two HTTPOnly cookies are set.
-2. **API Requests**: The access token cookie is sent automatically with every request.
-3. **Token Refresh**:
-    - **API Requests**: The frontend uses a 401 interceptor with a mutex to catch expired access tokens. It calls `/api/auth/refresh` once, then retries all pending requests. This avoids race conditions during concurrent API calls.
-    - **Static Page Loads**: On browser refresh or direct navigation, the server automatically checks the refresh token cookie. If valid, it refreshes the session and serves the page immediately without a redirect. This ensures a seamless initial load.
-4. **Logout**: Clears both cookies via `/api/auth/logout`.
+1. **Login**: User submits credentials. Server creates a **Session** in the database and returns two HTTPOnly cookies.
+2. **Access**: The stateless JWT is used for API requests. Validation is fast (CPU only, no DB).
+3. **Refresh (Rotation)**: When the JWT expires, the client sends the Opaque Refresh Token.
+    - The server looks up the session in the DB.
+    - **Rotation**: If valid, a **NEW** Refresh Token is generated, and the old one is invalidated immediately.
+    - This "Sliding Session" keeps the user logged in as long as they are active.
+4. **Logout**: The session is permanently deleted from the database.
+
+### 2. Security Features
+
+#### Opaque Refresh Tokens
+Unlike JWTs, the Refresh Token is a random string (`base64(session_id:secret)`).
+- **Database Storage**: Only the **bcrypt hash** of the secret is stored.
+- **Leak Protection**: Even if the database is leaked, attackers cannot generate valid refresh tokens because they cannot reverse the hashes.
+
+#### Reuse Detection (Anti-Theft)
+If an attacker steals a Refresh Token and uses it, the legal user (or the attacker) will eventually try to use the *same* (now reused) token again.
+- The server detects that an **old** token is being presented.
+- **Action**: The server assumes theft and **immediately revokes the entire session**.
+- **Result**: Both the attacker and the victim are logged out, preventing further unauthorized access.
+
+```mermaid
+sequenceDiagram
+    actor A as Attacker
+    actor U as User
+    participant S as Server
+    participant DB as Database
+
+    Note over A, S: Attacker steals RefreshToken (R1)
+    
+    %% Attacker uses it
+    A->>S: POST /refresh (R1)
+    S->>DB: Valid. Rotate to R2.
+    S-->>A: Return R2
+
+    %% User tries to use old token
+    Note over U, S: User tries to refresh later
+    U->>S: POST /refresh (R1)
+    S->>DB: HASH MISMATCH! (Exp R2, Got R1)
+    Note right of S: REUSE DETECTED!
+    S->>DB: DELETE Session (Revoke All)
+    S-->>U: 401 Unauthorized
+```
 
 ### Token Details
 
-| Token | Duration | Purpose |
-| :--- | :--- | :--- |
-| Access Token | 15 minutes | Authenticates API requests |
-| Refresh Token | 24 hours | Renews expired access tokens |
+| Token | Duration | Purpose | Storage |
+| :--- | :--- | :--- | :--- |
+| **Access Token** | 15 minutes | API Authorization | Stateless (JWT) |
+| **Refresh Token** | 24 hours | Session Renewal | Stateful (DB Hash) |
 
-- Tokens are signed with a random secret generated on each server start.
-- **All sessions are invalidated on server restart** (users must re-login) unless a custom JWT secret is configured (see below).
+- **Idle Timeout**: If a user is inactive for >24 hours, their session expires and they must re-login.
+- **Active Sessions**: As long as the user uses the app once every 24 hours, the session effectively never expires (Sliding Window).
+### Token Refresh Details
+
+1. **API Requests**: The frontend uses a 401 interceptor with a mutex to catch expired access tokens. It calls `/api/auth/refresh` once, then retries all pending requests. This avoids race conditions (Token Reuse Detection) during concurrent API calls.
+2. **Static Page Loads**: On browser refresh or direct navigation, the server automatically checks the refresh token cookie. If valid, it refreshes the session and serves the page immediately without a redirect. This ensures a seamless initial load.
 
 ### Custom JWT Secret
 
-By default, a random JWT signing secret is generated on every startup. This means all tokens become invalid after a restart. To keep sessions alive across restarts, provide a stable secret:
+By default, a random JWT signing secret is generated on every startup. This means existing **Access Tokens** become invalid after a restart, forcing the client to perform a token refresh (transparent to the user). To prevent this slight overhead, you can provide a stable secret:
 
 ```bash
 WF_JWT_SECRET=your-secure-random-string ./wuflow
 ```
 
-The secret should be a long, random string (32+ characters recommended). Keep it confidential — anyone with the secret can forge valid tokens.
+The secret should be a long, random string (32+ characters recommended).
+
+
 
 ## Password Policy
 
@@ -70,5 +154,6 @@ Passwords are hashed using **bcrypt** before storage.
 ## User Lifecycle
 
 - Admins can create, edit, activate, and deactivate users via the Setup view.
-- **Inactive users** cannot log in. Their sessions become invalid on the next token refresh.
-- The system prevents deactivating or demoting the **last active admin** to avoid lockout.
+- **Inactive users** cannot log in. 
+- **Session Revocation**: Deactivating a user or changing their password deletes their sessions. This prevents any *new* access tokens from being issued.
+  - **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401), causing the application to log the user out.

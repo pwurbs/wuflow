@@ -294,7 +294,7 @@ func testHTMLValidAuth(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 
 	// Create valid token
-	user := &User{ID: 1, Email: "test@example.com", Role: RoleAdmin}
+	user := &User{ID: 1, Email: "test@example.com", Role: RoleAdmin, Active: true}
 	token, _ := GenerateAccessToken(user)
 	req.AddCookie(&http.Cookie{Name: cookieAccessToken, Value: token})
 
@@ -333,8 +333,17 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	expiredAccessToken, _ := token.SignedString(jwtSecret)
 
+	// Create Session
+	session := &Session{
+		UserID:    u.ID,
+		ExpiresAt: time.Now().Add(refreshTokenDuration),
+	}
+	CreateSession(session)
+
 	// Create valid refresh token
-	validRefreshToken, _ := GenerateRefreshToken(u)
+	validRefreshToken, tokenHash, _ := GenerateRefreshToken(session.ID)
+	session.TokenHash = tokenHash
+	UpdateSession(session)
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

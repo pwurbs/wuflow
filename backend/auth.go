@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -77,13 +79,16 @@ func CheckPassword(hash, password string) bool {
 
 // GenerateAccessToken creates a short-lived JWT access token for the given user.
 func GenerateAccessToken(user *User) (string, error) {
+	if !user.Active {
+		return "", fmt.Errorf("cannot generate token for inactive user")
+	}
 	claims := CustomClaims{
 		UserID: user.ID,
 		Email:  user.Email,
 		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(accessTokenDuration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 			Subject:   user.Email,
 		},
 	}
@@ -91,20 +96,60 @@ func GenerateAccessToken(user *User) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
-// GenerateRefreshToken creates a long-lived JWT refresh token for the given user.
-func GenerateRefreshToken(user *User) (string, error) {
-	claims := CustomClaims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(refreshTokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Subject:   user.Email,
-		},
+// GenerateRefreshToken creates a secure opaque refresh token.
+// Returns the token string (for the client cookie) and the token hash (for the database).
+// Format: base64(session_id:secret)
+func GenerateRefreshToken(sessionID int) (string, string, error) {
+	// Generate 32-byte random secret
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return "", "", err
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+
+	// Hash the secret for storage
+	hash, err := bcrypt.GenerateFromPassword(secret, bcrypt.DefaultCost)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Create opaque token string: sessionID:base64(secret)
+	// We base64 encode the secret specifically to make it a safe string
+	secretStr := base64.StdEncoding.EncodeToString(secret)
+	token := fmt.Sprintf("%d:%s", sessionID, secretStr)
+	encodedToken := base64.StdEncoding.EncodeToString([]byte(token))
+
+	return encodedToken, string(hash), nil
+}
+
+// ValidateRefreshToken parses an opaque refresh token.
+// Returns the session ID and the raw secret (to be verified against the DB hash).
+func ValidateRefreshToken(tokenString string) (int, string, error) {
+	decodedBytes, err := base64.StdEncoding.DecodeString(tokenString)
+	if err != nil {
+		return 0, "", fmt.Errorf("invalid token encoding")
+	}
+	decoded := string(decodedBytes)
+
+	parts := strings.SplitN(decoded, ":", 2)
+	if len(parts) != 2 {
+		return 0, "", fmt.Errorf("invalid token format")
+	}
+
+	sessionID, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, "", fmt.Errorf("invalid session ID")
+	}
+
+	secret := parts[1]
+	// The secret is base64 encoded in the token string.
+	// We decode it back to raw bytes for bcrypt verification.
+
+	rawSecret, err := base64.StdEncoding.DecodeString(secret)
+	if err != nil {
+		return 0, "", fmt.Errorf("invalid secret encoding")
+	}
+
+	return sessionID, string(rawSecret), nil
 }
 
 // ValidateToken parses and validates a JWT token string.
@@ -267,4 +312,137 @@ func EnsureInitialAdmin(initialAdminPassword string) error {
 
 	slog.Info("Created initial admin user", "email", admin.Email)
 	return nil
+}
+
+// tryRefreshSession attempts to refresh the session using the refresh token cookie.
+func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
+	refreshTokenCookie, err := r.Cookie(cookieRefreshToken)
+	if err != nil || refreshTokenCookie.Value == "" {
+		return false
+	}
+
+	// Use shared RefreshSession logic
+	user, newAccessToken, newRefreshToken, err := RefreshSession(refreshTokenCookie.Value)
+	if err != nil {
+		// We don't need to log extensively here as RefreshSession/HandleStaticFiles handles flow
+		// But maybe a debug log
+		slog.Debug("Static refresh failed", "error", err)
+		return false
+	}
+
+	SetAuthCookies(w, newAccessToken, newRefreshToken)
+	slog.Info("Token refresh successful (static)", "email", user.Email)
+	return true
+}
+
+// -----------------------------------------------------------------------------
+// Session Service Methods
+// -----------------------------------------------------------------------------
+
+// CreateUserSession creates a new session for a user, generates tokens, and returns them.
+// It handles the DB insertion and token generation.
+func CreateUserSession(user *User) (*Session, string, string, error) {
+	// 1. Generate Access Token
+	accessToken, err := GenerateAccessToken(user)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	// 2. Create Session Record
+	session := &Session{
+		UserID:    user.ID,
+		TokenHash: "", // Will be set after generation
+		ExpiresAt: time.Now().UTC().Add(refreshTokenDuration),
+	}
+	if err := CreateSession(session); err != nil {
+		return nil, "", "", fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// 3. Generate Refresh Token
+	refreshToken, tokenHash, err := GenerateRefreshToken(session.ID)
+	if err != nil {
+		DeleteSession(session.ID) // Cleanup
+		return nil, "", "", fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// 4. Update session with the real hash
+	session.TokenHash = tokenHash
+	if err := UpdateSession(session); err != nil {
+		return nil, "", "", fmt.Errorf("failed to update session hash: %w", err)
+	}
+
+	return session, accessToken, refreshToken, nil
+}
+
+// RevokeSession revokes a specific session by ID.
+func RevokeSession(sessionID int) error {
+	return DeleteSession(sessionID)
+}
+
+// RevokeUserSessions revokes all sessions for a user (e.g., on password change or deactivation).
+func RevokeUserSessions(userID int) error {
+	return DeleteSessionsByUserID(userID)
+}
+
+// RefreshSession validates a refresh token, performs rotation, and returns new tokens.
+// Returns the user, new access token, new refresh token, or error.
+func RefreshSession(tokenString string) (*User, string, string, error) {
+	// 1. Parse Opaque Token
+	sessionID, secret, err := ValidateRefreshToken(tokenString)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("invalid token format: %w", err)
+	}
+
+	// 2. Fetch Session
+	session, err := GetSessionByID(sessionID)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("session lookup failed: %w", err)
+	}
+	if session == nil {
+		return nil, "", "", fmt.Errorf("session not found")
+	}
+
+	// 3. Check Expiry
+	if time.Now().After(session.ExpiresAt) {
+		DeleteSession(sessionID)
+		return nil, "", "", fmt.Errorf("session expired")
+	}
+
+	// 4. Verify Hash (Reuse Detection)
+	if bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(secret)) != nil {
+		slog.Warn("Reuse detection triggered", "session_id", sessionID)
+		DeleteSession(sessionID) // Revoke immediately
+		return nil, "", "", fmt.Errorf("token reuse detected")
+	}
+
+	// 5. Fetch User
+	user, err := GetUserByID(session.UserID)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("user lookup failed: %w", err)
+	}
+	if user == nil || !user.Active {
+		DeleteSession(sessionID)
+		return nil, "", "", fmt.Errorf("user inactive or not found")
+	}
+
+	// 6. Generate New Access Token
+	newAccessToken, err := GenerateAccessToken(user)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	// 7. Rotate Refresh Token
+	newRefreshToken, newTokenHash, err := GenerateRefreshToken(sessionID)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to rotate refresh token: %w", err)
+	}
+
+	// 8. Update Session
+	session.TokenHash = newTokenHash
+	session.ExpiresAt = time.Now().UTC().Add(refreshTokenDuration)
+	if err := UpdateSession(session); err != nil {
+		return nil, "", "", fmt.Errorf("failed to update session: %w", err)
+	}
+
+	return user, newAccessToken, newRefreshToken, nil
 }

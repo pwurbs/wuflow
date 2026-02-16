@@ -90,3 +90,12 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+
+// Session represents an active user session (refresh token).
+type Session struct {
+	ID        int       `json:"id"`
+	UserID    int       `json:"user_id"`
+	TokenHash string    `json:"-"` // Hash of the refresh token secret
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+}

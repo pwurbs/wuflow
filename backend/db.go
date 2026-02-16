@@ -127,6 +127,26 @@ func createTables() error {
 		slog.Error("Failed to create users table", "error", err)
 		return err
 	}
+
+	createSessionsTable := `
+	CREATE TABLE IF NOT EXISTS sessions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		token_hash TEXT NOT NULL,
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+	if _, err := DB.Exec(createSessionsTable); err != nil {
+		slog.Error("Failed to create sessions table", "error", err)
+		return err
+	}
+	// Create index on user_id to speed up session revocation by user (e.g., logout all devices)
+	if _, err := DB.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
+		slog.Error("Failed to create index on sessions(user_id)", "error", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -152,7 +172,7 @@ func CreateIssue(i *Issue) error {
 		return err
 	}
 	i.Position = int(maxPos.Int64) + 1
-	i.UpdatedAt = time.Now()
+	i.UpdatedAt = time.Now().UTC()
 
 	var labelID *int
 	if i.Label != nil {
@@ -328,7 +348,7 @@ func UpdateIssue(i *Issue) error {
 	}
 	defer stmt.Close()
 
-	i.UpdatedAt = time.Now()
+	i.UpdatedAt = time.Now().UTC()
 
 	var labelID *int
 	if i.Label != nil {
@@ -410,7 +430,7 @@ func CreateTask(t *Task) error {
 		return err
 	}
 	t.Position = int(maxPos.Int64) + 1
-	t.UpdatedAt = time.Now()
+	t.UpdatedAt = time.Now().UTC()
 
 	res, err := stmt.Exec(t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt)
 	if err != nil {
@@ -507,7 +527,7 @@ func UpdateTask(t *Task) error {
 	}
 	defer stmt.Close()
 
-	t.UpdatedAt = time.Now()
+	t.UpdatedAt = time.Now().UTC()
 	res, err := stmt.Exec(t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID)
 	if err != nil {
 		slog.Error("Database Error: UpdateTask Exec", "error", err)
@@ -652,7 +672,7 @@ func CreateUser(u *User) error {
 	}
 	defer stmt.Close()
 
-	u.UpdatedAt = time.Now()
+	u.UpdatedAt = time.Now().UTC()
 	res, err := stmt.Exec(u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
@@ -733,7 +753,7 @@ func UpdateUser(u *User) error {
 	}
 	defer stmt.Close()
 
-	u.UpdatedAt = time.Now()
+	u.UpdatedAt = time.Now().UTC()
 	res, err := stmt.Exec(u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt, u.ID)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
@@ -774,4 +794,124 @@ func CountActiveAdmins() (int, error) {
 		return 0, err
 	}
 	return count, nil
+}
+
+// -----------------------------------------------------------------------------
+// Session Management
+// -----------------------------------------------------------------------------
+
+// CreateSession inserts a new session into the database.
+func CreateSession(s *Session) error {
+	stmt, err := DB.Prepare("INSERT INTO sessions(user_id, token_hash, expires_at, created_at) VALUES(?, ?, ?, ?)")
+	if err != nil {
+		slog.Error("Database Error: CreateSession Prepare", "error", err)
+		return err
+	}
+	defer stmt.Close()
+
+	if s.CreatedAt.IsZero() {
+		s.CreatedAt = time.Now().UTC()
+	}
+
+	res, err := stmt.Exec(s.UserID, s.TokenHash, s.ExpiresAt, s.CreatedAt)
+	if err != nil {
+		slog.Error("Database Error: CreateSession Exec", "error", err)
+		return err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		slog.Error("Database Error: CreateSession LastInsertId", "error", err)
+		return err
+	}
+	s.ID = int(id)
+	return nil
+}
+
+// GetSessionByID retrieves a session by its ID.
+func GetSessionByID(id int) (*Session, error) {
+	row := DB.QueryRow("SELECT id, user_id, token_hash, expires_at, created_at FROM sessions WHERE id = ?", id)
+
+	var s Session
+	err := row.Scan(&s.ID, &s.UserID, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		slog.Error("Database Error: GetSessionByID", "error", err)
+		return nil, err
+	}
+	return &s, nil
+}
+
+// UpdateSession updates the token hash and expiration of an existing session (Rotation).
+func UpdateSession(s *Session) error {
+	stmt, err := DB.Prepare("UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?")
+	if err != nil {
+		slog.Error("Database Error: UpdateSession Prepare", "error", err)
+		return err
+	}
+	defer stmt.Close()
+
+	res, err := stmt.Exec(s.TokenHash, s.ExpiresAt, s.ID)
+	if err != nil {
+		slog.Error("Database Error: UpdateSession Exec", "error", err)
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: UpdateSession RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New("session not found")
+	}
+	return nil
+}
+
+// DeleteSession removes a session from the database by its ID.
+func DeleteSession(id int) error {
+	res, err := DB.Exec("DELETE FROM sessions WHERE id = ?", id)
+	if err != nil {
+		slog.Error("Database Error: DeleteSession", "error", err)
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: DeleteSession RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return errors.New("session not found")
+	}
+	return nil
+}
+
+// DeleteSessionsByUserID removes all sessions for a specific user.
+func DeleteSessionsByUserID(userID int) error {
+	_, err := DB.Exec("DELETE FROM sessions WHERE user_id = ?", userID)
+	if err != nil {
+		slog.Error("Database Error: DeleteSessionsByUserID", "error", err)
+		return err
+	}
+	return nil
+}
+
+// DeleteExpiredSessions removes all sessions that have expired from the database.
+func DeleteExpiredSessions() (int64, error) {
+	// Use time.Now() so the driver formats it consistently with how sessions were inserted
+	res, err := DB.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now().UTC())
+	if err != nil {
+		slog.Error("Database Error: DeleteExpiredSessions", "error", err)
+		return 0, err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: DeleteExpiredSessions RowsAffected", "error", err)
+		return 0, err
+	}
+	return rowsAffected, nil
 }

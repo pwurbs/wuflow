@@ -5,18 +5,44 @@ const API_URL = '/api';
  * On 401: attempts to refresh the access token and retries the request once.
  * If refresh also fails: redirects to /login.
  */
+let isRefreshing = false;
+let refreshPromise = null;
+
+/**
+ * Auth-aware fetch wrapper.
+ * On 401: attempts to refresh the access token and retries the request once.
+ * If refresh also fails: redirects to /login.
+ * Implements a mutex to prevent multiple concurrent refresh calls (Token Reuse Protection).
+ */
 async function authFetch(url, options = {}) {
   let res = await fetch(url, options);
 
   if (res.status === 401) {
-    // Attempt to refresh the access token
-    const refreshRes = await fetch(`${API_URL}/auth/refresh`, { method: 'POST' });
-    if (refreshRes.ok) {
-      // Retry original request with fresh token
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = fetch(`${API_URL}/auth/refresh`, { method: 'POST' })
+        .then(r => {
+          if (!r.ok) throw new Error('Refresh failed');
+          return true;
+        })
+        .catch(err => {
+          // If refresh fails, redirect to login
+          globalThis.location.href = '/login';
+          throw err;
+        })
+        .finally(() => {
+          isRefreshing = false;
+          refreshPromise = null;
+        });
+    }
+
+    try {
+      // Wait for the ongoing refresh to complete
+      await refreshPromise;
+      // Retry original request with fresh token (cookies are handled by browser)
       res = await fetch(url, options);
-    } else {
-      // Refresh failed — redirect to login
-      globalThis.location.href = '/login';
+    } catch {
+      // If refresh failed, return the original 401 response (or we already redirected)
       return res;
     }
   }
@@ -29,8 +55,8 @@ export async function fetchActiveIssues() {
     const res = await authFetch(`${API_URL}/issues/active`);
     const data = await res.json();
     return data || [];
-  } catch (err) {
-    console.error('Failed to fetch issues:', err);
+  } catch {
+    // Failed to fetch issues, return empty list to prevent crash
     return [];
   }
 }
@@ -40,8 +66,8 @@ export async function fetchArchivedIssues() {
     const res = await authFetch(`${API_URL}/issues/archived`);
     const data = await res.json();
     return data || [];
-  } catch (err) {
-    console.error('Failed to fetch archived issues:', err);
+  } catch {
+    // Failed to fetch archived issues, return empty list to prevent crash
     return [];
   }
 }
@@ -61,8 +87,7 @@ export async function fetchIssueById(id) {
     const issue = await res.json();
     const etag = res.headers.get('ETag');
     return { issue, etag };
-  } catch (err) {
-    console.error('Failed to fetch issue:', err);
+  } catch {
     return { issue: null, etag: null };
   }
 }
