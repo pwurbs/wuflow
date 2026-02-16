@@ -27,7 +27,7 @@
 .user-info {
   display: flex;
   flex-direction: row;
-  align-items: baseline;
+  align-items: center;
   /* Align text baselines */
   gap: 12px;
 }

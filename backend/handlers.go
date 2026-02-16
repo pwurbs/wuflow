@@ -542,7 +542,12 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			// Revoke via service method
 			if err := RevokeSession(sessionID); err != nil {
-				slog.Error("Logout: failed to revoke session", "session_id", sessionID, "error", err)
+				// If session not found, it's already revoked/expired, which is fine for logout
+				if err.Error() == "session not found" {
+					slog.Info("Logout: session already revoked or not found", "session_id", sessionID)
+				} else {
+					slog.Warn("Logout: failed to revoke session", "session_id", sessionID, "error", err)
+				}
 			}
 		}
 	}
@@ -602,15 +607,25 @@ func HandleRefresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleCurrentUser handles GET /api/auth/me.
-// Returns the currently authenticated user's info.
+// HandleCurrentUser handles GET /api/auth/me (get info) and PUT /api/auth/me (update info).
 func HandleCurrentUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	userID := GetUserIDFromContext(r.Context())
+	if userID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID := GetUserIDFromContext(r.Context())
+	switch r.Method {
+	case http.MethodGet:
+		handleGetCurrentUser(w, userID)
+	case http.MethodPut:
+		handleUpdateSelf(w, r, userID)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+func handleGetCurrentUser(w http.ResponseWriter, userID int) {
 	user, err := GetUserByID(userID)
 	if err != nil {
 		slog.Error("CurrentUser: database error", "error", err)
@@ -624,6 +639,61 @@ func HandleCurrentUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(headerContentType, contentTypeJSON)
 	json.NewEncoder(w).Encode(user)
+}
+
+// handleUpdateSelf allows a user to update their own profile (e.g. password).
+func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
+	// Load existing user first
+	existing, err := GetUserByID(userID)
+	if err != nil {
+		slog.Error("UpdateSelf: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		http.Error(w, errMsgUserNotFound, http.StatusNotFound)
+		return
+	}
+
+	// We reuse the createUserRequest structure but ignore role/active fields for self-update
+	var req createUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Warn("UpdateSelf: invalid request body", "error", err)
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+		return
+	}
+
+	// Users can only update their own password for now.
+	// Email, FirstName, LastName could be allowed here if desired, but requirements only mention password.
+	// For now, we'll only process password updates if provided.
+
+	if req.Password != "" {
+		if err := updateUserPassword(existing, req.Password); err != nil {
+			slog.Error("UpdateSelf: password error", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Persist changes
+	if err := UpdateUser(existing); err != nil {
+		slog.Error("UpdateSelf: database error", "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	// If password changed, revoke all sessions immediately
+	if req.Password != "" {
+		if err := RevokeUserSessions(userID); err != nil {
+			slog.Error("UpdateSelf: failed to revoke sessions", "user_id", userID, "error", err)
+		} else {
+			slog.Info("UpdateSelf: sessions revoked", "user_id", userID)
+		}
+	}
+
+	slog.Info("User updated self", "id", userID, "email", existing.Email)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	json.NewEncoder(w).Encode(existing)
 }
 
 // -----------------------------------------------------------------------------

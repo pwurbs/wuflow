@@ -125,7 +125,9 @@ test.describe('User Management', () => {
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
 
     // 2. Log out
-    await page.click('#nav-logout');
+    await page.click('#user-menu-btn');
+    await expect(page.locator('#user-menu-dropdown')).toBeVisible();
+    await page.click('#user-menu-logout');
     await expect(page).toHaveURL(/\/login/);
 
     // 3. Log in as Standard User
@@ -138,7 +140,66 @@ test.describe('User Management', () => {
     await expect(page.locator('#nav-setup')).toBeHidden();
 
     // 5. Cleanup - Logout
-    await page.click('#nav-logout');
+    // 5. Cleanup - Logout
+    await page.click('#user-menu-btn');
+    await expect(page.locator('#user-menu-dropdown')).toBeVisible();
+    await page.click('#user-menu-logout');
+  });
+
+  test('Header User Menu displays badge and email correctly', async ({ page }) => {
+    // Already on Setup page from beforeEach (which means logged in)
+    const userMenuBtn = page.locator('#user-menu-btn');
+    await expect(userMenuBtn).toBeVisible();
+
+    // Check for badge existence and content
+    const badge = userMenuBtn.locator('.user-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText(/^[A-Z]{2}$/);
+
+    // Check for email text
+    await expect(userMenuBtn).toContainText('admin@local');
+  });
+
+  test('User Management list displays badges', async ({ page }) => {
+    // Already on Setup page from beforeEach
+    await expect(page.locator('.users-list')).toBeVisible();
+
+    // Find the row for admin@local
+    const adminRow = page.locator('.user-row:has-text("admin@local")');
+    await expect(adminRow).toBeVisible();
+
+    // Check for badge in the list row
+    const badge = adminRow.locator('.user-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText(/^[A-Z]{2}$/);
+
+    // Check background color (should be computed/styled)
+    await expect(badge).toHaveCSS('border-radius', '50%');
+  });
+
+  test('Newly created user has correct badge initials', async ({ page }) => {
+    // Already on Setup page from beforeEach
+
+    // Create a user with known names
+    await page.click('#add-user-btn');
+    const testEmail = `badge_test_${Date.now()}@example.com`;
+    const safePassword = crypto.randomBytes(16).toString('hex') + 'A1!';
+
+    await page.fill('#user-email', testEmail);
+    await page.fill('#user-first-name', 'Badge');
+    await page.fill('#user-last-name', 'Tester');
+    await page.fill('#user-password', safePassword);
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    // Find the new row
+    const userRow = page.locator(`.user-row:has-text("${testEmail}")`);
+    await expect(userRow).toBeVisible();
+
+    // Check Badge Initials: Badge + Tester -> BT
+    const badge = userRow.locator('.user-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText('BT');
   });
 
 });

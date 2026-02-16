@@ -27,6 +27,7 @@ const (
 	wrongStatusCode      = "handler returned wrong status code: got %v want %v"
 	toDelete             = "To Delete"
 	expectedTitleUpdated = "expected title 'Updated', got '%s'"
+	testDBPath           = ":memory:"
 )
 
 func TestHandleActiveIssuesGet(t *testing.T) {
@@ -739,7 +740,7 @@ func TestHandlersDBError(t *testing.T) {
 	oldDB := DB
 
 	// Create a closed DB to force errors
-	closedDB, _ := sql.Open("sqlite3", ":memory:")
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
 	closedDB.Close()
 
 	// Swap global DB
@@ -1031,7 +1032,7 @@ func TestHandlersDBErrors(t *testing.T) {
 	}()
 
 	// Create a closed DB to force errors
-	closedDB, _ := sql.Open("sqlite3", ":memory:")
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
 	closedDB.Close()
 	DB = closedDB
 
@@ -1338,5 +1339,169 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	updated, _ := GetUserByID(user.ID)
 	if !CheckPassword(updated.PasswordHash, testPassword) {
 		t.Error("Password was not updated correctly")
+	}
+}
+
+func TestHandleUpdateSelf(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create a user
+	user := &User{
+		Email:        "self@example.com",
+		FirstName:    "Self",
+		LastName:     "Updater",
+		PasswordHash: "oldhash",
+		Role:         RoleUser,
+		Active:       true,
+	}
+	CreateUser(user)
+
+	// Prepare update request (change password)
+	updateData := map[string]string{
+		"password": "CorrectHorseBatteryStaple!2026",
+	}
+	body, _ := json.Marshal(updateData)
+
+	req, err := http.NewRequest("PUT", apiAuthMe, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mock context with user ID
+	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleCurrentUser)
+
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf(wrongStatusCode, status, http.StatusOK)
+	}
+
+	// Verify password hash changed
+	updatedUser, _ := GetUserByID(user.ID)
+	if updatedUser.PasswordHash == "oldhash" {
+		t.Error("expected password hash to change")
+	}
+
+	// Verify we can't change role or active status via self-update
+	maliciousUpdate := map[string]interface{}{
+		"role":   RoleAdmin,
+		"active": false,
+	}
+	body, _ = json.Marshal(maliciousUpdate)
+	req, _ = http.NewRequest("PUT", "/api/auth/me", bytes.NewBuffer(body))
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	updatedUser, _ = GetUserByID(user.ID)
+	if updatedUser.Role != RoleUser {
+		t.Error("expected role to remain User")
+	}
+	if !updatedUser.Active {
+		t.Error("expected user to remain active")
+	}
+}
+
+func TestHandleCurrentUserUnauthorized(t *testing.T) {
+	req := httptest.NewRequest("GET", apiAuthMe, nil)
+	rr := httptest.NewRecorder()
+	HandleCurrentUser(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestHandleUpdateSelfUserNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{"password":"NewPassword123!"}`))
+	ctx := context.WithValue(req.Context(), contextKeyUserID, 999)
+	rr := httptest.NewRecorder()
+	HandleCurrentUser(rr, req.WithContext(ctx))
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleUpdateSelfInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	user := &User{Email: testEmail, Role: RoleUser, Active: true}
+	CreateUser(user)
+
+	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{invalid json}`))
+	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
+	rr := httptest.NewRecorder()
+	HandleCurrentUser(rr, req.WithContext(ctx))
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleUpdateSelfValidationFailure(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	user := &User{Email: testEmail, Role: RoleUser, Active: true}
+	CreateUser(user)
+
+	// "password" is a common password in the blacklist
+	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{"password":"password12345"}`))
+	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
+	rr := httptest.NewRecorder()
+	HandleCurrentUser(rr, req.WithContext(ctx))
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleUpdateSelfDBError(t *testing.T) {
+	setupTestDB()
+	user := &User{Email: testEmail, Role: RoleUser, Active: true}
+	CreateUser(user)
+
+	oldDB := DB
+	defer func() { DB = oldDB }()
+
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+	DB = closedDB
+
+	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{"password":"ValidPassword123!"}`))
+	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
+	rr := httptest.NewRecorder()
+	HandleCurrentUser(rr, req.WithContext(ctx))
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleUpdateSelfNoPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	user := &User{Email: testEmail, Role: RoleUser, Active: true}
+	CreateUser(user)
+
+	// Empty update (no password)
+	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{}`))
+	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
+	rr := httptest.NewRecorder()
+	HandleCurrentUser(rr, req.WithContext(ctx))
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
 	}
 }

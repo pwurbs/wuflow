@@ -42,7 +42,7 @@ test.describe('Landing Page', () => {
 
   test('filter controls are visible', async ({ page }) => {
     // Filter label
-    await expect(page.locator('.filter-label')).toBeVisible();
+    await expect(page.locator('.filter-card:has-text("Filter") .filter-label')).toBeVisible();
 
     // Label filter button
     await expect(page.locator('#label-filter-btn')).toBeVisible();
@@ -66,6 +66,9 @@ test.describe('Landing Page', () => {
 
     // Setup navigation
     await expect(page.locator('#nav-setup')).toBeVisible();
+
+    // User Menu button
+    await expect(page.locator('#user-menu-btn')).toBeVisible();
   });
 
   test('board columns are displayed', async ({ page }) => {

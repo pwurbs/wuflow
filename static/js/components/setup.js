@@ -1,5 +1,5 @@
 import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser } from '../api.js';
-import { showModalNotification, showConfirm } from '../utils.js';
+import { showModalNotification, showConfirm, getUserInitials } from '../utils.js';
 import { state } from '../state.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
@@ -344,6 +344,7 @@ async function renderUserList(refreshCallback) {
 
       row.innerHTML = `
         <div class="user-info">
+          <div class="user-badge">${getUserInitials(user)}</div>
           <span class="user-email">${user.email}</span>
           <span class="user-name">(${user.first_name} ${user.last_name})</span>
           ${adminBadge}

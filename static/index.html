@@ -49,6 +49,20 @@
                 </div>
             </div>
 
+            <div class="header-right">
+                <div class="user-menu-container filter-card">
+                    <span class="filter-label">User</span>
+                    <button id="user-menu-btn" class="user-menu-btn">
+                        <span id="current-user-email"></span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
+                        <button id="user-menu-password" class="dropdown-item">Password</button>
+                        <button id="user-menu-logout" class="dropdown-item danger">Logout</button>
+                    </div>
+                </div>
+            </div>
+
         </header>
 
         <div class="main-content">
@@ -112,16 +126,7 @@
                     <span class="menu-tooltip">Setup</span>
                 </button>
                 <div class="menu-spacer"></div>
-                <button id="nav-logout" class="menu-btn" aria-label="Logout">
-                    <!-- Logout Icon -->
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    <span class="menu-tooltip">Logout</span>
-                </button>
+
             </nav>
             <div id="setup-view" class="hidden">
                 <div class="setup-section">
@@ -531,6 +536,27 @@
                 <button id="confirm-cancel-btn" class="btn secondary">Cancel</button>
                 <button id="confirm-ok-btn" class="btn danger">Delete</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Password Change Modal -->
+    <div id="password-modal" class="modal hidden" style="z-index: 1200;">
+        <div class="user-modal">
+            <div class="user-modal-header">
+                <h2>Change Password</h2>
+            </div>
+            <form id="password-form">
+                <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input type="password" id="new-password" required placeholder="Enter new password">
+                    <small class="form-hint">Minimum 12 characters. No common passwords.</small>
+                </div>
+                <div id="password-modal-error" class="form-error hidden" role="alert"></div>
+                <div class="form-actions">
+                    <button type="button" id="password-cancel-btn" class="btn secondary">Cancel</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
         </div>
     </div>
 

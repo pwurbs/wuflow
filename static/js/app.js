@@ -1,4 +1,4 @@
-import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser, logout } from './api.js';
+import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser } from './api.js';
 import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
@@ -9,6 +9,7 @@ import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
 import { initLabelFilter, updateLabelFilterOptions } from './components/labelFilter.js';
 import { initPriorityFilter, updatePriorityFilterOptions } from './components/priorityFilter.js';
+import { setupUserMenu } from './components/userMenu.js';
 
 // DOM Elements
 const navBoard = document.getElementById('nav-board');
@@ -50,6 +51,7 @@ async function init() {
     setupArchiveView(refreshApp, openModal);
     setupSetupView(refreshApp);
     setupModal(refreshApp); // Pass refresh callback
+    setupUserMenu(user);
 
     // Fetch and display version
     fetchVersion().then(version => {
@@ -97,12 +99,6 @@ function setupEventListeners() {
     navArchive.addEventListener('click', () => switchView('archive'));
     navBacklog.addEventListener('click', () => switchView('backlog'));
     navSetup.addEventListener('click', () => switchView('setup'));
-
-    // Logout
-    const logoutBtn = document.getElementById('nav-logout');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => logout());
-    }
 
     // New Issue Btn
     document.getElementById('add-issue-btn').addEventListener('click', () => openModal(null));

@@ -751,3 +751,124 @@ func TestGetTaskByID(t *testing.T) {
 		t.Errorf("Expected title '%s', got '%s'", testTaskTitle, storedTask.Title)
 	}
 }
+
+// --- Session DB Tests ---
+
+func TestSessionCRUD(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	userID := 1
+	// Need a user for FK constraint
+	hash, _ := HashPassword("pass")
+	CreateUser(&User{Email: "s@test.com", FirstName: "S", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
+
+	session := &Session{
+		UserID:    userID,
+		TokenHash: "hash123",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	// 1. Create
+	if err := CreateSession(session); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	if session.ID == 0 {
+		t.Error("expected session ID to be set")
+	}
+
+	// 2. Get
+	retrieved, err := GetSessionByID(session.ID)
+	if err != nil {
+		t.Fatalf("GetSessionByID failed: %v", err)
+	}
+	if retrieved.TokenHash != "hash123" {
+		t.Errorf("expected hash 'hash123', got '%s'", retrieved.TokenHash)
+	}
+
+	// 3. Update
+	session.TokenHash = "newhash"
+	if err := UpdateSession(session); err != nil {
+		t.Fatalf("UpdateSession failed: %v", err)
+	}
+	updated, _ := GetSessionByID(session.ID)
+	if updated.TokenHash != "newhash" {
+		t.Errorf("expected updated hash 'newhash', got '%s'", updated.TokenHash)
+	}
+
+	// 4. Delete
+	if err := DeleteSession(session.ID); err != nil {
+		t.Fatalf("DeleteSession failed: %v", err)
+	}
+	deleted, _ := GetSessionByID(session.ID)
+	if deleted != nil {
+		t.Error("expected session to be deleted")
+	}
+}
+
+func TestSessionNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Update non-existent
+	err := UpdateSession(&Session{ID: 999, TokenHash: "h", ExpiresAt: time.Now()})
+	if err == nil || err.Error() != "session not found" {
+		t.Errorf("expected 'session not found' error, got %v", err)
+	}
+
+	// Delete non-existent
+	err = DeleteSession(999)
+	if err == nil || err.Error() != "session not found" {
+		t.Errorf("expected 'session not found' error, got %v", err)
+	}
+}
+
+func TestDeleteSessionsByUserID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	hash, _ := HashPassword("pass")
+	CreateUser(&User{Email: "u@test.com", FirstName: "U", LastName: "1", PasswordHash: hash, Role: RoleUser, Active: true})
+	userID := 1
+
+	// Create 2 sessions
+	CreateSession(&Session{UserID: userID, TokenHash: "1", ExpiresAt: time.Now()})
+	CreateSession(&Session{UserID: userID, TokenHash: "2", ExpiresAt: time.Now()})
+
+	if err := DeleteSessionsByUserID(userID); err != nil {
+		t.Fatalf("DeleteSessionsByUserID failed: %v", err)
+	}
+
+	// Verify emptiness (using raw query since we don't have GetAllSessions)
+	var count int
+	DB.QueryRow("SELECT COUNT(*) FROM sessions WHERE user_id = ?", userID).Scan(&count)
+	if count != 0 {
+		t.Errorf("expected 0 sessions, got %d", count)
+	}
+}
+
+func TestDeleteExpiredSessions(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	hash, _ := HashPassword("pass")
+	CreateUser(&User{Email: "e@test.com", FirstName: "E", LastName: "X", PasswordHash: hash, Role: RoleUser, Active: true})
+
+	// 1 expired, 1 active
+	CreateSession(&Session{UserID: 1, TokenHash: "exp", ExpiresAt: time.Now().Add(-1 * time.Hour)})
+	CreateSession(&Session{UserID: 1, TokenHash: "act", ExpiresAt: time.Now().Add(1 * time.Hour)})
+
+	deletedCount, err := DeleteExpiredSessions()
+	if err != nil {
+		t.Fatalf("DeleteExpiredSessions failed: %v", err)
+	}
+	if deletedCount != 1 {
+		t.Errorf("expected 1 deleted session, got %d", deletedCount)
+	}
+
+	var count int
+	DB.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&count)
+	if count != 1 {
+		t.Errorf("expected 1 remaining session, got %d", count)
+	}
+}

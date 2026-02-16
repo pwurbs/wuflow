@@ -664,8 +664,9 @@ func TestHandleCurrentUserNotFound(t *testing.T) {
 
 func TestHandleCurrentUserMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("POST", apiAuthMe, nil)
+	ctx := context.WithValue(req.Context(), contextKeyUserID, 1)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req)
+	HandleCurrentUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -1272,4 +1273,92 @@ func TestAuthHandlersDBError(t *testing.T) {
 			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 		}
 	})
+}
+
+// --- Session Revocation ---
+
+func TestRevokeSession(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	hash, _ := HashPassword("pass")
+	CreateUser(&User{Email: "revoke@test.com", FirstName: "R", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
+	user, _ := GetUserByEmail("revoke@test.com")
+
+	session := &Session{
+		UserID:    user.ID,
+		TokenHash: "to-revoke",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+	CreateSession(session)
+
+	// Revoke
+	if err := RevokeSession(session.ID); err != nil {
+		t.Fatalf("RevokeSession failed: %v", err)
+	}
+
+	// Verify gone
+	s, _ := GetSessionByID(session.ID)
+	if s != nil {
+		t.Error("expected session to be revoked (deleted)")
+	}
+}
+
+func TestRevokeUserSessions(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	hash, _ := HashPassword("pass")
+	CreateUser(&User{Email: "revoke_all@test.com", FirstName: "R", LastName: "A", PasswordHash: hash, Role: RoleUser, Active: true})
+	user, _ := GetUserByEmail("revoke_all@test.com")
+
+	CreateSession(&Session{UserID: user.ID, TokenHash: "1", ExpiresAt: time.Now().Add(time.Hour)})
+	CreateSession(&Session{UserID: user.ID, TokenHash: "2", ExpiresAt: time.Now().Add(time.Hour)})
+
+	if err := RevokeUserSessions(user.ID); err != nil {
+		t.Fatalf("RevokeUserSessions failed: %v", err)
+	}
+
+	// Verify all gone for user
+	var count int
+	DB.QueryRow("SELECT COUNT(*) FROM sessions WHERE user_id = ?", user.ID).Scan(&count)
+	if count != 0 {
+		t.Errorf("expected 0 sessions, got %d", count)
+	}
+}
+
+func TestCreateUserSession(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitJWTSecret("")
+
+	hash, _ := HashPassword("pass")
+	CreateUser(&User{Email: "session@test.com", FirstName: "S", LastName: "C", PasswordHash: hash, Role: RoleUser, Active: true})
+	user, _ := GetUserByEmail("session@test.com")
+
+	session, accessToken, refreshToken, err := CreateUserSession(user)
+	if err != nil {
+		t.Fatalf("CreateUserSession failed: %v", err)
+	}
+
+	if session == nil {
+		t.Fatal("expected session to be returned")
+	}
+	if accessToken == "" {
+		t.Error("expected access token")
+	}
+	if refreshToken == "" {
+		t.Error("expected refresh token")
+	}
+	if session.UserID != user.ID {
+		t.Errorf("expected session user ID %d, got %d", user.ID, session.UserID)
+	}
+
+	// Verify DB has hash
+	stored, _ := GetSessionByID(session.ID)
+	if stored == nil {
+		t.Error("expected session to be persisted")
+	} else if stored.TokenHash == "" {
+		t.Error("expected token hash to be set in DB")
+	}
 }

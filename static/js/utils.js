@@ -156,3 +156,17 @@ export function canArchive(issue) {
 
   return { allowed: true };
 }
+
+export function getUserInitials(user) {
+  if (!user) return '??';
+
+  if (user.first_name && user.last_name) {
+    return (user.first_name[0] + user.last_name[0]).toUpperCase();
+  }
+
+  if (user.email) {
+    return user.email.substring(0, 2).toUpperCase();
+  }
+
+  return '??';
+}

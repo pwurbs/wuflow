@@ -35,6 +35,11 @@
   /* Wider modal (30% increase) */
 }
 
+.small-modal {
+  width: 400px;
+  max-width: 90%;
+}
+
 #modal-title {
   margin-bottom: 20px;
 }

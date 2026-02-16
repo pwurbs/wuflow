@@ -318,15 +318,14 @@ func EnsureInitialAdmin(initialAdminPassword string) error {
 func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
 	refreshTokenCookie, err := r.Cookie(cookieRefreshToken)
 	if err != nil || refreshTokenCookie.Value == "" {
+		slog.Info("Refresh token cookie missing (static)")
 		return false
 	}
 
 	// Use shared RefreshSession logic
 	user, newAccessToken, newRefreshToken, err := RefreshSession(refreshTokenCookie.Value)
 	if err != nil {
-		// We don't need to log extensively here as RefreshSession/HandleStaticFiles handles flow
-		// But maybe a debug log
-		slog.Debug("Static refresh failed", "error", err)
+		slog.Warn("Static refresh failed", "error", err)
 		return false
 	}
 

@@ -59,7 +59,9 @@ test.describe('Authentication Security', () => {
     const validCookies = await context.cookies();
 
     // 3. Logout
-    await page.click('#nav-logout');
+    await page.click('#user-menu-btn');
+    await expect(page.locator('#user-menu-dropdown')).toBeVisible();
+    await page.click('#user-menu-logout');
     await expect(page).toHaveURL(/\/login/);
 
     // 4. Manually Restore Old Cookies
@@ -171,9 +173,9 @@ test.describe('Authentication Security', () => {
     // Actually, step 2 cleared ALL cookies then added back ONLY the tampered refresh token.
     // So Access Token is gone.
 
-    await page.goto('/');
-
     // Expect: Redirect to Login (Invalid Token -> 401 -> Redirect)
+    // Wrap goto in catch because client-side redirect might interrupt it
+    await page.goto('/').catch(() => { });
     await expect(page).toHaveURL(/\/login/);
   });
 

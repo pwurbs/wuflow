@@ -16,7 +16,8 @@ vi.mock('../api.js', () => ({
 
 vi.mock('../utils.js', () => ({
   showModalNotification: vi.fn(),
-  showConfirm: vi.fn()
+  showConfirm: vi.fn(),
+  getUserInitials: vi.fn().mockReturnValue('AD')
 }));
 
 vi.mock('../state.js', () => ({
@@ -207,8 +208,8 @@ describe('setup.js component', () => {
 
       document.getElementById('user-email').value = 'new@test.com';
       document.getElementById('user-first-name').value = 'New';
-      document.getElementById('user-last-name').value = 'User';
-      document.getElementById('user-password').value = 'CorrectHorseBatteryStaple';
+      const password = `Pass${Math.random().toString(36).slice(2)}LongEnough`;
+      document.getElementById('user-password').value = password;
       document.getElementById('user-role').value = 'user';
       document.getElementById('user-active').checked = true;
 
@@ -221,7 +222,7 @@ describe('setup.js component', () => {
 
       expect(api.createUser).toHaveBeenCalledWith(expect.objectContaining({
         email: 'new@test.com',
-        password: 'CorrectHorseBatteryStaple'
+        password: password
       }));
       expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(true);
     });

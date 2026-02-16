@@ -255,3 +255,16 @@ export async function logout() {
   await fetch(`${API_URL}/auth/logout`, { method: 'POST' });
   globalThis.location.href = '/login';
 }
+
+export async function updateCurrentUser(data) {
+  const res = await authFetch(`${API_URL}/auth/me`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to update user');
+  }
+  return await res.json();
+}

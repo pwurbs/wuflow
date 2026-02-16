@@ -1,4 +1,8 @@
 
+## 0.17.0
+
+- Added personal user menu
+
 ## 0.16.0
 
 - Improved Access and Refresh token handling

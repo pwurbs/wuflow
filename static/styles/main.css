@@ -20,6 +20,7 @@
 @import "./components/modals.css";
 @import "./components/tasks.css";
 @import "./components/toasts.css";
+@import "./components/badges.css";
 
 /* Pages */
 @import "./pages/backlog-archive.css";

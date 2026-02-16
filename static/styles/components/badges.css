@@ -1,0 +1,22 @@
+/* User Badge */
+.user-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--accent-blue);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+/* Larger badge for list view if needed */
+.user-badge.large {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { stripHtml, escapeHtml, debounce } from '../utils.js';
+import { stripHtml, escapeHtml, debounce, getUserInitials } from '../utils.js';
 
 describe('stripHtml', () => {
   it('should return empty string for null input', () => {
@@ -151,5 +151,35 @@ describe('debounce', () => {
     vi.advanceTimersByTime(100);
 
     expect(func).toHaveBeenCalledWith('second');
+  });
+});
+
+describe('getUserInitials', () => {
+  it('should return initials from first and last name', () => {
+    const user = { first_name: 'John', last_name: 'Doe' };
+    expect(getUserInitials(user)).toBe('JD');
+  });
+
+  it('should return initials from email if name is missing', () => {
+    const user = { email: 'john.doe@example.com' };
+    expect(getUserInitials(user)).toBe('JO');
+  });
+
+  it('should return ?? if user is null or undefined', () => {
+    expect(getUserInitials(null)).toBe('??');
+    expect(getUserInitials(undefined)).toBe('??');
+  });
+
+  it('should return ?? if both name and email are missing', () => {
+    expect(getUserInitials({})).toBe('??');
+  });
+
+  it('should handle single name part (only first name)', () => {
+    // Implementation detail: current logic requires both first and last name for initials, 
+    // otherwise falls back to email. If email missing -> ??
+    // But wait, let's check implementation behavior:
+    // if (user.first_name && user.last_name) ...
+    const user = { first_name: 'John' };
+    expect(getUserInitials(user)).toBe('??');
   });
 });
