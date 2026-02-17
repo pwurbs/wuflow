@@ -1,5 +1,5 @@
 import { state, setCurrentIssue } from '../state.js';
-import { createIssue, updateIssue, createTask, updateTask, fetchLabels, fetchIssueById } from '../api.js';
+import { createIssue, updateIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
 import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive } from '../utils.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
@@ -76,10 +76,11 @@ export function setupModal(refreshApp) {
   setupCustomDropdown('status-dropdown', 'status-trigger', 'status-options', 'status', 'status-text');
   setupCustomDropdown('label-dropdown', 'label-trigger', 'label-options', 'label-select', 'label-text');
   setupCustomDropdown('priority-dropdown', 'priority-trigger', 'priority-options', 'priority', 'priority-text');
+  setupCustomDropdown('assignee-dropdown', 'assignee-trigger', 'assignee-options', 'assignee-select', 'assignee-text');
 
   // Close dropdowns on outside click
   document.addEventListener('click', (e) => {
-    ['status-dropdown', 'label-dropdown', 'priority-dropdown'].forEach(id => {
+    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
       const container = document.getElementById(id);
       if (container && !container.contains(e.target)) {
         container.querySelector('.custom-select-options').classList.add('hidden');
@@ -153,6 +154,20 @@ function renderModalDropdowns(issue) {
       if (found) labelText.textContent = found.name;
     }
   }).catch(err => console.error('Failed to load labels', err));
+
+  // Assignee Dropdown
+  const assigneeInput = document.getElementById('assignee-select');
+  const assigneeText = document.getElementById('assignee-text');
+  assigneeInput.value = issue?.assignee_id ?? '';
+  assigneeText.textContent = issue?.assignee ? (issue.assignee.first_name + ' ' + issue.assignee.last_name) : 'Unassigned';
+
+  fetchUsers().then(users => {
+    renderAssigneeOptions(users);
+    if (issue?.assignee_id) {
+      const found = users.find(u => u.id === issue.assignee_id);
+      if (found) assigneeText.textContent = found.first_name + ' ' + found.last_name;
+    }
+  }).catch(err => console.error('Failed to load users', err));
 }
 
 function setupEditModal(issue) {
@@ -241,6 +256,12 @@ function setupNewModal() {
   document.getElementById('save-issue-btn').classList.remove('hidden');
   document.getElementById('cancel-btn').classList.remove('hidden');
   document.getElementById('done-btn').classList.add('hidden');
+
+  // Set Creator to Current User
+  const creatorDisplay = document.getElementById('creator-display');
+  if (creatorDisplay && state.currentUser) {
+    creatorDisplay.textContent = `${state.currentUser.first_name} ${state.currentUser.last_name}`;
+  }
 }
 
 function toggleInlineEditMode(enable) {
@@ -271,6 +292,11 @@ function renderModalTimestamps(issue) {
   const timestampContainer = document.getElementById('timestamp-container');
   const createdAtDisplay = document.getElementById('created-at-display');
   const updatedAtDisplay = document.getElementById('updated-at-display');
+  const creatorDisplay = document.getElementById('creator-display');
+
+  if (creatorDisplay) {
+    creatorDisplay.textContent = issue.creator ? (issue.creator.first_name + ' ' + issue.creator.last_name) : 'Unknown';
+  }
 
   if (timestampContainer && createdAtDisplay && updatedAtDisplay) {
     if (issue.created_at) {
@@ -346,6 +372,8 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
 async function handleIssueSubmit(e) {
   e.preventDefault();
   const statusInput = document.getElementById('status');
+  const assigneeIdVal = document.getElementById('assignee-select').value;
+
   const issueData = {
     title: document.getElementById('title').value,
     description: document.getElementById('description-editor').innerHTML,
@@ -356,6 +384,7 @@ async function handleIssueSubmit(e) {
     planned_dates: getPlannedDatesFromDOM(),
     status: statusInput.value,
     priority: document.getElementById('priority').value,
+    assignee_id: assigneeIdVal ? Number.parseInt(assigneeIdVal) : null,
     position: state.currentIssue ? state.currentIssue.position : 0
   };
 
@@ -489,7 +518,6 @@ function setupInlineEditing() {
     let node = e.target;
     while (node && node !== descEditor) {
       if (node.tagName === 'A') {
-        if (descContainer.classList.contains('inline-editable')) return;
         globalThis.open(node.href, '_blank');
         return;
       }
@@ -597,7 +625,7 @@ async function processFieldOnDone(currentValue, originalValue, fieldName, saveBt
   }
 }
 
-function preventNavigation(e) {
+export function preventNavigation(e) {
   e.preventDefault();
   e.returnValue = '';
 }
@@ -626,6 +654,7 @@ function setupSidebarImmediateSave() {
   const statusSelect = document.getElementById('status');
   const labelSelect = document.getElementById('label-select');
   const prioritySelect = document.getElementById('priority');
+  const assigneeSelect = document.getElementById('assignee-select');
 
   prioritySelect.addEventListener('change', async () => {
     if (state.currentIssue) {
@@ -642,6 +671,23 @@ function setupSidebarImmediateSave() {
       if (saved) state.currentIssue.status = statusSelect.value;
     }
   });
+
+  if (assigneeSelect) {
+    assigneeSelect.addEventListener('change', async () => {
+      if (state.currentIssue) {
+        const val = assigneeSelect.value;
+        const assigneeID = val ? Number.parseInt(val) : null;
+        const updatedIssue = { ...state.currentIssue, assignee_id: assigneeID };
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Assignee updated');
+        if (saved) {
+          state.currentIssue.assignee_id = assigneeID;
+          // Re-fetch issue to get the populated assignee object for UI
+          const { issue: freshIssue } = await fetchIssueById(state.currentIssue.id);
+          if (freshIssue) state.currentIssue.assignee = freshIssue.assignee;
+        }
+      }
+    });
+  }
 
   // Planned Date Input Listener REMOVED (Replaced by Chip Logic)
   deadlineInput.addEventListener('change', async () => {
@@ -904,6 +950,42 @@ function renderLabelOptions(labels) {
 
     div.addEventListener('click', () => {
       selectOption('label-select', 'label-text', 'label-options', label.id, label.name);
+    });
+    optionsContainer.appendChild(div);
+  });
+}
+
+function renderAssigneeOptions(users) {
+  const optionsContainer = document.getElementById('assignee-options');
+  optionsContainer.innerHTML = '';
+
+  // Unassigned Option
+  const unassignedDiv = document.createElement('div');
+  unassignedDiv.className = 'custom-option';
+  unassignedDiv.textContent = 'Unassigned';
+  unassignedDiv.addEventListener('click', () => {
+    selectOption('assignee-select', 'assignee-text', 'assignee-options', '', 'Unassigned');
+  });
+  optionsContainer.appendChild(unassignedDiv);
+
+  // "Me" Option
+  if (state.currentUser) {
+    const meDiv = document.createElement('div');
+    meDiv.className = 'custom-option';
+    meDiv.textContent = `Me (${state.currentUser.first_name} ${state.currentUser.last_name})`;
+    meDiv.addEventListener('click', () => {
+      selectOption('assignee-select', 'assignee-text', 'assignee-options', state.currentUser.id, `${state.currentUser.first_name} ${state.currentUser.last_name}`);
+    });
+    optionsContainer.appendChild(meDiv);
+  }
+
+  users.filter(u => u.active).forEach(user => {
+    const div = document.createElement('div');
+    div.className = 'custom-option';
+    div.textContent = `${user.first_name} ${user.last_name}`;
+
+    div.addEventListener('click', () => {
+      selectOption('assignee-select', 'assignee-text', 'assignee-options', user.id, `${user.first_name} ${user.last_name}`);
     });
     optionsContainer.appendChild(div);
   });

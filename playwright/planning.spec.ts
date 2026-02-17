@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, login } from './helpers/test-utils';
+import { createIssue, login, selectAssignee } from './helpers/test-utils';
 
 test.describe('Planning Panel', () => {
   // Helper to format date as YYYY-MM-DD for input and ID matching
@@ -677,6 +677,40 @@ test.describe('Planning Panel', () => {
 
     // Now it should be visible
     await expect(item).toBeVisible();
+  });
+
+  test('assignee badge initials on planning card', async ({ page }) => {
+    const today = new Date();
+    const dateStr = formatDate(today);
+    const title = `Planning Badge Test ${Date.now()}`;
+
+    await createIssue(page, {
+      title,
+      status: 'Todo',
+      plannedDate: dateStr
+    });
+
+    const dayContainer = page.locator(`#day-${dateStr}`);
+    const planningItem = dayContainer.locator('.planning-item', { hasText: title });
+    await expect(planningItem).toBeVisible();
+
+    // Open and assign
+    await planningItem.click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    // Wait for the update request
+    const updatePromise = page.waitForResponse(response =>
+      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+    );
+    await selectAssignee(page, 'Me (Admin User)');
+    await updatePromise;
+
+    await page.click('#done-btn');
+
+    // Verify badge AU appears on the planning item
+    const badge = planningItem.locator('.user-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText('AU');
   });
 
 });

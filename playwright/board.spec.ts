@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, login } from './helpers/test-utils';
+import { createIssue, login, selectAssignee, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Board Functionality', () => {
   test.beforeEach(async ({ page }) => {
@@ -78,5 +78,27 @@ test.describe('Board Functionality', () => {
     // Verify it moved to Working
     await expect(page.locator('#col-working .board-card:has-text("Drag Test Issue")')).toBeVisible();
     await expect(page.locator('#col-todo .board-card:has-text("Drag Test Issue")')).toHaveCount(0);
+  });
+
+  test('assignee badge initials on board card', async ({ page }) => {
+    const title = `Badge Test ${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+
+    // Open and assign
+    await openIssueByTitle(page, title);
+
+    // Wait for the update request that's triggered by selecting assignee
+    const updatePromise = page.waitForResponse(response =>
+      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+    );
+    await selectAssignee(page, 'Me (Admin User)');
+    await updatePromise;
+
+    await page.click('#done-btn');
+
+    // Verify badge AU appears on the card
+    const badge = page.locator(`.board-card:has-text("${title}") .user-badge`);
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText('AU');
   });
 });

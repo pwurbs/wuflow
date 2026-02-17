@@ -86,7 +86,10 @@ function getBoardCardHTML(issue, openTasks) {
                 ${issue.label ? `<span class="label-chip" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</span>` : ''}
             </div>
             <div class="board-card-bottom">
-                <div class="board-card-id">#${issue.id}</div>
+                <div class="board-card-id-group" style="display: flex; align-items: center; gap: 8px;">
+                  <div class="board-card-id">#${issue.id}</div>
+                  ${getAssigneeBadgeHTML(issue)}
+                </div>
                 <div class="board-card-meta-right">
                     ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
                     <div class="board-task-info">
@@ -120,7 +123,13 @@ function getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls) {
             </div>
             ` : ''}
             <div class="card-main-content">
-                <div class="card-title"><span class="card-id">Issue #${issue.id}</span> ${escapeHtml(issue.title)}</div>
+                <div class="card-header-row" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div class="card-title" style="display: flex; align-items: center;">
+                    <span class="card-id" style="margin-right: 8px;">Issue #${issue.id}</span>
+                    ${getAssigneeBadgeHTML(issue, 'margin-right: 8px;')}
+                    <span>${escapeHtml(issue.title)}</span>
+                  </div>
+                </div>
                 <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
             </div>
             ${'' /* Task list hidden for backlog view to match Open issues layout */}
@@ -141,3 +150,18 @@ function getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls) {
       ${issue.label ? `<div class="backlog-card-label" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</div>` : ''}
         `;
 }
+
+function getAssigneeBadgeHTML(issue, extraStyle = '') {
+  if (!issue.assignee) return '';
+  const initials = getUserInitials(issue.assignee);
+  const fullName = `${issue.assignee.first_name} ${issue.assignee.last_name}`;
+  return `<span class="user-badge" title="Assignee: ${escapeHtml(fullName)}" style="width: 20px; height: 20px; font-size: 9px; display: inline-block; text-align: center; line-height: 20px; vertical-align: middle; ${extraStyle}">${escapeHtml(initials)}</span>`;
+}
+
+function getUserInitials(user) {
+  if (!user) return '?';
+  const first = user.first_name ? user.first_name.charAt(0) : '';
+  const last = user.last_name ? user.last_name.charAt(0) : '';
+  return (first + last).toUpperCase() || '?';
+}
+

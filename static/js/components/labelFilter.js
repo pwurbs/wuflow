@@ -32,7 +32,7 @@ export function initLabelFilter(refreshApp) {
 }
 
 export function updateLabelFilterOptions(labels) {
-  const currentVal = state.filter.label;
+  const currentVal = state.filter.labelId;
 
   // Clear dropdown options
   labelFilterOptions.innerHTML = '';
@@ -42,15 +42,21 @@ export function updateLabelFilterOptions(labels) {
   labelFilterOptions.appendChild(noLabelOption);
 
   labels.forEach(label => {
-    const option = createCustomOption(label.name, label.name);
+    const option = createCustomOption(label.name, label.id);
     labelFilterOptions.appendChild(option);
   });
 
   // Update button content
   labelFilterBtn.innerHTML = ''; // Clear existing
-  if (currentVal) {
+  if (currentVal !== null && currentVal !== undefined) {
     // Filter Selected
-    const labelText = currentVal === '__no_label__' ? 'No Label' : currentVal;
+    let labelText = 'Unknown';
+    if (currentVal === '__no_label__') {
+      labelText = 'No Label';
+    } else {
+      const found = labels.find(l => l.id === currentVal);
+      if (found) labelText = found.name;
+    }
 
     const textSpan = document.createElement('span');
     textSpan.textContent = `Label: ${labelText}`;
@@ -87,7 +93,7 @@ export function updateLabelFilterOptions(labels) {
 function createCustomOption(text, value) {
   const div = document.createElement('div');
   div.className = 'custom-option';
-  if (state.filter.label === value || (!state.filter.label && value === '')) {
+  if (state.filter.labelId === value || (!state.filter.labelId && value === '')) {
     // div.classList.add('selected'); // Optional styling
   }
   div.textContent = text;

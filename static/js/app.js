@@ -1,4 +1,4 @@
-import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser } from './api.js';
+import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser, fetchUsers } from './api.js';
 import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
@@ -9,6 +9,7 @@ import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
 import { initLabelFilter, updateLabelFilterOptions } from './components/labelFilter.js';
 import { initPriorityFilter, updatePriorityFilterOptions } from './components/priorityFilter.js';
+import { initUserFilter, updateUserFilterOptions } from './components/userFilter.js';
 import { setupUserMenu } from './components/userMenu.js';
 
 // DOM Elements
@@ -46,6 +47,7 @@ async function init() {
     setupEventListeners();
     initLabelFilter(refreshApp);
     initPriorityFilter(refreshApp);
+    initUserFilter(refreshApp);
     setupBoardView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
     setupArchiveView(refreshApp, openModal);
@@ -75,6 +77,10 @@ async function refreshApp() {
         // Refresh Label Filter
         const labels = await fetchLabels();
         updateLabelFilterOptions(labels);
+
+        const users = await fetchUsers();
+        updateUserFilterOptions(users);
+
         // Priority filter options are static/local so we might not strictly need to call update here unless we want to ensure sync, 
         // but let's do it to be safe if we add dynamic priorities later or reset logic.
         updatePriorityFilterOptions();

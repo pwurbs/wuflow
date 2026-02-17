@@ -50,6 +50,9 @@ test.describe('Landing Page', () => {
     // Priority filter button
     await expect(page.locator('#priority-filter-btn')).toBeVisible();
 
+    // User filter button
+    await expect(page.locator('#user-filter-btn')).toBeVisible();
+
     // Search input
     await expect(page.locator('#search-input')).toBeVisible();
   });

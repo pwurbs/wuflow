@@ -58,6 +58,13 @@ export async function selectLabel(page: Page, labelName: string): Promise<void> 
   await page.click('#label-trigger');
   await page.click(`#label-options .custom-option:has-text("${labelName}")`);
 }
+/**
+ * Selects an assignee from the custom dropdown by name
+ */
+export async function selectAssignee(page: Page, userName: string): Promise<void> {
+  await page.click('#assignee-trigger');
+  await page.click(`#assignee-options .custom-option:has-text("${userName}")`);
+}
 
 /**
  * Creates a new issue with the given data

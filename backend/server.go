@@ -102,8 +102,8 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 	})))))
 
 	// Admin-only API endpoints (user management)
-	http.Handle("/api/users", WithLogging(CSPMiddleware(AuthMiddleware(AdminMiddleware(http.HandlerFunc(HandleUsers))))))
-	http.Handle("/api/users/", WithLogging(CSPMiddleware(AuthMiddleware(AdminMiddleware(http.HandlerFunc(HandleUser))))))
+	http.Handle("/api/users", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleUsers)))))
+	http.Handle("/api/users/", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleUser)))))
 	http.Handle("/api/labels/", WithLogging(CSPMiddleware(AuthMiddleware(AdminMiddleware(http.HandlerFunc(HandleLabel))))))
 
 	// Static files — require auth, redirect to login if not authenticated

@@ -1,4 +1,8 @@
 
+## 0.18.0
+
+- Connected users to issues
+
 ## 0.17.0
 
 - Added personal user menu

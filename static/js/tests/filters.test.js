@@ -14,10 +14,10 @@ const createIssue = (overrides = {}) => ({
 });
 
 const mockIssues = [
-  createIssue({ id: 1, title: 'Login Bug', priority: 'High', label: { name: 'Bug', color: '#ff0000' }, position: 2 }),
-  createIssue({ id: 2, title: 'Add Dark Mode', priority: 'Normal', label: { name: 'Feature', color: '#00ff00' }, position: 0 }),
-  createIssue({ id: 3, title: 'Fix Typo', priority: 'Normal', label: null, position: 1 }),
-  createIssue({ id: 4, title: 'API Integration', description: 'Login endpoint', priority: 'High', status: 'Working', position: 3 }),
+  createIssue({ id: 1, title: 'Login Bug', priority: 'High', label: { id: 1, name: 'Bug', color: '#ff0000' }, assignee_id: 1, position: 2 }),
+  createIssue({ id: 2, title: 'Add Dark Mode', priority: 'Normal', label: { id: 2, name: 'Feature', color: '#00ff00' }, assignee_id: 2, position: 0 }),
+  createIssue({ id: 3, title: 'Fix Typo', priority: 'Normal', label: null, assignee_id: null, position: 1 }),
+  createIssue({ id: 4, title: 'API Integration', description: 'Login endpoint', priority: 'High', status: 'Working', assignee_id: 1, position: 3 }),
 ];
 
 describe('filterIssues', () => {
@@ -35,41 +35,55 @@ describe('filterIssues', () => {
     });
 
     it('should return all issues when filter is empty', () => {
-      const filter = { label: null, priority: null, search: '' };
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '' };
       expect(filterIssues(mockIssues, filter)).toHaveLength(4);
     });
   });
 
   describe('label filter', () => {
-    it('should filter by label name', () => {
-      const filter = { label: 'Bug', priority: null, search: '' };
+    it('should filter by label id', () => {
+      const filter = { labelId: 1, priority: null, assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Login Bug');
     });
 
     it('should filter to show only unlabeled issues with __no_label__', () => {
-      const filter = { label: '__no_label__', priority: null, search: '' };
+      const filter = { labelId: '__no_label__', priority: null, assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2); // "Fix Typo" and "API Integration" have no label
     });
 
-    it('should return empty when label not found', () => {
-      const filter = { label: 'NonExistent', priority: null, search: '' };
+    it('should return empty when label id not found', () => {
+      const filter = { labelId: 999, priority: null, assigneeId: null, search: '' };
       expect(filterIssues(mockIssues, filter)).toHaveLength(0);
+    });
+  });
+
+  describe('assignee filter', () => {
+    it('should filter by assignee id', () => {
+      const filter = { labelId: null, priority: null, assigneeId: 1, search: '' };
+      const result = filterIssues(mockIssues, filter);
+      expect(result).toHaveLength(2); // Login Bug and API Integration
+    });
+
+    it('should filter by unassigned', () => {
+      const filter = { labelId: null, priority: null, assigneeId: 'unassigned', search: '' };
+      const result = filterIssues(mockIssues, filter);
+      expect(result).toHaveLength(1); // Fix Typo
     });
   });
 
   describe('priority filter', () => {
     it('should filter by High priority', () => {
-      const filter = { label: null, priority: 'High', search: '' };
+      const filter = { labelId: null, priority: 'High', assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2);
       expect(result.every(i => i.priority === 'High')).toBe(true);
     });
 
     it('should filter by Normal priority', () => {
-      const filter = { label: null, priority: 'Normal', search: '' };
+      const filter = { labelId: null, priority: 'Normal', assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2);
       expect(result.every(i => i.priority === 'Normal')).toBe(true);
@@ -78,13 +92,13 @@ describe('filterIssues', () => {
 
   describe('search filter', () => {
     it('should search in title (case insensitive)', () => {
-      const filter = { label: null, priority: null, search: 'login' };
+      const filter = { labelId: null, priority: null, assigneeId: null, search: 'login' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2); // "Login Bug" and "API Integration" (description has login)
     });
 
     it('should search in description', () => {
-      const filter = { label: null, priority: null, search: 'endpoint' };
+      const filter = { labelId: null, priority: null, assigneeId: null, search: 'endpoint' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('API Integration');
@@ -92,28 +106,28 @@ describe('filterIssues', () => {
 
     it('should handle issues without description', () => {
       const issues = [createIssue({ id: 1, title: 'Test', description: null })];
-      const filter = { label: null, priority: null, search: 'test' };
+      const filter = { labelId: null, priority: null, assigneeId: null, search: 'test' };
       expect(filterIssues(issues, filter)).toHaveLength(1);
     });
   });
 
   describe('combined filters', () => {
     it('should apply label and priority filters together', () => {
-      const filter = { label: 'Bug', priority: 'High', search: '' };
+      const filter = { labelId: 1, priority: 'High', assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Login Bug');
     });
 
-    it('should apply all three filters together', () => {
-      const filter = { label: '__no_label__', priority: 'High', search: 'api' };
+    it('should apply all filters together', () => {
+      const filter = { labelId: '__no_label__', priority: 'High', assigneeId: 1, search: 'api' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('API Integration');
     });
 
     it('should return empty when filters are mutually exclusive', () => {
-      const filter = { label: 'Bug', priority: 'Normal', search: '' };
+      const filter = { labelId: 1, priority: 'Normal', assigneeId: null, search: '' };
       expect(filterIssues(mockIssues, filter)).toHaveLength(0);
     });
   });

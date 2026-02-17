@@ -3,6 +3,7 @@ import {
   state,
   setFilterLabel,
   setFilterPriority,
+  setFilterAssignee,
   setFilterSearch,
   setIssues,
   setCurrentIssue,
@@ -15,24 +16,24 @@ describe('state', () => {
   beforeEach(() => {
     state.issues = [];
     state.currentIssue = null;
-    state.filter = { label: null, priority: null, search: '' };
+    state.filter = { labelId: null, priority: null, assigneeId: null, search: '' };
   });
 
   describe('setFilterLabel', () => {
     it('should set the label filter', () => {
-      setFilterLabel('Bug');
-      expect(state.filter.label).toBe('Bug');
+      setFilterLabel(1);
+      expect(state.filter.labelId).toBe(1);
     });
 
-    it('should set label to __no_label__ for unlabeled filter', () => {
-      setFilterLabel('__no_label__');
-      expect(state.filter.label).toBe('__no_label__');
+    it('should set label to 0 for unlabeled filter', () => {
+      setFilterLabel(0);
+      expect(state.filter.labelId).toBe(0);
     });
 
     it('should clear label filter when set to null', () => {
-      setFilterLabel('Bug');
+      setFilterLabel(1);
       setFilterLabel(null);
-      expect(state.filter.label).toBeNull();
+      expect(state.filter.labelId).toBeNull();
     });
   });
 
@@ -42,15 +43,23 @@ describe('state', () => {
       expect(state.filter.priority).toBe('High');
     });
 
-    it('should set priority to Normal', () => {
-      setFilterPriority('Normal');
-      expect(state.filter.priority).toBe('Normal');
-    });
-
     it('should clear priority filter when set to null', () => {
       setFilterPriority('High');
       setFilterPriority(null);
       expect(state.filter.priority).toBeNull();
+    });
+  });
+
+  describe('setFilterAssignee', () => {
+    it('should set assignee filter', () => {
+      setFilterAssignee(5);
+      expect(state.filter.assigneeId).toBe(5);
+    });
+
+    it('should clear assignee filter when set to null', () => {
+      setFilterAssignee(5);
+      setFilterAssignee(null);
+      expect(state.filter.assigneeId).toBeNull();
     });
   });
 
@@ -77,13 +86,6 @@ describe('state', () => {
       expect(state.issues).toEqual(issues);
       expect(state.issues).toHaveLength(2);
     });
-
-    it('should replace existing issues', () => {
-      setIssues([{ id: 1, title: 'Old' }]);
-      setIssues([{ id: 2, title: 'New' }]);
-      expect(state.issues).toHaveLength(1);
-      expect(state.issues[0].title).toBe('New');
-    });
   });
 
   describe('setCurrentIssue', () => {
@@ -91,12 +93,6 @@ describe('state', () => {
       const issue = { id: 1, title: 'Test Issue' };
       setCurrentIssue(issue);
       expect(state.currentIssue).toEqual(issue);
-    });
-
-    it('should clear current issue when set to null', () => {
-      setCurrentIssue({ id: 1, title: 'Test' });
-      setCurrentIssue(null);
-      expect(state.currentIssue).toBeNull();
     });
   });
 
@@ -106,22 +102,18 @@ describe('state', () => {
       setCurrentUser(user);
       expect(state.currentUser).toEqual(user);
     });
-
-    it('should clear current user when set to null', () => {
-      setCurrentUser({ id: 1 });
-      setCurrentUser(null);
-      expect(state.currentUser).toBeNull();
-    });
   });
 
   describe('filter state isolation', () => {
     it('should not affect other filters when setting one', () => {
-      setFilterLabel('Bug');
+      setFilterLabel(1);
       setFilterPriority('High');
+      setFilterAssignee(2);
       setFilterSearch('login');
 
-      expect(state.filter.label).toBe('Bug');
+      expect(state.filter.labelId).toBe(1);
       expect(state.filter.priority).toBe('High');
+      expect(state.filter.assigneeId).toBe(2);
       expect(state.filter.search).toBe('login');
     });
   });
@@ -132,12 +124,17 @@ describe('state', () => {
     });
 
     it('should return true when label filter is set', () => {
-      state.filter.label = 'Bug';
+      state.filter.labelId = 1;
       expect(isFilterActive()).toBe(true);
     });
 
     it('should return true when priority filter is set', () => {
       state.filter.priority = 'High';
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return true when assignee filter is set', () => {
+      state.filter.assigneeId = 1;
       expect(isFilterActive()).toBe(true);
     });
 

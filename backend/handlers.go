@@ -44,14 +44,25 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Get creator ID from context and set it
+		i.CreatorID = GetUserIDFromContext(r.Context())
+
 		if err := CreateIssue(&i); err != nil {
 			slog.Error("CreateIssue failed", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		// Re-fetch to get full details (Creator, Assignee, etc.)
+		created, err := GetIssueByID(i.ID)
+		if err != nil {
+			slog.Error("CreateIssue: failed to fetch created issue", "id", i.ID, "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(i)
+		json.NewEncoder(w).Encode(created)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
@@ -159,6 +170,14 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
+	// Ensure CreatorID is not changed and persists
+	i.CreatorID = current.CreatorID
+
+	// Validate AssigneeID if present (optional, relying on FK mostly)
+	if i.AssigneeID != nil {
+		// We could verify user exists here if stricter validation is needed
+	}
+
 	if err := validateIssue(&i); err != nil {
 		slog.Warn("Issue update validation failed", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -182,9 +201,16 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 	// Return new ETag after update
-	newEtag := i.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	// Return new ETag after update
+	updated, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("UpdateIssue: failed to fetch updated issue", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	newEtag := updated.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	w.Header().Set("ETag", `"`+newEtag+`"`)
-	json.NewEncoder(w).Encode(i)
+	json.NewEncoder(w).Encode(updated)
 }
 
 // checkIfMatchConflict verifies if the client's If-Match header matches the current issue's ETag.
@@ -717,6 +743,11 @@ func HandleUsers(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		handleListUsers(w)
 	case http.MethodPost:
+		role := GetRoleFromContext(r.Context())
+		if role != RoleAdmin {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		handleCreateUser(w, r)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
@@ -809,6 +840,11 @@ func HandleUser(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		handleGetUser(w, id)
 	case http.MethodPut:
+		role := GetRoleFromContext(r.Context())
+		if role != RoleAdmin {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		handleUpdateUser(w, r, id)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)

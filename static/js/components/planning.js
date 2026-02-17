@@ -265,6 +265,22 @@ export function createDeadlineBadge(issue, specificDateStr) {
   return badge;
 }
 
+function createAssigneeBadgeElement(issue) {
+  if (!issue.assignee) return null;
+  const initials = (issue.assignee.first_name ? issue.assignee.first_name.charAt(0) : '') +
+    (issue.assignee.last_name ? issue.assignee.last_name.charAt(0) : '');
+  const badge = document.createElement('span');
+  badge.className = 'user-badge';
+  badge.style.width = '16px';
+  badge.style.height = '16px';
+  badge.style.fontSize = '8px';
+  badge.style.marginRight = '1px';
+  badge.style.display = 'inline-flex';
+  badge.textContent = initials.toUpperCase() || '?';
+  badge.title = `Assignee: ${issue.assignee.first_name} ${issue.assignee.last_name}`;
+  return badge;
+}
+
 function createPlanningItem(issue, dateStr) {
   const div = document.createElement('div');
   div.className = `planning-item ${issue.status === 'Done' ? 'done' : ''}`;
@@ -272,6 +288,12 @@ function createPlanningItem(issue, dateStr) {
   div.dataset.id = issue.id;
   // Store the date of this specific instance
   div.dataset.dateInstance = dateStr;
+
+  // Add Assignee Badge if assigned
+  const assigneeBadge = createAssigneeBadgeElement(issue);
+  if (assigneeBadge) {
+    div.appendChild(assigneeBadge);
+  }
 
   const titleSpan = document.createElement('span');
   titleSpan.className = 'planning-item-title';
@@ -419,6 +441,12 @@ function createUnscheduledItem(issue) {
   div.className = 'planning-item unscheduled';
   div.draggable = true;
   div.dataset.id = issue.id;
+
+  // Add Assignee Badge if assigned
+  const assigneeBadge = createAssigneeBadgeElement(issue);
+  if (assigneeBadge) {
+    div.appendChild(assigneeBadge);
+  }
 
   const titleSpan = document.createElement('span');
   titleSpan.className = 'planning-item-title';

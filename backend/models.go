@@ -43,7 +43,11 @@ type Issue struct {
 	Deadline     *time.Time    `json:"deadline"`
 	PlannedDates []string      `json:"planned_dates"` // Stored as JSON array in DB
 	Priority     IssuePriority `json:"priority"`
-	Label        *Label        `json:"label"` // Pointer to manage nil label
+	CreatorID    int           `json:"creator_id"`
+	AssigneeID   *int          `json:"assignee_id"`        // Pointer to allow null (unassigned)
+	Creator      *User         `json:"creator,omitempty"`  // Populated for API responses to avoid N+1 queries
+	Assignee     *User         `json:"assignee,omitempty"` // Populated for API responses to avoid N+1 queries
+	Label        *Label        `json:"label"`              // Pointer to manage nil label
 	Tasks        []Task        `json:"tasks"`
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`

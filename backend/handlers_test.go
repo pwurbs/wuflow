@@ -1225,7 +1225,7 @@ func TestHandleUpdateUserLastAdminProtection(t *testing.T) {
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	HandleUser(rr, req) // This tests handleUpdateUser which calls checkLastAdminProtection
+	HandleUser(rr, req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))) // This tests handleUpdateUser which calls checkLastAdminProtection
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 Bad Request for last admin demotion, got %d", rr.Code)
@@ -1303,7 +1303,13 @@ func TestHandlePutIssueUnarchive(t *testing.T) {
 		t.Errorf("Expected 200 OK for unarchiving issue, got %d. Body: %s", rr.Code, rr.Body.String())
 	}
 
-	updated, _ := GetIssueByID(issue.ID)
+	updated, err := GetIssueByID(issue.ID)
+	if err != nil {
+		t.Fatalf("Failed to get updated issue: %v", err)
+	}
+	if updated == nil {
+		t.Fatal("Updated issue is nil")
+	}
 	if updated.Status != StatusDone {
 		t.Errorf("Expected status Done, got %s", updated.Status)
 	}
@@ -1330,7 +1336,7 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	HandleUser(rr, req)
+	HandleUser(rr, req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin)))
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK, got %d", rr.Code)
@@ -1503,5 +1509,105 @@ func TestHandleUpdateSelfNoPassword(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+}
+
+// --- User Assignment Handler Tests ---
+
+func TestHandleCreateIssueSetsCreator(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitJWTSecret("secret")
+
+	// Create user
+	user := &User{Email: "creator@test.com", FirstName: "C", LastName: "U", Role: RoleUser, Active: true}
+	CreateUser(user)
+
+	issue := &Issue{Title: "My Issue", Status: StatusOpen}
+	body, _ := json.Marshal(issue)
+
+	req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	// Inject UserID into context (simulating AuthMiddleware)
+	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
+
+	handler := http.HandlerFunc(HandleCreateIssue)
+	handler.ServeHTTP(rr, req.WithContext(ctx))
+
+	if rr.Code != http.StatusCreated {
+		t.Errorf("Expected 201 Created, got %d", rr.Code)
+	}
+
+	var created Issue
+	json.NewDecoder(rr.Body).Decode(&created)
+
+	if created.CreatorID != user.ID {
+		t.Errorf("Expected CreatorID %d, got %d", user.ID, created.CreatorID)
+	}
+	// Verify Creator struct in response
+	if created.Creator == nil || created.Creator.Email != user.Email {
+		t.Error("Expected Creator struct in response")
+	}
+}
+
+func TestHandleIssueUpdateAssignee(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create users
+	creator := &User{Email: "c@test.com", FirstName: "C", LastName: "U", Role: RoleUser}
+	assignee := &User{Email: "a@test.com", FirstName: "A", LastName: "U", Role: RoleUser}
+	CreateUser(creator)
+	CreateUser(assignee)
+
+	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID}
+	CreateIssue(issue)
+
+	// Request to assign
+	issue.AssigneeID = &assignee.ID
+	body, _ := json.Marshal(issue)
+
+	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(HandleIssue)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK, got %d", rr.Code)
+	}
+
+	updated, _ := GetIssueByID(issue.ID)
+	if updated.AssigneeID == nil || *updated.AssigneeID != assignee.ID {
+		t.Errorf("Expected AssigneeID %d, got %v", assignee.ID, updated.AssigneeID)
+	}
+}
+
+func TestHandleIssueCreatorReadOnly(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	creator := &User{Email: "c@test.com", FirstName: "C", LastName: "U", Role: RoleUser}
+	imposter := &User{Email: "i@test.com", FirstName: "I", LastName: "U", Role: RoleUser}
+	CreateUser(creator)
+	CreateUser(imposter)
+
+	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID}
+	CreateIssue(issue)
+
+	// Try to change creator
+	issue.CreatorID = imposter.ID
+	body, _ := json.Marshal(issue)
+
+	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(HandleIssue)
+	handler.ServeHTTP(rr, req)
+
+	updated, _ := GetIssueByID(issue.ID)
+	if updated.CreatorID != creator.ID {
+		t.Errorf("Expected CreatorID to remain %d, but it was changed to %d", creator.ID, updated.CreatorID)
 	}
 }

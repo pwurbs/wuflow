@@ -182,3 +182,17 @@ input:-webkit-autofill:active,
   font-weight: 500;
   color: var(--text-color);
 }
+
+.read-only-meta {
+  background-color: rgb(16, 22, 35);
+  border: 1px solid var(--card-border);
+  color: var(--muted-text);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 200;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}

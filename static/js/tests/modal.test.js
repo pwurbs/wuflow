@@ -1,6 +1,5 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setupModal, openModal, closeModal } from '../components/modal.js';
+import { setupModal, openModal, closeModal, preventNavigation } from '../components/modal.js';
 import * as api from '../api.js';
 import * as state from '../state.js';
 import * as utils from '../utils.js';
@@ -14,6 +13,7 @@ vi.mock('../api.js', () => ({
   updateTask: vi.fn(),
   deleteIssue: vi.fn(),
   fetchLabels: vi.fn(),
+  fetchUsers: vi.fn(),
   fetchIssueById: vi.fn()
 }));
 
@@ -65,42 +65,60 @@ describe('Modal Component', () => {
     document.body.innerHTML = `
       <div id="issue-modal" class="hidden">
         <div class="modal-content">
-        <h2 id="modal-title"></h2>
-        <form id="issue-form">
+          <h2 id="modal-title"></h2>
+          <form id="issue-form">
             <input id="issue-id" type="hidden">
             <input id="title" type="text" value="">
             <div id="title-edit-actions" class="hidden">
-                <button id="title-cancel-btn"></button>
-                <button id="title-save-btn"></button>
+              <button id="title-cancel-btn"></button>
+              <button id="title-save-btn"></button>
             </div>
             <div class="editor-container">
-                <div id="description-editor" contenteditable="true"></div>
-                <div id="description-edit-actions" class="hidden">
-                     <button id="desc-cancel-btn"></button>
-                     <button id="desc-save-btn"></button>
-                </div>
+              <div id="description-editor" contenteditable="true"></div>
+              <div id="description-edit-actions" class="hidden">
+                <button id="desc-cancel-btn"></button>
+                <button id="desc-save-btn"></button>
+              </div>
             </div>
             <div id="planned-dates-container"></div>
             <input id="deadline" type="date" class="custom-date-input">
 
             <!-- Custom Dropdowns -->
-            <div id="status-dropdown"><div id="status-trigger" class="custom-select-trigger"><span id="status-text"></span></div><div id="status-options" class="custom-select-options hidden"></div><input type="hidden" id="status"></div>
-            <div id="priority-dropdown"><div id="priority-trigger" class="custom-select-trigger"><span id="priority-text"></span></div><div id="priority-options" class="custom-select-options hidden"></div><input type="hidden" id="priority"></div>
-            <div id="label-dropdown"><div id="label-trigger" class="custom-select-trigger"><span id="label-text"></span></div><div id="label-options" class="custom-select-options hidden"></div><input type="hidden" id="label-select"></div>
-            
+            <div id="status-dropdown">
+              <div id="status-trigger" class="custom-select-trigger"><span id="status-text"></span></div>
+              <div id="status-options" class="custom-select-options hidden"></div>
+              <input type="hidden" id="status">
+            </div>
+            <div id="priority-dropdown">
+              <div id="priority-trigger" class="custom-select-trigger"><span id="priority-text"></span></div>
+              <div id="priority-options" class="custom-select-options hidden"></div>
+              <input type="hidden" id="priority">
+            </div>
+            <div id="label-dropdown">
+              <div id="label-trigger" class="custom-select-trigger"><span id="label-text"></span></div>
+              <div id="label-options" class="custom-select-options hidden"></div>
+              <input type="hidden" id="label-select">
+            </div>
+            <div id="assignee-dropdown">
+              <div id="assignee-trigger" class="custom-select-trigger"><span id="assignee-text"></span></div>
+              <div id="assignee-options" class="custom-select-options hidden"></div>
+              <input type="hidden" id="assignee-select">
+            </div>
+
             <div id="tasks-section">
-                <div id="task-form-container">
-                    <input id="new-task-title" type="text">
-                    <input id="new-task-deadline" type="date">
-                    <button id="add-task-btn" type="button"></button>
-                </div>
-                 <ul id="task-list"></ul>
+              <div id="task-form-container">
+                <input id="new-task-title" type="text">
+                <input id="new-task-deadline" type="date">
+                <button id="add-task-btn" type="button"></button>
+              </div>
+              <ul id="task-list"></ul>
             </div>
 
             <button id="delete-issue-btn" type="button"></button>
             <button id="archive-issue-btn" type="button"></button>
             <button id="unarchive-issue-btn" type="button"></button>
             <div id="timestamp-container">
+                 <span id="creator-display"></span>
                  <span id="created-at-display"></span>
                  <span id="updated-at-display"></span>
             </div>
@@ -108,18 +126,20 @@ describe('Modal Component', () => {
             <button id="cancel-btn" type="button"></button>
             <button id="save-issue-btn" type="submit"></button>
             <button id="done-btn" type="button"></button>
-            
-             <!-- Left nav for active state check -->
-            <div class="left-menu">
-                <div id="add-issue-btn" class="menu-btn"></div>
-                <div id="nav-board" class="menu-btn"></div>
-            </div>
-            
-             <!-- Editor toolbar btns for setup -->
+
+            <!-- Editor toolbar btns for setup -->
             <button class="editor-btn" data-cmd="bold"></button>
+            <button class="editor-btn" data-cmd="underline"></button>
+            <button class="editor-btn" data-cmd="italic"></button>
             <button class="editor-btn" data-cmd="createLink"></button>
-        </form>
+          </form>
         </div>
+      </div>
+
+      <!-- Left nav for active state check -->
+      <div class="left-menu">
+        <div id="add-issue-btn" class="menu-btn"></div>
+        <div id="nav-board" class="menu-btn"></div>
       </div>
     `;
 
@@ -128,6 +148,7 @@ describe('Modal Component', () => {
 
     // Default mock returns
     api.fetchLabels.mockResolvedValue([{ id: 1, name: 'Bug' }, { id: 2, name: 'Feature' }]);
+    api.fetchUsers.mockResolvedValue([{ id: 1, first_name: 'Test', last_name: 'User', active: true }]);
     api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
     state.state.currentIssue = null;
     state.setCurrentIssue.mockImplementation((val) => { state.state.currentIssue = val; });
@@ -811,7 +832,7 @@ describe('Modal Component', () => {
       expect(utils.showConfirm).toHaveBeenCalled();
       // Since confirm is true, it should trigger save (which triggers updateIssue)
       // Note: testing internal behavior of handleDone which triggers save logic
-      // In modal.js: if (await showConfirm(...)) { titleSaveBtn.dispatchEvent(...) }
+      // In modal.js: if (await showConfirm(...)) {titleSaveBtn.dispatchEvent(...)}
 
       // We need to wait for the save logic which is also async
       await new Promise(process.nextTick);
@@ -1001,6 +1022,367 @@ describe('Modal Component', () => {
       expect(utils.showConfirm).toHaveBeenCalled();
       // Modal stays open when user cancels
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+  });
+
+  describe('Additional Coverage Improvements', () => {
+    it('should handle creator display in new modal', () => {
+      state.state.currentUser = { first_name: 'John', last_name: 'Doe' };
+      openModal(null);
+      const creatorDisplay = document.getElementById('creator-display');
+      expect(creatorDisplay.textContent).toBe('John Doe');
+    });
+
+    it('should handle creator display in edit modal', async () => {
+      const issue = {
+        id: 1,
+        title: 'Test',
+        creator: { first_name: 'Jane', last_name: 'Smith' }
+      };
+      await openModalWithMock(issue);
+      const creatorDisplay = document.getElementById('creator-display');
+      expect(creatorDisplay.textContent).toBe('Jane Smith');
+    });
+
+    it('should handle unknown creator in edit modal', async () => {
+      const issue = { id: 1, title: 'Test', creator: null };
+      await openModalWithMock(issue);
+      const creatorDisplay = document.getElementById('creator-display');
+      expect(creatorDisplay.textContent).toBe('Unknown');
+    });
+
+    it('should handle link click in description editor in read-only mode', async () => {
+      const issue = { id: 1, description: '<a id="test-link" href="https://example.com">Link</a>' };
+      await openModalWithMock(issue);
+
+      const descEditor = document.getElementById('description-editor');
+      const link = descEditor.querySelector('#test-link');
+      const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => ({}));
+
+      // Ensure we are NOT in edit mode yet
+      const descContainer = document.querySelector('.editor-container');
+      descContainer.classList.add('inline-editable');
+
+      // Dispatch click on the link itself
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      expect(openSpy).toHaveBeenCalled();
+      openSpy.mockRestore();
+    });
+
+    it('should handle assignee change and immediate save', async () => {
+      const issue = { id: 1, assignee_id: null };
+      await openModalWithMock(issue);
+
+      const assigneeSelect = document.getElementById('assignee-select');
+      assigneeSelect.value = '1';
+      assigneeSelect.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        assignee_id: 1
+      }), expect.any(String));
+      expect(api.fetchIssueById).toHaveBeenCalled();
+    });
+
+    it('should prompt for unsaved task changes on Done click', async () => {
+      const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
+      await openModalWithMock(issue);
+
+      // Mock renderTasks to actually render a task item since it's vi.mocked
+      tasks.renderTasks.mockImplementation((taskList, container) => {
+        container.innerHTML = `
+          <li class="task-item editing" data-id="101">
+            <input class="task-title-input" data-original-title="Task 1" value="Changed Task">
+            <button class="inline-save-btn"></button>
+            <button class="inline-cancel-btn"></button>
+          </li>
+        `;
+      });
+      // Re-trigger render
+      await openModalWithMock(issue);
+
+      utils.showConfirm.mockResolvedValue(true);
+      const doneBtn = document.getElementById('done-btn');
+
+      // We need to mock dispatchEvent on the item's buttons
+      const saveBtn = document.querySelector('.inline-save-btn');
+      saveBtn.dispatchEvent = vi.fn();
+
+      doneBtn.click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+      expect(saveBtn.dispatchEvent).toHaveBeenCalled();
+    });
+
+    it('should save task order', async () => {
+      const issue = {
+        id: 1,
+        tasks: [
+          { id: 101, title: 'T1', position: 0 },
+          { id: 102, title: 'T2', position: 1 }
+        ]
+      };
+      await openModalWithMock(issue);
+
+      // Setup DOM as if dragged
+      const taskList = document.getElementById('task-list');
+      taskList.innerHTML = `
+          <li class="task-item" data-id="102"></li>
+          <li class="task-item" data-id="101"></li>
+          `;
+
+      // We need to trigger the saveTaskOrder somehow. It's internal but used in renderTasks callback
+      // We can manually call it if we can access it, or trigger the callback.
+      const taskOrderCallback = tasks.renderTasks.mock.calls[0][3].onTaskOrderSave;
+      await taskOrderCallback();
+
+      expect(api.updateTask).toHaveBeenCalled();
+      expect(issue.tasks[0].id).toBe(102);
+    });
+
+    it('should handle ordered list auto-markdown', async () => {
+      openModal(null);
+      const editor = document.getElementById('description-editor');
+
+      document.execCommand = vi.fn();
+      const textNode = document.createTextNode('1. ');
+      globalThis.getSelection = vi.fn().mockReturnValue({
+        isCollapsed: true,
+        anchorNode: textNode,
+        anchorOffset: 3,
+        removeAllRanges: vi.fn(),
+        addRange: vi.fn()
+      });
+
+      editor.dispatchEvent(new InputEvent('input', { data: ' ' }));
+
+      expect(document.execCommand).toHaveBeenCalledWith('insertOrderedList');
+    });
+
+    it('should create link via toolbar with selection', async () => {
+      openModal(null);
+
+      globalThis.getSelection = vi.fn().mockReturnValue({
+        toString: () => 'example.com',
+        anchorNode: { parentElement: { tagName: 'A', target: '' } }
+      });
+      document.execCommand = vi.fn();
+
+      const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
+      linkBtn.click();
+
+      expect(document.execCommand).toHaveBeenCalledWith('createLink', false, 'https://example.com');
+    });
+
+    it('should handle planned date chip add button click', () => {
+      openModal(null);
+      const addBtn = document.querySelector('.date-chip-add');
+      const picker = document.getElementById('planned-date-picker');
+      picker.showPicker = vi.fn();
+
+      addBtn.click();
+      expect(picker.showPicker).toHaveBeenCalled();
+    });
+
+    it('should close other dropdowns when opening one', () => {
+      openModal(null);
+      const statusTrigger = document.getElementById('status-trigger');
+      const priorityOptions = document.getElementById('priority-options');
+
+      // Open priority first
+      priorityOptions.classList.remove('hidden');
+
+      // Toggle status
+      statusTrigger.click();
+
+      expect(priorityOptions.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should handle archive issue failure when not allowed', async () => {
+      const issue = { id: 1, status: 'Open' };
+      await openModalWithMock(issue);
+
+      utils.canArchive.mockReturnValue({ allowed: false, reason: 'Reason' });
+      utils.showConfirm.mockResolvedValue(true);
+
+      const archiveBtn = document.getElementById('archive-issue-btn');
+      archiveBtn.click();
+
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalledWith('Cannot Archive', 'Reason', 'OK', null, 'primary');
+      expect(api.updateIssue).not.toHaveBeenCalled();
+    });
+
+    it('should handle preventNavigation', () => {
+      const event = { preventDefault: vi.fn(), returnValue: 'abc' };
+      preventNavigation(event);
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(event.returnValue).toBe('');
+    });
+
+    it('should handle updateToolbarState for links and underline', async () => {
+      openModal(null);
+      const editor = document.getElementById('description-editor');
+
+      // Mock selection inside a link
+      const anchorNode = document.createElement('a');
+      anchorNode.href = 'https://example.com';
+      anchorNode.textContent = 'Link';
+      editor.appendChild(anchorNode); // Must be child to hit parentNode loop
+
+      globalThis.getSelection = vi.fn().mockReturnValue({
+        rangeCount: 1,
+        anchorNode: anchorNode
+      });
+      document.queryCommandState = vi.fn().mockReturnValue(true);
+
+      editor.dispatchEvent(new Event('mouseup')); // Triggers updateToolbarState
+
+      const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
+      const underlineBtn = document.querySelector('.editor-btn[data-cmd="underline"]');
+
+      expect(linkBtn.classList.contains('active')).toBe(true);
+      expect(underlineBtn.classList.contains('active')).toBe(false); // Should be false when inLink is true
+    });
+
+    it('should handle dropdown option clicks', async () => {
+      const issue = { id: 1, label: null, priority: 'Normal' };
+      await openModalWithMock(issue);
+
+      // Priority option click
+      const priorityOptions = document.getElementById('priority-options');
+      const highOption = Array.from(priorityOptions.children).find(c => c.textContent === 'High');
+      highOption.click();
+      expect(document.getElementById('priority').value).toBe('High');
+
+      // Label "No Label" click
+      const labelOptions = document.getElementById('label-options');
+      const noLabelOption = Array.from(labelOptions.children).find(c => c.textContent === 'No Label');
+      noLabelOption.click();
+      expect(document.getElementById('label-select').value).toBe('');
+
+      // Label specific option click
+      const bugOption = Array.from(labelOptions.children).find(c => c.textContent === 'Bug');
+      bugOption.click();
+      expect(document.getElementById('label-select').value).toBe('1');
+
+      // Assignee option clicks
+      const assigneeOptions = document.getElementById('assignee-options');
+      const unassignedOption = Array.from(assigneeOptions.children).find(c => c.textContent === 'Unassigned');
+      unassignedOption.click();
+      expect(document.getElementById('assignee-select').value).toBe('');
+
+      const userOption = Array.from(assigneeOptions.children).find(c => c.textContent === 'Test User');
+      userOption.click();
+      expect(document.getElementById('assignee-select').value).toBe('1');
+    });
+
+    it('should handle setupCustomDropdown else branch (closing)', async () => {
+      openModal(null);
+      const trigger = document.getElementById('status-trigger');
+      const options = document.getElementById('status-options');
+
+      trigger.click(); // Open
+      trigger.click(); // Close
+
+      expect(options.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should handle task title enter keypress', async () => {
+      const issue = { id: 1, title: 'Test' };
+      await openModalWithMock(issue);
+
+      const input = document.getElementById('new-task-title');
+      input.value = 'New Task';
+
+      api.createTask.mockResolvedValue({ id: 999, title: 'New Task' });
+
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter' }));
+
+      await new Promise(process.nextTick);
+      expect(api.createTask).toHaveBeenCalled();
+    });
+
+    it('should handle modal open failure - issue not found', async () => {
+      api.fetchIssueById.mockResolvedValue({ issue: null, etag: null });
+      const modal = document.getElementById('issue-modal');
+
+      await openModal({ id: 999 });
+
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Issue not found or was deleted');
+      expect(modal.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should handle modal open failure - fetch error', async () => {
+      api.fetchIssueById.mockRejectedValue(new Error('Network Error'));
+      const modal = document.getElementById('issue-modal');
+
+      await openModal({ id: 999 });
+
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Failed to load issue');
+      expect(modal.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should handle cancel description edit', async () => {
+      const issue = { id: 1, description: 'Original' };
+      await openModalWithMock(issue);
+
+      const descEditor = document.getElementById('description-editor');
+      const descContainer = document.querySelector('.editor-container');
+
+      descEditor.click(); // Enter edit
+      descEditor.innerHTML = 'Changed';
+
+      const cancelBtn = document.getElementById('desc-cancel-btn');
+      cancelBtn.dispatchEvent(new MouseEvent('mousedown'));
+
+      expect(descEditor.innerHTML).toBe('Original');
+      expect(descContainer.classList.contains('inline-editing')).toBe(false);
+    });
+
+    it('should prompt task discard on Done click', async () => {
+      const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
+      await openModalWithMock(issue);
+
+      tasks.renderTasks.mockImplementation((taskList, container) => {
+        container.innerHTML = `
+          <li class="task-item editing" data-id="101">
+            <input class="task-title-input" data-original-title="Task 1" value="Changed Task">
+            <button class="inline-save-btn"></button>
+            <button class="inline-cancel-btn"></button>
+          </li>
+        `;
+      });
+      await openModalWithMock(issue);
+
+      utils.showConfirm.mockResolvedValue(false); // Discard
+      const doneBtn = document.getElementById('done-btn');
+
+      const cancelBtn = document.querySelector('.inline-cancel-btn');
+      cancelBtn.dispatchEvent = vi.fn();
+
+      doneBtn.click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+      expect(cancelBtn.dispatchEvent).toHaveBeenCalled();
+    });
+
+    it('should handle link bubble loop (span inside link)', async () => {
+      const issue = { id: 1, description: '<a href="https://example.com"><span id="inner">Link</span></a>' };
+      await openModalWithMock(issue);
+
+      const inner = document.getElementById('inner');
+      const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => ({}));
+
+      inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      expect(openSpy).toHaveBeenCalled();
+      openSpy.mockRestore();
     });
   });
 });

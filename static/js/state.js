@@ -2,15 +2,24 @@ export const state = {
   issues: [],
   currentIssue: null,
   currentUser: null,
-  filter: { label: null, priority: null, search: '' }
+  filter: {
+    labelId: null,
+    priority: null,
+    assigneeId: null,
+    search: '',
+  },
 };
 
-export function setFilterLabel(label) {
-  state.filter.label = label;
+export function setFilterLabel(labelId) {
+  state.filter.labelId = labelId;
 }
 
 export function setFilterPriority(priority) {
   state.filter.priority = priority;
+}
+
+export function setFilterAssignee(assigneeId) {
+  state.filter.assigneeId = assigneeId;
 }
 
 export function setFilterSearch(term) {
@@ -31,6 +40,6 @@ export function setCurrentUser(user) {
 }
 
 export function isFilterActive() {
-  const { label, priority, search } = state.filter;
-  return !!(label !== null || priority !== null || (search && search.trim() !== ''));
+  const { labelId, priority, assigneeId, search } = state.filter;
+  return !!(labelId !== null || priority !== null || assigneeId !== null || (search && search.trim() !== ''));
 }

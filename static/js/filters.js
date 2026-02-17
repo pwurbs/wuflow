@@ -1,3 +1,5 @@
+import { state } from './state.js';
+
 /**
  * Filter logic extracted from board.js and backlog.js
  * Pure functions with no DOM dependencies for easy unit testing
@@ -17,17 +19,30 @@ export function filterIssues(issues, filter) {
   let result = issues;
 
   // Label filter
-  if (filter.label) {
-    if (filter.label === '__no_label__') {
+  if (filter.labelId !== null && filter.labelId !== undefined) {
+    if (filter.labelId === '__no_label__') {
       result = result.filter(issue => !issue.label);
     } else {
-      result = result.filter(issue => issue.label && issue.label.name === filter.label);
+      result = result.filter(issue => issue.label && issue.label.id === filter.labelId);
     }
   }
 
   // Priority filter
   if (filter.priority) {
     result = result.filter(issue => issue.priority === filter.priority);
+  }
+
+  // Assignee filter
+  if (filter.assigneeId !== null && filter.assigneeId !== undefined) {
+    result = result.filter(issue => {
+      if (filter.assigneeId === 'me') {
+        return issue.assignee_id === state.currentUser?.id;
+      } else if (filter.assigneeId === '' || filter.assigneeId === 'unassigned') {
+        return issue.assignee_id === null;
+      } else {
+        return issue.assignee_id === Number.parseInt(filter.assigneeId);
+      }
+    });
   }
 
   // Search filter (matches title or description)

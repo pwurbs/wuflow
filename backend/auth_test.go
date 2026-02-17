@@ -897,7 +897,9 @@ func TestHandleUsersCreateSuccess(t *testing.T) {
 
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf(wrongStatusCode+"\nbody: %s", rr.Code, http.StatusCreated, rr.Body.String())
@@ -922,7 +924,9 @@ func TestHandleUsersCreateDuplicateEmail(t *testing.T) {
 
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusConflict {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
@@ -932,7 +936,9 @@ func TestHandleUsersCreateDuplicateEmail(t *testing.T) {
 func TestHandleUsersCreateInvalidJSON(t *testing.T) {
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBufferString(invalidJSON))
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -951,7 +957,9 @@ func TestHandleUsersCreateMissingPassword(t *testing.T) {
 
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -970,7 +978,9 @@ func TestHandleUsersCreateWeakPassword(t *testing.T) {
 
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -989,7 +999,9 @@ func TestHandleUsersCreateInvalidEmail(t *testing.T) {
 
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1067,7 +1079,9 @@ func TestHandleUserPutSuccess(t *testing.T) {
 
 	req := httptest.NewRequest("PUT", apiUsersBase+strconv.Itoa(user.ID), bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode+"\nbody: %s", rr.Code, http.StatusOK, rr.Body.String())
@@ -1093,7 +1107,9 @@ func TestHandleUserPutNotFound(t *testing.T) {
 
 	req := httptest.NewRequest("PUT", apiUsersBase+"999", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -1109,7 +1125,9 @@ func TestHandleUserPutInvalidJSON(t *testing.T) {
 
 	req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBufferString(invalidJSON))
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1134,7 +1152,9 @@ func TestHandleUserPutLastAdminProtection(t *testing.T) {
 
 	req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1268,7 +1288,9 @@ func TestAuthHandlersDBError(t *testing.T) {
 		})
 		req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBuffer(body))
 		rr := httptest.NewRecorder()
-		HandleUser(rr, req)
+
+		ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+		HandleUser(rr, req.WithContext(ctx))
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 		}

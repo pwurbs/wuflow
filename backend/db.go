@@ -57,6 +57,7 @@ func InitDB(dataSourceName string) error {
 	if err := createTables(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -73,9 +74,13 @@ func createTables() error {
 		planned_dates TEXT, -- JSON array of date strings
 		label_id INTEGER,
 		priority TEXT DEFAULT 'Normal',
+		creator_id INTEGER,
+		assignee_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE SET NULL
+		FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE SET NULL,
+		FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL,
+		FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL
 	);`
 
 	createTasksTable := `
@@ -157,7 +162,7 @@ func CreateIssue(i *Issue) error {
 	if i.Priority == "" {
 		i.Priority = PriorityNormal
 	}
-	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, creator_id, assignee_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		slog.Error("Database Error: CreateIssue Prepare", "error", err)
 		return err
@@ -190,7 +195,7 @@ func CreateIssue(i *Issue) error {
 		plannedDatesJSON = string(b)
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.UpdatedAt)
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.CreatorID, i.AssigneeID, i.UpdatedAt)
 	if err != nil {
 		slog.Error("Database Error: CreateIssue Exec", "error", err)
 		return err
@@ -209,9 +214,13 @@ func CreateIssue(i *Issue) error {
 func GetAllActiveIssues() ([]Issue, error) {
 	rows, err := DB.Query(`
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
-		       l.id, l.name, l.color 
+		       l.id, l.name, l.color,
+		       c.id, c.email, c.first_name, c.last_name,
+		       a.id, a.email, a.first_name, a.last_name
 		FROM issues i 
 		LEFT JOIN labels l ON i.label_id = l.id 
+		LEFT JOIN users c ON i.creator_id = c.id
+		LEFT JOIN users a ON i.assignee_id = a.id
 		WHERE i.status != ?
 		ORDER BY i.position ASC`, StatusArchive)
 	if err != nil {
@@ -247,9 +256,13 @@ func GetAllActiveIssues() ([]Issue, error) {
 func GetAllArchivedIssues() ([]Issue, error) {
 	rows, err := DB.Query(`
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
-		       l.id, l.name, l.color 
+		       l.id, l.name, l.color,
+		       c.id, c.email, c.first_name, c.last_name,
+		       a.id, a.email, a.first_name, a.last_name
 		FROM issues i 
 		LEFT JOIN labels l ON i.label_id = l.id 
+		LEFT JOIN users c ON i.creator_id = c.id
+		LEFT JOIN users a ON i.assignee_id = a.id
 		WHERE i.status = ?
 		ORDER BY i.position ASC`, StatusArchive)
 	if err != nil {
@@ -285,9 +298,13 @@ func GetAllArchivedIssues() ([]Issue, error) {
 func GetIssueByID(id int) (*Issue, error) {
 	row := DB.QueryRow(`
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
-		       l.id, l.name, l.color 
+		       l.id, l.name, l.color,
+		       c.id, c.email, c.first_name, c.last_name,
+		       a.id, a.email, a.first_name, a.last_name
 		FROM issues i 
 		LEFT JOIN labels l ON i.label_id = l.id 
+		LEFT JOIN users c ON i.creator_id = c.id
+		LEFT JOIN users a ON i.assignee_id = a.id
 		WHERE i.id = ?`, id)
 
 	var issue Issue
@@ -298,7 +315,22 @@ func GetIssueByID(id int) (*Issue, error) {
 	var lColor sql.NullString
 	var priority sql.NullString
 
-	err := row.Scan(&issue.ID, &issue.Title, &issue.Description, &issue.Status, &issue.Position, &deadline, &plannedDatesStr, &priority, &issue.CreatedAt, &issue.UpdatedAt, &lID, &lName, &lColor)
+	// Creator fields
+	var cID sql.NullInt64
+	var cEmail sql.NullString
+	var cFirstName sql.NullString
+	var cLastName sql.NullString
+
+	// Assignee fields
+	var aID sql.NullInt64
+	var aEmail sql.NullString
+	var aFirstName sql.NullString
+	var aLastName sql.NullString
+
+	err := row.Scan(&issue.ID, &issue.Title, &issue.Description, &issue.Status, &issue.Position, &deadline, &plannedDatesStr, &priority, &issue.CreatedAt, &issue.UpdatedAt,
+		&lID, &lName, &lColor,
+		&cID, &cEmail, &cFirstName, &cLastName,
+		&aID, &aEmail, &aFirstName, &aLastName)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -328,6 +360,27 @@ func GetIssueByID(id int) (*Issue, error) {
 		}
 	}
 
+	if cID.Valid {
+		issue.CreatorID = int(cID.Int64)
+		issue.Creator = &User{
+			ID:        int(cID.Int64),
+			Email:     cEmail.String,
+			FirstName: cFirstName.String,
+			LastName:  cLastName.String,
+		}
+	}
+
+	if aID.Valid {
+		id := int(aID.Int64)
+		issue.AssigneeID = &id
+		issue.Assignee = &User{
+			ID:        id,
+			Email:     aEmail.String,
+			FirstName: aFirstName.String,
+			LastName:  aLastName.String,
+		}
+	}
+
 	tasks, err := GetTasksByIssueID(issue.ID)
 	if err != nil {
 		slog.Error("Database Error: GetIssueByID GetTasksByIssueID", "error", err)
@@ -341,7 +394,7 @@ func GetIssueByID(id int) (*Issue, error) {
 // UpdateIssue updates an existing issue in the database.
 func UpdateIssue(i *Issue) error {
 
-	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, updated_at = ? WHERE id = ?")
+	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, assignee_id = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
 		slog.Error("Database Error: UpdateIssue Prepare", "error", err)
 		return err
@@ -366,7 +419,7 @@ func UpdateIssue(i *Issue) error {
 		plannedDatesJSON = string(b)
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.UpdatedAt, i.ID)
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, i.UpdatedAt, i.ID)
 	if err != nil {
 		slog.Error("Database Error: UpdateIssue Exec", "error", err)
 		return err
@@ -637,7 +690,22 @@ func scanIssue(rows *sql.Rows) (Issue, error) {
 	var lColor sql.NullString
 	var priority sql.NullString
 
-	if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDatesStr, &priority, &i.CreatedAt, &i.UpdatedAt, &lID, &lName, &lColor); err != nil {
+	// Creator fields
+	var cID sql.NullInt64
+	var cEmail sql.NullString
+	var cFirstName sql.NullString
+	var cLastName sql.NullString
+
+	// Assignee fields
+	var aID sql.NullInt64
+	var aEmail sql.NullString
+	var aFirstName sql.NullString
+	var aLastName sql.NullString
+
+	if err := rows.Scan(&i.ID, &i.Title, &i.Description, &i.Status, &i.Position, &deadline, &plannedDatesStr, &priority, &i.CreatedAt, &i.UpdatedAt,
+		&lID, &lName, &lColor,
+		&cID, &cEmail, &cFirstName, &cLastName,
+		&aID, &aEmail, &aFirstName, &aLastName); err != nil {
 		return Issue{}, err
 	}
 	if priority.Valid {
@@ -660,6 +728,28 @@ func scanIssue(rows *sql.Rows) (Issue, error) {
 			Color: lColor.String,
 		}
 	}
+
+	if cID.Valid {
+		i.CreatorID = int(cID.Int64)
+		i.Creator = &User{
+			ID:        int(cID.Int64),
+			Email:     cEmail.String,
+			FirstName: cFirstName.String,
+			LastName:  cLastName.String,
+		}
+	}
+
+	if aID.Valid {
+		id := int(aID.Int64)
+		i.AssigneeID = &id
+		i.Assignee = &User{
+			ID:        id,
+			Email:     aEmail.String,
+			FirstName: aFirstName.String,
+			LastName:  aLastName.String,
+		}
+	}
+
 	return i, nil
 }
 

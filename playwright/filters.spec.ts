@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, login, navigateTo } from './helpers/test-utils';
+import { createIssue, login, navigateTo, selectAssignee, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Filtering and Search', () => {
   test.beforeEach(async ({ page }) => {
@@ -126,6 +126,40 @@ test.describe('Filtering and Search', () => {
 
     // Verify badge reverts to simple number
     await expect(page.locator('.column[data-status="Todo"] .count')).toHaveText(/^\d+$/);
+  });
+
+  test('filter issues by user (assignee)', async ({ page }) => {
+    // Create issues for different users
+    const title1 = 'Admin Task ' + Date.now();
+    const title2 = 'Unassigned Task ' + Date.now();
+
+    await createIssue(page, { title: title1, status: 'Todo' });
+    await createIssue(page, { title: title2, status: 'Todo' });
+
+    // Assign title1 to Admin User
+    await openIssueByTitle(page, title1);
+    await selectAssignee(page, 'Me (Admin User)');
+    await page.click('#done-btn');
+
+    // Both should be visible initially
+    await expect(page.locator('.board-card:has-text("' + title1 + '")')).toBeVisible();
+    await expect(page.locator('.board-card:has-text("' + title2 + '")')).toBeVisible();
+
+    // Open user filter
+    await page.click('#user-filter-btn');
+
+    // Select Admin User filter
+    await page.click('#user-filter-options .custom-option:has-text("Admin User")');
+
+    // Only Admin Task should be visible
+    await expect(page.locator('.board-card:has-text("' + title1 + '")')).toBeVisible();
+    await expect(page.locator('.board-card:has-text("' + title2 + '")')).toBeHidden();
+
+    // Clear filter
+    await page.click('#user-filter-btn .filter-icon-clear');
+
+    await expect(page.locator('.board-card:has-text("' + title1 + '")')).toBeVisible();
+    await expect(page.locator('.board-card:has-text("' + title2 + '")')).toBeVisible();
   });
 });
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createIssue, login, selectStatus } from './helpers/test-utils';
+import { createIssue, login, selectStatus, selectAssignee, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Issue CRUD Operations', () => {
   test.beforeEach(async ({ page }) => {
@@ -108,5 +108,43 @@ test.describe('Issue CRUD Operations', () => {
 
     // Verify issue is gone
     await expect(page.locator(`.board-card:has-text("${title}")`)).toHaveCount(0);
+  });
+
+  test('creator and assignee fields in modal', async ({ page }) => {
+    const title = `User Binding Test ${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+
+    // Open the issue
+    await openIssueByTitle(page, title);
+
+    // Verify creator display (Read-only Status - Case 1.2)
+    const creatorDisplay = page.locator('#creator-display');
+    await expect(creatorDisplay).toBeVisible();
+    await expect(creatorDisplay).toContainText('Admin User');
+
+    // Verify it's not an input or select (enforcing read-only requirement)
+    const tagName = await creatorDisplay.evaluate(el => el.tagName.toLowerCase());
+    expect(tagName).toBe('div');
+    await expect(creatorDisplay).toHaveClass(/read-only-meta/);
+
+    // Verify assignee selection (using the new "Me" option)
+    const updatePromise = page.waitForResponse(response =>
+      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+    );
+    await selectAssignee(page, 'Me (Admin User)');
+    await updatePromise;
+
+    // Close and reopen to verify persistence
+    await page.click('#done-btn');
+    await openIssueByTitle(page, title);
+
+    const assigneeText = page.locator('#assignee-text');
+    await expect(assigneeText).toContainText('Admin User');
+
+    // Verify "Unassigned" option
+    await selectAssignee(page, 'Unassigned');
+    await expect(assigneeText).toContainText('Unassigned');
+
+    await page.click('#done-btn');
   });
 });
