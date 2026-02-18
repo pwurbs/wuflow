@@ -56,6 +56,8 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 
 		// Get creator ID from context and set it
 		i.CreatorID = GetUserIDFromContext(r.Context())
+		// Set UpdaterID to CreatorID initially
+		i.UpdaterID = &i.CreatorID
 
 		if err := CreateIssue(&i); err != nil {
 			slog.Error("CreateIssue failed", "error", err)
@@ -298,6 +300,10 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 
 	// Ensure CreatorID is not changed and persists
 	i.CreatorID = current.CreatorID
+
+	// Set UpdaterID
+	updaterID := GetUserIDFromContext(r.Context())
+	i.UpdaterID = &updaterID
 
 	if err := validateIssue(&i); err != nil {
 		slog.Warn("Issue update validation failed", "error", err)

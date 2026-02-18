@@ -120,10 +120,9 @@ describe('Modal Component', () => {
             <button id="delete-issue-btn" type="button"></button>
             <button id="archive-issue-btn" type="button"></button>
             <button id="unarchive-issue-btn" type="button"></button>
-            <div id="timestamp-container">
-                 <span id="creator-display"></span>
-                 <span id="created-at-display"></span>
-                 <span id="updated-at-display"></span>
+            <div id="timestamp-container" class="hidden">
+                 <div class="timestamp-item"><span id="created-at-display"></span></div>
+                 <div class="timestamp-item"><span id="updated-at-display"></span></div>
             </div>
             
             <button id="cancel-btn" type="button"></button>
@@ -1027,26 +1026,31 @@ describe('Modal Component', () => {
     it('should handle creator display in new modal', () => {
       state.state.currentUser = { first_name: 'John', last_name: 'Doe' };
       openModal(null);
+      // New modal should not display creator name in timestamps (hidden)
+      const timestampContainer = document.getElementById('timestamp-container');
+      expect(timestampContainer.classList.contains('hidden')).toBe(true);
+      // And element #creator-display should not exist or be empty if we removed it
       const creatorDisplay = document.getElementById('creator-display');
-      expect(creatorDisplay.textContent).toBe('John Doe');
+      expect(creatorDisplay).toBeNull();
     });
 
     it('should handle creator display in edit modal', async () => {
       const issue = {
         id: 1,
         title: 'Test',
-        creator: { first_name: 'Jane', last_name: 'Smith' }
+        creator: { first_name: 'Jane', last_name: 'Smith' },
+        created_at: '2023-01-01T12:00:00Z'
       };
       await openModalWithMock(issue);
-      const creatorDisplay = document.getElementById('creator-display');
-      expect(creatorDisplay.textContent).toBe('Jane Smith');
+      const createdAtDisplay = document.getElementById('created-at-display');
+      expect(createdAtDisplay.textContent).toContain('by Jane Smith');
     });
 
     it('should handle unknown creator in edit modal', async () => {
-      const issue = { id: 1, title: 'Test', creator: null };
+      const issue = { id: 1, title: 'Test', creator: null, created_at: '2023-01-01T12:00:00Z' };
       await openModalWithMock(issue);
-      const creatorDisplay = document.getElementById('creator-display');
-      expect(creatorDisplay.textContent).toBe('Unknown');
+      const createdAtDisplay = document.getElementById('created-at-display');
+      expect(createdAtDisplay.textContent).not.toContain('by');
     });
 
     it('should handle link click in description editor in read-only mode', async () => {

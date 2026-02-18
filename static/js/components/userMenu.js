@@ -22,7 +22,7 @@ export function setupUserMenu(user) {
     userEmailSpan.style.alignItems = 'center';
     userEmailSpan.style.gap = '8px';
     userEmailSpan.appendChild(badge);
-    userEmailSpan.appendChild(document.createTextNode(user.email));
+    userEmailSpan.appendChild(document.createTextNode(`${user.email} (${user.role})`));
   }
 
   if (userMenuBtn && userMenuDropdown) {

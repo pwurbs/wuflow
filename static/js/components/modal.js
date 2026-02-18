@@ -199,9 +199,9 @@ function setupEditModal(issue) {
   });
 
   const user = state.currentUser;
-  const canDelete    = !isArchived && userCan(user, ACTION_DELETE_ISSUE);
-  const canArchBtn   = !isArchived && userCan(user, ACTION_ARCHIVE_ISSUE);
-  const canUnarchBtn =  isArchived && userCan(user, ACTION_UNARCHIVE_ISSUE);
+  const canDelete = !isArchived && userCan(user, ACTION_DELETE_ISSUE);
+  const canArchBtn = !isArchived && userCan(user, ACTION_ARCHIVE_ISSUE);
+  const canUnarchBtn = isArchived && userCan(user, ACTION_UNARCHIVE_ISSUE);
   document.getElementById('delete-issue-btn').classList.toggle('hidden', !canDelete);
   document.getElementById('archive-issue-btn').classList.toggle('hidden', !canArchBtn);
   document.getElementById('unarchive-issue-btn').classList.toggle('hidden', !canUnarchBtn);
@@ -257,11 +257,6 @@ function setupNewModal() {
   document.getElementById('cancel-btn').classList.remove('hidden');
   document.getElementById('done-btn').classList.add('hidden');
 
-  // Set Creator to Current User
-  const creatorDisplay = document.getElementById('creator-display');
-  if (creatorDisplay && state.currentUser) {
-    creatorDisplay.textContent = `${state.currentUser.first_name} ${state.currentUser.last_name}`;
-  }
 }
 
 function toggleInlineEditMode(enable) {
@@ -288,32 +283,28 @@ function toggleInlineEditMode(enable) {
   }
 }
 
+
+function formatTimestampEntry(dateStr, user) {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  let text = date.toLocaleDateString(navigator.language) + ' / ' + date.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+  if (user) {
+    text += ` by ${user.first_name} ${user.last_name}`;
+  }
+  return text;
+}
+
 function renderModalTimestamps(issue) {
   const timestampContainer = document.getElementById('timestamp-container');
   const createdAtDisplay = document.getElementById('created-at-display');
   const updatedAtDisplay = document.getElementById('updated-at-display');
-  const creatorDisplay = document.getElementById('creator-display');
 
-  if (creatorDisplay) {
-    creatorDisplay.textContent = issue.creator ? (issue.creator.first_name + ' ' + issue.creator.last_name) : 'Unknown';
-  }
+  if (!timestampContainer || !createdAtDisplay || !updatedAtDisplay) return;
 
-  if (timestampContainer && createdAtDisplay && updatedAtDisplay) {
-    if (issue.created_at) {
-      const createdDate = new Date(issue.created_at);
-      createdAtDisplay.textContent = createdDate.toLocaleDateString(navigator.language) + ' / ' + createdDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
-    } else {
-      createdAtDisplay.textContent = '-';
-    }
+  createdAtDisplay.textContent = formatTimestampEntry(issue.created_at, issue.creator);
+  updatedAtDisplay.textContent = formatTimestampEntry(issue.updated_at, issue.updater);
 
-    if (issue.updated_at) {
-      const updatedDate = new Date(issue.updated_at);
-      updatedAtDisplay.textContent = updatedDate.toLocaleDateString(navigator.language) + ' / ' + updatedDate.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
-    } else {
-      updatedAtDisplay.textContent = '-';
-    }
-    timestampContainer.classList.remove('hidden');
-  }
+  timestampContainer.classList.remove('hidden');
 }
 
 export function closeModal() {

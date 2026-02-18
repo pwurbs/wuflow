@@ -45,8 +45,10 @@ type Issue struct {
 	Priority     IssuePriority `json:"priority"`
 	CreatorID    int           `json:"creator_id"`
 	AssigneeID   *int          `json:"assignee_id"`        // Pointer to allow null (unassigned)
+	UpdaterID    *int          `json:"updated_by"`         // Pointer to allow null (if user deleted)
 	Creator      *User         `json:"creator,omitempty"`  // Populated for API responses to avoid N+1 queries
 	Assignee     *User         `json:"assignee,omitempty"` // Populated for API responses to avoid N+1 queries
+	Updater      *User         `json:"updater,omitempty"`  // Populated for API responses to avoid N+1 queries
 	Label        *Label        `json:"label"`              // Pointer to manage nil label
 	Tasks        []Task        `json:"tasks"`
 	CreatedAt    time.Time     `json:"created_at"`

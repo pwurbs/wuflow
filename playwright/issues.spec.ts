@@ -118,14 +118,10 @@ test.describe('Issue CRUD Operations', () => {
     await openIssueByTitle(page, title);
 
     // Verify creator display (Read-only Status - Case 1.2)
-    const creatorDisplay = page.locator('#creator-display');
-    await expect(creatorDisplay).toBeVisible();
-    await expect(creatorDisplay).toContainText('Admin User');
-
-    // Verify it's not an input or select (enforcing read-only requirement)
-    const tagName = await creatorDisplay.evaluate(el => el.tagName.toLowerCase());
-    expect(tagName).toBe('div');
-    await expect(creatorDisplay).toHaveClass(/read-only-meta/);
+    // Verify creator display (Now part of timestamp)
+    const createdAtDisplay = page.locator('#created-at-display');
+    await expect(createdAtDisplay).toBeVisible();
+    await expect(createdAtDisplay).toContainText('by Admin User');
 
     // Verify assignee selection (using the new "Me" option)
     const updatePromise = page.waitForResponse(response =>
@@ -144,6 +140,22 @@ test.describe('Issue CRUD Operations', () => {
     // Verify "Unassigned" option
     await selectAssignee(page, 'Unassigned');
     await expect(assigneeText).toContainText('Unassigned');
+
+    // Verify Updater Display
+    // Change title to trigger an update
+    const newTitle = title + ' Updated';
+    await page.click('#title');
+    await page.fill('#title', newTitle);
+    await page.click('#title-save-btn');
+
+    // Close and reopen to fetch fresh data
+    await page.click('#done-btn');
+    await openIssueByTitle(page, newTitle);
+
+    // Check updated timestamp
+    const updatedAtDisplay = page.locator('#updated-at-display');
+    await expect(updatedAtDisplay).toBeVisible();
+    await expect(updatedAtDisplay).toContainText('by Admin User');
 
     await page.click('#done-btn');
   });
