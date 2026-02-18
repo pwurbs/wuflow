@@ -251,21 +251,6 @@ func TestAuthMiddlewareValidToken(t *testing.T) {
 
 // --- CSP Middleware ---
 
-func TestCSPMiddleware(t *testing.T) {
-	handler := CSPMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest("GET", "/", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	csp := rr.Header().Get("Content-Security-Policy")
-	if csp == "" {
-		t.Error("expected Content-Security-Policy header to be set")
-	}
-}
-
 // --- Context Helpers ---
 
 func TestGetUserIDFromContextEmpty(t *testing.T) {

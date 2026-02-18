@@ -17,9 +17,93 @@ const (
 	wrongStatusCodeMsg = "handler returned wrong status code: got %v want %v"
 )
 
+func TestValidatePathMiddleware(t *testing.T) {
+	tests := []struct {
+		name           string
+		path           string
+		expectedStatus int
+		expectNext     bool
+	}{
+		{
+			name:           "Valid request without query params",
+			path:           apiIssues,
+			expectedStatus: http.StatusOK,
+			expectNext:     true,
+		},
+		{
+			name:           "Invalid request with query params",
+			path:           apiIssues + "?foo=bar",
+			expectedStatus: http.StatusBadRequest,
+			expectNext:     false,
+		},
+		{
+			name:           "Invalid request with empty value param",
+			path:           apiIssues + "?foo=",
+			expectedStatus: http.StatusBadRequest,
+			expectNext:     false,
+		},
+		{
+			name:           "Invalid request with flag param",
+			path:           apiIssues + "?debug",
+			expectedStatus: http.StatusBadRequest,
+			expectNext:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("OK"))
+			})
+
+			middleware := ValidatePathMiddleware(nextHandler)
+
+			req := httptest.NewRequest("GET", tt.path, nil)
+			w := httptest.NewRecorder()
+
+			middleware.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+			if nextCalled != tt.expectNext {
+				t.Errorf("expected next handler to be called: %v, got %v", tt.expectNext, nextCalled)
+			}
+		})
+	}
+}
+
+func TestCSPMiddleware(t *testing.T) {
+	nextCalled := false
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := CSPMiddleware(nextHandler)
+	req := httptest.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+
+	middleware.ServeHTTP(rr, req)
+
+	expectedCSP := "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	if got := rr.Header().Get("Content-Security-Policy"); got != expectedCSP {
+		t.Errorf("CSP header mismatch:\ngot:  %q\nwant: %q", got, expectedCSP)
+	}
+
+	if !nextCalled {
+		t.Error("Expected next handler to be called")
+	}
+}
+
 func TestWithLogging(t *testing.T) {
+	nextCalled := false
 	// Create a simple handler that returns 200 OK
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
@@ -42,6 +126,10 @@ func TestWithLogging(t *testing.T) {
 	// Verify body
 	if body := rr.Body.String(); body != "OK" {
 		t.Errorf("handler returned unexpected body: got %v want %v", body, "OK")
+	}
+
+	if !nextCalled {
+		t.Error("Expected next handler to be called")
 	}
 
 	// We can't easily verify stdout capture here without more complex setup,

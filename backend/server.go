@@ -80,35 +80,45 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 	// Login page — served without auth
 	http.Handle(loginPath, WithLogging(CSPMiddleware(HandleLoginHTML(fileServer))))
 
-	// Public auth endpoints (no auth middleware)
-	http.Handle("/api/auth/login", WithLogging(CSPMiddleware(http.HandlerFunc(HandleLogin))))
-	http.Handle("/api/auth/logout", WithLogging(CSPMiddleware(http.HandlerFunc(HandleLogout))))
-	http.Handle("/api/auth/refresh", WithLogging(CSPMiddleware(http.HandlerFunc(HandleRefresh))))
+	// Middleware stacks
+	// 1. commonAPI: Applied to ALL API routes (public & private)
+	//    Order: Logging -> CSP -> ValidatePath -> Handler
+	commonAPI := func(h http.Handler) http.Handler {
+		return WithLogging(CSPMiddleware(ValidatePathMiddleware(h)))
+	}
 
-	// Protected auth endpoint — requires a valid session
-	http.Handle("/api/auth/me", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleCurrentUser)))))
+	// 2. authAPI: Applied to PROTECTED API routes
+	//    Order: Logging -> CSP -> ValidatePath -> Auth -> Handler
+	authAPI := func(h http.Handler) http.Handler {
+		return WithLogging(CSPMiddleware(ValidatePathMiddleware(AuthMiddleware(h))))
+	}
 
-	// Authenticated API endpoints.
-	// AuthMiddleware handles authentication (JWT validation + context injection).
-	// Authorization (Can checks) is enforced inside each handler via permissions.go.
-	auth := func(h http.Handler) http.Handler { return AuthMiddleware(h) }
+	// Public auth endpoints
+	http.Handle("/api/auth/login", commonAPI(http.HandlerFunc(HandleLogin)))
+	http.Handle("/api/auth/logout", commonAPI(http.HandlerFunc(HandleLogout)))
+	http.Handle("/api/auth/refresh", commonAPI(http.HandlerFunc(HandleRefresh)))
 
-	http.Handle("/api/issues", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleCreateIssue)))))
-	http.Handle("/api/issues/active", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleActiveIssues)))))
-	http.Handle("/api/issues/archived", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleArchivedIssues)))))
-	http.Handle("/api/issues/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleIssue)))))
-	http.Handle("/api/tasks", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleCreateTask)))))
-	http.Handle("/api/tasks/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleTask)))))
-	http.Handle("/api/labels", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleLabels)))))
-	http.Handle("/api/labels/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleLabel)))))
-	http.Handle("/api/users", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleUsers)))))
-	http.Handle("/api/users/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleUser)))))
-	http.Handle("/api/version", WithLogging(CSPMiddleware(auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Protected auth endpoint
+	http.Handle("/api/auth/me", authAPI(http.HandlerFunc(HandleCurrentUser)))
+
+	// Authenticated API endpoints
+	http.Handle("/api/issues", authAPI(http.HandlerFunc(HandleCreateIssue)))
+	http.Handle("/api/issues/active", authAPI(http.HandlerFunc(HandleActiveIssues)))
+	http.Handle("/api/issues/archived", authAPI(http.HandlerFunc(HandleArchivedIssues)))
+	http.Handle("/api/issues/", authAPI(http.HandlerFunc(HandleIssue)))
+	http.Handle("/api/tasks", authAPI(http.HandlerFunc(HandleCreateTask)))
+	http.Handle("/api/tasks/", authAPI(http.HandlerFunc(HandleTask)))
+	http.Handle("/api/labels", authAPI(http.HandlerFunc(HandleLabels)))
+	http.Handle("/api/labels/", authAPI(http.HandlerFunc(HandleLabel)))
+	http.Handle("/api/users", authAPI(http.HandlerFunc(HandleUsers)))
+	http.Handle("/api/users/", authAPI(http.HandlerFunc(HandleUser)))
+	http.Handle("/api/version", authAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(headerContentType, contentTypeJSON)
 		json.NewEncoder(w).Encode(map[string]string{"version": version})
-	})))))
+	})))
 
 	// Static files — require auth, redirect to login if not authenticated
+	// ValidatePathMiddleware is not applied for static files, we only want to protect the API
 	http.Handle("/", WithLogging(CSPMiddleware(HandleStaticFiles(fileServer))))
 
 	fmt.Printf("Server starting on port %s\n", port)
@@ -186,7 +196,37 @@ func parseLogLevel(levelStr string) (slog.Level, error) {
 	}
 }
 
-// loggingMiddleware wraps an http.Handler to log request details
+// ValidatePathMiddleware enforces strict rules on API requests.
+// Currently, it rejects any request containing query parameters, as the API does not support them.
+func ValidatePathMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Strict Query Parameter Check:
+		// We do not currently support ANY query parameters on API endpoints.
+		// If RawQuery is present, it means the client sent something like ?foo=bar
+		if r.URL.RawQuery != "" {
+			slog.Warn("Strict validation failed: query parameters not allowed",
+				"path", r.URL.Path,
+				"query", r.URL.RawQuery,
+				"ip", r.RemoteAddr,
+			)
+			http.Error(w, "Query parameters are not allowed on this endpoint", http.StatusBadRequest)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// CSPMiddleware adds a Content-Security-Policy header to all responses.
+func CSPMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// WithLogging wraps an http.Handler to log request details
 func WithLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

@@ -272,4 +272,23 @@ test.describe('Edge Cases and Validation', () => {
     await expect(page.locator('#col-working .board-card:has-text("Drag Cancel Test")')).toBeHidden();
     await expect(page.locator('#col-done .board-card:has-text("Drag Cancel Test")')).toBeHidden();
   });
+
+  test('strict validation: rejects query parameters', async ({ page }) => {
+    // Make an API request with query parameters
+    const response = await page.request.get('/api/issues?foo=bar');
+
+    // Expect 400 Bad Request
+    expect(response.status()).toBe(400);
+
+    const text = await response.text();
+    expect(text).toContain('Query parameters are not allowed');
+  });
+
+  test('strict validation: returns 404 for invalid path', async ({ page }) => {
+    // Make an API request to a non-existent path
+    const response = await page.request.get('/api/invalid-path-xyz');
+
+    // Expect 404 Not Found
+    expect(response.status()).toBe(404);
+  });
 });

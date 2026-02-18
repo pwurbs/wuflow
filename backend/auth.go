@@ -239,15 +239,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// CSPMiddleware adds a Content-Security-Policy header to all responses.
-func CSPMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Security-Policy",
-			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
-		next.ServeHTTP(w, r)
-	})
-}
-
 // GetUserIDFromContext extracts the user ID from the request context.
 func GetUserIDFromContext(ctx context.Context) int {
 	id, _ := ctx.Value(contextKeyUserID).(int)

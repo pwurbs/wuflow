@@ -1,4 +1,8 @@
 
+## 0.20.3
+
+- Added URL query validation
+
 ## 0.20.2
 
 - Improved error handling and logging
