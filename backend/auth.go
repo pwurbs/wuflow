@@ -56,9 +56,8 @@ func InitJWTSecret(secret string) {
 
 	jwtSecret = make([]byte, 32)
 	if _, err := rand.Read(jwtSecret); err != nil {
-		// Fallback to a timestamp-based secret if crypto/rand fails (extremely unlikely)
-		slog.Error("Failed to generate random JWT secret, using fallback", "error", err)
-		jwtSecret = []byte(base64.StdEncoding.EncodeToString([]byte(time.Now().String())))
+		slog.Error("Failed to generate random JWT secret", "error", err)
+		panic(fmt.Sprintf("CRITICAL: Failed to generate random JWT secret: %v", err))
 	}
 	slog.Info("JWT secret initialized (randomly generated)")
 }
@@ -240,19 +239,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// AdminMiddleware checks that the authenticated user has the admin role.
-// Must be used after AuthMiddleware. Returns 403 Forbidden for non-admin users.
-func AdminMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role, ok := r.Context().Value(contextKeyRole).(UserRole)
-		if !ok || role != RoleAdmin {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 // CSPMiddleware adds a Content-Security-Policy header to all responses.
 func CSPMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -408,9 +394,10 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 	}
 
 	// 4. Verify Hash (Reuse Detection)
+	// 4. Verify Hash (Reuse Detection)
 	if bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(secret)) != nil {
-		slog.Warn("Reuse detection triggered", "session_id", sessionID)
-		DeleteSession(sessionID) // Revoke immediately
+		slog.Warn("Reuse detection triggered: revoking all sessions for user", "user_id", session.UserID, "session_id", sessionID)
+		RevokeUserSessions(session.UserID) // Revoke ALL sessions for this user (Family Revocation)
 		return nil, "", "", fmt.Errorf("token reuse detected")
 	}
 

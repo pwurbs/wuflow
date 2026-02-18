@@ -175,27 +175,6 @@ func TestServerRoutes(t *testing.T) {
 	}
 }
 
-func TestIsStaticAsset(t *testing.T) {
-	tests := []struct {
-		path     string
-		expected bool
-	}{
-		{"/style.css", true},
-		{"/script.js", true},
-		{"/image.png", true},
-		{"/image.jpg", true},
-		{"/font.woff2", true},
-		{"/login.html", false}, // .html is not in the list
-		{"/api/users", false},
-	}
-
-	for _, tt := range tests {
-		if got := isStaticAsset(tt.path); got != tt.expected {
-			t.Errorf("isStaticAsset(%q) = %v, want %v", tt.path, got, tt.expected)
-		}
-	}
-}
-
 func TestIsPublicAsset(t *testing.T) {
 	tests := []struct {
 		path     string

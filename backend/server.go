@@ -171,16 +171,6 @@ func isPublicAsset(path string) bool {
 	return publicAssets[path]
 }
 
-// isStaticAsset returns true for paths that are static assets (CSS, JS, images, fonts).
-func isStaticAsset(path string) bool {
-	for _, ext := range []string{".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".map"} {
-		if strings.HasSuffix(path, ext) {
-			return true
-		}
-	}
-	return false
-}
-
 func parseLogLevel(levelStr string) (slog.Level, error) {
 	switch strings.ToLower(levelStr) {
 	case "debug":

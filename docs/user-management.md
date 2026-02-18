@@ -107,8 +107,8 @@ Unlike JWTs, the Refresh Token is a random string (`base64(session_id:secret)`).
 #### Reuse Detection (Anti-Theft)
 If an attacker steals a Refresh Token and uses it, the legal user (or the attacker) will eventually try to use the *same* (now reused) token again.
 - The server detects that an **old** token is being presented.
-- **Action**: The server assumes theft and **immediately revokes the entire session**.
-- **Result**: Both the attacker and the victim are logged out, preventing further unauthorized access.
+- **Action**: The server assumes theft and **immediately revokes ALL sessions for that user** (Family Revocation).
+- **Result**: Both the attacker and the victim are logged out from all devices, preventing further unauthorized access.
 
 ```mermaid
 sequenceDiagram
@@ -129,7 +129,7 @@ sequenceDiagram
     U->>S: POST /refresh (R1)
     S->>DB: HASH MISMATCH! (Exp R2, Got R1)
     Note right of S: REUSE DETECTED!
-    S->>DB: DELETE Session (Revoke All)
+    S->>DB: DELETE Sessions (Revoke All User Devices)
     S-->>U: 401 Unauthorized
 ```
 
@@ -171,5 +171,9 @@ Passwords are hashed using **bcrypt** before storage.
 
 - Admins can create, edit, activate, and deactivate users via the Setup view.
 - **Inactive users** cannot log in. 
-- **Session Revocation**: Deactivating a user or changing their password deletes their sessions. This prevents any *new* access tokens from being issued.
+- **Session Revocation**: The following actions trigger immediate revocation of **all** user sessions (Family Revocation):
+  - Deactivating a user
+  - Changing a user's password
+  - **Changing a user's role** (e.g. Admin -> User)
+  - Detecting **Token Reuse** (suspected theft)
   - **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401), causing the application to log the user out.

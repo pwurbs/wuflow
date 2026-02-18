@@ -672,14 +672,14 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !CheckPassword(user.PasswordHash, req.Password) {
-		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "invalid_password")
+	if !user.Active {
+		slog.Warn("Failed login attempt", "email", user.Email, "reason", "inactive_user")
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
 
-	if !user.Active {
-		slog.Warn("Failed login attempt", "email", user.Email, "reason", "inactive_user")
+	if !CheckPassword(user.PasswordHash, req.Password) {
+		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "invalid_password")
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
@@ -1050,6 +1050,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
+	originalRole := existing.Role
 	existing.Role = req.Role
 	existing.Active = req.Active
 
@@ -1061,7 +1062,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 
 	// Check if we need to revoke sessions (Security: Immediate Logout)
 	revokeSessions := false
-	if !req.Active || req.Password != "" {
+	if !req.Active || req.Password != "" || originalRole != req.Role {
 		revokeSessions = true
 	}
 

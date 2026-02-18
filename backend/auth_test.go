@@ -249,50 +249,6 @@ func TestAuthMiddlewareValidToken(t *testing.T) {
 
 // --- Admin Middleware ---
 
-func TestAdminMiddlewareAllowed(t *testing.T) {
-	handler := AdminMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest("GET", apiTest, nil)
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req.WithContext(ctx))
-
-	if rr.Code != http.StatusOK {
-		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
-	}
-}
-
-func TestAdminMiddlewareForbidden(t *testing.T) {
-	handler := AdminMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("handler should not be called for non-admin")
-	}))
-
-	req := httptest.NewRequest("GET", apiTest, nil)
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleUser)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req.WithContext(ctx))
-
-	if rr.Code != http.StatusForbidden {
-		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
-	}
-}
-
-func TestAdminMiddlewareNoRole(t *testing.T) {
-	handler := AdminMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("handler should not be called without role")
-	}))
-
-	req := httptest.NewRequest("GET", apiTest, nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusForbidden {
-		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
-	}
-}
-
 // --- CSP Middleware ---
 
 func TestCSPMiddleware(t *testing.T) {
@@ -741,6 +697,129 @@ func TestUpdateUser(t *testing.T) {
 	updated, _ := GetUserByID(user.ID)
 	if updated.FirstName != "Updated" {
 		t.Errorf("expected FirstName 'Updated', got '%s'", updated.FirstName)
+	}
+}
+
+func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitJWTSecret("")
+
+	// 1. Setup Admin (acting as caller) and Target User
+	adminHash, _ := HashPassword(testPassword)
+	admin := &User{Email: "admin@test.com", FirstName: "Admin", LastName: "User", PasswordHash: adminHash, Role: RoleAdmin, Active: true}
+	CreateUser(admin)
+
+	targetHash, _ := HashPassword(testPassword)
+	target := &User{Email: "target@test.com", FirstName: "Target", LastName: "User", PasswordHash: targetHash, Role: RoleAdmin, Active: true}
+	if err := CreateUser(target); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+	// Verify creation role
+	savedTarget, _ := GetUserByID(target.ID)
+	if savedTarget.Role != RoleAdmin {
+		t.Fatalf("Setup failed: expected target to be RoleAdmin, got %s", savedTarget.Role)
+	}
+
+	// 2. Target logs in (creates session)
+	session, _, _, _ := CreateUserSession(target)
+
+	// 3. Admin updates Target's role to RoleUser
+	// Prepare request body
+	bodyMap := map[string]interface{}{
+		"email":      target.Email,
+		"first_name": target.FirstName,
+		"last_name":  target.LastName,
+		"role":       RoleUser,
+		"active":     true,
+	}
+	body, _ := json.Marshal(bodyMap)
+
+	// Add Admin Context
+	// Note: We need to use a request that will be routed correctly if we were using a router.
+	// Since HandleUser parses the URL path, we need to construct a valid path.
+	targetURL := apiUsersBase + strconv.Itoa(target.ID)
+
+	rr := httptest.NewRecorder()
+
+	// Create a fresh request with correct path for HandleUser parsing
+	req := httptest.NewRequest("PUT", targetURL, bytes.NewBuffer(body))
+	// Add Admin Context
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+
+	HandleUser(rr, req.WithContext(ctx))
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("HandleUser update failed: code %d, body %s", rr.Code, rr.Body.String())
+	}
+
+	// 4. Verify Session is Revoked
+	s, err := GetSessionByID(session.ID)
+	if err != nil {
+		t.Errorf("GetSessionByID error: %v", err)
+	}
+	if s != nil {
+		t.Error("Session should have been revoked (deleted) after role change, but was found")
+	}
+}
+
+func TestRefreshSessionReuseRevokesAll(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitJWTSecret("")
+
+	// 1. Setup User
+	hash, _ := HashPassword(testPassword)
+	user := &User{Email: "victim@test.com", FirstName: "Victim", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true}
+	CreateUser(user)
+
+	// 2. Create Two Sessions (Device A and Device B)
+	// Session A
+	sessionA, _, refreshA, err := CreateUserSession(user)
+	if err != nil {
+		t.Fatalf("Failed to create session A: %v", err)
+	}
+	// Session B
+	sessionB, _, _, err := CreateUserSession(user)
+	if err != nil {
+		t.Fatalf("Failed to create session B: %v", err)
+	}
+
+	// 3. Legitimate Refresh of Session A (Rotates Token)
+	// This makes 'refreshA' invalid (old)
+	_, _, _, err = RefreshSession(refreshA)
+	if err != nil {
+		t.Fatalf("First refresh failed: %v", err)
+	}
+
+	// 4. Attacker tries to use old 'refreshA' again (Token Reuse)
+	_, _, _, err = RefreshSession(refreshA)
+	if err == nil {
+		t.Fatal("Expected error on reuse, got nil")
+	}
+	if err.Error() != "token reuse detected" {
+		t.Errorf("Expected 'token reuse detected' error, got '%v'", err)
+	}
+
+	// 5. Verify Family Revocation
+	// Both Session A and Session B should be gone
+
+	// Check Session A (should satisfy family revocation, even if it was just rotated)
+	// Note: RefreshSession deletes the *old* session ID if reuse is detected via DeleteSession(sessionID)
+	// OR RevokeUserSessions(userID) which deletes ALL sessions.
+	// We need to re-fetch sessionA to see if it still exists.
+	// Wait, RefreshSession rotates sessionA, so sessionA.ID stays the same?
+	// Yes, `CreateUserSession` -> `RefreshSession` updates `session.TokenHash`. ID remains checks out.
+
+	sA, err := GetSessionByID(sessionA.ID)
+	if sA != nil {
+		t.Error("Session A should be revoked (family revocation)")
+	}
+
+	// Check Session B (The innocent bystander session)
+	sB, err := GetSessionByID(sessionB.ID)
+	if sB != nil {
+		t.Error("Session B should be revoked (family revocation)")
 	}
 }
 
