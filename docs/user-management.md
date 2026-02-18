@@ -1,4 +1,4 @@
-# Authentication & User Management
+# User Management (Authentication & Authorization)
 
 ## Overview
 
@@ -7,15 +7,31 @@ wuFlow uses a **Hybrid Authentication** model with HTTPOnly cookies.
 - **Sessions** are stateful (Opaque Tokens stored in DB), allowing for secure revocation and rotation.
 - Access is restricted by user roles.
 
-## User Roles
+## User Roles and Authorization
 
-| Role | Permissions |
-| :--- | :--- |
-| **Admin** | Full access: manage issues, labels, and users |
-| **User** | Manage issues and tasks only |
+| Action | Admin | User |
+| :--- | :---: | :---: |
+| View issues & tasks | ✓ | ✓ |
+| Create / edit issues | ✓ | ✓ |
+| Create / edit / delete tasks | ✓ | ✓ |
+| **Archive** an issue | ✓ | — |
+| **Unarchive** an issue | ✓ | — |
+| **Delete** an issue | ✓ | — |
+| View labels & users | ✓ | ✓ |
+| Create / delete labels | ✓ | — |
+| Create / edit / deactivate users | ✓ | — |
 
-- Only admins can access the **Setup** view (labels and user management).
+> **Notes**: 
+- The `/api/auth/me` endpoint (Get Current User / Update Self) is available to **all authenticated users** regardless of role. Any user can view and update their own profile (e.g. change password).
 - Non-admin users do not see the Setup navigation item.
+
+### Authorization Concept
+
+Authorization is enforced by a single **allowlist policy table** in `backend/permissions.go`. Every HTTP operation is mapped to a named action constant (e.g. `ActionArchiveIssue`), and each action explicitly lists the roles that may perform it. The `Can(role, action)` function is the sole entry point — no role logic lives in individual handlers.
+
+Each handler evaluates `Can()` at the **method-dispatch level**, before any database access. A missing or insufficient role always results in `403 Forbidden` before any side effects occur.
+
+The frontend mirrors this policy in `static/js/permissions.js` via `userCan(user, action)`. UI elements (archive/delete buttons, drag-drop targets) are hidden or blocked on the client side, while the backend remains the authoritative enforcement point.
 
 ## Initial Admin
 

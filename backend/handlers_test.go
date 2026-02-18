@@ -13,21 +13,25 @@ import (
 )
 
 const (
-	apiIssues            = "/api/issues"
-	apiIssuesBase        = "/api/issues/"
-	apiIssues1           = apiIssuesBase + "1"
-	invalidIssuePath     = apiIssuesBase + "999"
-	apiTasks             = "/api/tasks"
-	apiTasksBase         = "/api/tasks/"
-	apiTasks1            = apiTasksBase + "1"
-	apiLabels            = "/api/labels"
-	apiLabelsBase        = "/api/labels/"
-	apiLabels1           = apiLabelsBase + "1"
-	invalidJSON          = "invalid json"
-	wrongStatusCode      = "handler returned wrong status code: got %v want %v"
-	toDelete             = "To Delete"
-	expectedTitleUpdated = "expected title 'Updated', got '%s'"
-	testDBPath           = ":memory:"
+	apiIssues              = "/api/issues"
+	apiIssuesBase          = "/api/issues/"
+	apiIssues1             = apiIssuesBase + "1"
+	archiveSuffix          = "/archive"
+	unarchiveSuffix        = "/unarchive"
+	apiIssues1Archive      = apiIssues1 + archiveSuffix
+	apiIssues1Unarchive    = apiIssues1 + unarchiveSuffix
+	invalidIssuePath       = apiIssuesBase + "999"
+	apiTasks               = "/api/tasks"
+	apiTasksBase           = "/api/tasks/"
+	apiTasks1              = apiTasksBase + "1"
+	apiLabels              = "/api/labels"
+	apiLabelsBase          = "/api/labels/"
+	apiLabels1             = apiLabelsBase + "1"
+	invalidJSON            = "invalid json"
+	wrongStatusCode        = "handler returned wrong status code: got %v want %v"
+	toDelete               = "To Delete"
+	expectedTitleUpdated   = "expected title 'Updated', got '%s'"
+	testDBPath             = ":memory:"
 )
 
 func TestHandleActiveIssuesGet(t *testing.T) {
@@ -41,6 +45,7 @@ func TestHandleActiveIssuesGet(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleActiveIssues)
 
@@ -73,6 +78,7 @@ func TestHandleCreateIssuePost(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleCreateIssue)
 
@@ -108,6 +114,7 @@ func TestHandleIssuePut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
@@ -142,6 +149,7 @@ func TestHandleIssueDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
@@ -170,6 +178,7 @@ func TestHandleIssueGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
@@ -204,6 +213,7 @@ func TestHandleIssueGetNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
@@ -233,6 +243,7 @@ func TestHandleIssuePutConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("If-Match", staleEtag)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
@@ -253,6 +264,7 @@ func TestHandleIssuePutWithValidEtag(t *testing.T) {
 
 	// Get the current issue to obtain valid ETag
 	getReq, _ := http.NewRequest("GET", apiIssues1, nil)
+	getReq = getReq.WithContext(context.WithValue(getReq.Context(), contextKeyRole, RoleAdmin))
 	getRr := httptest.NewRecorder()
 	HandleIssue(getRr, getReq)
 	validEtag := getRr.Header().Get("ETag")
@@ -266,6 +278,7 @@ func TestHandleIssuePutWithValidEtag(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("If-Match", validEtag)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
@@ -298,6 +311,7 @@ func TestHandleCreateTaskPost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleCreateTask)
@@ -331,6 +345,7 @@ func TestHandleTaskPut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleTask)
@@ -361,6 +376,7 @@ func TestHandleTaskDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleTask)
@@ -383,6 +399,7 @@ func TestHandleActiveIssuesPostInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleCreateIssue)
@@ -423,6 +440,7 @@ func TestHandleIssuePutInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
@@ -440,6 +458,7 @@ func TestHandleCreateTaskPostInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleCreateTask)
@@ -461,6 +480,7 @@ func TestHandleCreateTaskMissingIssueID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleCreateTask)
@@ -495,6 +515,7 @@ func TestHandleTaskPutInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleTask)
@@ -588,6 +609,7 @@ func TestHandleLabelsGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabels)
@@ -619,11 +641,10 @@ func TestHandleLabelsPost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabels)
-
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
@@ -645,11 +666,10 @@ func TestHandleLabelsPostInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabels)
-
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
@@ -684,6 +704,7 @@ func TestHandleLabelDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabel)
@@ -777,8 +798,8 @@ func TestHandlersDBError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name+"_Error", func(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(tt.body))
-			rr := httptest.NewRecorder()
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+			rr := httptest.NewRecorder()
 			tt.handler(rr, req)
 			if rr.Code != http.StatusInternalServerError {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -795,6 +816,7 @@ func TestHandleIssueRefOnNonExistentID(t *testing.T) {
 	issue := &Issue{Title: "Updated Title", Status: StatusOpen}
 	body, _ := json.Marshal(issue)
 	req, _ := http.NewRequest("PUT", invalidIssuePath, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleIssue)
 	handler.ServeHTTP(rr, req)
@@ -806,6 +828,7 @@ func TestHandleIssueRefOnNonExistentID(t *testing.T) {
 
 	// 2. DELETE non-existent issue
 	req, _ = http.NewRequest("DELETE", invalidIssuePath, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -829,6 +852,7 @@ func TestHandleCreateIssueInvalidInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.issue)
 			req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 			rr := httptest.NewRecorder()
 			handle := http.HandlerFunc(HandleCreateIssue)
 			handle.ServeHTTP(rr, req)
@@ -844,6 +868,7 @@ func TestHandleTaskInvalidInput(t *testing.T) {
 	task := Task{Title: "", IssueID: 1}
 	body, _ := json.Marshal(task)
 	req, _ := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	handle := http.HandlerFunc(HandleCreateTask)
 	handle.ServeHTTP(rr, req)
@@ -865,9 +890,9 @@ func TestHandleLabelInvalidInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.label)
 			req, _ := http.NewRequest("POST", apiLabels, bytes.NewBuffer(body))
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 			rr := httptest.NewRecorder()
 			handle := http.HandlerFunc(HandleLabels)
-			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 			handle.ServeHTTP(rr, req)
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -884,6 +909,7 @@ func TestHandleTaskRefOnNonExistentID(t *testing.T) {
 	task := &Task{Title: "Updated Task", Done: true}
 	body, _ := json.Marshal(task)
 	req, _ := http.NewRequest("PUT", apiTasksBase+"999", bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleTask)
 	handler.ServeHTTP(rr, req)
@@ -895,6 +921,7 @@ func TestHandleTaskRefOnNonExistentID(t *testing.T) {
 
 	// 2. DELETE non-existent task
 	req, _ = http.NewRequest("DELETE", apiTasksBase+"999", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -912,6 +939,7 @@ func TestHandleCreateTaskWithNonExistentIssueID(t *testing.T) {
 	task := &Task{IssueID: 999, Title: "Orphan Task"}
 	body, _ := json.Marshal(task)
 	req, _ := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleCreateTask)
 	handler.ServeHTTP(rr, req)
@@ -928,6 +956,7 @@ func TestHandleDeleteLabelWithNonExistentID(t *testing.T) {
 
 	// DELETE non-existent label
 	req, _ := http.NewRequest("DELETE", "/api/labels/999", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabel)
 	handler.ServeHTTP(rr, req)
@@ -951,20 +980,21 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	archivedIssue.Title = "Mutated"
 	body, _ := json.Marshal(archivedIssue)
 	req, _ := http.NewRequest("PUT", archivedIssuePath, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	HandleIssue(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("PUT %s: expected 403 Forbidden, got %v", archivedIssuePath, rr.Code)
 	}
 
-	// 3. Try to unarchive the issue (allowed)
-	archivedIssue.Status = StatusDone
-	body, _ = json.Marshal(archivedIssue)
-	req, _ = http.NewRequest("PUT", archivedIssuePath, bytes.NewBuffer(body))
+	// 3. Try to unarchive the issue via dedicated endpoint (allowed for admin)
+	unarchivePath := archivedIssuePath + unarchiveSuffix
+	req, _ = http.NewRequest("POST", unarchivePath, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	HandleIssue(rr, req)
 	if rr.Code != http.StatusOK {
-		t.Errorf("PUT %s (unarchive): expected 200 OK, got %v", archivedIssuePath, rr.Code)
+		t.Errorf("POST %s: expected 200 OK, got %v", unarchivePath, rr.Code)
 	}
 
 	// 4. Create another archived issue for task tests
@@ -979,6 +1009,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	newTask := &Task{IssueID: archivedIssue2.ID, Title: "New Task"}
 	body, _ = json.Marshal(newTask)
 	req, _ = http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	HandleCreateTask(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -989,6 +1020,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	task.Title = "Mutated Task"
 	body, _ = json.Marshal(task)
 	req, _ = http.NewRequest("PUT", taskPath, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	HandleTask(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -997,6 +1029,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 
 	// 7. Try to delete task of archived issue (blocked)
 	req, _ = http.NewRequest("DELETE", taskPath, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	HandleTask(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -1009,14 +1042,16 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	archivedIssue3Path := apiIssuesBase + strconv.Itoa(archivedIssue3.ID)
 
 	req, _ = http.NewRequest("PUT", archivedIssue3Path, bytes.NewBufferString(`{"title":"Bypass"}`))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	HandleIssue(rr, req)
-	// 9. Try to delete archived issue (blocked)
+	// 9. Try to delete archived issue (blocked even for admin — business rule in handler)
 	archivedIssue4 := &Issue{Title: "Archived 4", Status: StatusArchive}
 	CreateIssue(archivedIssue4)
 	archivedDeletePath := apiIssuesBase + strconv.Itoa(archivedIssue4.ID)
 
 	req, _ = http.NewRequest("DELETE", archivedDeletePath, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	HandleIssue(rr, req)
 	if rr.Code != http.StatusForbidden {
@@ -1054,6 +1089,8 @@ func TestHandlersDBErrors(t *testing.T) {
 		{"HandleIssue_GET", "GET", apiIssues1, "", HandleIssue},
 		{"HandleIssue_PUT", "PUT", apiIssues1, validIssue, HandleIssue},
 		{"HandleIssue_DELETE", "DELETE", apiIssues1, "", HandleIssue},
+		{"HandleIssue_archive", "POST", apiIssues1Archive, "", HandleIssue},
+		{"HandleIssue_unarchive", "POST", apiIssues1Unarchive, "", HandleIssue},
 		{"HandleCreateTask", "POST", apiTasks, validTask, HandleCreateTask},
 		{"HandleTask_PUT", "PUT", apiTasks1, validTaskUpdate, HandleTask},
 		{"HandleTask_DELETE", "DELETE", apiTasks1, "", HandleTask},
@@ -1074,11 +1111,9 @@ func TestHandlersDBErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 			rr := httptest.NewRecorder()
-			// Inject admin role into context so handlers with internal role checks pass
-			ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
-			req = req.WithContext(ctx)
 			tt.handler.ServeHTTP(rr, req)
 
 			if rr.Code != http.StatusInternalServerError {
@@ -1176,12 +1211,118 @@ func TestHandlePutIssueReadOnlyArchived(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateBody)
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
 	HandleIssue(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 Forbidden for editing archived issue, got %d", rr.Code)
+	}
+}
+
+func TestHandleArchiveIssue(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Active", Status: StatusOpen}
+	CreateIssue(issue)
+	path := apiIssuesBase + strconv.Itoa(issue.ID) + archiveSuffix
+
+	req := httptest.NewRequest("POST", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for archiving issue, got %d", rr.Code)
+	}
+	var updated Issue
+	if err := json.NewDecoder(rr.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != StatusArchive {
+		t.Errorf("Expected status %s, got %s", StatusArchive, updated.Status)
+	}
+}
+
+func TestHandleArchiveIssueNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("POST", invalidIssuePath+archiveSuffix, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 for archiving non-existent issue, got %d", rr.Code)
+	}
+}
+
+func TestHandleArchiveIssueAlready(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Already Archived", Status: StatusArchive}
+	CreateIssue(issue)
+	path := apiIssuesBase + strconv.Itoa(issue.ID) + archiveSuffix
+
+	req := httptest.NewRequest("POST", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for archiving already-archived issue, got %d", rr.Code)
+	}
+}
+
+func TestHandleUnarchiveIssue(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	CreateIssue(issue)
+	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
+
+	req := httptest.NewRequest("POST", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for unarchiving issue, got %d", rr.Code)
+	}
+	var updated Issue
+	if err := json.NewDecoder(rr.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != StatusDone {
+		t.Errorf("Expected status %s, got %s", StatusDone, updated.Status)
+	}
+}
+
+func TestHandleUnarchiveIssueNotArchived(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Active", Status: StatusOpen}
+	CreateIssue(issue)
+	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
+
+	req := httptest.NewRequest("POST", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for unarchiving non-archived issue, got %d", rr.Code)
 	}
 }
 
@@ -1193,7 +1334,9 @@ func TestHandleDeleteIssueArchived(t *testing.T) {
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID)
 
+	// Archived issues cannot be deleted regardless of role (business rule in handler)
 	req := httptest.NewRequest("DELETE", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
 	HandleIssue(rr, req)
@@ -1223,9 +1366,10 @@ func TestHandleUpdateUserLastAdminProtection(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateBody)
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleUser(rr, req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))) // This tests handleUpdateUser which calls checkLastAdminProtection
+	HandleUser(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 Bad Request for last admin demotion, got %d", rr.Code)
@@ -1249,6 +1393,7 @@ func TestHandlePutTaskArchivedIssue(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateBody)
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
 	HandleTask(rr, req)
@@ -1269,6 +1414,7 @@ func TestHandleDeleteTaskArchivedIssue(t *testing.T) {
 	path := apiTasksBase + strconv.Itoa(task.ID)
 
 	req := httptest.NewRequest("DELETE", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
 	HandleTask(rr, req)
@@ -1285,16 +1431,11 @@ func TestHandlePutIssueUnarchive(t *testing.T) {
 	// Create archived issue
 	issue := &Issue{Title: "Archived", Status: StatusArchive}
 	CreateIssue(issue)
-	path := apiIssuesBase + strconv.Itoa(issue.ID)
+	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
 
-	// Unarchive it (set status to Done)
-	updateBody := map[string]interface{}{
-		"title":    "Archived",
-		"status":   "Done", // Valid transition
-		"priority": "Normal",
-	}
-	body, _ := json.Marshal(updateBody)
-	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	// Unarchive via dedicated endpoint — requires admin
+	req := httptest.NewRequest("POST", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
 	HandleIssue(rr, req)
@@ -1334,9 +1475,10 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateBody)
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleUser(rr, req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin)))
+	HandleUser(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK, got %d", rr.Code)
@@ -1529,8 +1671,9 @@ func TestHandleCreateIssueSetsCreator(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	// Inject UserID into context (simulating AuthMiddleware)
+	// Inject UserID and role into context (simulating AuthMiddleware)
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
+	ctx = context.WithValue(ctx, contextKeyRole, RoleAdmin)
 
 	handler := http.HandlerFunc(HandleCreateIssue)
 	handler.ServeHTTP(rr, req.WithContext(ctx))
@@ -1569,6 +1712,7 @@ func TestHandleIssueUpdateAssignee(t *testing.T) {
 	body, _ := json.Marshal(issue)
 
 	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
 	handler := http.HandlerFunc(HandleIssue)
@@ -1601,6 +1745,7 @@ func TestHandleIssueCreatorReadOnly(t *testing.T) {
 	body, _ := json.Marshal(issue)
 
 	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
 	handler := http.HandlerFunc(HandleIssue)
@@ -1609,5 +1754,61 @@ func TestHandleIssueCreatorReadOnly(t *testing.T) {
 	updated, _ := GetIssueByID(issue.ID)
 	if updated.CreatorID != creator.ID {
 		t.Errorf("Expected CreatorID to remain %d, but it was changed to %d", creator.ID, updated.CreatorID)
+	}
+}
+
+// TestHandlersForbidden verifies that every Can() check in handlers.go returns 403
+// when the caller lacks the required role. No DB setup needed — Can() is evaluated
+// before any database access in all cases.
+func TestHandlersForbidden(t *testing.T) {
+	tests := []struct {
+		name    string
+		method  string
+		url     string
+		role    UserRole // empty = no role in context
+		handler http.HandlerFunc
+	}{
+		// Admin-only actions: RoleUser must be denied
+		{"DeleteIssue/user", "DELETE", apiIssues1, RoleUser, HandleIssue},
+		{"ArchiveIssue/user", "POST", apiIssues1Archive, RoleUser, HandleIssue},
+		{"UnarchiveIssue/user", "POST", apiIssues1Unarchive, RoleUser, HandleIssue},
+		{"CreateLabel/user", "POST", apiLabels, RoleUser, HandleLabels},
+		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, HandleLabel},
+		{"CreateUser/user", "POST", apiUsers, RoleUser, HandleUsers},
+		{"UpdateUser/user", "PUT", apiUsers1, RoleUser, HandleUser},
+
+		// All role-gated actions: no role must be denied
+		{"ListIssues/noRole", "GET", apiIssues, "", HandleActiveIssues},
+		{"ListArchivedIssues/noRole", "GET", "/api/archive/issues", "", HandleArchivedIssues},
+		{"GetIssue/noRole", "GET", apiIssues1, "", HandleIssue},
+		{"UpdateIssue/noRole", "PUT", apiIssues1, "", HandleIssue},
+		{"DeleteIssue/noRole", "DELETE", apiIssues1, "", HandleIssue},
+		{"ArchiveIssue/noRole", "POST", apiIssues1Archive, "", HandleIssue},
+		{"UnarchiveIssue/noRole", "POST", apiIssues1Unarchive, "", HandleIssue},
+		{"CreateIssue/noRole", "POST", apiIssues, "", HandleCreateIssue},
+		{"CreateTask/noRole", "POST", apiTasks, "", HandleCreateTask},
+		{"UpdateTask/noRole", "PUT", apiTasks1, "", HandleTask},
+		{"DeleteTask/noRole", "DELETE", apiTasks1, "", HandleTask},
+		{"ListLabels/noRole", "GET", apiLabels, "", HandleLabels},
+		{"CreateLabel/noRole", "POST", apiLabels, "", HandleLabels},
+		{"DeleteLabel/noRole", "DELETE", apiLabels1, "", HandleLabel},
+		{"ListUsers/noRole", "GET", apiUsers, "", HandleUsers},
+		{"CreateUser/noRole", "POST", apiUsers, "", HandleUsers},
+		{"GetUser/noRole", "GET", apiUsers1, "", HandleUser},
+		{"UpdateUser/noRole", "PUT", apiUsers1, "", HandleUser},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.url, nil)
+			if tt.role != "" {
+				req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, tt.role))
+			}
+			rr := httptest.NewRecorder()
+			tt.handler(rr, req)
+			if rr.Code != http.StatusForbidden {
+				t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+			}
+		})
 	}
 }

@@ -868,6 +868,7 @@ func TestHandleUsersGetList(t *testing.T) {
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
 	req := httptest.NewRequest("GET", apiUsers, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	HandleUsers(rr, req)
 
@@ -1029,6 +1030,7 @@ func TestHandleUserGetSuccess(t *testing.T) {
 	CreateUser(user)
 
 	req := httptest.NewRequest("GET", apiUsersBase+strconv.Itoa(user.ID), nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	HandleUser(rr, req)
 
@@ -1042,6 +1044,7 @@ func TestHandleUserGetNotFound(t *testing.T) {
 	defer teardownTestDB()
 
 	req := httptest.NewRequest("GET", apiUsersBase+"999", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	HandleUser(rr, req)
 
@@ -1266,6 +1269,7 @@ func TestAuthHandlersDBError(t *testing.T) {
 
 	t.Run("HandleUsers_GET_DBError", func(t *testing.T) {
 		req := httptest.NewRequest("GET", apiUsers, nil)
+		req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 		rr := httptest.NewRecorder()
 		HandleUsers(rr, req)
 		if rr.Code != http.StatusInternalServerError {
@@ -1275,6 +1279,7 @@ func TestAuthHandlersDBError(t *testing.T) {
 
 	t.Run("HandleUser_GET_DBError", func(t *testing.T) {
 		req := httptest.NewRequest("GET", apiUsers1, nil)
+		req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 		rr := httptest.NewRecorder()
 		HandleUser(rr, req)
 		if rr.Code != http.StatusInternalServerError {

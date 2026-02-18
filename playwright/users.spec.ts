@@ -183,7 +183,7 @@ test.describe('User Management', () => {
     // Create a user with known names
     await page.click('#add-user-btn');
     const testEmail = `badge_test_${Date.now()}@example.com`;
-    const safePassword = crypto.randomBytes(16).toString('hex') + 'A1!';
+    const safePassword = generatePassword();
 
     await page.fill('#user-email', testEmail);
     await page.fill('#user-first-name', 'Badge');

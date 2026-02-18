@@ -1,4 +1,8 @@
 
+## 0.19.0
+
+- Improved internal authorization implementation
+
 ## 0.18.0
 
 - Connected users to issues

@@ -4,6 +4,7 @@ import { createCardElement } from './card.js';
 import { getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 import { canArchive, showConfirm } from '../utils.js';
+import { userCan, ACTION_ARCHIVE_ISSUE } from '../permissions.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
@@ -101,6 +102,10 @@ async function validateArchiveDrop(issue, targetStatus) {
     return false;
   }
   if (targetStatus === 'Archive' && issue.status !== 'Archive') {
+    if (!userCan(state.currentUser, ACTION_ARCHIVE_ISSUE)) {
+      await showConfirm('Not Allowed', 'You do not have permission to archive issues.', 'OK', null, 'primary');
+      return false;
+    }
     const check = canArchive(issue);
     if (!check.allowed) {
       await showConfirm('Cannot Archive', check.reason, 'OK', null, 'primary');

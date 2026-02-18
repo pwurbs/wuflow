@@ -22,17 +22,10 @@ test.describe('Archive View', () => {
   });
 
   test('move Done issue to Archive using drag and drop', async ({ page }) => {
-    // 1. Create a Done issue
-    // Ensure we have a Done issue. If createIssue doesn't support 'Done' directly, we might need to move it.
-    // Assuming createIssue supports status based on backend model.
-    // If not, we can create as Open, go to board, move to Done.
-    // Let's try direct creation if possible, or use modal.
-    await createIssue(page, { title: 'Issue to Archive' });
-
-    // Move to Done via modal (First go to Backlog as default issue is Open)
+    // 1. Create an issue and move it to Done
+    await createIssue(page, { title: 'Issue to Archive via Drag' });
     await navigateTo(page, 'backlog');
-    // Move to Done via modal to be safe and realistic
-    await page.click('.card:has-text("Issue to Archive")');
+    await page.click('.card:has-text("Issue to Archive via Drag")');
     await selectStatus(page, 'Done');
     await page.click('#done-btn');
 
@@ -42,15 +35,19 @@ test.describe('Archive View', () => {
     // 3. Verify it is in Done section
     const doneSection = page.locator('#archive-done-list');
     const archiveSection = page.locator('#archive-list');
-    const card = doneSection.locator('.card', { hasText: 'Issue to Archive' });
+    const card = doneSection.locator('.card', { hasText: 'Issue to Archive via Drag' });
     await expect(card).toBeVisible();
 
-    // 4. Drag to Archive section
-    await card.dragTo(archiveSection.locator('..')); // Drag to the list's container or list itself
+    // 4. Drag to the Archive section heading — targeting the heading ensures the drop
+    // lands on the section background (not on #archive-list), so the correct
+    // setupSectionDrop handler fires and POST /api/issues/:id/archive is called.
+    const archiveSectionHeading = page.locator('#archive-archive-section h2');
+    await expect(archiveSectionHeading).toBeVisible();
+    await card.dragTo(archiveSectionHeading);
 
     // 5. Verify it is now in Archive section
-    await expect(archiveSection.locator('.card', { hasText: 'Issue to Archive' })).toBeVisible();
-    await expect(doneSection.locator('.card', { hasText: 'Issue to Archive' })).toBeHidden();
+    await expect(archiveSection.locator('.card', { hasText: 'Issue to Archive via Drag' })).toBeVisible();
+    await expect(doneSection.locator('.card', { hasText: 'Issue to Archive via Drag' })).toBeHidden();
   });
 
   test('archived issue should not be draggable', async ({ page }) => {

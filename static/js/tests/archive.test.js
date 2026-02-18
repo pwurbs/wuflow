@@ -7,13 +7,15 @@ import * as api from '../api.js';
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
-    filter: {}
+    filter: {},
+    currentUser: { role: 'admin' }
   },
   isFilterActive: vi.fn(),
 }));
 
 vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({}),
+  archiveIssue: vi.fn().mockResolvedValue({}),
   fetchArchivedIssues: vi.fn().mockResolvedValue([])
 }));
 
@@ -132,10 +134,7 @@ describe('Archive Component', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
-        id: 99,
-        status: 'Archive'
-      }));
+      expect(api.archiveIssue).toHaveBeenCalledWith(99);
       expect(refreshApp).toHaveBeenCalled();
     });
 
@@ -164,11 +163,7 @@ describe('Archive Component', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
-        id: 100,
-        status: 'Archive',
-        planned_dates: []
-      }));
+      expect(api.archiveIssue).toHaveBeenCalledWith(100);
       expect(refreshApp).toHaveBeenCalled();
     });
   });

@@ -126,6 +126,16 @@ export async function updateIssue(issue, etag = null) {
   return { issue: updatedIssue, etag: newEtag, conflict: false };
 }
 
+export async function archiveIssue(id) {
+  const res = await authFetch(`${API_URL}/issues/${id}/archive`, { method: 'POST' });
+  return await res.json();
+}
+
+export async function unarchiveIssue(id) {
+  const res = await authFetch(`${API_URL}/issues/${id}/unarchive`, { method: 'POST' });
+  return await res.json();
+}
+
 export async function createTask(task) {
   const res = await authFetch(`${API_URL}/tasks`, {
     method: 'POST',

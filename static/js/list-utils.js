@@ -1,4 +1,4 @@
-import { updateIssue } from './api.js';
+import { updateIssue, archiveIssue } from './api.js';
 import { state } from './state.js';
 import { getDraggedCard, getDragAfterElement } from './drag.js';
 
@@ -54,10 +54,12 @@ export function getListUpdates(listId, targetStatus) {
 
       if (statusChanged || positionChanged) {
         issue.status = targetStatus;
-        if (targetStatus !== 'Archive') {
+        if (targetStatus === 'Archive') {
+          updates.push(archiveIssue(issue.id));
+        } else {
           issue.position = index;
+          updates.push(updateIssue(issue));
         }
-        updates.push(updateIssue(issue));
       }
     }
   });
@@ -108,9 +110,13 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
       return;
     }
 
-    issue.planned_dates = [];
     issue.status = targetStatus;
-    await updateIssue(issue);
+    if (targetStatus === 'Archive') {
+      await archiveIssue(issue.id);
+    } else {
+      issue.planned_dates = [];
+      await updateIssue(issue);
+    }
     if (refreshApp) refreshApp();
     if (onDrop) onDrop(issue);
   });

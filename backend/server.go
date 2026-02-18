@@ -85,26 +85,28 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 	http.Handle("/api/auth/logout", WithLogging(CSPMiddleware(http.HandlerFunc(HandleLogout))))
 	http.Handle("/api/auth/refresh", WithLogging(CSPMiddleware(http.HandlerFunc(HandleRefresh))))
 
-	// Authenticated auth endpoint
+	// Protected auth endpoint — requires a valid session
 	http.Handle("/api/auth/me", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleCurrentUser)))))
 
-	// Authenticated API endpoints
-	http.Handle("/api/issues", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleCreateIssue)))))
-	http.Handle("/api/issues/active", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleActiveIssues)))))
-	http.Handle("/api/issues/archived", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleArchivedIssues)))))
-	http.Handle("/api/issues/", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleIssue)))))
-	http.Handle("/api/tasks", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleCreateTask)))))
-	http.Handle("/api/tasks/", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleTask)))))
-	http.Handle("/api/labels", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleLabels)))))
-	http.Handle("/api/version", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Authenticated API endpoints.
+	// AuthMiddleware handles authentication (JWT validation + context injection).
+	// Authorization (Can checks) is enforced inside each handler via permissions.go.
+	auth := func(h http.Handler) http.Handler { return AuthMiddleware(h) }
+
+	http.Handle("/api/issues", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleCreateIssue)))))
+	http.Handle("/api/issues/active", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleActiveIssues)))))
+	http.Handle("/api/issues/archived", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleArchivedIssues)))))
+	http.Handle("/api/issues/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleIssue)))))
+	http.Handle("/api/tasks", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleCreateTask)))))
+	http.Handle("/api/tasks/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleTask)))))
+	http.Handle("/api/labels", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleLabels)))))
+	http.Handle("/api/labels/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleLabel)))))
+	http.Handle("/api/users", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleUsers)))))
+	http.Handle("/api/users/", WithLogging(CSPMiddleware(auth(http.HandlerFunc(HandleUser)))))
+	http.Handle("/api/version", WithLogging(CSPMiddleware(auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(headerContentType, contentTypeJSON)
 		json.NewEncoder(w).Encode(map[string]string{"version": version})
 	})))))
-
-	// Admin-only API endpoints (user management)
-	http.Handle("/api/users", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleUsers)))))
-	http.Handle("/api/users/", WithLogging(CSPMiddleware(AuthMiddleware(http.HandlerFunc(HandleUser)))))
-	http.Handle("/api/labels/", WithLogging(CSPMiddleware(AuthMiddleware(AdminMiddleware(http.HandlerFunc(HandleLabel))))))
 
 	// Static files — require auth, redirect to login if not authenticated
 	http.Handle("/", WithLogging(CSPMiddleware(HandleStaticFiles(fileServer))))

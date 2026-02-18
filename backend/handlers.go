@@ -27,10 +27,20 @@ const (
 	errMsgInvalidCreds        = "Invalid email or password"
 )
 
+// denyForbidden logs a permission-denied warning and writes a 403 response.
+func denyForbidden(w http.ResponseWriter, r *http.Request, action Action) {
+	slog.Warn("Permission denied", "action", action, "role", GetRoleFromContext(r.Context()), "method", r.Method, "path", r.URL.Path)
+	http.Error(w, errMsgForbidden, http.StatusForbidden)
+}
+
 // HandleCreateIssue handles POST requests to create a new issue.
 func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
+		if !Can(GetRoleFromContext(r.Context()), ActionCreateIssue) {
+			denyForbidden(w, r, ActionCreateIssue)
+			return
+		}
 		var i Issue
 		if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
 			slog.Warn("Failed to decode issue", "error", err)
@@ -72,6 +82,10 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 func HandleActiveIssues(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
+		if !Can(GetRoleFromContext(r.Context()), ActionListIssues) {
+			denyForbidden(w, r, ActionListIssues)
+			return
+		}
 		issues, err := GetAllActiveIssues()
 		if err != nil {
 			slog.Error("GetAllActiveIssues failed", "error", err)
@@ -89,6 +103,10 @@ func HandleActiveIssues(w http.ResponseWriter, r *http.Request) {
 func HandleArchivedIssues(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
+		if !Can(GetRoleFromContext(r.Context()), ActionListIssues) {
+			denyForbidden(w, r, ActionListIssues)
+			return
+		}
 		issues, err := GetAllArchivedIssues()
 		if err != nil {
 			slog.Error("GetAllArchivedIssues failed", "error", err)
@@ -101,22 +119,69 @@ func HandleArchivedIssues(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleIssue handles GET, PUT and DELETE requests for a single issue.
+// HandleIssue handles GET, PUT, DELETE and sub-action (archive/unarchive) requests for a single issue.
 func HandleIssue(w http.ResponseWriter, r *http.Request) {
-
-	idStr := strings.TrimPrefix(r.URL.Path, "/api/issues/")
-	id, err := strconv.Atoi(idStr)
+	pathSuffix := strings.TrimPrefix(r.URL.Path, "/api/issues/")
+	parts := strings.SplitN(pathSuffix, "/", 2)
+	id, err := strconv.Atoi(parts[0])
 	if err != nil {
-		slog.Warn("Invalid issue ID", "id", idStr, "error", err)
+		slog.Warn("Invalid issue ID", "id", parts[0], "error", err)
 		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
+	subAction := ""
+	if len(parts) == 2 {
+		subAction = parts[1]
+	}
+
+	switch subAction {
+	case "archive":
+		if r.Method != "POST" {
+			http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+			return
+		}
+		if !Can(GetRoleFromContext(r.Context()), ActionArchiveIssue) {
+			denyForbidden(w, r, ActionArchiveIssue)
+			return
+		}
+		handleArchiveIssue(w, id)
+	case "unarchive":
+		if r.Method != "POST" {
+			http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+			return
+		}
+		if !Can(GetRoleFromContext(r.Context()), ActionUnarchiveIssue) {
+			denyForbidden(w, r, ActionUnarchiveIssue)
+			return
+		}
+		handleUnarchiveIssue(w, id)
+	case "":
+		dispatchIssueMethod(w, r, id)
+	default:
+		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
+	}
+}
+
+// dispatchIssueMethod routes GET/PUT/DELETE for a single issue.
+func dispatchIssueMethod(w http.ResponseWriter, r *http.Request, id int) {
 	switch r.Method {
 	case "GET":
+		if !Can(GetRoleFromContext(r.Context()), ActionGetIssue) {
+			denyForbidden(w, r, ActionGetIssue)
+			return
+		}
 		handleGetIssue(w, id)
 	case "PUT":
+		if !Can(GetRoleFromContext(r.Context()), ActionUpdateIssue) {
+			denyForbidden(w, r, ActionUpdateIssue)
+			return
+		}
 		handlePutIssue(w, r, id)
 	case "DELETE":
+		if !Can(GetRoleFromContext(r.Context()), ActionDeleteIssue) {
+			denyForbidden(w, r, ActionDeleteIssue)
+			return
+		}
 		handleDeleteIssue(w, id)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
@@ -141,12 +206,73 @@ func handleGetIssue(w http.ResponseWriter, id int) {
 	json.NewEncoder(w).Encode(issue)
 }
 
-// handlePutIssue updates an existing issue, checking for conflicts via the If-Match header.
-func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
-	// Fetch current issue to check status and for unarchive check
+// handleArchiveIssue sets an issue's status to Archive.
+func handleArchiveIssue(w http.ResponseWriter, id int) {
 	current, err := GetIssueByID(id)
 	if err != nil {
-		slog.Error("GetIssueByID failed for edit check", "id", id, "error", err)
+		slog.Error("GetIssueByID failed for archive", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if current == nil {
+		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+		return
+	}
+	if current.Status == StatusArchive {
+		http.Error(w, "Issue is already archived", http.StatusBadRequest)
+		return
+	}
+	current.Status = StatusArchive
+	if err := UpdateIssue(current); err != nil {
+		slog.Error("UpdateIssue failed for archive", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	updated, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed after archive", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(updated)
+}
+
+// handleUnarchiveIssue moves an archived issue back to Done status.
+func handleUnarchiveIssue(w http.ResponseWriter, id int) {
+	current, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed for unarchive", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if current == nil {
+		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+		return
+	}
+	if current.Status != StatusArchive {
+		http.Error(w, "Issue is not archived", http.StatusBadRequest)
+		return
+	}
+	current.Status = StatusDone
+	if err := UpdateIssue(current); err != nil {
+		slog.Error("UpdateIssue failed for unarchive", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	updated, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed after unarchive", "id", id, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(updated)
+}
+
+// handlePutIssue updates an existing non-archived issue, checking for conflicts via the If-Match header.
+func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
+	current, err := GetIssueByID(id)
+	if err != nil {
+		slog.Error("GetIssueByID failed for put", "id", id, "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -173,20 +299,21 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	// Ensure CreatorID is not changed and persists
 	i.CreatorID = current.CreatorID
 
-	// Validate AssigneeID if present (optional, relying on FK mostly)
-	if i.AssigneeID != nil {
-		// We could verify user exists here if stricter validation is needed
-	}
-
 	if err := validateIssue(&i); err != nil {
 		slog.Warn("Issue update validation failed", "error", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Block edits if archived and status NOT being changed to Done
-	if current.Status == StatusArchive && i.Status != StatusDone {
+	// Archived issues are read-only — use POST /api/issues/{id}/unarchive to restore
+	if current.Status == StatusArchive {
 		http.Error(w, errMsgArchivedReadOnly, http.StatusForbidden)
+		return
+	}
+
+	// Reject attempts to archive via PUT — use POST /api/issues/{id}/archive instead
+	if i.Status == StatusArchive {
+		http.Error(w, "Use POST /api/issues/{id}/archive to archive an issue", http.StatusBadRequest)
 		return
 	}
 
@@ -200,7 +327,6 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Return new ETag after update
 	// Return new ETag after update
 	updated, err := GetIssueByID(id)
 	if err != nil {
@@ -268,50 +394,58 @@ func handleDeleteIssue(w http.ResponseWriter, id int) {
 func HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
-		var t Task
-		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-			slog.Warn("Failed to decode task", "error", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		if !Can(GetRoleFromContext(r.Context()), ActionCreateTask) {
+			denyForbidden(w, r, ActionCreateTask)
 			return
 		}
-
-		if err := validateTask(&t); err != nil {
-			slog.Warn("Task validation failed", "error", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if t.IssueID == 0 {
-			http.Error(w, "Issue ID is required", http.StatusBadRequest)
-			return
-		}
-
-		// Check if issue is archived
-		issue, err := GetIssueByID(t.IssueID)
-		if err != nil {
-			slog.Error("GetIssueByID failed for task creation check", "id", t.IssueID, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if issue == nil {
-			http.Error(w, errMsgIssueNotFound, http.StatusBadRequest)
-			return
-		}
-		if issue.Status == StatusArchive {
-			http.Error(w, "Cannot add tasks to archived issues", http.StatusForbidden)
-			return
-		}
-
-		if err := CreateTask(&t); err != nil {
-			slog.Error("CreateTask failed", "issue_id", t.IssueID, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(t)
+		handleCreateTask(w, r)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
+}
+
+func handleCreateTask(w http.ResponseWriter, r *http.Request) {
+	var t Task
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		slog.Warn("Failed to decode task", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := validateTask(&t); err != nil {
+		slog.Warn("Task validation failed", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if t.IssueID == 0 {
+		http.Error(w, "Issue ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if issue is archived
+	issue, err := GetIssueByID(t.IssueID)
+	if err != nil {
+		slog.Error("GetIssueByID failed for task creation check", "id", t.IssueID, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if issue == nil {
+		http.Error(w, errMsgIssueNotFound, http.StatusBadRequest)
+		return
+	}
+	if issue.Status == StatusArchive {
+		http.Error(w, "Cannot add tasks to archived issues", http.StatusForbidden)
+		return
+	}
+
+	if err := CreateTask(&t); err != nil {
+		slog.Error("CreateTask failed", "issue_id", t.IssueID, "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(t)
 }
 
 // HandleTask handles PUT and DELETE requests for a single task.
@@ -326,8 +460,16 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case "PUT":
+		if !Can(GetRoleFromContext(r.Context()), ActionUpdateTask) {
+			denyForbidden(w, r, ActionUpdateTask)
+			return
+		}
 		handlePutTask(w, r, id)
 	case "DELETE":
+		if !Can(GetRoleFromContext(r.Context()), ActionDeleteTask) {
+			denyForbidden(w, r, ActionDeleteTask)
+			return
+		}
 		handleDeleteTask(w, id)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
@@ -424,6 +566,10 @@ func handleDeleteTask(w http.ResponseWriter, id int) {
 func HandleLabels(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
+		if !Can(GetRoleFromContext(r.Context()), ActionListLabels) {
+			denyForbidden(w, r, ActionListLabels)
+			return
+		}
 		labels, err := GetAllLabels()
 		if err != nil {
 			slog.Error("GetAllLabels failed", "error", err)
@@ -432,13 +578,10 @@ func HandleLabels(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(labels)
 	case "POST":
-		// Only admins can create labels
-		role, ok := r.Context().Value(contextKeyRole).(UserRole)
-		if !ok || role != RoleAdmin {
-			http.Error(w, errMsgForbidden, http.StatusForbidden)
+		if !Can(GetRoleFromContext(r.Context()), ActionCreateLabel) {
+			denyForbidden(w, r, ActionCreateLabel)
 			return
 		}
-
 		var l Label
 		if err := json.NewDecoder(r.Body).Decode(&l); err != nil {
 			slog.Warn("Failed to decode label", "error", err)
@@ -474,6 +617,10 @@ func HandleLabel(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "DELETE":
+		if !Can(GetRoleFromContext(r.Context()), ActionDeleteLabel) {
+			denyForbidden(w, r, ActionDeleteLabel)
+			return
+		}
 		if err := DeleteLabel(id); err != nil {
 			if err == ErrLabelNotFound {
 				http.Error(w, "Label not found", http.StatusNotFound)
@@ -549,7 +696,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	slog.Info("Successful login", "email", user.Email, "session_id", session.ID)
 
 	w.Header().Set(headerContentType, contentTypeJSON)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"user": user,
 	})
 }
@@ -628,7 +775,7 @@ func HandleRefresh(w http.ResponseWriter, r *http.Request) {
 	slog.Info("Token refresh successful (rotated)", "email", user.Email, "user_id", user.ID)
 
 	w.Header().Set(headerContentType, contentTypeJSON)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"user": user,
 	})
 }
@@ -741,11 +888,14 @@ type createUserRequest struct {
 func HandleUsers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		if !Can(GetRoleFromContext(r.Context()), ActionListUsers) {
+			denyForbidden(w, r, ActionListUsers)
+			return
+		}
 		handleListUsers(w)
 	case http.MethodPost:
-		role := GetRoleFromContext(r.Context())
-		if role != RoleAdmin {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+		if !Can(GetRoleFromContext(r.Context()), ActionCreateUser) {
+			denyForbidden(w, r, ActionCreateUser)
 			return
 		}
 		handleCreateUser(w, r)
@@ -838,11 +988,14 @@ func HandleUser(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		if !Can(GetRoleFromContext(r.Context()), ActionGetUser) {
+			denyForbidden(w, r, ActionGetUser)
+			return
+		}
 		handleGetUser(w, id)
 	case http.MethodPut:
-		role := GetRoleFromContext(r.Context())
-		if role != RoleAdmin {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+		if !Can(GetRoleFromContext(r.Context()), ActionUpdateUser) {
+			denyForbidden(w, r, ActionUpdateUser)
 			return
 		}
 		handleUpdateUser(w, r, id)

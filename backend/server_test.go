@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -160,6 +161,7 @@ func TestServerRoutes(t *testing.T) {
 			} else {
 				req = httptest.NewRequest(tt.method, tt.path, nil)
 			}
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 			rr := httptest.NewRecorder()
 

@@ -28,8 +28,10 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/issues/archived` | GET | `HandleArchivedIssues` | Required | Get all archived issues |
 | `/issues` | POST | `HandleCreateIssue` | Required | Create a new issue |
 | `/issues/:id` | GET | `HandleIssue` | Required | Get issue details |
-| `/issues/:id` | PUT | `HandleIssue` | Required | Update issue |
-| `/issues/:id` | DELETE | `HandleIssue` | Required | Delete issue |
+| `/issues/:id` | PUT | `HandleIssue` | Required | Update issue (non-archived only) |
+| `/issues/:id` | DELETE | `HandleIssue` | Admin | Delete issue |
+| `/issues/:id/archive` | POST | `HandleIssue` | Admin | Archive an issue |
+| `/issues/:id/unarchive` | POST | `HandleIssue` | Admin | Unarchive an issue (moves to Done) |
 | `/tasks` | POST | `HandleCreateTask` | Required | Create task (IssueID in body) |
 | `/tasks/:id` | PUT | `HandleTask` | Required | Update task |
 | `/tasks/:id` | DELETE | `HandleTask` | Required | Delete task |
@@ -168,10 +170,36 @@ Retrieves a specific issue by ID.
 Updates an existing issue.
 - **PUT** `/issues/:id`
 - **Body**: Partial issue object (e.g., `{"status": "Done"}`)
+- **Notes**:
+  - Archived issues are read-only — `PUT` returns `403 Forbidden`
+  - Setting `status` to `Archive` via `PUT` returns `400 Bad Request`; use `POST /issues/:id/archive` instead
+  - Supports optimistic locking via `If-Match` / `ETag` headers
 
 ### Delete Issue
-Deletes an issue and its associated tasks.
+Deletes an issue and its associated tasks (Admin only).
 - **DELETE** `/issues/:id`
+- **Errors**:
+  - `403 Forbidden` - Not an admin, or issue is archived
+
+### Archive Issue
+Moves an issue to the Archive status (Admin only).
+- **POST** `/issues/:id/archive`
+- **Body**: None
+- **Response**: Updated issue object
+- **Errors**:
+  - `400 Bad Request` - Issue is already archived
+  - `403 Forbidden` - Not an admin
+  - `404 Not Found` - Issue doesn't exist
+
+### Unarchive Issue
+Moves an archived issue back to Done status (Admin only).
+- **POST** `/issues/:id/unarchive`
+- **Body**: None
+- **Response**: Updated issue object
+- **Errors**:
+  - `400 Bad Request` - Issue is not archived
+  - `403 Forbidden` - Not an admin
+  - `404 Not Found` - Issue doesn't exist
 
 ## Tasks
 

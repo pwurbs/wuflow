@@ -9,6 +9,8 @@ import * as tasks from '../components/tasks.js';
 vi.mock('../api.js', () => ({
   createIssue: vi.fn(),
   updateIssue: vi.fn().mockResolvedValue({ issue: {}, etag: '"test-etag"', conflict: false }),
+  archiveIssue: vi.fn().mockResolvedValue({ id: 100, status: 'Archive' }),
+  unarchiveIssue: vi.fn().mockResolvedValue({ id: 101, status: 'Done' }),
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteIssue: vi.fn(),
@@ -20,7 +22,8 @@ vi.mock('../api.js', () => ({
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
-    currentIssue: null
+    currentIssue: null,
+    currentUser: { role: 'admin' }
   },
   setCurrentIssue: vi.fn((issue) => {
     // Manually update the mocked state for tests to see the change
@@ -151,6 +154,7 @@ describe('Modal Component', () => {
     api.fetchUsers.mockResolvedValue([{ id: 1, first_name: 'Test', last_name: 'User', active: true }]);
     api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
     state.state.currentIssue = null;
+    state.state.currentUser = { role: 'admin' };
     state.setCurrentIssue.mockImplementation((val) => { state.state.currentIssue = val; });
 
     // Initialize module
@@ -295,10 +299,7 @@ describe('Modal Component', () => {
     await new Promise(process.nextTick);
 
     expect(utils.showConfirm).toHaveBeenCalled();
-    expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
-      id: 100,
-      status: 'Archive'
-    }), expect.any(String));
+    expect(api.archiveIssue).toHaveBeenCalledWith(100);
     expect(utils.showModalNotification).toHaveBeenCalledWith('Issue archived');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
@@ -514,10 +515,7 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).toHaveBeenCalled();
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
-        id: 101,
-        status: 'Done'
-      }), expect.any(String));
+      expect(api.unarchiveIssue).toHaveBeenCalledWith(101);
       expect(utils.showModalNotification).toHaveBeenCalledWith('Issue unarchived');
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });

@@ -1,6 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
-import { createIssue, updateIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
 import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive } from '../utils.js';
+import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
@@ -197,14 +198,13 @@ function setupEditModal(issue) {
     onTaskEditEnd: () => checkRemoveUnloadListener()
   });
 
-  document.getElementById('delete-issue-btn').classList.toggle('hidden', isArchived);
-  if (isArchived) {
-    document.getElementById('archive-issue-btn').classList.add('hidden');
-    document.getElementById('unarchive-issue-btn').classList.remove('hidden');
-  } else {
-    document.getElementById('archive-issue-btn').classList.remove('hidden');
-    document.getElementById('unarchive-issue-btn').classList.add('hidden');
-  }
+  const user = state.currentUser;
+  const canDelete    = !isArchived && userCan(user, ACTION_DELETE_ISSUE);
+  const canArchBtn   = !isArchived && userCan(user, ACTION_ARCHIVE_ISSUE);
+  const canUnarchBtn =  isArchived && userCan(user, ACTION_UNARCHIVE_ISSUE);
+  document.getElementById('delete-issue-btn').classList.toggle('hidden', !canDelete);
+  document.getElementById('archive-issue-btn').classList.toggle('hidden', !canArchBtn);
+  document.getElementById('unarchive-issue-btn').classList.toggle('hidden', !canUnarchBtn);
 
   renderModalTimestamps(issue);
 
@@ -407,6 +407,7 @@ async function handleIssueSubmit(e) {
 
 async function handleDeleteIssue() {
   if (!state.currentIssue) return;
+  if (!userCan(state.currentUser, ACTION_DELETE_ISSUE)) return;
   if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
     await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id));
     closeModal();
@@ -415,6 +416,7 @@ async function handleDeleteIssue() {
 
 async function handleArchiveIssue() {
   if (!state.currentIssue) return;
+  if (!userCan(state.currentUser, ACTION_ARCHIVE_ISSUE)) return;
 
   const check = canArchive(state.currentIssue);
   if (!check.allowed) {
@@ -423,9 +425,9 @@ async function handleArchiveIssue() {
   }
 
   if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
-    state.currentIssue.status = 'Archive';
-    const success = await saveIssueWithConflictCheck(state.currentIssue, 'Issue archived');
-    if (success) {
+    const updated = await archiveIssue(state.currentIssue.id);
+    if (updated && updated.id) {
+      showModalNotification('Issue archived');
       closeModal();
     }
   }
@@ -433,10 +435,11 @@ async function handleArchiveIssue() {
 
 async function handleUnarchiveIssue() {
   if (!state.currentIssue) return;
+  if (!userCan(state.currentUser, ACTION_UNARCHIVE_ISSUE)) return;
   if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
-    state.currentIssue.status = 'Done';
-    const success = await saveIssueWithConflictCheck(state.currentIssue, 'Issue unarchived');
-    if (success) {
+    const updated = await unarchiveIssue(state.currentIssue.id);
+    if (updated && updated.id) {
+      showModalNotification('Issue unarchived');
       closeModal();
     }
   }
