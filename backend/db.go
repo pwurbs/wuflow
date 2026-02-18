@@ -243,6 +243,10 @@ func GetAllActiveIssues() ([]Issue, error) {
 		}
 		issues = append(issues, i)
 	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetAllActiveIssues Rows", "error", err)
+		return nil, err
+	}
 
 	// Batch fetch all tasks and assign to issues
 	tasksByIssue, err := GetAllTasks()
@@ -286,6 +290,10 @@ func GetAllArchivedIssues() ([]Issue, error) {
 			return nil, err
 		}
 		issues = append(issues, i)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetArchivedIssues Rows", "error", err)
+		return nil, err
 	}
 
 	// Batch fetch all tasks and assign to issues
@@ -550,6 +558,10 @@ func GetAllTasks() (map[int][]Task, error) {
 		}
 		result[t.IssueID] = append(result[t.IssueID], t)
 	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetAllTasks Rows", "error", err)
+		return nil, err
+	}
 	return result, nil
 }
 
@@ -574,6 +586,10 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 			t.Deadline = &deadline.Time
 		}
 		tasks = append(tasks, t)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetTasksByIssueID Rows", "error", err)
+		return nil, err
 	}
 	return tasks, nil
 }
@@ -685,6 +701,10 @@ func GetAllLabels() ([]Label, error) {
 			return nil, err
 		}
 		labels = append(labels, l)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetAllLabels Rows", "error", err)
+		return nil, err
 	}
 	return labels, nil
 }

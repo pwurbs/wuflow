@@ -260,6 +260,12 @@ func GetRoleFromContext(ctx context.Context) UserRole {
 	return role
 }
 
+// GetEmailFromContext extracts the user email from the request context.
+func GetEmailFromContext(ctx context.Context) string {
+	email, _ := ctx.Value(contextKeyEmail).(string)
+	return email
+}
+
 // EnsureInitialAdmin creates the initial admin user if no users exist.
 func EnsureInitialAdmin(initialAdminPassword string) error {
 	count, err := CountUsers()

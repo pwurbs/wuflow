@@ -1,4 +1,8 @@
 
+## 0.20.2
+
+- Improved error handling and logging
+
 ## 0.20.0
 
 - Added the user name who created and updated an issue in the Issue modal
