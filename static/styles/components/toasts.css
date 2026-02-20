@@ -34,4 +34,7 @@
 
 .notification-toast.error {
   background-color: #dc2626;
+  color: white;
+  font-style: normal;
+  padding: 12px 24px;
 }

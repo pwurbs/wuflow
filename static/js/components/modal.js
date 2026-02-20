@@ -111,7 +111,7 @@ export async function openModal(issue = null) {
       modalContent.classList.remove('loading-state');
 
       if (!freshIssue) {
-        showModalNotification('Issue not found or was deleted');
+        showModalNotification('Issue not found or was deleted', 'error');
         closeModal();
         return;
       }
@@ -122,7 +122,7 @@ export async function openModal(issue = null) {
     } catch (e) {
       modalContent.classList.remove('loading-state');
       console.error(e);
-      showModalNotification('Failed to load issue');
+      showModalNotification('Failed to load issue', 'error');
       modal.classList.add('hidden');
     }
   } else {

@@ -1364,7 +1364,7 @@ describe('Modal Component', () => {
 
       await openModal({ id: 999 });
 
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Issue not found or was deleted');
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Issue not found or was deleted', 'error');
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
@@ -1374,7 +1374,7 @@ describe('Modal Component', () => {
 
       await openModal({ id: 999 });
 
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Failed to load issue');
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Failed to load issue', 'error');
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
