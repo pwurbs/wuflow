@@ -146,8 +146,10 @@
                     </div>
                     <div class="setup-content">
                         <div class="label-input-group">
-                            <input type="text" id="new-label-input" placeholder="New label (max 15 chars)"
-                                class="setup-input" maxlength="15">
+                            <div class="label-input-wrapper">
+                                <input type="text" id="new-label-input" placeholder="New label (max 15 chars)"
+                                    class="setup-input">
+                            </div>
                             <button id="add-label-btn" class="btn secondary">+ Add</button>
                         </div>
                         <div id="labels-list" class="labels-grid">
@@ -184,12 +186,11 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="user-first-name">First Name</label>
-                                <input type="text" id="user-first-name" required placeholder="First name"
-                                    maxlength="50">
+                                <input type="text" id="user-first-name" required placeholder="First name">
                             </div>
                             <div class="form-group">
                                 <label for="user-last-name">Last Name</label>
-                                <input type="text" id="user-last-name" required placeholder="Last name" maxlength="50">
+                                <input type="text" id="user-last-name" required placeholder="Last name">
                             </div>
                         </div>
                         <div class="form-group">
@@ -338,7 +339,7 @@
                         <div class="form-group">
                             <label for="title">Title</label>
                             <div class="title-input-container">
-                                <input type="text" id="title" name="title" required class="large-input" maxlength="100">
+                                <input type="text" id="title" name="title" required class="large-input">
                                 <div id="title-edit-actions" class="inline-edit-actions hidden">
                                     <button type="button" id="title-cancel-btn"
                                         class="inline-edit-btn inline-cancel-btn" title="Cancel">
@@ -422,8 +423,9 @@
                             <ul id="task-list"></ul>
                             <div id="task-form-container">
                                 <div class="input-group">
-                                    <input type="text" id="new-task-title" name="task_title" placeholder="Add a task..."
-                                        maxlength="100">
+                                    <div class="task-title-input-wrapper">
+                                        <input type="text" id="new-task-title" name="task_title" placeholder="Add a task...">
+                                    </div>
                                     <div class="custom-date-input task-input-date">
                                         <span id="new-task-deadline-display"
                                             class="custom-date-display placeholder"></span>
@@ -568,7 +570,7 @@
             <form id="password-form">
                 <div class="form-group">
                     <label for="new-password">New Password</label>
-                    <input type="password" id="new-password" required placeholder="Enter new password">
+                    <input type="password" id="new-password" required placeholder="Enter new password" maxlength="128">
                     <small class="form-hint">Minimum 12 characters. No common passwords.</small>
                 </div>
                 <div id="password-modal-error" class="form-error hidden" role="alert"></div>

@@ -1,4 +1,8 @@
 
+## 0.20.5
+
+- Added text input counter information
+
 ## 0.20.4
 
 - Improved input validation

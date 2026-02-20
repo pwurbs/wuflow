@@ -1,5 +1,5 @@
 import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser } from '../api.js';
-import { showNotification, showConfirm, getUserInitials, escapeHtml } from '../utils.js';
+import { showNotification, showConfirm, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
 import { state } from '../state.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
@@ -15,11 +15,13 @@ export function setupSetupView(refreshCallback) {
   const addLabelBtn = document.getElementById('add-label-btn');
 
   if (addLabelBtn && addLabelInput) {
+    initCharCounter(addLabelInput, 15);
+
     // Function to handle adding label
     const handleAdd = async () => {
       const name = addLabelInput.value.trim();
       if (!name) return;
-      if (name.length > 15) {
+      if (countCodepoints(name) > 15) {
         showNotification('Label name must not exceed 15 characters.', 'error');
         return;
       }
@@ -137,6 +139,10 @@ function setupUserModal(refreshCallback) {
 
   // Setup custom dropdowns
   setupUserDropdown('user-role-trigger', 'user-role-options', 'user-role', 'user-role-text');
+
+  // Character counters for user name fields
+  initCharCounter(document.getElementById('user-first-name'), 50);
+  initCharCounter(document.getElementById('user-last-name'), 50);
 }
 
 function openUserModal(user) {
@@ -240,7 +246,7 @@ async function handleUserSubmit(refreshCallback) {
     showUserError(errorDisplay, 'First name and last name are required.');
     return;
   }
-  if (userData.first_name.length > 50 || userData.last_name.length > 50) {
+  if (countCodepoints(userData.first_name) > 50 || countCodepoints(userData.last_name) > 50) {
     showUserError(errorDisplay, 'First and last name must not exceed 50 characters.');
     return;
   }
@@ -258,7 +264,7 @@ async function handleUserSubmit(refreshCallback) {
   }
 
   if (userData.password) {
-    if (userData.password.length > 128) {
+    if (countCodepoints(userData.password) > 128) {
       showUserError(errorDisplay, 'Password must not exceed 128 characters.');
       return;
     }
@@ -294,7 +300,7 @@ function showUserError(el, message) {
  * Must match backend rules in validation.go.
  */
 export function validatePasswordPolicy(password, email) {
-  if (password.length < 12) {
+  if (countCodepoints(password) < 12) {
     return 'Password must be at least 12 characters';
   }
   if (email && password.toLowerCase() === email.toLowerCase()) {

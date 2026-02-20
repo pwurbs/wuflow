@@ -97,6 +97,15 @@ input:-webkit-autofill:active,
   gap: 8px;
 }
 
+.task-title-input-wrapper {
+  flex: 1;
+  align-self: flex-start;
+}
+
+.task-title-input-wrapper input {
+  width: 100%;
+}
+
 .input-group input {
   border: 1px solid var(--card-border);
   background-color: rgb(16, 22, 35);
@@ -195,4 +204,26 @@ input:-webkit-autofill:active,
   min-height: 38px;
   display: flex;
   align-items: center;
+}
+
+.char-counter {
+  display: none;
+  text-align: right;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted-text);
+  margin-top: 2px;
+  pointer-events: none;
+  user-select: none;
+}
+.char-counter.visible { display: block; }
+.char-counter.at-limit { color: var(--danger-color, #e74c3c); }
+
+/* Description editor counter: overlays bottom-right of the editor (no space wasted) */
+.char-counter.editor-counter {
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  margin: 0;
+  background: transparent;
 }

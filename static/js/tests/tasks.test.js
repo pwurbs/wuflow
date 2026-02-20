@@ -13,7 +13,9 @@ vi.mock('../utils.js', () => ({
   showNotification: vi.fn(),
   showModalNotification: vi.fn(),
   showConfirm: vi.fn(),
-  escapeHtml: vi.fn(s => s)
+  escapeHtml: vi.fn(s => s),
+  initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+  countCodepoints: vi.fn(s => [...s].length)
 }));
 
 vi.mock('../drag.js', () => ({

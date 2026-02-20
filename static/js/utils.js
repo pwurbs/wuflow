@@ -151,6 +151,79 @@ export function debounce(func, wait) {
 }
 
 
+export function countCodepoints(str) {
+  return [...str].length;
+}
+
+export function initCharCounter(el, maxLength, options = {}) {
+  const counter = document.createElement('span');
+  counter.className = 'char-counter' + (options.className ? ' ' + options.className : '');
+
+  const insertAfterEl = options.insertAfter || el;
+  insertAfterEl.parentNode.insertBefore(counter, insertAfterEl.nextSibling);
+
+  const isContentEditable = el.contentEditable === 'true';
+
+  // For contenteditable: capture last valid HTML before each change so we can revert
+  let lastValidHtml = '';
+  if (isContentEditable) {
+    el.addEventListener('beforeinput', () => {
+      lastValidHtml = el.innerHTML;
+    });
+  }
+
+  function getCount() {
+    return countCodepoints(isContentEditable ? el.innerHTML : el.value);
+  }
+
+  function update() {
+    if (!isContentEditable) {
+      // Enforce codepoint limit by truncating excess characters
+      const codepoints = [...el.value];
+      if (codepoints.length > maxLength) {
+        const pos = el.selectionStart;
+        el.value = codepoints.slice(0, maxLength).join('');
+        // Restore cursor position (clamped to new length)
+        el.selectionStart = el.selectionEnd = Math.min(pos, el.value.length);
+      }
+    } else if (countCodepoints(el.innerHTML) > maxLength) {
+      // Revert to last valid HTML and restore cursor to end
+      el.innerHTML = lastValidHtml;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = globalThis.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    const count = getCount();
+    counter.textContent = count + '/' + maxLength;
+    if (count >= maxLength) {
+      counter.classList.add('at-limit');
+    } else {
+      counter.classList.remove('at-limit');
+    }
+  }
+
+  function show() {
+    update();
+    counter.classList.add('visible');
+  }
+
+  function hide() {
+    counter.classList.remove('visible');
+  }
+
+  el.addEventListener('input', update);
+
+  if (!options.manual) {
+    el.addEventListener('focus', show);
+    el.addEventListener('blur', hide);
+  }
+
+  return { show, hide };
+}
+
 export function canArchive(issue) {
   if (!issue) return { allowed: false, reason: 'No issue provided' };
 

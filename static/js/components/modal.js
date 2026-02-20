@@ -1,6 +1,6 @@
 import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
-import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription } from '../utils.js';
+import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription, initCharCounter, countCodepoints } from '../utils.js';
 import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
@@ -29,6 +29,11 @@ export function setupModal(refreshApp) {
   setupInlineEditing();
   setupEditorToolbar();
   setupSidebarImmediateSave();
+
+  // Character counters
+  initCharCounter(document.getElementById('title'), 100);
+  initCharCounter(document.getElementById('description-editor'), 5000, { className: 'editor-counter' });
+  initCharCounter(document.getElementById('new-task-title'), 100);
 
   // Task Form
   document.getElementById('add-task-btn').addEventListener('click', handleTaskSubmit);
@@ -370,13 +375,13 @@ async function handleIssueSubmit(e) {
     document.getElementById('title').focus();
     return;
   }
-  if (titleValue.length > 100) {
+  if (countCodepoints(titleValue) > 100) {
     showNotification('Title must not exceed 100 characters.', 'error');
     document.getElementById('title').focus();
     return;
   }
   const descHtml = document.getElementById('description-editor').innerHTML || '';
-  if (descHtml.length > 5000) {
+  if (countCodepoints(descHtml) > 5000) {
     showNotification('Description HTML must not exceed 5000 characters.', 'error');
     return;
   }
@@ -902,7 +907,7 @@ async function handleTaskSubmit(e) {
   const titleInput = document.getElementById('new-task-title');
   const deadlineInput = document.getElementById('new-task-deadline');
   if (!titleInput.value.trim()) return;
-  if (titleInput.value.length > 100) {
+  if (countCodepoints(titleInput.value) > 100) {
     showNotification('Task title must not exceed 100 characters.', 'error');
     return;
   }

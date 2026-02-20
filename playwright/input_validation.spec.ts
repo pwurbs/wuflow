@@ -53,11 +53,10 @@ test.describe('Validation limits – Issue', () => {
     await page.click('#add-issue-btn');
     await expect(page.locator('#issue-modal')).toBeVisible();
 
-    // Remove maxlength so we can type more than 100 chars
+    // Set value directly (bypasses input-event truncation) to test JS validation backstop
     await page.evaluate(() => {
-      document.getElementById('title')?.removeAttribute('maxlength');
+      (document.getElementById('title') as HTMLInputElement).value = 'a'.repeat(101);
     });
-    await page.fill('#title', 'a'.repeat(101));
 
     await page.click('#save-issue-btn');
 
@@ -100,11 +99,10 @@ test.describe('Validation limits – Task', () => {
 
     await expect(page.locator('#tasks-section')).toBeVisible();
 
-    // Remove maxlength and fill 101 chars
+    // Set value directly (bypasses input-event truncation) to test JS validation backstop
     await page.evaluate(() => {
-      document.getElementById('new-task-title')?.removeAttribute('maxlength');
+      (document.getElementById('new-task-title') as HTMLInputElement).value = 'a'.repeat(101);
     });
-    await page.fill('#new-task-title', 'a'.repeat(101));
     await page.click('#add-task-btn');
 
     await expectMainError(page, 'Task title must not exceed 100 characters');
@@ -122,16 +120,10 @@ test.describe('Validation limits – Label', () => {
   });
 
   test('label name exceeding 15 characters is rejected', async ({ page }) => {
-    // Remove maxlength to allow long input
+    // Set value directly (bypasses input-event truncation) to test JS validation backstop
     await page.evaluate(() => {
-      document.getElementById('new-label-input')?.removeAttribute('maxlength');
+      (document.getElementById('new-label-input') as HTMLInputElement).value = 'a'.repeat(16);
     });
-    const longName = 'a'.repeat(16);
-    await page.fill('#new-label-input', longName);
-
-    // Verify input actually has 16 chars (debug check)
-    const val = await page.inputValue('#new-label-input');
-    expect(val.length).toBe(16);
 
     await page.click('#add-label-btn');
 
@@ -151,10 +143,10 @@ test.describe('Validation limits – User', () => {
 
   test('first name exceeding 50 characters is rejected', async ({ page }) => {
     await page.fill('#user-email', 'limit-test@example.com');
+    // Set value directly (bypasses input-event truncation) to test JS validation backstop
     await page.evaluate(() => {
-      document.getElementById('user-first-name')?.removeAttribute('maxlength');
+      (document.getElementById('user-first-name') as HTMLInputElement).value = 'a'.repeat(51);
     });
-    await page.fill('#user-first-name', 'a'.repeat(51));
     await page.fill('#user-last-name', 'Valid');
     await page.fill('#user-password', 'ValidPassword!1');
     await page.click('#user-modal-save');
@@ -165,10 +157,10 @@ test.describe('Validation limits – User', () => {
   test('last name exceeding 50 characters is rejected', async ({ page }) => {
     await page.fill('#user-email', 'limit-test2@example.com');
     await page.fill('#user-first-name', 'Valid');
+    // Set value directly (bypasses input-event truncation) to test JS validation backstop
     await page.evaluate(() => {
-      document.getElementById('user-last-name')?.removeAttribute('maxlength');
+      (document.getElementById('user-last-name') as HTMLInputElement).value = 'a'.repeat(51);
     });
-    await page.fill('#user-last-name', 'a'.repeat(51));
     await page.fill('#user-password', 'ValidPassword!1');
     await page.click('#user-modal-save');
 

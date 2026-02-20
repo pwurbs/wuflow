@@ -36,7 +36,9 @@ vi.mock('../utils.js', () => ({
   stripHtml: vi.fn(s => s),
   escapeHtml: vi.fn(s => s),
   canArchive: vi.fn().mockReturnValue({ allowed: true }),
-  sanitizeDescription: vi.fn(s => s)
+  sanitizeDescription: vi.fn(s => s),
+  initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+  countCodepoints: vi.fn(s => [...s].length)
 }));
 
 vi.mock('../components/tasks.js', () => ({

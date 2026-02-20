@@ -1,4 +1,4 @@
-import { escapeHtml, showModalNotification, showConfirm } from '../utils.js';
+import { escapeHtml, showModalNotification, showConfirm, initCharCounter } from '../utils.js';
 import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.js';
 
@@ -90,6 +90,8 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       const saveBtn = li.querySelector('.inline-save-btn');
       let originalTitle = task.title;
 
+      const titleCounter = initCharCounter(titleInput, 100, { manual: true });
+
       const enterEditMode = () => {
         li.classList.add('editing');
         li.draggable = false;
@@ -98,6 +100,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         originalTitle = task.title;
         titleInput.dataset.originalTitle = task.title; // Expose for modal.js
         titleInput.focus();
+        titleCounter.show();
         if (callbacks.onTaskEditStart) callbacks.onTaskEditStart();
       };
 
@@ -107,6 +110,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         titleInput.readOnly = true;
         editActions.classList.add('hidden');
         delete titleInput.dataset.originalTitle;
+        titleCounter.hide();
         if (callbacks.onTaskEditEnd) callbacks.onTaskEditEnd();
       };
 

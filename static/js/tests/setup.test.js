@@ -23,7 +23,9 @@ vi.mock('../utils.js', () => ({
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   getUserInitials: vi.fn().mockReturnValue('AD'),
-  escapeHtml: vi.fn((str) => str)
+  escapeHtml: vi.fn((str) => str),
+  initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+  countCodepoints: vi.fn(s => [...s].length)
 }));
 
 vi.mock('../state.js', () => ({

@@ -36,6 +36,8 @@ const (
 	testDBPath           = ":memory:"
 	testIssueTitleNew    = "New Issue"
 	testTaskTitleNew     = "New Task"
+	testAssigneeEmail    = "user@example.com"
+	expectedFalseDBError = "expected false on DB error"
 )
 
 func TestHandleActiveIssuesGet(t *testing.T) {
@@ -2201,3 +2203,196 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckAssignee(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create an active user
+	activeUser := &User{Email: "active@example.com", Active: true}
+	if err := CreateUser(activeUser); err != nil {
+		t.Fatalf("Failed to create active user: %v", err)
+	}
+
+	// Create an inactive user
+	inactiveUser := &User{Email: "inactive@example.com", Active: false}
+	if err := CreateUser(inactiveUser); err != nil {
+		t.Fatalf("Failed to create inactive user: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		issue        *Issue
+		current      *Issue
+		expectedRes  bool
+		expectedCode int
+	}{
+		{
+			name:         "Nil AssigneeID",
+			issue:        &Issue{AssigneeID: nil},
+			current:      nil,
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "New Active Assignee",
+			issue:        &Issue{AssigneeID: &activeUser.ID},
+			current:      nil,
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "New Inactive Assignee",
+			issue:        &Issue{AssigneeID: &inactiveUser.ID},
+			current:      nil,
+			expectedRes:  false,
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:         "Non-existent Assignee",
+			issue:        &Issue{AssigneeID: ptrInt(999)},
+			current:      nil,
+			expectedRes:  false,
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:         "Same Assignee (now inactive)",
+			issue:        &Issue{AssigneeID: &inactiveUser.ID},
+			current:      &Issue{AssigneeID: &inactiveUser.ID},
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Same Assignee (now active)",
+			issue:        &Issue{AssigneeID: &activeUser.ID},
+			current:      &Issue{AssigneeID: &activeUser.ID},
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Changed to Active Assignee",
+			issue:        &Issue{AssigneeID: &activeUser.ID},
+			current:      &Issue{AssigneeID: &inactiveUser.ID},
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Changed to Inactive Assignee",
+			issue:        &Issue{AssigneeID: &inactiveUser.ID},
+			current:      &Issue{AssigneeID: &activeUser.ID},
+			expectedRes:  false,
+			expectedCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			res := checkAssignee(rr, tt.issue, tt.current, testAssigneeEmail)
+			if res != tt.expectedRes {
+				t.Errorf("expected %v, got %v", tt.expectedRes, res)
+			}
+			if !tt.expectedRes && rr.Code != tt.expectedCode {
+				t.Errorf("expected code %v, got %v", tt.expectedCode, rr.Code)
+			}
+		})
+	}
+}
+
+func TestCheckAssigneeDBError(t *testing.T) {
+	oldDB := DB
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+	DB = closedDB
+	defer func() { DB = oldDB }()
+
+	id := 1
+	issue := &Issue{AssigneeID: &id}
+	rr := httptest.NewRecorder()
+	res := checkAssignee(rr, issue, nil, testAssigneeEmail)
+	if res {
+		t.Error(expectedFalseDBError)
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+
+	// Test Same Assignee error case
+	rr = httptest.NewRecorder()
+	res = checkAssignee(rr, issue, &Issue{AssigneeID: &id}, testAssigneeEmail)
+	if res {
+		t.Error(expectedFalseDBError)
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestCheckLabel(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	label := &Label{Name: "Bug", Color: "red"}
+	if err := CreateLabel(label); err != nil {
+		t.Fatalf("Failed to create label: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		issue        *Issue
+		expectedRes  bool
+		expectedCode int
+	}{
+		{
+			name:         "Nil Label",
+			issue:        &Issue{Label: nil},
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Existent Label",
+			issue:        &Issue{Label: &Label{ID: label.ID}},
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Non-existent Label",
+			issue:        &Issue{Label: &Label{ID: 999}},
+			expectedRes:  false,
+			expectedCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			res := checkLabel(rr, tt.issue, testAssigneeEmail)
+			if res != tt.expectedRes {
+				t.Errorf("expected %v, got %v", tt.expectedRes, res)
+			}
+			if !tt.expectedRes && rr.Code != tt.expectedCode {
+				t.Errorf("expected code %v, got %v", tt.expectedCode, rr.Code)
+			}
+		})
+	}
+}
+
+func TestCheckLabelDBError(t *testing.T) {
+	oldDB := DB
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+	DB = closedDB
+	defer func() { DB = oldDB }()
+
+	issue := &Issue{Label: &Label{ID: 1}}
+	rr := httptest.NewRecorder()
+	res := checkLabel(rr, issue, testAssigneeEmail)
+	if res {
+		t.Error(expectedFalseDBError)
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func ptrInt(i int) *int { return &i }

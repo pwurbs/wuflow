@@ -38,6 +38,22 @@
     max-width: 480px;
 }
 
+.label-input-wrapper {
+    flex: 1;
+    position: relative;
+}
+
+.label-input-wrapper .setup-input {
+    width: 100%;
+}
+
+.label-input-wrapper .char-counter {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin: 0;
+}
+
 .setup-input {
     flex: 1;
     padding: 4px 8px;
