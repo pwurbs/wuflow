@@ -407,6 +407,10 @@ func TestDBScanErrors(t *testing.T) {
 	}
 }
 
+const (
+	insertMockIssueQuery = "INSERT INTO issues(id, title, status, position) VALUES(1, 'T', 'todo', 1)"
+)
+
 func scanErrorGetAllActiveIssues(t *testing.T) error {
 	if _, err := DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "todo", notAnInt); err != nil {
 		return err
@@ -418,7 +422,7 @@ func scanErrorGetAllActiveIssues(t *testing.T) error {
 }
 
 func scanErrorGetTasksByIssueID(t *testing.T) error {
-	if _, err := DB.Exec("INSERT INTO issues(id, title, status, position) VALUES(1, 'T', 'todo', 1)"); err != nil {
+	if _, err := DB.Exec(insertMockIssueQuery); err != nil {
 		return err
 	}
 	// Tasks schema expects integer/real for position, but we force text.
@@ -460,6 +464,9 @@ func scanErrorGetAllLabels(t *testing.T) error {
 }
 
 func scanErrorGetAllTasks(t *testing.T) error {
+	if _, err := DB.Exec(insertMockIssueQuery); err != nil {
+		return err
+	}
 	if _, err := DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', 1)"); err != nil {
 		return err
 	}
@@ -486,7 +493,7 @@ func scanErrorGetArchivedIssues(t *testing.T) error {
 	if _, err := DB.Exec("DROP TABLE issues"); err != nil {
 		return err
 	}
-	if _, err := DB.Exec("CREATE TABLE issues (id TEXT, title TEXT, description TEXT, status TEXT, position INTEGER, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, created_at DATETIME, updated_at DATETIME)"); err != nil {
+	if _, err := DB.Exec("CREATE TABLE issues (id TEXT, title TEXT, description TEXT, status TEXT, position INTEGER, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, creator_id INTEGER, assignee_id INTEGER, updated_by INTEGER, created_at DATETIME, updated_at DATETIME)"); err != nil {
 		return err
 	}
 	if _, err := DB.Exec("INSERT INTO issues(id, title, status) VALUES(?, ?, ?)", notAnInt, "T", "Archive"); err != nil {
@@ -505,7 +512,7 @@ func scanErrorGetIssueByID(t *testing.T) error {
 	}
 	// id must be INTEGER or compatible for lookup to find it easily, but we want to break scan.
 	// Let's break position scan.
-	if _, err := DB.Exec("CREATE TABLE issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, status TEXT, position TEXT, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, created_at DATETIME, updated_at DATETIME)"); err != nil {
+	if _, err := DB.Exec("CREATE TABLE issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, status TEXT, position TEXT, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, creator_id INTEGER, assignee_id INTEGER, updated_by INTEGER, created_at DATETIME, updated_at DATETIME)"); err != nil {
 		return err
 	}
 	if _, err := DB.Exec("INSERT INTO issues(id, title, position) VALUES(1, 'T', ?)", notAnInt); err != nil {
@@ -519,6 +526,9 @@ func scanErrorGetIssueByID(t *testing.T) error {
 }
 
 func scanErrorGetTaskByID(t *testing.T) error {
+	if _, err := DB.Exec(insertMockIssueQuery); err != nil {
+		return err
+	}
 	if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title) VALUES(1, 1, 'T')"); err != nil {
 		return err
 	}

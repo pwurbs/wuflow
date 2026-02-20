@@ -47,11 +47,13 @@ export function filterIssues(issues, filter) {
 
   // Search filter (matches title or description)
   if (filter.search) {
-    const term = filter.search.toLowerCase();
-    result = result.filter(issue =>
-      issue.title.toLowerCase().includes(term) ||
-      issue.description?.toLowerCase().includes(term)
-    );
+    const term = filter.search.trim().toLowerCase();
+    if (term) {
+      result = result.filter(issue =>
+        issue.title.toLowerCase().includes(term) ||
+        issue.description?.toLowerCase().includes(term)
+      );
+    }
   }
 
   return result;

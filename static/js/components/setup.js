@@ -1,5 +1,5 @@
 import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser } from '../api.js';
-import { showModalNotification, showConfirm, getUserInitials } from '../utils.js';
+import { showNotification, showConfirm, getUserInitials, escapeHtml } from '../utils.js';
 import { state } from '../state.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
@@ -19,6 +19,10 @@ export function setupSetupView(refreshCallback) {
     const handleAdd = async () => {
       const name = addLabelInput.value.trim();
       if (!name) return;
+      if (name.length > 15) {
+        showNotification('Label name must not exceed 15 characters.', 'error');
+        return;
+      }
 
       try {
         // Fetch existing labels to check used colors
@@ -30,10 +34,10 @@ export function setupSetupView(refreshCallback) {
         addLabelInput.value = '';
         renderSetupView(refreshCallback); // Refresh list
         if (refreshCallback) refreshCallback(); // Refresh board/app
-        showModalNotification('Label created', 'success');
+        showNotification('Label created', 'success');
       } catch (err) {
         console.error(err);
-        showModalNotification('Failed to create label', 'error');
+        showNotification('Failed to create label', 'error');
       }
     };
 
@@ -72,7 +76,7 @@ export async function renderSetupView(refreshCallback) {
       labelEl.style.border = `1px solid ${label.color}`;
 
       labelEl.innerHTML = `
-                <span class="label-name">${label.name}</span>
+                <span class="label-name">${escapeHtml(label.name)}</span>
                 <button class="delete-label-btn" title="Delete Label">×</button>
             `;
 
@@ -87,10 +91,10 @@ export async function renderSetupView(refreshCallback) {
             await deleteLabel(label.id);
             renderSetupView(refreshCallback); // Refresh
             if (refreshCallback) refreshCallback(); // Refresh board/app
-            showModalNotification('Label deleted', 'success');
+            showNotification('Label deleted', 'success');
           } catch (err) {
             console.error(err);
-            showModalNotification('Failed to delete label', 'error');
+            showNotification('Failed to delete label', 'error');
           }
         }
       });
@@ -220,6 +224,28 @@ async function handleUserSubmit(refreshCallback) {
     active: activeInput.checked,
   };
 
+  // --- Client-side field validation ---
+  const emailRegex = /^[^\s@]+@[^\s@]+$/;
+  if (!userData.email || !emailRegex.test(userData.email)) {
+    showUserError(errorDisplay, 'A valid email address is required.');
+    emailInput.focus();
+    return;
+  }
+  if (userData.email.length > 254) {
+    showUserError(errorDisplay, 'Email must not exceed 254 characters.');
+    emailInput.focus();
+    return;
+  }
+  if (!userData.first_name || !userData.last_name) {
+    showUserError(errorDisplay, 'First name and last name are required.');
+    return;
+  }
+  if (userData.first_name.length > 50 || userData.last_name.length > 50) {
+    showUserError(errorDisplay, 'First and last name must not exceed 50 characters.');
+    return;
+  }
+  // --- End field validation ---
+
   // Include password only if provided
   if (passwordInput.value) {
     userData.password = passwordInput.value;
@@ -232,6 +258,10 @@ async function handleUserSubmit(refreshCallback) {
   }
 
   if (userData.password) {
+    if (userData.password.length > 128) {
+      showUserError(errorDisplay, 'Password must not exceed 128 characters.');
+      return;
+    }
     const pwError = validatePasswordPolicy(userData.password, userData.email);
     if (pwError) {
       showUserError(errorDisplay, pwError);
@@ -242,10 +272,10 @@ async function handleUserSubmit(refreshCallback) {
   try {
     if (editingUserId) {
       await updateUser(editingUserId, userData);
-      showModalNotification('User updated', 'success');
+      showNotification('User updated', 'success');
     } else {
       await createUser(userData);
-      showModalNotification('User created', 'success');
+      showNotification('User created', 'success');
     }
     closeUserModal();
     renderSetupView(refreshCallback);
@@ -344,9 +374,9 @@ async function renderUserList(refreshCallback) {
 
       row.innerHTML = `
         <div class="user-info">
-          <div class="user-badge">${getUserInitials(user)}</div>
-          <span class="user-email">${user.email}</span>
-          <span class="user-name">(${user.first_name} ${user.last_name})</span>
+          <div class="user-badge">${escapeHtml(getUserInitials(user))}</div>
+          <span class="user-email">${escapeHtml(user.email)}</span>
+          <span class="user-name">(${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)})</span>
           ${adminBadge}
         </div>
         <div class="user-meta">
@@ -404,19 +434,6 @@ function setupUserDropdown(triggerId, optionsId, inputId, textId) {
   });
 }
 
-function setUserDropdownValue(inputId, textId, value, label) {
-  const input = document.getElementById(inputId);
-  const text = document.getElementById(textId);
-  if (input) input.value = value;
-  if (text) text.textContent = label;
-  // Update selected state
-  const options = document.getElementById(inputId + '-options');
-  if (options) {
-    options.querySelectorAll('.custom-option').forEach(o => {
-      o.classList.toggle('selected', o.dataset.value === value);
-    });
-  }
-}
 
 export function getUnusedColor(usedColors) {
   const colors = [

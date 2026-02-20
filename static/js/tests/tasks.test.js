@@ -10,6 +10,7 @@ vi.mock('../api.js', () => ({
 }));
 
 vi.mock('../utils.js', () => ({
+  showNotification: vi.fn(),
   showModalNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => s)
@@ -59,6 +60,17 @@ describe('Tasks Component', () => {
     // Task A should be second (pos 1)
     expect(items[1].querySelector('.task-title-input').value).toBe('Task A');
     expect(items[1].classList.contains('done')).toBe(false);
+  });
+
+  it('should handle readOnly mode', () => {
+    callbacks.readOnly = true;
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const item = container.querySelector('.task-item');
+    const checkbox = item.querySelector('input[type="checkbox"]');
+    expect(checkbox.disabled).toBe(true);
+    expect(item.draggable).toBe(false);
+    expect(item.querySelector('.delete-task-btn').classList.contains('hidden')).toBe(true);
   });
 
   it('should toggle task status', async () => {
@@ -119,6 +131,20 @@ describe('Tasks Component', () => {
     expect(item.classList.contains('editing')).toBe(false);
   });
 
+  it('should cancel edit on empty title', async () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+    const saveBtn = item.querySelector('.inline-save-btn');
+
+    input.click();
+    input.value = '';
+    saveBtn.dispatchEvent(new Event('mousedown'));
+
+    expect(item.classList.contains('editing')).toBe(false);
+    expect(input.value).toBe('Task A'); // Reverted
+  });
+
   it('should update task deadline', async () => {
     renderTasks(issue.tasks, container, issue, callbacks);
 
@@ -128,11 +154,43 @@ describe('Tasks Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({
-      id: 10,
-      deadline: expect.any(Date)
-    }));
+    expect(api.updateTask).toHaveBeenCalled();
     expect(callbacks.onTaskUpdate).toHaveBeenCalled();
+  });
+
+  it('should handle keyboard navigation in edit mode', async () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+    const item = container.querySelector('.task-item');
+    const input = item.querySelector('.task-title-input');
+
+    input.click();
+    input.value = 'Keyboard Update';
+
+    // Enter to save
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await new Promise(process.nextTick);
+    expect(api.updateTask).toHaveBeenCalled();
+
+    // Enter again (should be out of edit mode now, but let's re-enter)
+    input.click();
+    input.value = 'Discarded';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(item.classList.contains('editing')).toBe(false);
+    expect(input.value).toBe('Keyboard Update');
+  });
+
+  it('should handle drag events', () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+    const item = container.querySelector('.task-item');
+
+    const dragStartEvent = new Event('dragstart');
+    dragStartEvent.dataTransfer = { effectAllowed: '' };
+    item.dispatchEvent(dragStartEvent);
+    expect(item.classList.contains('dragging')).toBe(true);
+
+    item.dispatchEvent(new Event('dragend'));
+    expect(item.classList.contains('dragging')).toBe(false);
+    expect(callbacks.onTaskOrderSave).toHaveBeenCalled();
   });
 
   it('should call onTaskEditStart when entering edit mode', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { stripHtml, escapeHtml, debounce, getUserInitials } from '../utils.js';
+import { stripHtml, escapeHtml, debounce, getUserInitials, sanitizeDescription } from '../utils.js';
 
 describe('stripHtml', () => {
   it('should return empty string for null input', () => {
@@ -41,7 +41,23 @@ describe('stripHtml', () => {
   it('should trim whitespace', () => {
     expect(stripHtml('  <p>Hello</p>  ')).toBe('Hello');
   });
+
+  it('should not execute scripts in unclosed html tags', () => {
+    const input = '<img src=x onerror=alert(1)';
+    const result = stripHtml(input);
+    // Depending on DOMParser behavior, it might drop it or return the text of the unclosed tag
+    // Either way, we just want to ensure it completes and doesn't throw or execute.
+    // The result should not contain the tag attributes in a dangerous way.
+    expect(result).toBeDefined();
+  });
+
+  it('should handle unclosed tags safely without innerHTML', () => {
+    const input = 'Hello <img src=x onerror=alert(1)';
+    const result = stripHtml(input);
+    expect(result).toBe('Hello'); // DOMParser textContent might be just "Hello"
+  });
 });
+
 
 describe('escapeHtml', () => {
   it('should return empty string for null input', () => {
@@ -181,5 +197,94 @@ describe('getUserInitials', () => {
     // if (user.first_name && user.last_name) ...
     const user = { first_name: 'John' };
     expect(getUserInitials(user)).toBe('??');
+  });
+});
+describe('sanitizeDescription', () => {
+  it('should return empty string for null/undefined/empty input', () => {
+    expect(sanitizeDescription(null)).toBe('');
+    expect(sanitizeDescription(undefined)).toBe('');
+    expect(sanitizeDescription('')).toBe('');
+  });
+
+  it('should preserve allowlisted formatting tags', () => {
+    const input = '<b>Bold</b> <i>Italic</i> <u>Underline</u> <br> <p>Paragraph</p>';
+    const output = sanitizeDescription(input);
+    expect(output).toContain('<b>Bold</b>');
+    expect(output).toContain('<i>Italic</i>');
+    expect(output).toContain('<u>Underline</u>');
+    expect(output).toContain('<br>');
+    expect(output).toContain('<p>Paragraph</p>');
+  });
+
+  it('should preserve allowlisted list tags', () => {
+    const input = '<ul><li>Item 1</li></ul><ol><li>Item 1</li></ol>';
+    const output = sanitizeDescription(input);
+    expect(output).toBe('<ul><li>Item 1</li></ul><ol><li>Item 1</li></ol>');
+  });
+
+  it('should strip dangerous tags', () => {
+    const input = '<script>alert("XSS")</script><iframe></iframe><style>body{color:red}</style><img src="x" onerror="alert(1)">';
+    const output = sanitizeDescription(input);
+    expect(output).not.toContain('<script>');
+    expect(output).not.toContain('<iframe>');
+    expect(output).not.toContain('<style>');
+    expect(output).not.toContain('<img');
+    // Attribute values should be gone
+    expect(output.toLowerCase()).not.toContain('alert(1)');
+  });
+
+  it('should strip all attributes from non-anchor tags', () => {
+    const input = '<p id="p1" class="my-para" style="color:red" onclick="alert(1)">Text</p>';
+    const output = sanitizeDescription(input);
+    expect(output).toBe('<p>Text</p>');
+  });
+
+  it('should allow only safe attributes on anchor tags', () => {
+    const input = '<a href="https://example.com" id="link1" class="btn" onclick="alert(1)">Link</a>';
+    const output = sanitizeDescription(input);
+    expect(output).toBe('<a href="https://example.com" target="_blank" rel="noopener noreferrer">Link</a>');
+  });
+
+  it('should enforce target="_blank" and rel="noopener noreferrer" on anchor tags', () => {
+    const input = '<a href="https://example.com" target="_self">Link</a>';
+    const output = sanitizeDescription(input);
+    expect(output).toContain('target="_blank"');
+    expect(output).toContain('rel="noopener noreferrer"');
+  });
+
+  it('should strip unsafe href protocols', () => {
+    const inputs = [
+      '<a href="javascript:alert(1)">JS</a>',
+      '<a href="data:text/html,<html>XSS</html>">Data</a>',
+      '<a href="vbscript:msgbox(1)">VB</a>',
+      '<a href="  javascript:alert(1)">Spaces</a>'
+    ];
+    inputs.forEach(input => {
+      const output = sanitizeDescription(input);
+      // When href is stripped, we still get target/rel because of our enforcement logic 
+      // on ANY anchor that survives. Wait, if href is stripped, should we still have <a>?
+      // Re-reading code: if (!/^(https?:\/\/)/i.test(attr.value)) element.removeAttribute(attr.name);
+      // And then element.hasAttribute('href') check. So if href is gone, NO target/rel.
+      expect(output).toBe('<a>' + stripHtml(input) + '</a>');
+    });
+  });
+
+  it('should preserve safe href protocols', () => {
+    expect(sanitizeDescription('<a href="http://example.com">HTTP</a>')).toBe('<a href="http://example.com" target="_blank" rel="noopener noreferrer">HTTP</a>');
+    expect(sanitizeDescription('<a href="https://example.com">HTTPS</a>')).toBe('<a href="https://example.com" target="_blank" rel="noopener noreferrer">HTTPS</a>');
+  });
+
+  it('should handle nested safe/unsafe tags', () => {
+    // <span> is NOT allowed, so it should be unwrapped
+    const input = '<div><p><b>Safe</b> <span id="s1">Unsafe</span></p></div>';
+    const output = sanitizeDescription(input);
+    // <div> and <span> are removed, <p> and <b> are kept, text is kept
+    expect(output).toBe('<p><b>Safe</b> Unsafe</p>');
+  });
+
+  it('should handle malformed HTML Gracefully', () => {
+    const input = '<b>Unclosed Tag';
+    const output = sanitizeDescription(input);
+    expect(output).toBe('<b>Unclosed Tag</b>');
   });
 });

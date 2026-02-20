@@ -2,12 +2,14 @@ package backend
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -19,6 +21,8 @@ const (
 	errMsgArchivedReadOnly    = "Archived issues are read-only"
 	errMsgInternalServerError = "Internal server error"
 	errMsgUserNotFound        = "User not found"
+	errMsgInvalidLabel        = "Invalid label ID"
+	errMsgInvalidAssignee     = "Invalid or inactive assignee"
 	headerContentType         = "Content-Type"
 	contentTypeJSON           = "application/json"
 	loginPath                 = "/login"
@@ -32,6 +36,65 @@ func denyForbidden(w http.ResponseWriter, r *http.Request, action Action) {
 	email := GetEmailFromContext(r.Context())
 	slog.Warn("Permission denied", "action", action, "role", GetRoleFromContext(r.Context()), "email", email, "method", r.Method, "path", r.URL.Path)
 	http.Error(w, errMsgForbidden, http.StatusForbidden)
+}
+
+// checkAssignee verifies AssigneeID against the DB
+func checkAssignee(w http.ResponseWriter, i *Issue, current *Issue, userEmail string) bool {
+	if i.AssigneeID == nil {
+		return true
+	}
+
+	if current == nil || current.AssigneeID == nil || *i.AssigneeID != *current.AssigneeID {
+		// New assignee: must exist and be active
+		active, err := UserExistsAndActive(*i.AssigneeID)
+		if err != nil {
+			slog.Error("Validate: UserExistsAndActive failed", "error", err, "user_email", userEmail)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return false
+		}
+		if !active {
+			slog.Warn("Validate: Invalid or inactive assignee", "assignee_id", *i.AssigneeID, "user_email", userEmail)
+			http.Error(w, errMsgInvalidAssignee, http.StatusBadRequest)
+			return false
+		}
+		return true
+	}
+
+	// Same assignee: must exist (can be inactive now)
+	exists, err := UserExists(*i.AssigneeID)
+	if err != nil {
+		slog.Error("Validate: UserExists failed", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return false
+	}
+	if !exists {
+		slog.Warn("Validate: Assignee no longer exists", "assignee_id", *i.AssigneeID, "user_email", userEmail)
+		http.Error(w, "Assignee no longer exists", http.StatusBadRequest)
+		return false
+	}
+
+	return true
+}
+
+// checkLabel verifies Label against the DB
+func checkLabel(w http.ResponseWriter, i *Issue, userEmail string) bool {
+	if i.Label == nil {
+		return true
+	}
+
+	exists, err := LabelExists(i.Label.ID)
+	if err != nil {
+		slog.Error("Validate: LabelExists failed", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return false
+	}
+	if !exists {
+		slog.Warn("Validate: Invalid label ID", "label_id", i.Label.ID, "user_email", userEmail)
+		http.Error(w, errMsgInvalidLabel, http.StatusBadRequest)
+		return false
+	}
+
+	return true
 }
 
 // HandleCreateIssue handles POST requests to create a new issue.
@@ -54,9 +117,14 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 
 		userEmail := GetEmailFromContext(r.Context())
 
+		// Validate AssigneeID and Label against the database
+		if !checkAssignee(w, &i, nil, userEmail) || !checkLabel(w, &i, userEmail) {
+			return
+		}
+
 		if err := CreateIssue(&i); err != nil {
 			slog.Error("CreateIssue failed", "error", err, "user_email", userEmail)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 			return
 		}
 
@@ -64,11 +132,11 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		created, err := GetIssueByID(i.ID)
 		if err != nil {
 			slog.Error("CreateIssue: failed to fetch created issue", "id", i.ID, "error", err, "user_email", userEmail)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 			return
 		}
 
-		slog.Info("Issue created", "id", i.ID, "title", i.Title, "user_email", userEmail)
+		slog.Info("Issue created", "id", i.ID, "user_email", userEmail)
 		w.WriteHeader(http.StatusCreated)
 		if err := json.NewEncoder(w).Encode(created); err != nil {
 			slog.Error("CreateIssue: failed to encode response", "error", err, "user_email", userEmail)
@@ -89,7 +157,7 @@ func HandleActiveIssues(w http.ResponseWriter, r *http.Request) {
 		issues, err := GetAllActiveIssues()
 		if err != nil {
 			slog.Error("GetAllActiveIssues failed", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -112,7 +180,7 @@ func HandleArchivedIssues(w http.ResponseWriter, r *http.Request) {
 		issues, err := GetAllArchivedIssues()
 		if err != nil {
 			slog.Error("GetAllArchivedIssues failed", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 			return
 		}
 		if err := json.NewEncoder(w).Encode(issues); err != nil {
@@ -129,7 +197,7 @@ func HandleIssue(w http.ResponseWriter, r *http.Request) {
 	parts := strings.SplitN(pathSuffix, "/", 2)
 	id, err := strconv.Atoi(parts[0])
 	if err != nil {
-		slog.Warn("Invalid issue ID", "id", parts[0], "error", err)
+		slog.Warn("Invalid issue ID", "error", err)
 		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
@@ -197,7 +265,7 @@ func handleGetIssue(w http.ResponseWriter, id int) {
 	issue, err := GetIssueByID(id)
 	if err != nil {
 		slog.Error("GetIssueByID failed", "id", id, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if issue == nil {
@@ -219,7 +287,7 @@ func handleArchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
 	current, err := GetIssueByID(id)
 	if err != nil {
 		slog.Error("GetIssueByID failed for archive", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if current == nil {
@@ -234,7 +302,7 @@ func handleArchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
 	current.Status = StatusArchive
 	if err := UpdateIssue(current); err != nil {
 		slog.Error("UpdateIssue failed for archive", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	respondWithUpdatedIssue(w, id, "Issue archived", userEmail)
@@ -247,7 +315,7 @@ func handleUnarchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
 	current, err := GetIssueByID(id)
 	if err != nil {
 		slog.Error("GetIssueByID failed for unarchive", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if current == nil {
@@ -262,7 +330,7 @@ func handleUnarchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
 	current.Status = StatusDone
 	if err := UpdateIssue(current); err != nil {
 		slog.Error("UpdateIssue failed for unarchive", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	respondWithUpdatedIssue(w, id, "Issue unarchived", userEmail)
@@ -273,7 +341,7 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	current, err := GetIssueByID(id)
 	if err != nil {
 		slog.Error("GetIssueByID failed for put", "id", id, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if current == nil {
@@ -290,9 +358,7 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	}
 
 	var i Issue
-	if err := json.NewDecoder(r.Body).Decode(&i); err != nil {
-		slog.Warn("Failed to decode issue for update", "error", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &i, validateIssue) {
 		return
 	}
 
@@ -304,9 +370,8 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	i.UpdaterID = &updaterID
 	userEmail := GetEmailFromContext(r.Context())
 
-	if err := validateIssue(&i); err != nil {
-		slog.Warn("Issue update validation failed", "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	// Validate AssigneeID and Label against the database
+	if !checkAssignee(w, &i, current, userEmail) || !checkLabel(w, &i, userEmail) {
 		return
 	}
 
@@ -331,7 +396,7 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 			return
 		}
 		slog.Error("UpdateIssue failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	// Return new ETag after update
@@ -345,7 +410,7 @@ func checkIfMatchConflict(w http.ResponseWriter, id int, ifMatch string) bool {
 	current, err := GetIssueByID(id)
 	if err != nil {
 		slog.Error("GetIssueByID failed for If-Match check", "id", id, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return true
 	}
 	if current == nil {
@@ -354,7 +419,7 @@ func checkIfMatchConflict(w http.ResponseWriter, id int, ifMatch string) bool {
 	}
 	currentEtag := `"` + current.UpdatedAt.UTC().Format(time.RFC3339Nano) + `"`
 	if ifMatch != currentEtag {
-		slog.Info("Conflict detected", "id", id, "client_etag", ifMatch, "current_etag", currentEtag)
+		slog.Info("Conflict detected", "id", id)
 		http.Error(w, "Issue has been modified by another user", http.StatusConflict)
 		return true
 	}
@@ -368,7 +433,7 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, id int) {
 	issue, err := GetIssueByID(id)
 	if err != nil {
 		slog.Error("GetIssueByID failed for delete check", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if issue == nil {
@@ -387,10 +452,10 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, id int) {
 			return
 		}
 		slog.Error("DeleteIssue failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
-	slog.Info("Issue deleted", "id", id, "title", issue.Title, "user_email", userEmail)
+	slog.Info("Issue deleted", "id", id, "user_email", userEmail)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -425,7 +490,7 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	issue, err := GetIssueByID(t.IssueID)
 	if err != nil {
 		slog.Error("GetIssueByID failed for task creation check", "id", t.IssueID, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if issue == nil {
@@ -441,10 +506,10 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	if err := CreateTask(&t); err != nil {
 		slog.Error("CreateTask failed", "issue_id", t.IssueID, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
-	slog.Info("Task created", "id", t.ID, "title", t.Title, "issue_id", t.IssueID, "user_email", userEmail)
+	slog.Info("Task created", "id", t.ID, "issue_id", t.IssueID, "user_email", userEmail)
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(t); err != nil {
 		slog.Error("handleCreateTask: failed to encode response", "id", t.ID, "error", err, "user_email", userEmail)
@@ -457,7 +522,7 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		slog.Warn("Invalid task ID", "id", idStr, "error", err)
+		slog.Warn("Invalid task ID", "error", err)
 		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
@@ -482,25 +547,17 @@ func HandleTask(w http.ResponseWriter, r *http.Request) {
 // handlePutTask updates an existing task, checking for archived issue status.
 func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
 	var t Task
-	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		slog.Warn("Failed to decode task for update", "error", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &t, validateTask) {
 		return
 	}
 
 	userEmail := GetEmailFromContext(r.Context())
 
-	if err := validateTask(&t); err != nil {
-		slog.Warn("Task update validation failed", "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	// Check if parent issue is archived
 	task, err := GetTaskByID(id)
 	if err != nil {
 		slog.Error("GetTaskByID failed for task update check", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if task == nil {
@@ -510,7 +567,7 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
 	issue, err := GetIssueByID(task.IssueID)
 	if err != nil {
 		slog.Error("GetIssueByID failed for task update check", "id", task.IssueID, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if issue != nil && issue.Status == StatusArchive {
@@ -526,10 +583,10 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
 			return
 		}
 		slog.Error("UpdateTask failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
-	slog.Info("Task updated", "id", id, "title", t.Title, "user_email", userEmail)
+	slog.Info("Task updated", "id", id, "user_email", userEmail)
 	if err := json.NewEncoder(w).Encode(t); err != nil {
 		slog.Error("handlePutTask: failed to encode response", "id", id, "error", err, "user_email", userEmail)
 	}
@@ -541,7 +598,7 @@ func handleDeleteTask(w http.ResponseWriter, id int) {
 	task, err := GetTaskByID(id)
 	if err != nil {
 		slog.Error("GetTaskByID failed for task delete check", "id", id, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if task == nil {
@@ -551,7 +608,7 @@ func handleDeleteTask(w http.ResponseWriter, id int) {
 	issue, err := GetIssueByID(task.IssueID)
 	if err != nil {
 		slog.Error("GetIssueByID failed for task delete check", "id", task.IssueID, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if issue != nil && issue.Status == StatusArchive {
@@ -565,7 +622,7 @@ func handleDeleteTask(w http.ResponseWriter, id int) {
 			return
 		}
 		slog.Error("DeleteTask failed", "id", id, "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -595,7 +652,7 @@ func handleListLabels(w http.ResponseWriter, r *http.Request) {
 	labels, err := GetAllLabels()
 	if err != nil {
 		slog.Error("GetAllLabels failed", "error", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	if err := json.NewEncoder(w).Encode(labels); err != nil {
@@ -606,25 +663,17 @@ func handleListLabels(w http.ResponseWriter, r *http.Request) {
 
 func handleCreateLabel(w http.ResponseWriter, r *http.Request) {
 	var l Label
-	if err := json.NewDecoder(r.Body).Decode(&l); err != nil {
-		slog.Warn("Failed to decode label", "error", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &l, validateLabel) {
 		return
 	}
 
 	userEmail := GetEmailFromContext(r.Context())
-
-	if err := validateLabel(&l); err != nil {
-		slog.Warn("Label validation failed", "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	if err := CreateLabel(&l); err != nil {
 		slog.Error("CreateLabel failed", "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
-	slog.Info("Label created", "id", l.ID, "name", l.Name, "user_email", userEmail)
+	slog.Info("Label created", "id", l.ID, "user_email", userEmail)
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(l); err != nil {
 		slog.Error("CreateLabel: failed to encode response", "error", err, "user_email", userEmail)
@@ -636,7 +685,7 @@ func HandleLabel(w http.ResponseWriter, r *http.Request) {
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/labels/")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		slog.Warn("Invalid label ID", "id", idStr, "error", err)
+		slog.Warn("Invalid label ID", "error", err)
 		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
 		return
 	}
@@ -653,7 +702,7 @@ func HandleLabel(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			slog.Error("DeleteLabel failed", "id", id, "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -672,6 +721,24 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+// validateLoginRequest ensures an email and password are present and within length limits.
+func validateLoginRequest(req *loginRequest) error {
+	req.Email = strings.TrimSpace(req.Email)
+	if req.Email == "" || !emailRegex.MatchString(req.Email) {
+		return ErrInvalidEmail
+	}
+	if len(req.Email) > MaxEmailLength {
+		return ErrEmailTooLong
+	}
+	if req.Password == "" {
+		return errors.New("password is required")
+	}
+	if utf8.RuneCountInString(req.Password) > MaxPasswordLength {
+		return ErrPasswordTooLong
+	}
+	return nil
+}
+
 // HandleLogin handles POST /api/auth/login.
 // Validates credentials and sets JWT cookies on success.
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -681,8 +748,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req loginRequest
-	if json.NewDecoder(r.Body).Decode(&req) != nil {
-		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req, validateLoginRequest) {
 		return
 	}
 
@@ -870,9 +936,7 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 
 	// We reuse the createUserRequest structure but ignore role/active fields for self-update
 	var req createUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Warn("UpdateSelf: invalid request body", "error", err)
-		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req, func(r *createUserRequest) error { return nil }) {
 		return
 	}
 
@@ -925,6 +989,31 @@ type createUserRequest struct {
 	Active    bool     `json:"active"`
 }
 
+// validateCreateUserRequest validates the DTO fields (email, name, role).
+// Password policy is checked separately in the handler because it depends on
+// the resolved email and is only required on creation.
+func validateCreateUserRequest(req *createUserRequest) error {
+	req.Email = strings.TrimSpace(req.Email)
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	if req.Email == "" || !emailRegex.MatchString(req.Email) {
+		return ErrInvalidEmail
+	}
+	if len(req.Email) > MaxEmailLength {
+		return ErrEmailTooLong
+	}
+	if req.FirstName == "" || req.LastName == "" {
+		return ErrInvalidName
+	}
+	if utf8.RuneCountInString(req.FirstName) > MaxUserNameLength || utf8.RuneCountInString(req.LastName) > MaxUserNameLength {
+		return ErrUserNameTooLong
+	}
+	if !isValidRole(req.Role) {
+		return ErrInvalidRole
+	}
+	return nil
+}
+
 // HandleUsers handles GET /api/users (list) and POST /api/users (create).
 // Requires admin role.
 func HandleUsers(w http.ResponseWriter, r *http.Request) {
@@ -965,24 +1054,16 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	userEmail := GetEmailFromContext(r.Context())
 
 	var req createUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Warn("CreateUser: invalid request body", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req, validateCreateUserRequest) {
 		return
 	}
 
 	user := &User{
-		Email:     strings.TrimSpace(req.Email),
-		FirstName: strings.TrimSpace(req.FirstName),
-		LastName:  strings.TrimSpace(req.LastName),
+		Email:     req.Email, // already trimmed by validateCreateUserRequest
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
 		Role:      req.Role,
 		Active:    req.Active,
-	}
-
-	if err := validateUser(user); err != nil {
-		slog.Warn("CreateUser: validation failed", "error", err, "admin_email", userEmail)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
 	}
 
 	if req.Password == "" {
@@ -1091,9 +1172,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 	}
 
 	var req createUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Warn("UpdateUser: invalid request body", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req, validateCreateUserRequest) {
 		return
 	}
 
@@ -1200,11 +1279,11 @@ func respondWithUpdatedIssue(w http.ResponseWriter, id int, actionLog, userEmail
 	updated, err := GetIssueByID(id)
 	if err != nil {
 		slog.Error("GetIssueByID failed after update", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info(actionLog, "id", id, "title", updated.Title, "user_email", userEmail)
+	slog.Info(actionLog, "id", id, "user_email", userEmail)
 
 	newEtag := updated.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	w.Header().Set("ETag", `"`+newEtag+`"`)
@@ -1220,7 +1299,7 @@ func respondWithUpdatedIssue(w http.ResponseWriter, id int, actionLog, userEmail
 func decodeAndValidate[T any](w http.ResponseWriter, r *http.Request, v *T, validate func(*T) error) bool {
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
 		slog.Warn("Failed to decode request", "type", fmt.Sprintf("%T", v), "error", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
 		return false
 	}
 	if err := validate(v); err != nil {

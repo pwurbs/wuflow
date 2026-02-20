@@ -103,6 +103,96 @@ func TestHandleCreateIssuePost(t *testing.T) {
 	}
 }
 
+func TestHandleCreateIssueInvalidAssignee(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	invalidAssigneeID := 999
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, AssigneeID: &invalidAssigneeID}
+	body, _ := json.Marshal(issue)
+
+	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleCreateIssue)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCreateIssueInvalidLabel(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, Label: &Label{ID: 999}}
+	body, _ := json.Marshal(issue)
+
+	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleCreateIssue)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCreateIssueInvalidPosition(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, Position: -1}
+	body, _ := json.Marshal(issue)
+
+	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleCreateIssue)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCreateIssueInvalidDeadline(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	invalidDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, Deadline: &invalidDeadline}
+	body, _ := json.Marshal(issue)
+
+	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleCreateIssue)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
+	}
+}
+
 func TestHandleIssuePut(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
@@ -1703,8 +1793,8 @@ func TestHandleIssueUpdateAssignee(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create users
-	creator := &User{Email: "c@test.com", FirstName: "C", LastName: "U", Role: RoleUser}
-	assignee := &User{Email: "a@test.com", FirstName: "A", LastName: "U", Role: RoleUser}
+	creator := &User{Email: "c@test.com", FirstName: "C", LastName: "U", Role: RoleUser, Active: true}
+	assignee := &User{Email: "a@test.com", FirstName: "A", LastName: "U", Role: RoleUser, Active: true}
 	CreateUser(creator)
 	CreateUser(assignee)
 

@@ -72,7 +72,10 @@ test.describe('Authentication Security', () => {
     // We expect the ACCESS token to still be valid (stateless JWT), so navigating to '/' might work!
     // But the SESSION (Refresh Token) should be revoked in the DB.
     // So we invoke the refresh endpoint directly to verify revocation.
-    const response = await page.request.post('/api/auth/refresh');
+    const response = await page.request.post('/api/auth/refresh', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {}
+    });
 
     // Expect: 401 Unauthorized (Session Revoked)
     expect(response.status()).toBe(401);
@@ -91,7 +94,10 @@ test.describe('Authentication Security', () => {
 
     // 3. Trigger Refresh (Rotate to Session B)
     // We use the page's request context which shares cookies with the browser context
-    const refreshResponse = await page.request.post('/api/auth/refresh');
+    const refreshResponse = await page.request.post('/api/auth/refresh', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {}
+    });
     expect(refreshResponse.status()).toBe(200);
 
     // 4. State B is now valid in the browser. State A is old.
@@ -101,8 +107,10 @@ test.describe('Authentication Security', () => {
     // using the OLD cookies.
     const attackerResponse = await request.post('/api/auth/refresh', {
       headers: {
-        'Cookie': cookiesA.map(c => `${c.name}=${c.value}`).join('; ')
-      }
+        'Cookie': cookiesA.map(c => `${c.name}=${c.value}`).join('; '),
+        'Content-Type': 'application/json'
+      },
+      data: {}
     });
 
     // Expect: 401 Unauthorized (Reuse Detected and Blocked)
@@ -110,7 +118,10 @@ test.describe('Authentication Security', () => {
 
     // 6. Victim: The original user (who had State B) should now be REVOKED.
     // Try to refresh again with the browser's current cookies (State B)
-    const victimResponse = await page.request.post('/api/auth/refresh');
+    const victimResponse = await page.request.post('/api/auth/refresh', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {}
+    });
 
     // Expect: 401 Unauthorized (Session Revoked)
     expect(victimResponse.status()).toBe(401);

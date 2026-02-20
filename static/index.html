@@ -54,7 +54,8 @@
 
                     <!-- Search Input -->
                     <div id="search-filter-wrapper" class="filter-input-wrapper" style="margin-left: 10px;">
-                        <input type="text" id="search-input" placeholder="Search..." class="search-input">
+                        <input type="text" id="search-input" placeholder="Search..." class="search-input"
+                            maxlength="50">
                     </div>
                 </div>
             </div>
@@ -177,22 +178,23 @@
                     <form id="user-form" autocomplete="off">
                         <div class="form-group">
                             <label for="user-email">Email</label>
-                            <input type="text" id="user-email" required placeholder="user@example.com"
-                                pattern="[^@\s]+@[^@\s]+" title="Email address (e.g. user@domain)">
+                            <input type="text" id="user-email" required placeholder="user@example.com" maxlength="254"
+                                pattern="[^\s@]+@[^\s@]+" title="Email address (e.g. user@domain)">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="user-first-name">First Name</label>
-                                <input type="text" id="user-first-name" required placeholder="First name">
+                                <input type="text" id="user-first-name" required placeholder="First name"
+                                    maxlength="50">
                             </div>
                             <div class="form-group">
                                 <label for="user-last-name">Last Name</label>
-                                <input type="text" id="user-last-name" required placeholder="Last name">
+                                <input type="text" id="user-last-name" required placeholder="Last name" maxlength="50">
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="user-password">Password</label>
-                            <input type="password" id="user-password">
+                            <input type="password" id="user-password" maxlength="128">
                             <small id="user-password-hint" class="form-hint">Leave empty to keep current password (edit
                                 only)</small>
                         </div>
@@ -336,7 +338,7 @@
                         <div class="form-group">
                             <label for="title">Title</label>
                             <div class="title-input-container">
-                                <input type="text" id="title" name="title" required class="large-input">
+                                <input type="text" id="title" name="title" required class="large-input" maxlength="100">
                                 <div id="title-edit-actions" class="inline-edit-actions hidden">
                                     <button type="button" id="title-cancel-btn"
                                         class="inline-edit-btn inline-cancel-btn" title="Cancel">
@@ -420,8 +422,8 @@
                             <ul id="task-list"></ul>
                             <div id="task-form-container">
                                 <div class="input-group">
-                                    <input type="text" id="new-task-title" name="task_title"
-                                        placeholder="Add a task...">
+                                    <input type="text" id="new-task-title" name="task_title" placeholder="Add a task..."
+                                        maxlength="100">
                                     <div class="custom-date-input task-input-date">
                                         <span id="new-task-deadline-display"
                                             class="custom-date-display placeholder"></span>

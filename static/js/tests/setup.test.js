@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setupSetupView, renderSetupView, validatePasswordPolicy, isBlacklistedPassword, isLight } from '../components/setup.js';
+import { setupSetupView, renderSetupView, validatePasswordPolicy, isBlacklistedPassword, isLight, getUnusedColor } from '../components/setup.js';
 import * as api from '../api.js';
 import * as utils from '../utils.js';
 import { state } from '../state.js';
+
+// Helper to generate random pass
+function generateRandomPassword() {
+  return btoa(Math.random().toString()).slice(0, 16) + 'U1!'; // NOSONAR
+}
 
 // Mock dependencies
 vi.mock('../api.js', () => ({
@@ -15,9 +20,10 @@ vi.mock('../api.js', () => ({
 }));
 
 vi.mock('../utils.js', () => ({
-  showModalNotification: vi.fn(),
+  showNotification: vi.fn(),
   showConfirm: vi.fn(),
-  getUserInitials: vi.fn().mockReturnValue('AD')
+  getUserInitials: vi.fn().mockReturnValue('AD'),
+  escapeHtml: vi.fn((str) => str)
 }));
 
 vi.mock('../state.js', () => ({
@@ -74,6 +80,8 @@ describe('setup.js component', () => {
     // Default mock returns
     api.fetchLabels.mockResolvedValue([]);
     api.fetchUsers.mockResolvedValue([]);
+    // Suppress console.error in tests
+    vi.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   describe('Label Management', () => {
@@ -105,7 +113,7 @@ describe('setup.js component', () => {
         color: expect.stringMatching(/^#/)
       }));
       expect(input.value).toBe('');
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Label created', 'success');
+      expect(utils.showNotification).toHaveBeenCalledWith('Label created', 'success');
     });
 
     it('should handle label deletion', async () => {
@@ -122,7 +130,7 @@ describe('setup.js component', () => {
 
       expect(utils.showConfirm).toHaveBeenCalled();
       expect(api.deleteLabel).toHaveBeenCalledWith(1);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Label deleted', 'success');
+      expect(utils.showNotification).toHaveBeenCalledWith('Label deleted', 'success');
     });
 
     it('should handle Enter key for adding a label', async () => {
@@ -147,7 +155,17 @@ describe('setup.js component', () => {
       document.getElementById('add-label-btn').click();
       await new Promise(process.nextTick);
 
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Failed to create label', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Failed to create label', 'error');
+    });
+
+    it('should show error if label name is too long', async () => {
+      setupSetupView();
+      const input = document.getElementById('new-label-input');
+      input.value = 'a'.repeat(16); // Max 15
+      document.getElementById('add-label-btn').click();
+
+      expect(api.createLabel).not.toHaveBeenCalled();
+      expect(utils.showNotification).toHaveBeenCalledWith('Label name must not exceed 15 characters.', 'error');
     });
   });
 
@@ -173,6 +191,27 @@ describe('setup.js component', () => {
       expect(rows.length).toBe(2);
       expect(rows[0].textContent).toContain('admin@test.com');
       expect(rows[0].textContent).toContain('Admin');
+    });
+
+    it('should escape user initials to prevent XSS', async () => {
+      state.currentUser = { role: 'admin' };
+      const users = [
+        { id: 1, email: 'xss@test.com', first_name: '<', last_name: 'S', role: 'user', active: true }
+      ];
+      api.fetchUsers.mockResolvedValue(users);
+      utils.getUserInitials.mockReturnValue('<S');
+
+      // Use a safer mock or just check if it was called correctly
+      // The original mock is escapeHtml: vi.fn((str) => str)
+      // We want to verify it's called with the initials.
+
+      await renderSetupView();
+
+      expect(utils.getUserInitials).toHaveBeenCalled();
+      expect(utils.escapeHtml).toHaveBeenCalledWith('<S');
+
+      // Reset mocks to avoid breaking subsequent tests
+      utils.getUserInitials.mockReturnValue('AD');
     });
   });
 
@@ -208,7 +247,8 @@ describe('setup.js component', () => {
 
       document.getElementById('user-email').value = 'new@test.com';
       document.getElementById('user-first-name').value = 'New';
-      const password = `Pass${Math.random().toString(36).slice(2)}LongEnough`;
+      document.getElementById('user-last-name').value = 'User';
+      const password = generateRandomPassword();
       document.getElementById('user-password').value = password;
       document.getElementById('user-role').value = 'user';
       document.getElementById('user-active').checked = true;
@@ -251,6 +291,9 @@ describe('setup.js component', () => {
     it('should show error for missing password on new user', async () => {
       setupSetupView();
       document.getElementById('add-user-btn').click();
+      document.getElementById('user-email').value = 'valid@email.com';
+      document.getElementById('user-first-name').value = 'Test';
+      document.getElementById('user-last-name').value = 'User';
       document.getElementById('user-password').value = '';
 
       const form = document.getElementById('user-form');
@@ -258,6 +301,31 @@ describe('setup.js component', () => {
 
       expect(document.getElementById('user-modal-error').textContent).toBe('Password is required for new users');
       expect(document.getElementById('user-modal-error').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show error for invalid email format', async () => {
+      setupSetupView();
+      document.getElementById('add-user-btn').click();
+      document.getElementById('user-email').value = 'invalid-email';
+
+      const form = document.getElementById('user-form');
+      form.dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('user-modal-error').textContent).toBe('A valid email address is required.');
+      expect(document.getElementById('user-modal-error').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show error for long names', async () => {
+      setupSetupView();
+      document.getElementById('add-user-btn').click();
+      document.getElementById('user-email').value = 'valid@test.com';
+      document.getElementById('user-first-name').value = 'a'.repeat(51); // Max 50
+      document.getElementById('user-last-name').value = 'Valid';
+
+      const form = document.getElementById('user-form');
+      form.dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('user-modal-error').textContent).toBe('First and last name must not exceed 50 characters.');
     });
 
     it('should NOT close on overlay click', () => {
@@ -277,12 +345,11 @@ describe('setup.js component', () => {
       const otherOptions = document.getElementById('user-active-options');
 
       otherOptions.classList.remove('hidden');
-      trigger.click();
-
+      trigger.click(); // Opens
       expect(options.classList.contains('hidden')).toBe(false);
       expect(otherOptions.classList.contains('hidden')).toBe(true);
 
-      trigger.click();
+      trigger.click(); // Closes
       expect(options.classList.contains('hidden')).toBe(true);
     });
 
@@ -297,55 +364,170 @@ describe('setup.js component', () => {
       expect(document.getElementById('user-role-options').classList.contains('hidden')).toBe(true);
     });
   });
+});
 
-  describe('Utility Functions', () => {
-    it('isLight should correctly identify light colors', () => {
-      expect(isLight('#FFFFFF')).toBe(true); // White
-      expect(isLight('#000000')).toBe(false); // Black
-      expect(isLight('#FFFF00')).toBe(true); // Yellow
-      expect(isLight('#0000FF')).toBe(false); // Blue
+describe('Utility Functions', () => {
+  it('isLight should correctly identify light colors', () => {
+    expect(isLight('#FFFFFF')).toBe(true); // White
+    expect(isLight('#000000')).toBe(false); // Black
+    expect(isLight('#FFFF00')).toBe(true); // Yellow
+    expect(isLight('#0000FF')).toBe(false); // Blue
+  });
+});
+
+describe('Password Policy', () => {
+  describe('isBlacklistedPassword', () => {
+    it('should identify direct matches in blacklist', () => {
+      expect(isBlacklistedPassword('password')).toBe(true);
+      expect(isBlacklistedPassword('admin')).toBe(true);
+      expect(isBlacklistedPassword('123456')).toBe(true);
+    });
+
+    it('should be case insensitive', () => {
+      expect(isBlacklistedPassword('PASSWORD')).toBe(true);
+      expect(isBlacklistedPassword('Admin')).toBe(true);
+    });
+
+    it('should identify leet speak variations', () => {
+      expect(isBlacklistedPassword('p@ssw0rd')).toBe(true);
+      expect(isBlacklistedPassword('4dm!n')).toBe(true);
+    });
+
+    it('should allow non-blacklisted passwords', () => {
+      expect(isBlacklistedPassword('CorrectHorseBatteryStaple')).toBe(false);
     });
   });
 
-  describe('Password Policy', () => {
-    describe('isBlacklistedPassword', () => {
-      it('should identify direct matches in blacklist', () => {
-        expect(isBlacklistedPassword('password')).toBe(true);
-        expect(isBlacklistedPassword('admin')).toBe(true);
-        expect(isBlacklistedPassword('123456')).toBe(true);
-      });
-
-      it('should be case insensitive', () => {
-        expect(isBlacklistedPassword('PASSWORD')).toBe(true);
-        expect(isBlacklistedPassword('Admin')).toBe(true);
-      });
-
-      it('should identify leet speak variations', () => {
-        expect(isBlacklistedPassword('p@ssw0rd')).toBe(true);
-        expect(isBlacklistedPassword('4dm!n')).toBe(true);
-      });
-
-      it('should allow non-blacklisted passwords', () => {
-        expect(isBlacklistedPassword('CorrectHorseBatteryStaple')).toBe(false);
-      });
+  describe('validatePasswordPolicy', () => {
+    it('should return null for valid passwords', () => {
+      expect(validatePasswordPolicy('CorrectHorseBatteryStaple')).toBeNull();
     });
 
-    describe('validatePasswordPolicy', () => {
-      it('should return null for valid passwords', () => {
-        expect(validatePasswordPolicy('CorrectHorseBatteryStaple')).toBeNull();
-      });
+    it('should reject passwords shorter than 12 characters', () => {
+      expect(validatePasswordPolicy('short')).toBe('Password must be at least 12 characters');
+    });
 
-      it('should reject passwords shorter than 12 characters', () => {
-        expect(validatePasswordPolicy('short')).toBe('Password must be at least 12 characters');
-      });
+    it('should reject passwords matching email', () => {
+      expect(validatePasswordPolicy('user@example.com', 'user@example.com')).toBe('Password must not be your email address');
+    });
 
-      it('should reject passwords matching email', () => {
-        expect(validatePasswordPolicy('user@example.com', 'user@example.com')).toBe('Password must not be your email address');
-      });
+    it('should reject blacklisted passwords', () => {
+      expect(validatePasswordPolicy('password1234')).toBe('Password is too common');
+    });
+  });
+});
 
-      it('should reject blacklisted passwords', () => {
-        expect(validatePasswordPolicy('password1234')).toBe('Password is too common');
-      });
+describe('Additional Coverage', () => {
+  describe('Label Management Error Paths', () => {
+    it('should handle label fetch failure', async () => {
+      api.fetchLabels.mockRejectedValue(new Error('Fetch failed'));
+      await renderSetupView();
+      expect(document.getElementById('labels-list').innerHTML).toContain('Failed to load labels');
+    });
+
+    it('should handle label delete failure', async () => {
+      const refreshCallback = vi.fn();
+      api.fetchLabels.mockResolvedValue([{ id: 1, name: 'To Delete', color: '#FF0000' }]);
+      utils.showConfirm.mockResolvedValue(true);
+      api.deleteLabel.mockRejectedValue(new Error('Delete failed'));
+
+      await renderSetupView(refreshCallback);
+      const deleteBtn = document.querySelector('.delete-label-btn');
+      deleteBtn.click();
+
+      await new Promise(process.nextTick);
+      expect(utils.showNotification).toHaveBeenCalledWith('Failed to delete label', 'error');
+    });
+  });
+
+  describe('User Management Validation & Errors', () => {
+    beforeEach(() => {
+      setupSetupView();
+      document.getElementById('add-user-btn').click();
+    });
+
+    it('should handle user fetch failure', async () => {
+      api.fetchUsers.mockRejectedValue(new Error('Fetch failed'));
+      await renderSetupView();
+      expect(document.getElementById('users-list').innerHTML).toContain('Failed to load users');
+    });
+
+    it('should validate email length', async () => {
+      document.getElementById('user-email').value = 'a'.repeat(250) + '@test.com';
+      document.getElementById('user-first-name').value = 'New';
+      document.getElementById('user-last-name').value = 'User';
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Email must not exceed 254 characters.');
+    });
+
+    it('should validate missing names', async () => {
+      document.getElementById('user-email').value = 'test@test.com';
+      document.getElementById('user-first-name').value = '';
+      document.getElementById('user-last-name').value = '';
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('First name and last name are required.');
+    });
+
+    it('should validate name length', async () => {
+      document.getElementById('user-email').value = 'test@test.com';
+      document.getElementById('user-first-name').value = 'a'.repeat(51);
+      document.getElementById('user-last-name').value = 'User';
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('First and last name must not exceed 50 characters.');
+    });
+
+    it('should validate password length', async () => {
+      document.getElementById('user-email').value = 'test@test.com';
+      document.getElementById('user-first-name').value = 'First';
+      document.getElementById('user-last-name').value = 'Last';
+      document.getElementById('user-password').value = 'a'.repeat(129);
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Password must not exceed 128 characters.');
+    });
+
+    it('should handle user creation failure', async () => {
+      document.getElementById('user-email').value = 'fail@test.com';
+      document.getElementById('user-first-name').value = 'Fail';
+      document.getElementById('user-last-name').value = 'User';
+      document.getElementById('user-password').value = generateRandomPassword();
+      api.createUser.mockRejectedValue(new Error('Creation failed'));
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Creation failed');
+    });
+
+    it('should trigger password policy error in handleUserSubmit', async () => {
+      document.getElementById('user-email').value = 'test@test.com';
+      document.getElementById('user-first-name').value = 'First';
+      document.getElementById('user-last-name').value = 'Last';
+      document.getElementById('user-password').value = 'too-short'; //NOSONAR
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Password must be at least 12 characters');
+    });
+  });
+
+  describe('Utilities', () => {
+    it('getUnusedColor should fallback to full list if all colors used', () => {
+      const fullList = [
+        '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
+        '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
+        '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
+        '#FF7043', '#8D6E63', '#78909C'
+      ];
+      // If all are used, it should still return a color from the list
+      const result = getUnusedColor(fullList);
+      expect(fullList).toContain(result);
+    });
+
+    it('isLight should handle colors with no # or different case', () => {
+      // isLight(color) uses color.replaceAll('#', '')
+      expect(isLight('FFFFFF')).toBe(true);
+      expect(isLight('#000000')).toBe(false);
     });
   });
 });

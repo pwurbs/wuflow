@@ -23,7 +23,7 @@
         <div class="form-group">
           <label for="login-email">Email</label>
           <input type="email" id="login-email" name="email" placeholder="you@example.com" required autocomplete="email"
-            autofocus>
+            pattern="[^\s@]+@[^\s@]+" title="Email address (e.g. user@domain)" autofocus>
         </div>
         <div class="form-group">
           <label for="login-password">Password</label>

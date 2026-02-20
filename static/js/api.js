@@ -20,7 +20,11 @@ async function authFetch(url, options = {}) {
   if (res.status === 401) {
     if (!isRefreshing) {
       isRefreshing = true;
-      refreshPromise = fetch(`${API_URL}/auth/refresh`, { method: 'POST' })
+      refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      })
         .then(r => {
           if (!r.ok) throw new Error('Refresh failed');
           return true;
@@ -98,6 +102,7 @@ export async function createIssue(issue) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(issue)
   });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to create issue');
   return res.json();
 }
 
@@ -121,18 +126,30 @@ export async function updateIssue(issue, etag = null) {
     return { issue: null, etag: null, conflict: true };
   }
 
+  if (!res.ok) throw new Error(await res.text() || 'Failed to update issue');
+
   const updatedIssue = await res.json();
   const newEtag = res.headers.get('ETag');
   return { issue: updatedIssue, etag: newEtag, conflict: false };
 }
 
 export async function archiveIssue(id) {
-  const res = await authFetch(`${API_URL}/issues/${id}/archive`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/issues/${id}/archive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to archive issue');
   return await res.json();
 }
 
 export async function unarchiveIssue(id) {
-  const res = await authFetch(`${API_URL}/issues/${id}/unarchive`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/issues/${id}/unarchive`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to unarchive issue');
   return await res.json();
 }
 
@@ -142,6 +159,7 @@ export async function createTask(task) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
   });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to create task');
   return res.json();
 }
 
@@ -151,22 +169,23 @@ export async function updateTask(task) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
   });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to update task');
   return res.json();
 }
 
 export async function deleteTask(id) {
-  await authFetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' });
+  const res = await authFetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to delete task');
 }
 
 export async function deleteIssue(id) {
-  await authFetch(`${API_URL}/issues/${id}`, { method: 'DELETE' });
+  const res = await authFetch(`${API_URL}/issues/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to delete issue');
 }
 
 export async function fetchLabels() {
   const response = await authFetch(`${API_URL}/labels`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch labels');
-  }
+  if (!response.ok) throw new Error(await response.text() || 'Failed to fetch labels');
   return await response.json();
 }
 
@@ -178,9 +197,7 @@ export async function createLabel(label) {
     },
     body: JSON.stringify(label),
   });
-  if (!response.ok) {
-    throw new Error('Failed to create label');
-  }
+  if (!response.ok) throw new Error(await response.text() || 'Failed to create label');
   return await response.json();
 }
 
@@ -188,9 +205,7 @@ export async function deleteLabel(id) {
   const response = await authFetch(`${API_URL}/labels/${id}`, {
     method: 'DELETE',
   });
-  if (!response.ok) {
-    throw new Error('Failed to delete label');
-  }
+  if (!response.ok) throw new Error(await response.text() || 'Failed to delete label');
 }
 
 export async function fetchVersion() {
@@ -262,7 +277,11 @@ export async function fetchCurrentUser() {
  * Log out the current user by clearing auth cookies.
  */
 export async function logout() {
-  await fetch(`${API_URL}/auth/logout`, { method: 'POST' });
+  await fetch(`${API_URL}/auth/logout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  });
   globalThis.location.href = '/login';
 }
 

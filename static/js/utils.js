@@ -9,9 +9,9 @@ export function stripHtml(html) {
     ' $& '
   );
 
-  const tmp = document.createElement("DIV");
-  tmp.innerHTML = processed;
-  const text = tmp.textContent || tmp.innerText || "";
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(processed, 'text/html');
+  const text = doc.body.textContent || doc.body.innerText || "";
 
   // Collapse multiple spaces into one and trim
   return text.replaceAll(/\s+/g, ' ').trim();
@@ -27,23 +27,31 @@ export function escapeHtml(text) {
     .replaceAll("'", "&#039;");
 }
 
-export function showNotification(message) {
+let notificationTimeout;
+export function showNotification(message, type = 'success') {
   const notificationToast = document.getElementById('notification-toast');
   if (notificationToast) {
+    if (notificationTimeout) clearTimeout(notificationTimeout);
     notificationToast.textContent = message;
+    // Reset classes and add specific ones
+    notificationToast.className = 'notification-toast ' + type;
     notificationToast.classList.remove('hidden');
-    setTimeout(() => {
+    notificationTimeout = setTimeout(() => {
       notificationToast.classList.add('hidden');
     }, 5000);
   }
 }
 
-export function showModalNotification(message) {
+let modalNotificationTimeout;
+export function showModalNotification(message, type = 'success') {
   const toast = document.getElementById('modal-notification-toast');
   if (!toast) return;
+  if (modalNotificationTimeout) clearTimeout(modalNotificationTimeout);
   toast.textContent = message;
+  // Reset classes and add specific ones (keep modal-toast)
+  toast.className = 'notification-toast modal-toast ' + type;
   toast.classList.remove('hidden');
-  setTimeout(() => {
+  modalNotificationTimeout = setTimeout(() => {
     toast.classList.add('hidden');
   }, 3000);
 }
@@ -169,4 +177,77 @@ export function getUserInitials(user) {
   }
 
   return '??';
+}
+
+const allowedTags = new Set(['B', 'I', 'U', 'UL', 'OL', 'LI', 'P', 'BR', 'A']);
+
+/**
+ * Removes all attributes from an element except for safe hrefs on anchor tags.
+ * @param {HTMLElement} element 
+ */
+function cleanAttributes(element) {
+  const isAnchor = element.tagName === 'A';
+  const allowedAnchorAttrs = new Set(['href', 'target', 'rel']);
+  const attrs = Array.from(element.attributes);
+
+  for (const attr of attrs) {
+    const isAllowed = isAnchor && allowedAnchorAttrs.has(attr.name);
+    if (!isAllowed) {
+      element.removeAttribute(attr.name);
+      continue;
+    }
+
+    if (attr.name === 'href' && !/^(https?:\/\/)/i.test(attr.value)) {
+      element.removeAttribute(attr.name);
+    }
+  }
+
+  // Enforce security attributes on all links
+  if (isAnchor && element.hasAttribute('href')) {
+    element.setAttribute('target', '_blank');
+    element.setAttribute('rel', 'noopener noreferrer');
+  }
+}
+
+/**
+ * Sanitizes HTML content for the description field.
+ * Allows a safe subset of tags and attributes to prevent XSS.
+ * @param {string} html 
+ * @returns {string} Sanitized HTML
+ */
+export function sanitizeDescription(html) {
+  if (!html) return '';
+  const parser = new DOMParser();
+  // 'text/html' creates an inert document where scripts don't execute
+  const doc = parser.parseFromString(html, 'text/html');
+
+  function clean(node) {
+    // 1. Recurse into children first (bottom-up processing)
+    let child = node.firstChild;
+    while (child) {
+      const next = child.nextSibling;
+      clean(child);
+      child = next;
+    }
+
+    // 2. Handle this node (skip body and document)
+    if (node.nodeType === 9 || node === doc.body) return;
+
+    if (node.nodeType === 1) { // ELEMENT_NODE
+      if (allowedTags.has(node.tagName)) {
+        cleanAttributes(node);
+      } else {
+        // Unwrap disallowed tag: move children up to parent, then remove node
+        while (node.firstChild) {
+          node.parentNode.insertBefore(node.firstChild, node);
+        }
+        node.remove();
+      }
+    } else if (node.nodeType !== 3) { // Not TEXT_NODE (e.g. Comment)
+      node.remove();
+    }
+  }
+
+  clean(doc.body);
+  return doc.body.innerHTML;
 }

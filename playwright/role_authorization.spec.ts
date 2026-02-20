@@ -132,11 +132,17 @@ test.describe('Role Based Authorization', () => {
     expect(deleteResp.status()).toBe(403);
 
     // 4. Attempt POST /api/issues/{id}/archive
-    const archiveResp = await page.request.post(`/api/issues/${issueId}/archive`);
+    const archiveResp = await page.request.post(`/api/issues/${issueId}/archive`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: {}
+    });
     expect(archiveResp.status()).toBe(403);
 
     // 5. Attempt POST /api/issues/{id}/unarchive
-    const unarchiveResp = await page.request.post(`/api/issues/${issueId}/unarchive`);
+    const unarchiveResp = await page.request.post(`/api/issues/${issueId}/unarchive`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: {}
+    });
     expect(unarchiveResp.status()).toBe(403);
 
     // 6. Attempt POST /api/labels (Create Label)

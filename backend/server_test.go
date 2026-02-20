@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,8 @@ import (
 
 const (
 	wrongStatusCodeMsg = "handler returned wrong status code: got %v want %v"
+	expectedStatusMsg  = "expected status %d, got %d"
+	apiTestPath        = "/api/test"
 )
 
 func TestValidatePathMiddleware(t *testing.T) {
@@ -67,10 +71,87 @@ func TestValidatePathMiddleware(t *testing.T) {
 			middleware.ServeHTTP(w, req)
 
 			if w.Code != tt.expectedStatus {
-				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+				t.Errorf(expectedStatusMsg, tt.expectedStatus, w.Code)
 			}
 			if nextCalled != tt.expectNext {
 				t.Errorf("expected next handler to be called: %v, got %v", tt.expectNext, nextCalled)
+			}
+		})
+	}
+}
+
+func TestLimitBodyMiddleware(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := LimitBodyMiddleware(nextHandler)
+
+	t.Run("Under limit", func(t *testing.T) {
+		body := make([]byte, 32*1024) // Exactly 32 KB
+		req := httptest.NewRequest("POST", "/", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		middleware.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf(expectedStatusMsg, http.StatusOK, w.Code)
+		}
+	})
+
+	t.Run("Over limit", func(t *testing.T) {
+		body := make([]byte, 32*1024+1) // 32 KB + 1 byte
+		req := httptest.NewRequest("POST", "/", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		middleware.ServeHTTP(w, req)
+
+		// The middleware itself doesn't return 413, it just wraps the body.
+		// The error happens when the next handler tries to read it.
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf(expectedStatusMsg, http.StatusInternalServerError, w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "http: request body too large") {
+			t.Errorf("expected error message to contain 'too large', got %q", w.Body.String())
+		}
+	})
+}
+
+func TestRequireJSONMiddleware(t *testing.T) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := RequireJSONMiddleware(nextHandler)
+
+	tests := []struct {
+		name           string
+		method         string
+		contentType    string
+		expectedStatus int
+	}{
+		{"GET No Content-Type", "GET", "", http.StatusOK},
+		{"POST No Content-Type", "POST", "", http.StatusUnsupportedMediaType},
+		{"POST Plain Text", "POST", "text/plain", http.StatusUnsupportedMediaType},
+		{"POST JSON", "POST", contentTypeJSON, http.StatusOK},
+		{"POST JSON charset", "POST", contentTypeJSON + "; charset=utf-8", http.StatusOK},
+		{"PUT No Content-Type", "PUT", "", http.StatusUnsupportedMediaType},
+		{"PUT JSON", "PUT", contentTypeJSON, http.StatusOK},
+		{"DELETE No Content-Type", "DELETE", "", http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, "/", nil)
+			if tt.contentType != "" {
+				req.Header.Set(headerContentType, tt.contentType)
+			}
+			w := httptest.NewRecorder()
+			middleware.ServeHTTP(w, req)
+			if w.Code != tt.expectedStatus {
+				t.Errorf(expectedStatusMsg, tt.expectedStatus, w.Code)
 			}
 		})
 	}
@@ -452,4 +533,71 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 	if !foundRefresh {
 		t.Error("Expected new refresh token cookie to be set")
 	}
+}
+
+func dummyTestHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost || r.Method == http.MethodPut {
+		var dummy map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&dummy); err != nil {
+			if strings.Contains(err.Error(), "http: request body too large") {
+				http.Error(w, "Body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+func TestMiddlewareIntegration(t *testing.T) {
+	// logging -> csp -> validatePath -> limitBody -> requireJSON -> handler
+	stack := WithLogging(CSPMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(http.HandlerFunc(dummyTestHandler))))))
+
+	t.Run("Body too large", func(t *testing.T) {
+		body := make([]byte, 33*1024)
+		req := httptest.NewRequest("POST", apiTestPath, bytes.NewReader(body))
+		req.Header.Set(headerContentType, contentTypeJSON)
+		w := httptest.NewRecorder()
+		stack.ServeHTTP(w, req)
+
+		if w.Code != http.StatusRequestEntityTooLarge && w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 413 or 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("Missing Content-Type", func(t *testing.T) {
+		req := httptest.NewRequest("POST", apiTestPath, strings.NewReader(`{"foo":"bar"}`))
+		w := httptest.NewRecorder()
+		stack.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Errorf("Expected status 415, got %d", w.Code)
+		}
+	})
+
+	t.Run("Forbidden query parameters", func(t *testing.T) {
+		req := httptest.NewRequest("GET", apiTestPath+"?foo=bar", nil)
+		w := httptest.NewRecorder()
+		stack.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status 400, got %d", w.Code)
+		}
+		if !strings.Contains(w.Body.String(), "Query parameters are not allowed") {
+			t.Errorf("Expected specific error message, got %q", w.Body.String())
+		}
+	})
+
+	t.Run("Valid request", func(t *testing.T) {
+		req := httptest.NewRequest("POST", apiTestPath, strings.NewReader(`{"foo":"bar"}`))
+		req.Header.Set(headerContentType, contentTypeJSON)
+		w := httptest.NewRecorder()
+		stack.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+	})
 }

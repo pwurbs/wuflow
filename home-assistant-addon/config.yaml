@@ -1,6 +1,6 @@
 # Config file for running as Home Assistent Add-on
 name: "wuFlow"
-version: "0.20.3"
+version: "0.20.4"
 slug: "wuflow"
 description: "Simple issue tracking app"
 arch:
@@ -17,4 +17,4 @@ ports:
 environment:
   WF_PORT: "8080"
   WF_DBPATH: "/share/wuflow/wuflow.db"
-  WF_LOG_LEVEL: "warn"
+  WF_LOG_LEVEL: "info"

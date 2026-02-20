@@ -82,15 +82,15 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 
 	// Middleware stacks
 	// 1. commonAPI: Applied to ALL API routes (public & private)
-	//    Order: Logging -> CSP -> ValidatePath -> Handler
+	//    Order: Logging -> CSP -> ValidatePath -> LimitBody -> RequireJSON -> Handler
 	commonAPI := func(h http.Handler) http.Handler {
-		return WithLogging(CSPMiddleware(ValidatePathMiddleware(h)))
+		return WithLogging(CSPMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(h)))))
 	}
 
 	// 2. authAPI: Applied to PROTECTED API routes
-	//    Order: Logging -> CSP -> ValidatePath -> Auth -> Handler
+	//    Order: Logging -> CSP -> ValidatePath -> LimitBody -> RequireJSON -> Auth -> Handler
 	authAPI := func(h http.Handler) http.Handler {
-		return WithLogging(CSPMiddleware(ValidatePathMiddleware(AuthMiddleware(h))))
+		return WithLogging(CSPMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(AuthMiddleware(h))))))
 	}
 
 	// Public auth endpoints
@@ -194,6 +194,31 @@ func parseLogLevel(levelStr string) (slog.Level, error) {
 	default:
 		return slog.LevelInfo, fmt.Errorf("Invalid log level '%s'", levelStr)
 	}
+}
+
+// LimitBodyMiddleware caps the request body size at 32 KB to prevent memory
+// exhaustion from oversized payloads. The largest legitimate payload is a full
+// issue with a max-length description (~11 KB); 32 KB gives a comfortable margin.
+func LimitBodyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 32*1024) // 32 KB
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireJSONMiddleware enforces that POST and PUT requests declare
+// Content-Type: application/json. GET, DELETE, and other methods are unaffected.
+func RequireJSONMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost || r.Method == http.MethodPut {
+			ct := r.Header.Get("Content-Type")
+			if !strings.HasPrefix(ct, "application/json") {
+				http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ValidatePathMiddleware enforces strict rules on API requests.

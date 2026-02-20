@@ -37,8 +37,15 @@ func InitDB(dataSourceName string) error {
 		slog.Info("Creating new database", "path", dataSourceName)
 	}
 
+	dsn := dataSourceName
+	if strings.Contains(dsn, "?") {
+		dsn += "&_fk=1"
+	} else {
+		dsn += "?_fk=1"
+	}
+
 	var err error
-	DB, err = sql.Open("sqlite3", dataSourceName)
+	DB, err = sql.Open("sqlite3", dsn)
 	if err != nil {
 		slog.Error("Failed to open database", "error", err)
 		return err
@@ -158,6 +165,39 @@ func createTables() error {
 	return nil
 }
 
+// UserExistsAndActive checks if a user exists and is active.
+func UserExistsAndActive(id int) (bool, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE id = ? AND active = 1", id).Scan(&count)
+	if err != nil {
+		slog.Error("Database Error: UserExistsAndActive", "id", id, "error", err)
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// UserExists checks if a user exists, regardless of active status.
+func UserExists(id int) (bool, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE id = ?", id).Scan(&count)
+	if err != nil {
+		slog.Error("Database Error: UserExists", "id", id, "error", err)
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// LabelExists checks if a label exists.
+func LabelExists(id int) (bool, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM labels WHERE id = ?", id).Scan(&count)
+	if err != nil {
+		slog.Error("Database Error: LabelExists", "id", id, "error", err)
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // Helper functions for DB operations
 
 // CreateIssue inserts a new issue into the database.
@@ -188,6 +228,16 @@ func CreateIssue(i *Issue) error {
 		labelID = &id
 	}
 
+	var creatorID *int
+	if i.CreatorID != 0 {
+		creatorID = &i.CreatorID
+	}
+
+	var updaterID *int
+	if i.UpdaterID != nil && *i.UpdaterID != 0 {
+		updaterID = i.UpdaterID
+	}
+
 	var plannedDatesJSON interface{}
 	if i.PlannedDates != nil {
 		b, err := json.Marshal(i.PlannedDates)
@@ -198,7 +248,7 @@ func CreateIssue(i *Issue) error {
 		plannedDatesJSON = string(b)
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.CreatorID, i.AssigneeID, i.UpdaterID, i.UpdatedAt)
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.UpdatedAt)
 	if err != nil {
 		slog.Error("Database Error: CreateIssue Exec", "error", err)
 		return err
@@ -454,7 +504,12 @@ func UpdateIssue(i *Issue) error {
 		plannedDatesJSON = string(b)
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, i.UpdaterID, i.UpdatedAt, i.ID)
+	var updaterID *int
+	if i.UpdaterID != nil && *i.UpdaterID != 0 {
+		updaterID = i.UpdaterID
+	}
+
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.UpdatedAt, i.ID)
 	if err != nil {
 		slog.Error("Database Error: UpdateIssue Exec", "error", err)
 		return err

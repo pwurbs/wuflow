@@ -1,6 +1,6 @@
 import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
-import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive } from '../utils.js';
+import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription } from '../utils.js';
 import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
@@ -20,7 +20,7 @@ export function setupModal(refreshApp) {
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('done-btn').addEventListener('click', handleDone);
   form.addEventListener('submit', handleIssueSubmit);
-  form.addEventListener('submit', handleIssueSubmit);
+
 
   document.getElementById('delete-issue-btn').addEventListener('click', handleDeleteIssue);
   document.getElementById('archive-issue-btn').addEventListener('click', handleArchiveIssue);
@@ -176,7 +176,7 @@ function setupEditModal(issue) {
   document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Edit Issue #${issue.id}`;
   document.getElementById('issue-id').value = issue.id;
   document.getElementById('title').value = issue.title;
-  document.getElementById('description-editor').innerHTML = issue.description || '';
+  document.getElementById('description-editor').innerHTML = sanitizeDescription(issue.description || '');
 
   // Planned Date Chip Logic
   renderPlannedDateChips(issue);
@@ -362,16 +362,34 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
 
 async function handleIssueSubmit(e) {
   e.preventDefault();
+
+  // --- Client-side pre-submit validation ---
+  const titleValue = document.getElementById('title').value.trim();
+  if (!titleValue) {
+    showNotification('Title is required.', 'error');
+    document.getElementById('title').focus();
+    return;
+  }
+  if (titleValue.length > 100) {
+    showNotification('Title must not exceed 100 characters.', 'error');
+    document.getElementById('title').focus();
+    return;
+  }
+  const descHtml = document.getElementById('description-editor').innerHTML || '';
+  if (descHtml.length > 5000) {
+    showNotification('Description HTML must not exceed 5000 characters.', 'error');
+    return;
+  }
+  // --- End validation ---
+
   const statusInput = document.getElementById('status');
   const assigneeIdVal = document.getElementById('assignee-select').value;
 
   const issueData = {
-    title: document.getElementById('title').value,
+    title: titleValue,
     description: document.getElementById('description-editor').innerHTML,
     deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
-    // planned_dates is handled by saving state.currentIssue instantly or by reading chips if new? 
-    // Actually, for NEW issues, we need to grab the dates from state or DOM.
-    // Let's assume for new issues we rely on the DOM container we built.
+    // For both new and existing issues, read planned dates from the DOM container
     planned_dates: getPlannedDatesFromDOM(),
     status: statusInput.value,
     priority: document.getElementById('priority').value,
@@ -386,14 +404,26 @@ async function handleIssueSubmit(e) {
     issueData.label = null;
   }
 
-  if (state.currentIssue) {
-    issueData.id = state.currentIssue.id;
-    await updateIssue(issueData);
-  } else {
-    const newIssue = await createIssue(issueData);
-    showNotification(`Issue #${newIssue.id} created successfully`);
+  try {
+    if (state.currentIssue) {
+      issueData.id = state.currentIssue.id;
+      // updateIssue handles 409 conflict internally but throws on other errors
+      const result = await updateIssue(issueData, currentEtag);
+      if (result.conflict) {
+        // If a conflict (409) occurs, use the common conflict handling logic
+        await saveIssueWithConflictCheck(issueData, 'Issue updated');
+      } else {
+        // Success
+      }
+    } else {
+      const newIssue = await createIssue(issueData);
+      showNotification(`Issue #${newIssue.id} created successfully`);
+    }
+    closeModal();
+    if (refreshAppCallback) refreshAppCallback();
+  } catch (err) {
+    showModalNotification(err.message, 'error');
   }
-  closeModal();
 }
 
 async function handleDeleteIssue() {
@@ -484,14 +514,24 @@ function setupInlineEditing() {
 
   const saveTitle = async () => {
     const newTitle = titleInput.value.trim();
-    if (!newTitle) { cancelTitle(); return; }
+    if (!newTitle) {
+      if (typeof titleInput.reportValidity === 'function') {
+        titleInput.reportValidity();
+      }
+      return;
+    }
     if (newTitle !== state.currentIssue.title) {
       // Create a copy to avoid mutating state before save succeeds
       const updatedIssue = { ...state.currentIssue, title: newTitle };
-      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Title updated');
-      if (!saved) return; // Conflict occurred - state not updated, user can try again
-      // Only update state after successful save (check for null in case modal closed during save)
-      if (state.currentIssue) state.currentIssue.title = newTitle;
+      try {
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Title updated');
+        if (!saved) return; // Conflict occurred - state not updated, user can try again
+        // Only update state after successful save (check for null in case modal closed during save)
+        if (state.currentIssue) state.currentIssue.title = newTitle;
+      } catch (err) {
+        showModalNotification(err.message, 'error');
+        return; // Keep edit mode
+      }
     }
     titleInput.classList.add('inline-editable');
     titleInput.classList.remove('inline-editing');
@@ -542,10 +582,15 @@ function setupInlineEditing() {
     if (newDesc !== state.currentIssue.description) {
       // Create a copy to avoid mutating state before save succeeds
       const updatedIssue = { ...state.currentIssue, description: newDesc };
-      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Description updated');
-      if (!saved) return; // Conflict occurred - state not updated, user can try again
-      // Only update state after successful save (check for null in case modal closed during save)
-      if (state.currentIssue) state.currentIssue.description = newDesc;
+      try {
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Description updated');
+        if (!saved) return; // Conflict occurred - state not updated, user can try again
+        // Only update state after successful save (check for null in case modal closed during save)
+        if (state.currentIssue) state.currentIssue.description = newDesc;
+      } catch (err) {
+        showModalNotification(err.message, 'error');
+        return; // Keep edit mode
+      }
     }
     descContainer.classList.add('inline-editable');
     descContainer.classList.remove('inline-editing');
@@ -565,6 +610,13 @@ async function handleDone() {
 
   // Check Title
   if (titleInput.classList.contains('inline-editing')) {
+    if (!titleInput.value.trim()) {
+      if (typeof titleInput.reportValidity === 'function') {
+        titleInput.reportValidity();
+      }
+      return;
+    }
+
     await processFieldOnDone(
       titleInput.value.trim(),
       originalTitle,
@@ -653,16 +705,26 @@ function setupSidebarImmediateSave() {
   prioritySelect.addEventListener('change', async () => {
     if (state.currentIssue) {
       const updatedIssue = { ...state.currentIssue, priority: prioritySelect.value };
-      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Priority updated');
-      if (saved) state.currentIssue.priority = prioritySelect.value;
+      try {
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Priority updated');
+        if (saved) state.currentIssue.priority = prioritySelect.value;
+      } catch (err) {
+        showModalNotification(err.message, 'error');
+        // Revert UI? Ideally yes, but tricky without knowing prev value. 
+        // For now, at least user sees error.
+      }
     }
   });
 
   statusSelect.addEventListener('change', async () => {
     if (state.currentIssue) {
       const updatedIssue = { ...state.currentIssue, status: statusSelect.value };
-      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Status updated');
-      if (saved) state.currentIssue.status = statusSelect.value;
+      try {
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Status updated');
+        if (saved) state.currentIssue.status = statusSelect.value;
+      } catch (err) {
+        showModalNotification(err.message, 'error');
+      }
     }
   });
 
@@ -672,12 +734,16 @@ function setupSidebarImmediateSave() {
         const val = assigneeSelect.value;
         const assigneeID = val ? Number.parseInt(val) : null;
         const updatedIssue = { ...state.currentIssue, assignee_id: assigneeID };
-        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Assignee updated');
-        if (saved) {
-          state.currentIssue.assignee_id = assigneeID;
-          // Re-fetch issue to get the populated assignee object for UI
-          const { issue: freshIssue } = await fetchIssueById(state.currentIssue.id);
-          if (freshIssue) state.currentIssue.assignee = freshIssue.assignee;
+        try {
+          const saved = await saveIssueWithConflictCheck(updatedIssue, 'Assignee updated');
+          if (saved) {
+            state.currentIssue.assignee_id = assigneeID;
+            // Re-fetch issue to get the populated assignee object for UI
+            const { issue: freshIssue } = await fetchIssueById(state.currentIssue.id);
+            if (freshIssue) state.currentIssue.assignee = freshIssue.assignee;
+          }
+        } catch (err) {
+          showModalNotification(err.message, 'error');
         }
       }
     });
@@ -688,8 +754,12 @@ function setupSidebarImmediateSave() {
     if (state.currentIssue) {
       const dateVal = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
       const updatedIssue = { ...state.currentIssue, deadline: dateVal };
-      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Deadline updated');
-      if (saved) state.currentIssue.deadline = dateVal;
+      try {
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Deadline updated');
+        if (saved) state.currentIssue.deadline = dateVal;
+      } catch (err) {
+        showModalNotification(err.message, 'error');
+      }
     }
   });
   if (labelSelect) {
@@ -698,8 +768,12 @@ function setupSidebarImmediateSave() {
         const val = labelSelect.value;
         const labelVal = val ? { id: Number.parseInt(val) } : null;
         const updatedIssue = { ...state.currentIssue, label: labelVal };
-        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Label updated');
-        if (saved) state.currentIssue.label = labelVal;
+        try {
+          const saved = await saveIssueWithConflictCheck(updatedIssue, 'Label updated');
+          if (saved) state.currentIssue.label = labelVal;
+        } catch (err) {
+          showModalNotification(err.message, 'error');
+        }
       }
     });
   }
@@ -729,12 +803,31 @@ function setupEditorToolbar() {
         btn.classList.toggle('active', inLink);
       } else if (cmd === 'underline') {
         // queryCommandState is deprecated but required for lightweight rich text editing
-        btn.classList.toggle('active', !inLink && document.queryCommandState(cmd)); // NOSONAR
+        btn.classList.toggle('active', !inLink && document.queryCommandState(cmd));
       } else {
         // queryCommandState is deprecated but required for lightweight rich text editing
-        btn.classList.toggle('active', document.queryCommandState(cmd)); // NOSONAR
+        btn.classList.toggle('active', document.queryCommandState(cmd));
       }
     });
+  }
+
+  function handleCreateLink() {
+    const selection = globalThis.getSelection();
+    let url = selection.toString().trim();
+    if (!url) return;
+
+    // Explicitly reject dangerous URI schemes (javascript:, data:, vbscript:)
+    if (/^(javascript:|data:|vbscript:)/i.test(url)) return;
+
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    // execCommand is deprecated but required for lightweight rich text editing
+    document.execCommand('createLink', false, url);
+    // Force target _blank with noopener to prevent reverse tabnapping
+    const anchor = selection.anchorNode?.parentElement?.tagName === 'A' ? selection.anchorNode.parentElement : null;
+    if (anchor) {
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+    }
   }
 
   toolbarBtns.forEach(btn => {
@@ -743,19 +836,10 @@ function setupEditorToolbar() {
       e.preventDefault();
       const cmd = e.currentTarget.dataset.cmd;
       if (cmd === 'createLink') {
-        const selection = globalThis.getSelection();
-        let url = selection.toString().trim();
-        if (url) {
-          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-          // execCommand is deprecated but required for lightweight rich text editing
-          document.execCommand(cmd, false, url); // NOSONAR
-          // Force target _blank
-          let anchor = selection.anchorNode.parentElement?.tagName === 'A' ? selection.anchorNode.parentElement : null; // simplified finding
-          if (anchor) anchor.target = '_blank';
-        }
+        handleCreateLink();
       } else {
         // execCommand is deprecated but required for lightweight rich text editing
-        document.execCommand(cmd, false, null); // NOSONAR
+        document.execCommand(cmd, false, null);
       }
       editor.focus();
       updateToolbarState();
@@ -782,9 +866,9 @@ function setupEditorToolbar() {
             sel.removeAllRanges();
             sel.addRange(range);
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('delete'); // NOSONAR
+            document.execCommand('delete');
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('insertUnorderedList'); // NOSONAR
+            document.execCommand('insertUnorderedList');
           } else if (/^1\.\s$/.test(text)) {
             const range = document.createRange();
             range.setStart(anchorNode, 0);
@@ -792,9 +876,9 @@ function setupEditorToolbar() {
             sel.removeAllRanges();
             sel.addRange(range);
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('delete'); // NOSONAR
+            document.execCommand('delete');
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('insertOrderedList'); // NOSONAR
+            document.execCommand('insertOrderedList');
           }
         }
       }
@@ -818,6 +902,10 @@ async function handleTaskSubmit(e) {
   const titleInput = document.getElementById('new-task-title');
   const deadlineInput = document.getElementById('new-task-deadline');
   if (!titleInput.value.trim()) return;
+  if (titleInput.value.length > 100) {
+    showNotification('Task title must not exceed 100 characters.', 'error');
+    return;
+  }
 
   const taskData = {
     issue_id: state.currentIssue.id,
@@ -827,17 +915,21 @@ async function handleTaskSubmit(e) {
     position: state.currentIssue.tasks ? state.currentIssue.tasks.length : 0
   };
 
-  const newTask = await createTask(taskData);
-  if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
-  state.currentIssue.tasks.push(newTask);
-  renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
-    onTaskUpdate: () => refreshAppCallback?.(),
-    onTaskOrderSave: () => saveTaskOrder(state.currentIssue),
-    onTaskEditStart: () => addUnloadListener(),
-    onTaskEditEnd: () => checkRemoveUnloadListener()
-  });
-  resetTaskForm();
-  if (refreshAppCallback) refreshAppCallback();
+  try {
+    const newTask = await createTask(taskData);
+    if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
+    state.currentIssue.tasks.push(newTask);
+    renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
+      onTaskUpdate: () => refreshAppCallback?.(),
+      onTaskOrderSave: () => saveTaskOrder(state.currentIssue),
+      onTaskEditStart: () => addUnloadListener(),
+      onTaskEditEnd: () => checkRemoveUnloadListener()
+    });
+    resetTaskForm();
+    if (refreshAppCallback) refreshAppCallback();
+  } catch (err) {
+    showModalNotification(err.message, 'error');
+  }
 }
 
 async function saveTaskOrder(issue) {
@@ -1094,10 +1186,14 @@ async function addPlannedDate(dateStr) {
     if (!currentDates.includes(dateStr)) {
       const newDates = [...currentDates, dateStr].sort();
       const updatedIssue = { ...state.currentIssue, planned_dates: newDates };
-      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date added');
-      if (saved) {
-        state.currentIssue.planned_dates = newDates;
-        renderPlannedDateChips(state.currentIssue);
+      try {
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date added');
+        if (saved) {
+          state.currentIssue.planned_dates = newDates;
+          renderPlannedDateChips(state.currentIssue);
+        }
+      } catch (err) {
+        showModalNotification(err.message, 'error');
       }
     }
   } else {
@@ -1117,10 +1213,14 @@ async function removePlannedDate(dateStr) {
     if (state.currentIssue.planned_dates) {
       const newDates = state.currentIssue.planned_dates.filter(d => d !== dateStr);
       const updatedIssue = { ...state.currentIssue, planned_dates: newDates };
-      const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date removed');
-      if (saved) {
-        state.currentIssue.planned_dates = newDates;
-        renderPlannedDateChips(state.currentIssue);
+      try {
+        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date removed');
+        if (saved) {
+          state.currentIssue.planned_dates = newDates;
+          renderPlannedDateChips(state.currentIssue);
+        }
+      } catch (err) {
+        showModalNotification(err.message, 'error');
       }
     }
   } else {

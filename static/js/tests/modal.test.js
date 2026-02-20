@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setupModal, openModal, closeModal, preventNavigation } from '../components/modal.js';
 import * as api from '../api.js';
-import * as state from '../state.js';
+import { state, setCurrentIssue } from '../state.js';
 import * as utils from '../utils.js';
 import * as tasks from '../components/tasks.js';
 
@@ -25,13 +25,7 @@ vi.mock('../state.js', () => ({
     currentIssue: null,
     currentUser: { role: 'admin' }
   },
-  setCurrentIssue: vi.fn((issue) => {
-    // Manually update the mocked state for tests to see the change
-    // Note: In a real ES module mock, we might need a getter/setter on the mock object itself 
-    // if the module exports a live binding, but here we are mocking the module object.
-    // However, the SUT imports 'state' directly.
-    // To make 'state' updateable in SUT, we rely on the fact that SUT imports the object.
-  })
+  setCurrentIssue: vi.fn()
 }));
 
 vi.mock('../utils.js', () => ({
@@ -41,7 +35,8 @@ vi.mock('../utils.js', () => ({
   updateDateInputStyle: vi.fn(),
   stripHtml: vi.fn(s => s),
   escapeHtml: vi.fn(s => s),
-  canArchive: vi.fn().mockReturnValue({ allowed: true })
+  canArchive: vi.fn().mockReturnValue({ allowed: true }),
+  sanitizeDescription: vi.fn(s => s)
 }));
 
 vi.mock('../components/tasks.js', () => ({
@@ -152,9 +147,9 @@ describe('Modal Component', () => {
     api.fetchLabels.mockResolvedValue([{ id: 1, name: 'Bug' }, { id: 2, name: 'Feature' }]);
     api.fetchUsers.mockResolvedValue([{ id: 1, first_name: 'Test', last_name: 'User', active: true }]);
     api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
-    state.state.currentIssue = null;
-    state.state.currentUser = { role: 'admin' };
-    state.setCurrentIssue.mockImplementation((val) => { state.state.currentIssue = val; });
+    state.currentIssue = null;
+    state.currentUser = { role: 'admin' };
+    setCurrentIssue.mockImplementation((val) => { state.currentIssue = val; });
 
     // Initialize module
     setupModal(vi.fn());
@@ -162,17 +157,17 @@ describe('Modal Component', () => {
     // Mock JSDOM missing functions
     document.queryCommandState = vi.fn();
     document.execCommand = vi.fn();
+
     HTMLElement.prototype.scrollIntoView = vi.fn();
+    HTMLInputElement.prototype.reportValidity = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => { });
   });
-
-
-
   it('should open modal for new issue', async () => {
     openModal(null);
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('modal-title').textContent).toBe('New Issue');
     expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(false);
-    expect(state.setCurrentIssue).toHaveBeenCalledWith(null);
+    expect(setCurrentIssue).toHaveBeenCalledWith(null);
   });
 
   it('should open modal for existing issue', async () => {
@@ -195,7 +190,7 @@ describe('Modal Component', () => {
     expect(document.getElementById('modal-title').textContent).toBe('Edit Issue #123');
     expect(document.getElementById('title').value).toBe('Test Issue');
     expect(document.getElementById('description-editor').innerHTML).toBe('Test Desc');
-    expect(state.setCurrentIssue).toHaveBeenCalledWith(issue);
+    expect(setCurrentIssue).toHaveBeenCalledWith(issue);
     expect(api.fetchLabels).toHaveBeenCalled(); // labels fetched to render options
   });
 
@@ -204,7 +199,7 @@ describe('Modal Component', () => {
     closeModal();
 
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
-    expect(state.setCurrentIssue).toHaveBeenCalledWith(null);
+    expect(setCurrentIssue).toHaveBeenCalledWith(null);
   });
 
   it('should create new issue on submit', async () => {
@@ -791,6 +786,40 @@ describe('Modal Component', () => {
       expect(titleInput.readOnly).toBe(true);
     });
 
+    it('should trigger browser validation on empty title save', async () => {
+      const issue = { id: 1, title: 'Original' };
+      await openModalWithMock(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = ''; // Empty title
+
+      const saveBtn = document.getElementById('title-save-btn');
+      saveBtn.dispatchEvent(new Event('mousedown'));
+
+      await new Promise(process.nextTick);
+
+      expect(titleInput.reportValidity).toHaveBeenCalled();
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      // Should remain in edit mode
+      expect(titleInput.classList.contains('inline-editing')).toBe(true);
+    });
+
+    it('should trigger browser validation on Done with empty title', async () => {
+      const issue = { id: 1, title: 'Original' };
+      await openModalWithMock(issue);
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = '';
+
+      const doneBtn = document.getElementById('done-btn');
+      doneBtn.click();
+
+      expect(titleInput.reportValidity).toHaveBeenCalled();
+      // Should NOT close modal
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+
     it('should save inline title edit on save button', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
@@ -1024,7 +1053,7 @@ describe('Modal Component', () => {
 
   describe('Additional Coverage Improvements', () => {
     it('should handle creator display in new modal', () => {
-      state.state.currentUser = { first_name: 'John', last_name: 'Doe' };
+      state.currentUser = { first_name: 'John', last_name: 'Doe' };
       openModal(null);
       // New modal should not display creator name in timestamps (hidden)
       const timestampContainer = document.getElementById('timestamp-container');
@@ -1058,12 +1087,15 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       const descEditor = document.getElementById('description-editor');
-      const link = descEditor.querySelector('#test-link');
+      const link = descEditor.querySelector('a'); // ID might be stripped by sanitizer in real app
       const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => ({}));
 
       // Ensure we are NOT in edit mode yet
       const descContainer = document.querySelector('.editor-container');
       descContainer.classList.add('inline-editable');
+
+      // Prevent JSDOM navigation error by preventing default in the test
+      link.addEventListener('click', e => e.preventDefault());
 
       // Dispatch click on the link itself
       link.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -1177,6 +1209,21 @@ describe('Modal Component', () => {
       linkBtn.click();
 
       expect(document.execCommand).toHaveBeenCalledWith('createLink', false, 'https://example.com');
+    });
+
+    it('should reject javascript: URIs in createLink', async () => {
+      openModal(null);
+
+      globalThis.getSelection = vi.fn().mockReturnValue({
+        toString: () => 'javascript:alert(1)', // NOSONAR
+        anchorNode: { parentElement: { tagName: 'A', target: '' } }
+      });
+      document.execCommand = vi.fn();
+
+      const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
+      linkBtn.click();
+
+      expect(document.execCommand).not.toHaveBeenCalled();
     });
 
     it('should handle planned date chip add button click', () => {
@@ -1378,13 +1425,157 @@ describe('Modal Component', () => {
       const issue = { id: 1, description: '<a href="https://example.com"><span id="inner">Link</span></a>' };
       await openModalWithMock(issue);
 
-      const inner = document.getElementById('inner');
+      const descEditor = document.getElementById('description-editor');
+      const inner = descEditor.querySelector('span'); // ID might be stripped by sanitizer
       const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => ({}));
 
       inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
       expect(openSpy).toHaveBeenCalled();
       openSpy.mockRestore();
+    });
+  });
+
+  describe('Client-side Validation', () => {
+    it('should validate title length before submit', async () => {
+      await openModalWithMock(null);
+      document.getElementById('title').value = 'a'.repeat(101);
+      document.getElementById('save-issue-btn').click();
+
+      await new Promise(process.nextTick);
+
+      expect(api.createIssue).not.toHaveBeenCalled();
+      expect(utils.showNotification).toHaveBeenCalledWith('Title must not exceed 100 characters.', 'error');
+    });
+
+    it('should validate description length before submit', async () => {
+      await openModalWithMock(null);
+      document.getElementById('title').value = 'Valid Title';
+      const longDesc = 'a'.repeat(5001);
+      document.getElementById('description-editor').textContent = longDesc;
+
+      document.getElementById('save-issue-btn').click();
+
+      await new Promise(process.nextTick);
+
+      expect(api.createIssue).not.toHaveBeenCalled();
+      expect(utils.showNotification).toHaveBeenCalledWith('Description HTML must not exceed 5000 characters.', 'error');
+    });
+
+    it('should validate task title length', async () => {
+      const issue = { id: 1, tasks: [] };
+      await openModalWithMock(issue);
+      const titleInput = document.getElementById('new-task-title');
+      titleInput.value = 'a'.repeat(101);
+      document.getElementById('add-task-btn').click();
+
+      expect(api.createTask).not.toHaveBeenCalled();
+      expect(utils.showNotification).toHaveBeenCalledWith('Task title must not exceed 100 characters.', 'error');
+    });
+  });
+
+  describe('Conflict Handling and Error Paths', () => {
+    it('should handle conflict in saveIssueWithConflictCheck and reload', async () => {
+      const issue = { id: 1, title: 'Old' };
+      await openModalWithMock(issue);
+
+      api.updateIssue.mockResolvedValue({ conflict: true });
+      utils.showConfirm.mockResolvedValue(true); // User clicks Reload
+      api.fetchIssueById.mockResolvedValue({ issue: { ...issue, title: 'Fresh' }, etag: '"new-etag"' });
+
+      // Trigger a change that calls saveIssueWithConflictCheck (e.g. priority)
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = 'High';
+      prioritySelect.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+      await new Promise(process.nextTick); // Extra tick for fetchIssueById
+
+      expect(utils.showConfirm).toHaveBeenCalledWith(
+        'Conflict Detected',
+        expect.any(String),
+        'Reload',
+        'Cancel',
+        'primary'
+      );
+      expect(document.getElementById('modal-title').textContent).toContain('Edit Issue #1');
+    });
+
+    it('should handle sidebar save failures', async () => {
+      const issue = { id: 1, title: 'Test' };
+      await openModalWithMock(issue);
+
+      api.updateIssue.mockRejectedValue(new Error('Save Failed'));
+
+      // Test Priority failure
+      document.getElementById('priority').dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+
+      // Test Status failure
+      document.getElementById('status').dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+
+      // Test Deadline failure
+      document.getElementById('deadline').value = '2023-01-01';
+      document.getElementById('deadline').dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+
+      // Test Assignee failure
+      document.getElementById('assignee-select').dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+
+      // Test Label failure
+      document.getElementById('label-select').dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+    });
+
+    it('should handle "Me" assignee selection', async () => {
+      const issue = { id: 1, title: 'Test' };
+      const meUser = { id: 5, first_name: 'Admin', last_name: 'User' };
+      state.currentUser = meUser;
+
+      await openModalWithMock(issue);
+
+      const assigneeOptions = document.getElementById('assignee-options');
+      const meOption = [...assigneeOptions.querySelectorAll('.custom-option')].find(o => o.textContent.includes('Me'));
+
+      expect(meOption).toBeDefined();
+      meOption.click();
+
+      expect(document.getElementById('assignee-select').value).toBe('5');
+    });
+
+    it('should handle done click with no changes (cancel dispatch)', async () => {
+      const issue = { id: 1, title: 'Original' };
+      await openModalWithMock(issue);
+
+      const titleInput = document.getElementById('title');
+      titleInput.click(); // Enter editing
+
+      const cancelBtn = document.getElementById('title-cancel-btn');
+      cancelBtn.dispatchEvent = vi.fn();
+
+      document.getElementById('done-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(cancelBtn.dispatchEvent).toHaveBeenCalled();
+    });
+
+    it('should handle dropdown trigger click and options click', async () => {
+      await openModalWithMock(null);
+      const statusTrigger = document.getElementById('status-trigger');
+      const statusOptions = document.getElementById('status-options');
+
+      statusTrigger.click();
+      expect(statusOptions.classList.contains('hidden')).toBe(false);
+
+      statusTrigger.click(); // Close
+      expect(statusOptions.classList.contains('hidden')).toBe(true);
     });
   });
 });

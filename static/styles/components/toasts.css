@@ -31,3 +31,7 @@
   width: auto;
   white-space: nowrap;
 }
+
+.notification-toast.error {
+  background-color: #dc2626;
+}
