@@ -175,7 +175,7 @@ test.describe('Task (Subtask) Management', () => {
     const clearedDeadline = await deadlineInput.inputValue();
     expect(clearedDeadline).toBe('');
   });
-  test('should handle task edit behavior (no blur popup, verify on Done)', async ({ page }) => {
+  test('should handle task edit behavior (autosave on blur/Done)', async ({ page }) => {
     await createIssue(page, { title: 'Task Edit Behavior Issue', status: 'Todo' });
     await openIssueByTitle(page, 'Task Edit Behavior Issue');
 
@@ -188,32 +188,27 @@ test.describe('Task (Subtask) Management', () => {
     await page.click('.task-title-input');
     await expect(page.locator('.task-item')).toHaveClass(/editing/);
 
-    // Modify task
+    // Modify task title
     await page.fill('.task-title-input', 'Modified Task');
 
-    // Click outside (e.g., modal title) -> No popup expected
+    // Click outside (modal title) → triggers autosave via blur, no popup
+    const savePromise = page.waitForResponse(r =>
+      r.url().includes('/api/tasks/') && r.request().method() === 'PUT'
+    );
     await page.click('#modal-title');
+    await savePromise;
+
+    // No confirm popup
     await expect(page.locator('#confirm-modal')).toBeHidden();
 
-    // Verify task is still in editing mode
-    await expect(page.locator('.task-item')).toHaveClass(/editing/);
-
-    // Click Done -> Expect popup for Task
+    // Close modal
     await page.click('#done-btn');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await expect(page.locator('#confirm-title')).toContainText('Unsaved Changes');
-    await expect(page.locator('#confirm-message')).toContainText('Save Task?');
-
-    // Discard
-    await page.click('#confirm-cancel-btn');
-
-    // Check issue modal closed
     await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Reopen and verify original task value (discarded)
+    // Reopen and verify the modified task was saved
     await openIssueByTitle(page, 'Task Edit Behavior Issue');
     const taskInput = page.locator('.task-title-input').first();
-    await expect(taskInput).toHaveValue('Original Task');
+    await expect(taskInput).toHaveValue('Modified Task');
   });
 });
 

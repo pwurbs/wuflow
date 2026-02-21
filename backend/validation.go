@@ -2,14 +2,16 @@ package backend
 
 import (
 	"errors"
+	"html"
 	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
 )
 
-// Length limits — kept in sync with index.html maxlength attributes and
-// the frontend pre-submit checks in modal.js / setup.js.
+// Length limits — kept in sync with the frontend character counters in
+// modal.js / setup.js. MaxDescLength counts visible text codepoints (HTML tags
+// excluded); all other limits apply to plain-text codepoints.
 const (
 	MaxTitleLength    = 100
 	MaxDescLength     = 5000
@@ -58,6 +60,10 @@ var (
 	anchorTagRegex     = regexp.MustCompile(`(?i)<a\s[^>]*href="([^"]*)"[^>]*>`)
 	closeAnchorRegex   = regexp.MustCompile(`(?i)</a\s*>`)
 	anyTagRegex        = regexp.MustCompile(`<[^>]+>`)
+	// openDivRegex / closeDivRegex normalise Chrome's contenteditable <div>
+	// paragraph separators to <p> so line breaks survive sanitisation.
+	openDivRegex  = regexp.MustCompile(`(?i)<div[^>]*>`)
+	closeDivRegex = regexp.MustCompile(`(?i)</div\s*>`)
 	unsafeHrefRegex    = regexp.MustCompile(`(?i)^\s*(javascript|data):`)
 	// sentinelRegex matches the two-rune sentinel sequences emitted by sanitizeHTML:
 	// NUL byte followed by a Unicode private-use codepoint (U+E000–U+F8FF).
@@ -100,6 +106,11 @@ func isValidRole(role UserRole) bool {
 //  4. Strip every remaining <...> sequence (these are dangerous/unknown tags).
 //  5. Restore sentinels to original safe tag text.
 func sanitizeHTML(raw string) string {
+	// Step 0 — normalise <div> → <p>: Chrome's contenteditable uses <div> for
+	// Enter by default; converting them preserves paragraph breaks after save.
+	raw = openDivRegex.ReplaceAllString(raw, "<p>")
+	raw = closeDivRegex.ReplaceAllString(raw, "</p>")
+
 	// Step 1 — rebuild <a href="..."> stripping all attributes except href.
 	result := anchorTagRegex.ReplaceAllStringFunc(raw, func(match string) string {
 		sub := anchorTagRegex.FindStringSubmatch(match)
@@ -150,7 +161,10 @@ func validateIssue(i *Issue) error {
 	if utf8.RuneCountInString(i.Title) > MaxTitleLength {
 		return ErrTitleTooLong
 	}
-	if utf8.RuneCountInString(i.Description) > MaxDescLength {
+	// Count visible text codepoints: strip HTML tags, then decode entities
+	// (e.g. &lt; → <) to match what the browser's textContent counter shows.
+	descText := html.UnescapeString(anyTagRegex.ReplaceAllString(i.Description, ""))
+	if utf8.RuneCountInString(descText) > MaxDescLength {
 		return ErrDescTooLong
 	}
 	i.Description = sanitizeHTML(i.Description)

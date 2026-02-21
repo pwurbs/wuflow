@@ -19,10 +19,6 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
             <input type="checkbox" id="task-check-${task.id}" name="task_check_${task.id}" ${task.done ? 'checked' : ''}>
             <div class="task-info">
                 <input type="text" id="task-title-${task.id}" name="task_title_${task.id}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
-                <div class="inline-edit-actions hidden">
-                    <button type="button" id="task-cancel-${task.id}" class="inline-edit-btn inline-cancel-btn" title="Cancel">✕</button>
-                    <button type="button" id="task-save-${task.id}" class="inline-edit-btn inline-save-btn" title="Save">✓</button>
-                </div>
                 <div class="task-actions">
                     <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="Set Deadline">
                         <span class="task-deadline task-deadline-display">
@@ -85,9 +81,6 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
     const titleInput = li.querySelector('.task-title-input');
 
     if (!callbacks.readOnly) {
-      const editActions = li.querySelector('.inline-edit-actions');
-      const cancelBtn = li.querySelector('.inline-cancel-btn');
-      const saveBtn = li.querySelector('.inline-save-btn');
       let originalTitle = task.title;
 
       const titleCounter = initCharCounter(titleInput, 100, { manual: true });
@@ -96,7 +89,6 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         li.classList.add('editing');
         li.draggable = false;
         titleInput.readOnly = false;
-        editActions.classList.remove('hidden');
         originalTitle = task.title;
         titleInput.dataset.originalTitle = task.title; // Expose for modal.js
         titleInput.focus();
@@ -108,7 +100,6 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         li.classList.remove('editing');
         li.draggable = true;
         titleInput.readOnly = true;
-        editActions.classList.add('hidden');
         delete titleInput.dataset.originalTitle;
         titleCounter.hide();
         if (callbacks.onTaskEditEnd) callbacks.onTaskEditEnd();
@@ -138,17 +129,13 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         if (!li.classList.contains('editing')) enterEditMode();
       });
 
-      cancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelEdit(); });
-      saveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveTask(); });
       titleInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); saveTask(); }
         else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
       });
-      titleInput.addEventListener('blur', () => {
-        // Only cancel if NO changes. If changes, stay in edit mode (no popup).
-        if (titleInput.value.trim() === originalTitle) {
-          cancelEdit();
-        }
+      titleInput.addEventListener('blur', async () => {
+        if (!li.classList.contains('editing')) return;
+        await saveTask(); // saveTask handles empty → cancelEdit automatically
       });
 
       // Deadline Logic (Interactive)

@@ -1,4 +1,10 @@
 
+## 0.21.0
+
+- Removed explicit Save/Cancel buttons from title and tasks edit fields and implement autosave on blur
+- Improved the content counting for the description field
+- Some cosmetic improvements
+
 ## 0.20.5
 
 - Added text input counter information

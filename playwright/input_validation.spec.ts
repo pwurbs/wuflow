@@ -79,7 +79,7 @@ test.describe('Validation limits – Issue', () => {
 
     await page.click('#save-issue-btn');
 
-    await expectMainError(page, 'Description HTML must not exceed 5000 characters.');
+    await expectMainError(page, 'Description must not exceed 5000 characters.');
     await expect(page.locator('#issue-modal')).toBeVisible();
   });
 });

@@ -51,6 +51,43 @@ func TestValidateIssueDescriptionTooLong(t *testing.T) {
 	}
 }
 
+func TestValidateIssueDescriptionCountsTextNotTags(t *testing.T) {
+	// HTML tags must not count toward the limit — MaxDescLength text chars
+	// wrapped in <b>…</b> should be accepted.
+	desc := "<b>" + strings.Repeat("x", MaxDescLength) + "</b>"
+	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
+	if err := validateIssue(i); err != nil {
+		t.Errorf("expected no error for description at text-only max length with tags, got %v", err)
+	}
+}
+
+func TestValidateIssueDescriptionTooLongWithTags(t *testing.T) {
+	// MaxDescLength+1 visible text chars must be rejected even when wrapped in tags.
+	desc := "<b>" + strings.Repeat("x", MaxDescLength+1) + "</b>"
+	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
+	if err := validateIssue(i); err != ErrDescTooLong {
+		t.Errorf("expected ErrDescTooLong for text-over-limit description with tags, got %v", err)
+	}
+}
+
+func TestValidateIssueDescriptionEntitiesDecodedForCount(t *testing.T) {
+	// &lt; decodes to < (1 char) — MaxDescLength such entities must be accepted.
+	desc := strings.Repeat("&lt;", MaxDescLength)
+	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
+	if err := validateIssue(i); err != nil {
+		t.Errorf("expected no error for MaxDescLength decoded entity chars, got %v", err)
+	}
+}
+
+func TestValidateIssueDescriptionEntitiesDecodedTooLong(t *testing.T) {
+	// MaxDescLength+1 decoded entity chars must be rejected.
+	desc := strings.Repeat("&lt;", MaxDescLength+1)
+	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
+	if err := validateIssue(i); err != ErrDescTooLong {
+		t.Errorf("expected ErrDescTooLong for entity-encoded text exceeding limit, got %v", err)
+	}
+}
+
 func TestValidateIssueInvalidStatus(t *testing.T) {
 	i := &Issue{Title: "T", Status: "Unknown"}
 	if err := validateIssue(i); err != ErrInvalidStatus {
@@ -392,6 +429,15 @@ func TestSanitizeHTMLIframeStripped(t *testing.T) {
 	result := sanitizeHTML(`<iframe src="evil.com"></iframe>`)
 	if strings.Contains(result, "iframe") {
 		t.Errorf("expected iframe to be stripped, got: %s", result)
+	}
+}
+
+func TestSanitizeHTMLDivNormalisedToParagraph(t *testing.T) {
+	// Chrome contenteditable emits <div> for Enter — these must be preserved
+	// as <p> so line breaks survive a save/reload cycle.
+	result := sanitizeHTML(`<div>line1</div><div>line2</div>`)
+	if !strings.Contains(result, "<p>line1</p>") || !strings.Contains(result, "<p>line2</p>") {
+		t.Errorf("expected <div> normalised to <p>, got: %s", result)
 	}
 }
 

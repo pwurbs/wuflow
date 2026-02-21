@@ -6,9 +6,9 @@ test.describe('Issue Edit Modal Behavior', () => {
     await login(page);
   });
 
-  test('should not show popup when clicking outside modified title', async ({ page }) => {
-    await createIssue(page, { title: 'Test Popup Issue', status: 'Todo' });
-    await openIssueByTitle(page, 'Test Popup Issue');
+  test('should autosave title on blur (clicking outside modified title)', async ({ page }) => {
+    await createIssue(page, { title: 'Test Autosave Issue', status: 'Todo' });
+    await openIssueByTitle(page, 'Test Autosave Issue');
 
     // Click title to edit
     await page.click('#title');
@@ -17,55 +17,47 @@ test.describe('Issue Edit Modal Behavior', () => {
     // Modify title
     await page.fill('#title', 'Modified Title');
 
-    // Click outside (e.g., on the modal background or description)
+    // Blur by clicking outside — triggers autosave, no popup
+    const savePromise = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
     await page.click('#modal-title');
+    await savePromise;
 
-    // Verify NO popup
+    // No confirm popup
     await expect(page.locator('#confirm-modal')).toBeHidden();
 
-    // Verify still in edit mode or at least value retained
+    // Title field should now show the saved value in read-only mode
     await expect(page.locator('#title')).toHaveValue('Modified Title');
 
-    // Click Done -> Should show popup
+    // Close modal
     await page.click('#done-btn');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await expect(page.locator('#confirm-title')).toContainText('Unsaved Changes');
+    await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Click Discard
-    await page.click('#confirm-cancel-btn'); // Cancel button acts as Discard based on modal.js logic "Cancel logic" is Discard in this context?
-    // Wait, in modal.js: showConfirm('Unsaved Changes', 'Save Title?', 'Save', 'Discard', 'primary')
-    // cancelButtonText is 'Discard'. So confirm-cancel-btn is Discard.
-
-    // Modal should close (or title reset? Logic says "cancelTitle()" which resets value and exits edit mode)
-    // Actually handleDone -> click Discard -> calls titleCancelBtn.dispatchEvent(mousedown) -> cancelTitle()
-    // It does NOT close the modal automatically in handleDone if we just reset the field? 
-    // Let's check handleDone logic: 
-    // if (await showConfirm(...)) { save... } else { cancel... }
-    // THEN it calls closeModal() at the very end.
-
-    await expect(page.locator('#issue-modal')).toBeHidden(); // handleDone calls closeModal() at end
-
-    // Reopen and check value is ORIGINAL
-    await openIssueByTitle(page, 'Test Popup Issue');
-    await expect(page.locator('#title')).toHaveValue('Test Popup Issue');
+    // Reopen and verify the saved title persists
+    await openIssueByTitle(page, 'Modified Title');
+    await expect(page.locator('#title')).toHaveValue('Modified Title');
   });
 
-  test('should save changes when clicking Done and confirming save', async ({ page }) => {
+  test('should autosave title on Done click', async ({ page }) => {
     await createIssue(page, { title: 'Save Test Issue', status: 'Todo' });
     await openIssueByTitle(page, 'Save Test Issue');
 
     await page.click('#title');
     await page.fill('#title', 'Saved Title');
 
+    // Done autosaves the title (no confirm popup) and closes the modal
+    const savePromise = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
     await page.click('#done-btn');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await savePromise;
 
-    // Click Save (confirm-ok-btn)
-    await page.click('#confirm-ok-btn');
-
+    // No confirm popup, modal closes
+    await expect(page.locator('#confirm-modal')).toBeHidden();
     await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Reopen and check value is NEW
+    // Reopen and verify the new title was saved
     await openIssueByTitle(page, 'Saved Title');
     await expect(page.locator('#title')).toHaveValue('Saved Title');
   });

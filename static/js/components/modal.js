@@ -1,6 +1,6 @@
 import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
-import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription, initCharCounter, countCodepoints } from '../utils.js';
+import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
@@ -27,13 +27,15 @@ export function setupModal(refreshApp) {
   document.getElementById('unarchive-issue-btn').addEventListener('click', handleUnarchiveIssue);
 
   setupInlineEditing();
+  // Ensure Enter creates <p> elements (not <div>) so paragraph breaks survive sanitization
+  // execCommand is deprecated but remains the only cross-browser way to set this
+  document.execCommand('defaultParagraphSeparator', false, 'p');
   setupEditorToolbar();
   setupSidebarImmediateSave();
 
   // Character counters
-  initCharCounter(document.getElementById('title'), 100);
   initCharCounter(document.getElementById('description-editor'), 5000, { className: 'editor-counter' });
-  initCharCounter(document.getElementById('new-task-title'), 100);
+  initCharCounter(document.getElementById('new-task-title'), 100, { className: 'task-title-counter' });
 
   // Task Form
   document.getElementById('add-task-btn').addEventListener('click', handleTaskSubmit);
@@ -268,7 +270,6 @@ function toggleInlineEditMode(enable) {
   const titleInput = document.getElementById('title');
   const descContainer = document.querySelector('.editor-container');
   const descEditor = document.getElementById('description-editor');
-  const titleEditActions = document.getElementById('title-edit-actions');
   const descEditActions = document.getElementById('description-edit-actions');
 
   if (enable) {
@@ -276,27 +277,45 @@ function toggleInlineEditMode(enable) {
     titleInput.readOnly = true;
     descContainer.classList.add('inline-editable');
     descEditor.contentEditable = "false";
-    titleEditActions.classList.add('hidden');
     descEditActions.classList.add('hidden');
   } else {
     titleInput.classList.remove('inline-editable');
     titleInput.readOnly = false;
     descContainer.classList.remove('inline-editable');
     descEditor.contentEditable = "true";
-    titleEditActions.classList.add('hidden');
     descEditActions.classList.add('hidden');
   }
 }
 
-
-function formatTimestampEntry(dateStr, user) {
-  if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  let text = date.toLocaleDateString(navigator.language) + ' / ' + date.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
-  if (user) {
-    text += ` by ${user.first_name} ${user.last_name}`;
+function renderTimestampEntry(container, dateStr, user) {
+  if (!dateStr) {
+    container.textContent = '-';
+    return;
   }
-  return text;
+  container.innerHTML = '';
+  const date = new Date(dateStr);
+  const dateText = date.toLocaleDateString(navigator.language) + ' / ' + date.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+
+  const dateSpan = document.createElement('span');
+  dateSpan.textContent = dateText;
+  container.appendChild(dateSpan);
+
+  if (user) {
+    const bySpan = document.createElement('span');
+    bySpan.textContent = 'by';
+    container.appendChild(bySpan);
+
+    const badge = document.createElement('div');
+    badge.className = 'user-badge';
+    badge.textContent = getUserInitials(user);
+    badge.title = `${user.first_name} ${user.last_name}`;
+    // Inline styles for the small badge in timestamps
+    badge.style.width = '18px';
+    badge.style.height = '18px';
+    badge.style.fontSize = '9px';
+    badge.style.display = 'inline-flex';
+    container.appendChild(badge);
+  }
 }
 
 function renderModalTimestamps(issue) {
@@ -306,8 +325,8 @@ function renderModalTimestamps(issue) {
 
   if (!timestampContainer || !createdAtDisplay || !updatedAtDisplay) return;
 
-  createdAtDisplay.textContent = formatTimestampEntry(issue.created_at, issue.creator);
-  updatedAtDisplay.textContent = formatTimestampEntry(issue.updated_at, issue.updater);
+  renderTimestampEntry(createdAtDisplay, issue.created_at, issue.creator);
+  renderTimestampEntry(updatedAtDisplay, issue.updated_at, issue.updater);
 
   timestampContainer.classList.remove('hidden');
 }
@@ -380,9 +399,9 @@ async function handleIssueSubmit(e) {
     document.getElementById('title').focus();
     return;
   }
-  const descHtml = document.getElementById('description-editor').innerHTML || '';
-  if (countCodepoints(descHtml) > 5000) {
-    showNotification('Description HTML must not exceed 5000 characters.', 'error');
+  const descText = document.getElementById('description-editor').textContent || '';
+  if (countCodepoints(descText) > 5000) {
+    showNotification('Description must not exceed 5000 characters.', 'error');
     return;
   }
   // --- End validation ---
@@ -474,12 +493,12 @@ async function handleUnarchiveIssue() {
 // Inline Editing
 let originalTitle = '';
 let originalDesc = '';
+let _saveTitleFn = null;
+let _cancelTitleFn = null;
 
 function setupInlineEditing() {
   const titleInput = document.getElementById('title');
-  const titleEditActions = document.getElementById('title-edit-actions');
-  const titleCancelBtn = document.getElementById('title-cancel-btn');
-  const titleSaveBtn = document.getElementById('title-save-btn');
+  const titleCounter = initCharCounter(titleInput, 100, { manual: true });
 
   const descEditor = document.getElementById('description-editor');
   const descContainer = document.querySelector('.editor-container');
@@ -488,6 +507,13 @@ function setupInlineEditing() {
   const descSaveBtn = document.getElementById('desc-save-btn');
 
   // Title
+  titleInput.addEventListener('focus', () => {
+    // In new-issue mode the input has neither inline class — show counter on focus
+    if (!titleInput.classList.contains('inline-editable') && !titleInput.classList.contains('inline-editing')) {
+      titleCounter.show();
+    }
+  });
+
   titleInput.addEventListener('click', () => {
     if (state.currentIssue?.status === 'Archive') return;
     if (titleInput.classList.contains('inline-editable')) {
@@ -495,16 +521,20 @@ function setupInlineEditing() {
       titleInput.classList.remove('inline-editable');
       titleInput.classList.add('inline-editing');
       titleInput.readOnly = false;
-      titleEditActions.classList.remove('hidden');
       titleInput.focus();
+      titleCounter.show();
       addUnloadListener();
     }
   });
 
   titleInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && titleInput.classList.contains('inline-editing')) {
+    if (!titleInput.classList.contains('inline-editing')) return;
+    if (e.key === 'Enter') {
       e.preventDefault();
-      saveTitle();
+      _saveTitleFn();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      _cancelTitleFn();
     }
   });
 
@@ -513,16 +543,14 @@ function setupInlineEditing() {
     titleInput.classList.add('inline-editable');
     titleInput.classList.remove('inline-editing');
     titleInput.readOnly = true;
-    titleEditActions.classList.add('hidden');
+    titleCounter.hide();
     checkRemoveUnloadListener();
   };
 
   const saveTitle = async () => {
     const newTitle = titleInput.value.trim();
     if (!newTitle) {
-      if (typeof titleInput.reportValidity === 'function') {
-        titleInput.reportValidity();
-      }
+      cancelTitle(); // Revert to original if empty
       return;
     }
     if (newTitle !== state.currentIssue.title) {
@@ -530,7 +558,7 @@ function setupInlineEditing() {
       const updatedIssue = { ...state.currentIssue, title: newTitle };
       try {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Title updated');
-        if (!saved) return; // Conflict occurred - state not updated, user can try again
+        if (!saved) return; // Conflict occurred - stay in edit mode
         // Only update state after successful save (check for null in case modal closed during save)
         if (state.currentIssue) state.currentIssue.title = newTitle;
       } catch (err) {
@@ -541,15 +569,21 @@ function setupInlineEditing() {
     titleInput.classList.add('inline-editable');
     titleInput.classList.remove('inline-editing');
     titleInput.readOnly = true;
-    titleEditActions.classList.add('hidden');
+    titleCounter.hide();
     checkRemoveUnloadListener();
   };
 
-  titleCancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelTitle(); });
-  titleSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveTitle(); });
-  // Blur logic removed to prevent popup on click outside.
-  // We now only check for changes when clicking Done or attempting to leave the page.
+  titleInput.addEventListener('blur', async (e) => {
+    if (!titleInput.classList.contains('inline-editing')) {
+      titleCounter.hide(); // new-issue mode: hide counter on blur
+      return;
+    }
+    if (e.relatedTarget?.id === 'done-btn') return; // handleDone() will save it directly
+    await saveTitle();
+  });
 
+  _saveTitleFn = saveTitle;
+  _cancelTitleFn = cancelTitle;
 
   // Description
   descEditor.addEventListener('click', (e) => {
@@ -606,32 +640,19 @@ function setupInlineEditing() {
 
   descCancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelDesc(); });
   descSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveDesc(); });
-  // Blur logic removed.
 }
 
 async function handleDone() {
   const titleInput = document.getElementById('title');
   const descEditor = document.getElementById('description-editor');
 
-  // Check Title
+  // Title: auto-save (or revert if empty), then check if conflict kept us in edit mode
   if (titleInput.classList.contains('inline-editing')) {
-    if (!titleInput.value.trim()) {
-      if (typeof titleInput.reportValidity === 'function') {
-        titleInput.reportValidity();
-      }
-      return;
-    }
-
-    await processFieldOnDone(
-      titleInput.value.trim(),
-      originalTitle,
-      'Title',
-      'title-save-btn',
-      'title-cancel-btn'
-    );
+    await _saveTitleFn();
+    if (titleInput.classList.contains('inline-editing')) return; // Conflict - don't close
   }
 
-  // Check Description
+  // Description: keep explicit prompt behavior
   if (document.querySelector('.editor-container').classList.contains('inline-editing')) {
     await processFieldOnDone(
       descEditor.innerHTML,
@@ -642,22 +663,10 @@ async function handleDone() {
     );
   }
 
-  // Check Tasks
-  const editingTasks = document.querySelectorAll('.task-item.editing');
-  for (const taskItem of editingTasks) {
-    const input = taskItem.querySelector('.task-title-input');
-    const original = input.dataset.originalTitle;
-
-    // If original is undefined, we still need to prompt
-    if (!original || input.value.trim() !== original) {
-      if (await showConfirm('Unsaved Changes', 'Save Task?', 'Save', 'Discard', 'primary')) {
-        taskItem.querySelector('.inline-save-btn').dispatchEvent(new MouseEvent('mousedown'));
-      } else {
-        taskItem.querySelector('.inline-cancel-btn').dispatchEvent(new MouseEvent('mousedown'));
-      }
-    } else {
-      taskItem.querySelector('.inline-cancel-btn').dispatchEvent(new MouseEvent('mousedown'));
-    }
+  // Tasks: trigger blur to auto-save any currently editing task input
+  const editingTask = document.querySelector('.task-item.editing');
+  if (editingTask) {
+    editingTask.querySelector('.task-title-input').blur();
   }
 
   closeModal();

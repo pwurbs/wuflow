@@ -38,7 +38,11 @@ vi.mock('../utils.js', () => ({
   canArchive: vi.fn().mockReturnValue({ allowed: true }),
   sanitizeDescription: vi.fn(s => s),
   initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
-  countCodepoints: vi.fn(s => [...s].length)
+  countCodepoints: vi.fn(s => [...s].length),
+  getUserInitials: vi.fn(user => {
+    if (!user) return '??';
+    return ((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || '??';
+  })
 }));
 
 vi.mock('../components/tasks.js', () => ({
@@ -69,10 +73,6 @@ describe('Modal Component', () => {
           <form id="issue-form">
             <input id="issue-id" type="hidden">
             <input id="title" type="text" value="">
-            <div id="title-edit-actions" class="hidden">
-              <button id="title-cancel-btn"></button>
-              <button id="title-save-btn"></button>
-            </div>
             <div class="editor-container">
               <div id="description-editor" contenteditable="true"></div>
               <div id="description-edit-actions" class="hidden">
@@ -153,16 +153,15 @@ describe('Modal Component', () => {
     state.currentUser = { role: 'admin' };
     setCurrentIssue.mockImplementation((val) => { state.currentIssue = val; });
 
-    // Initialize module
-    setupModal(vi.fn());
-
-    // Mock JSDOM missing functions
-    document.queryCommandState = vi.fn();
+    // Mock JSDOM missing functions BEFORE setupModal so execCommand is available at init
     document.execCommand = vi.fn();
-
+    document.queryCommandState = vi.fn();
     HTMLElement.prototype.scrollIntoView = vi.fn();
     HTMLInputElement.prototype.reportValidity = vi.fn();
     vi.spyOn(console, "error").mockImplementation(() => { });
+
+    // Initialize module
+    setupModal(vi.fn());
   });
   it('should open modal for new issue', async () => {
     openModal(null);
@@ -765,15 +764,14 @@ describe('Modal Component', () => {
       const titleInput = document.getElementById('title');
       titleInput.click();
 
-      const cancelBtn = document.getElementById('title-cancel-btn');
-      cancelBtn.dispatchEvent(new Event('mousedown'));
+      titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
       expect(removeSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
     });
   });
 
   describe('Inline Editing Features', () => {
-    it('should cancel inline title edit on cancel button', async () => {
+    it('should cancel inline title edit on Escape key', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
 
@@ -781,33 +779,30 @@ describe('Modal Component', () => {
       titleInput.click(); // Enter edit
       titleInput.value = 'Changed';
 
-      const cancelBtn = document.getElementById('title-cancel-btn');
-      cancelBtn.dispatchEvent(new Event('mousedown'));
+      titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
       expect(titleInput.value).toBe('Original');
       expect(titleInput.readOnly).toBe(true);
     });
 
-    it('should trigger browser validation on empty title save', async () => {
+    it('should revert to original on empty title blur', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
       titleInput.click();
-      titleInput.value = ''; // Empty title
+      titleInput.value = ''; // Clear title
 
-      const saveBtn = document.getElementById('title-save-btn');
-      saveBtn.dispatchEvent(new Event('mousedown'));
+      titleInput.dispatchEvent(new Event('blur'));
 
       await new Promise(process.nextTick);
 
-      expect(titleInput.reportValidity).toHaveBeenCalled();
+      expect(titleInput.value).toBe('Original'); // Reverted
       expect(api.updateIssue).not.toHaveBeenCalled();
-      // Should remain in edit mode
-      expect(titleInput.classList.contains('inline-editing')).toBe(true);
+      expect(titleInput.classList.contains('inline-editing')).toBe(false);
     });
 
-    it('should trigger browser validation on Done with empty title', async () => {
+    it('should revert title and close modal on Done with empty title', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
       const titleInput = document.getElementById('title');
@@ -817,12 +812,15 @@ describe('Modal Component', () => {
       const doneBtn = document.getElementById('done-btn');
       doneBtn.click();
 
-      expect(titleInput.reportValidity).toHaveBeenCalled();
-      // Should NOT close modal
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      await new Promise(process.nextTick);
+
+      expect(titleInput.value).toBe('Original'); // Reverted
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      // Modal should close after revert
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
-    it('should save inline title edit on save button', async () => {
+    it('should auto-save title on blur', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
 
@@ -830,8 +828,7 @@ describe('Modal Component', () => {
       titleInput.click();
       titleInput.value = 'Saved Title';
 
-      const saveBtn = document.getElementById('title-save-btn');
-      saveBtn.dispatchEvent(new Event('mousedown'));
+      titleInput.dispatchEvent(new Event('blur'));
 
       await new Promise(process.nextTick);
 
@@ -841,7 +838,7 @@ describe('Modal Component', () => {
       expect(titleInput.readOnly).toBe(true);
     });
 
-    it('should prompt save on done button click with changes', async () => {
+    it('should auto-save title on Done click with changes', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
 
@@ -849,22 +846,12 @@ describe('Modal Component', () => {
       titleInput.click();
       titleInput.value = 'Changed';
 
-      // Mock confirm true
-      utils.showConfirm.mockResolvedValue(true);
-
       const doneBtn = document.getElementById('done-btn');
       doneBtn.click();
 
       await new Promise(process.nextTick);
 
-      expect(utils.showConfirm).toHaveBeenCalled();
-      // Since confirm is true, it should trigger save (which triggers updateIssue)
-      // Note: testing internal behavior of handleDone which triggers save logic
-      // In modal.js: if (await showConfirm(...)) {titleSaveBtn.dispatchEvent(...)}
-
-      // We need to wait for the save logic which is also async
-      await new Promise(process.nextTick);
-
+      expect(utils.showConfirm).not.toHaveBeenCalled();
       expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
         title: 'Changed'
       }), expect.any(String));
@@ -894,7 +881,7 @@ describe('Modal Component', () => {
       }), expect.any(String));
     });
 
-    it('should prompt save on done button click with title changes - discard path', async () => {
+    it('should auto-save title on Enter key', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
 
@@ -902,21 +889,17 @@ describe('Modal Component', () => {
       titleInput.click();
       titleInput.value = 'Changed';
 
-      utils.showConfirm.mockResolvedValue(false); // Discard
-
-      const doneBtn = document.getElementById('done-btn');
-      doneBtn.click();
+      titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
       await new Promise(process.nextTick);
 
-      // Should NOT update issue
-      expect(api.updateIssue).not.toHaveBeenCalled();
-      // Should close modal? logic: cancelTitle -> closeModal
-      // handleDone calls closeModal at end.
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Changed'
+      }), expect.any(String));
+      expect(titleInput.readOnly).toBe(true);
     });
 
-    it('should NOT prompt if no changes on done click', async () => {
+    it('should NOT call updateIssue and close modal when Done clicked with no changes', async () => {
       const issue = { id: 1, title: 'Original', description: 'Desc' };
       await openModalWithMock(issue);
 
@@ -929,6 +912,7 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(api.updateIssue).not.toHaveBeenCalled();
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
     it('should enter description inline edit on click', async () => {
@@ -1074,7 +1058,27 @@ describe('Modal Component', () => {
       };
       await openModalWithMock(issue);
       const createdAtDisplay = document.getElementById('created-at-display');
-      expect(createdAtDisplay.textContent).toContain('by Jane Smith');
+      expect(createdAtDisplay.textContent).toContain('by');
+      const badge = createdAtDisplay.querySelector('.user-badge');
+      expect(badge).toBeTruthy();
+      expect(badge.textContent).toBe('JS');
+      expect(badge.title).toBe('Jane Smith');
+    });
+
+    it('should handle updater display in edit modal', async () => {
+      const issue = {
+        id: 1,
+        title: 'Test',
+        updater: { first_name: 'Bob', last_name: 'Jones' },
+        updated_at: '2023-01-02T12:00:00Z'
+      };
+      await openModalWithMock(issue);
+      const updatedAtDisplay = document.getElementById('updated-at-display');
+      expect(updatedAtDisplay.textContent).toContain('by');
+      const badge = updatedAtDisplay.querySelector('.user-badge');
+      expect(badge).toBeTruthy();
+      expect(badge.textContent).toBe('BJ');
+      expect(badge.title).toBe('Bob Jones');
     });
 
     it('should handle unknown creator in edit modal', async () => {
@@ -1122,35 +1126,29 @@ describe('Modal Component', () => {
       expect(api.fetchIssueById).toHaveBeenCalled();
     });
 
-    it('should prompt for unsaved task changes on Done click', async () => {
+    it('should blur editing task input on Done click to trigger auto-save', async () => {
       const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
       await openModalWithMock(issue);
 
-      // Mock renderTasks to actually render a task item since it's vi.mocked
+      // Mock renderTasks to render a task item in editing state
       tasks.renderTasks.mockImplementation((taskList, container) => {
         container.innerHTML = `
           <li class="task-item editing" data-id="101">
             <input class="task-title-input" data-original-title="Task 1" value="Changed Task">
-            <button class="inline-save-btn"></button>
-            <button class="inline-cancel-btn"></button>
           </li>
         `;
       });
-      // Re-trigger render
       await openModalWithMock(issue);
 
-      utils.showConfirm.mockResolvedValue(true);
       const doneBtn = document.getElementById('done-btn');
-
-      // We need to mock dispatchEvent on the item's buttons
-      const saveBtn = document.querySelector('.inline-save-btn');
-      saveBtn.dispatchEvent = vi.fn();
+      const taskInput = document.querySelector('.task-title-input');
+      const blurSpy = vi.spyOn(taskInput, 'blur');
 
       doneBtn.click();
       await new Promise(process.nextTick);
 
-      expect(utils.showConfirm).toHaveBeenCalled();
-      expect(saveBtn.dispatchEvent).toHaveBeenCalled();
+      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(blurSpy).toHaveBeenCalled();
     });
 
     it('should save task order', async () => {
@@ -1395,33 +1393,6 @@ describe('Modal Component', () => {
       expect(descContainer.classList.contains('inline-editing')).toBe(false);
     });
 
-    it('should prompt task discard on Done click', async () => {
-      const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
-      await openModalWithMock(issue);
-
-      tasks.renderTasks.mockImplementation((taskList, container) => {
-        container.innerHTML = `
-          <li class="task-item editing" data-id="101">
-            <input class="task-title-input" data-original-title="Task 1" value="Changed Task">
-            <button class="inline-save-btn"></button>
-            <button class="inline-cancel-btn"></button>
-          </li>
-        `;
-      });
-      await openModalWithMock(issue);
-
-      utils.showConfirm.mockResolvedValue(false); // Discard
-      const doneBtn = document.getElementById('done-btn');
-
-      const cancelBtn = document.querySelector('.inline-cancel-btn');
-      cancelBtn.dispatchEvent = vi.fn();
-
-      doneBtn.click();
-      await new Promise(process.nextTick);
-
-      expect(utils.showConfirm).toHaveBeenCalled();
-      expect(cancelBtn.dispatchEvent).toHaveBeenCalled();
-    });
 
     it('should handle link bubble loop (span inside link)', async () => {
       const issue = { id: 1, description: '<a href="https://example.com"><span id="inner">Link</span></a>' };
@@ -1461,7 +1432,7 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(api.createIssue).not.toHaveBeenCalled();
-      expect(utils.showNotification).toHaveBeenCalledWith('Description HTML must not exceed 5000 characters.', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Description must not exceed 5000 characters.', 'error');
     });
 
     it('should validate task title length', async () => {
@@ -1552,20 +1523,18 @@ describe('Modal Component', () => {
       expect(document.getElementById('assignee-select').value).toBe('5');
     });
 
-    it('should handle done click with no changes (cancel dispatch)', async () => {
+    it('should close modal on Done with no title changes', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
-      titleInput.click(); // Enter editing
-
-      const cancelBtn = document.getElementById('title-cancel-btn');
-      cancelBtn.dispatchEvent = vi.fn();
+      titleInput.click(); // Enter editing (no changes)
 
       document.getElementById('done-btn').click();
       await new Promise(process.nextTick);
 
-      expect(cancelBtn.dispatchEvent).toHaveBeenCalled();
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should handle dropdown trigger click and options click', async () => {

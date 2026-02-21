@@ -37,7 +37,6 @@ test.describe('Issue CRUD Operations', () => {
   test('edit an existing issue title', async ({ page }) => {
     const title = `Issue to Edit ${Date.now()} `;
     // First create an issue
-    // First create an issue
     await createIssue(page, { title, status: 'Todo' });
 
     // Click on the issue to open it (use board-card to be specific)
@@ -50,8 +49,12 @@ test.describe('Issue CRUD Operations', () => {
     // Clear and change the title
     await page.fill('#title', 'Edited Issue Title');
 
-    // Click save on inline edit
-    await page.click('#title-save-btn');
+    // Blur to trigger autosave (title saves on blur)
+    const savePromise = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
+    await page.click('#modal-title');
+    await savePromise;
 
     // Close modal
     await page.click('#done-btn');
@@ -121,7 +124,10 @@ test.describe('Issue CRUD Operations', () => {
     // Verify creator display (Now part of timestamp)
     const createdAtDisplay = page.locator('#created-at-display');
     await expect(createdAtDisplay).toBeVisible();
-    await expect(createdAtDisplay).toContainText('by Admin User');
+    await expect(createdAtDisplay).toContainText('by');
+    const creatorBadge = createdAtDisplay.locator('.user-badge');
+    await expect(creatorBadge).toHaveAttribute('title', 'Admin User');
+    await expect(creatorBadge).toHaveText('AU');
 
     // Verify assignee selection (using the new "Me" option)
     const updatePromise = page.waitForResponse(response =>
@@ -146,7 +152,13 @@ test.describe('Issue CRUD Operations', () => {
     const newTitle = title + ' Updated';
     await page.click('#title');
     await page.fill('#title', newTitle);
-    await page.click('#title-save-btn');
+
+    // Blur to trigger autosave
+    const savePromise = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
+    await page.click('#modal-title');
+    await savePromise;
 
     // Close and reopen to fetch fresh data
     await page.click('#done-btn');
@@ -155,7 +167,10 @@ test.describe('Issue CRUD Operations', () => {
     // Check updated timestamp
     const updatedAtDisplay = page.locator('#updated-at-display');
     await expect(updatedAtDisplay).toBeVisible();
-    await expect(updatedAtDisplay).toContainText('by Admin User');
+    await expect(updatedAtDisplay).toContainText('by');
+    const updaterBadge = updatedAtDisplay.locator('.user-badge');
+    await expect(updaterBadge).toHaveAttribute('title', 'Admin User');
+    await expect(updaterBadge).toHaveText('AU');
 
     await page.click('#done-btn');
   });

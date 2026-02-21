@@ -173,7 +173,7 @@ export function initCharCounter(el, maxLength, options = {}) {
   }
 
   function getCount() {
-    return countCodepoints(isContentEditable ? el.innerHTML : el.value);
+    return countCodepoints(isContentEditable ? el.textContent : el.value);
   }
 
   function update() {
@@ -186,7 +186,7 @@ export function initCharCounter(el, maxLength, options = {}) {
         // Restore cursor position (clamped to new length)
         el.selectionStart = el.selectionEnd = Math.min(pos, el.value.length);
       }
-    } else if (countCodepoints(el.innerHTML) > maxLength) {
+    } else if (countCodepoints(el.textContent) > maxLength) {
       // Revert to last valid HTML and restore cursor to end
       el.innerHTML = lastValidHtml;
       const range = document.createRange();

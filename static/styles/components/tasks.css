@@ -14,7 +14,7 @@
 #tasks-section h3 {
   font-size: 14px;
   font-weight: 500;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 #task-list {
@@ -114,39 +114,6 @@
   cursor: text;
 }
 
-/* Edit Actions */
-.inline-edit-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.inline-edit-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  font-size: 18px;
-  width: 28px;
-  height: 28px;
-}
-
-.inline-edit-btn:hover {
-  background-color: var(--hover-bg);
-}
-
-.inline-cancel-btn {
-  color: var(--danger-color);
-}
-
-.inline-save-btn {
-  color: var(--success-color);
-}
 
 .task-deadline-container {
   position: relative;
@@ -217,8 +184,9 @@
   background-color: rgba(239, 68, 68, 0.1);
 }
 
-.input-group #new-task-title {
-  flex: 1;
+.input-group #new-task-title:focus {
+  /* Reserve space for the overlaid counter */
+  padding-right: 44px;
 }
 
 .input-group #new-task-deadline {
@@ -230,9 +198,9 @@
 /* Task Input Date Specifics */
 .input-group .custom-date-input.task-input-date {
   width: 140px;
-  min-height: 30px;
-  /* Match input height approx */
-  padding: 4px 8px;
+  /* Override the global 38px min-height so row matches existing task item height */
+  min-height: unset;
+  padding: 4px 6px;
   font-size: 13px;
 }
 

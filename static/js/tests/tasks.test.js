@@ -112,17 +112,14 @@ describe('Tasks Component', () => {
 
     const item = container.querySelector('.task-item');
     const input = item.querySelector('.task-title-input');
-    const saveBtn = item.querySelector('.inline-save-btn');
 
     // Enter edit mode
     input.click();
     expect(item.classList.contains('editing')).toBe(true);
 
-    // Change value
+    // Change value and save via Enter key
     input.value = 'Updated Task';
-
-    // Save
-    saveBtn.dispatchEvent(new Event('mousedown')); // use dispatchEvent because logic prevents default
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
     await new Promise(process.nextTick);
 
@@ -137,11 +134,12 @@ describe('Tasks Component', () => {
     renderTasks(issue.tasks, container, issue, callbacks);
     const item = container.querySelector('.task-item');
     const input = item.querySelector('.task-title-input');
-    const saveBtn = item.querySelector('.inline-save-btn');
 
     input.click();
     input.value = '';
-    saveBtn.dispatchEvent(new Event('mousedown'));
+    input.dispatchEvent(new Event('blur'));
+
+    await new Promise(process.nextTick);
 
     expect(item.classList.contains('editing')).toBe(false);
     expect(input.value).toBe('Task A'); // Reverted
@@ -208,37 +206,35 @@ describe('Tasks Component', () => {
     expect(callbacks.onTaskEditStart).toHaveBeenCalled();
   });
 
-  it('should call onTaskEditEnd when exiting edit mode via cancel', () => {
+  it('should call onTaskEditEnd when exiting edit mode via Escape key', () => {
     callbacks.onTaskEditEnd = vi.fn();
     renderTasks(issue.tasks, container, issue, callbacks);
 
     const item = container.querySelector('.task-item');
     const input = item.querySelector('.task-title-input');
-    const cancelBtn = item.querySelector('.inline-cancel-btn');
 
     // Enter edit mode
     input.click();
 
-    // Cancel edit
-    cancelBtn.dispatchEvent(new Event('mousedown'));
+    // Cancel via Escape
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     expect(callbacks.onTaskEditEnd).toHaveBeenCalled();
   });
 
-  it('should call onTaskEditEnd when exiting edit mode via save', async () => {
+  it('should call onTaskEditEnd when exiting edit mode via Enter key', async () => {
     callbacks.onTaskEditEnd = vi.fn();
     renderTasks(issue.tasks, container, issue, callbacks);
 
     const item = container.querySelector('.task-item');
     const input = item.querySelector('.task-title-input');
-    const saveBtn = item.querySelector('.inline-save-btn');
 
     // Enter edit mode
     input.click();
     input.value = 'New Title';
 
-    // Save
-    saveBtn.dispatchEvent(new Event('mousedown'));
+    // Save via Enter
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
     await new Promise(process.nextTick);
 
@@ -266,20 +262,19 @@ describe('Tasks Component', () => {
 
     const item = container.querySelector('.task-item');
     const input = item.querySelector('.task-title-input');
-    const cancelBtn = item.querySelector('.inline-cancel-btn');
 
     // Enter edit mode
     input.click();
     expect(input.dataset.originalTitle).toBe('Task A');
 
-    // Exit edit mode
-    cancelBtn.dispatchEvent(new Event('mousedown'));
+    // Exit via Escape
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     // Should remove originalTitle
     expect(input.dataset.originalTitle).toBeUndefined();
   });
 
-  it('should stay in edit mode on blur if value changed', () => {
+  it('should auto-save on blur when value changed', async () => {
     renderTasks(issue.tasks, container, issue, callbacks);
 
     const item = container.querySelector('.task-item');
@@ -287,16 +282,18 @@ describe('Tasks Component', () => {
 
     // Enter edit mode
     input.click();
-    expect(item.classList.contains('editing')).toBe(true);
-
-    // Change value
     input.value = 'Changed Value';
 
     // Trigger blur
     input.dispatchEvent(new Event('blur'));
 
-    // Should still be in edit mode
-    expect(item.classList.contains('editing')).toBe(true);
+    await new Promise(process.nextTick);
+
+    // Should save and exit edit mode
+    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Changed Value'
+    }));
+    expect(item.classList.contains('editing')).toBe(false);
   });
 
   it('should exit edit mode on blur if value unchanged', () => {

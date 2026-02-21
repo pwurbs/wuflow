@@ -123,7 +123,13 @@ test.describe('Backlog View', () => {
     // Edit the title
     await page.click('#title');
     await page.fill('#title', 'Edited Backlog Issue');
-    await page.click('#title-save-btn');
+
+    // Blur to trigger autosave
+    const savePromise = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
+    await page.click('#modal-title');
+    await savePromise;
 
     // Close modal
     await page.click('#done-btn');

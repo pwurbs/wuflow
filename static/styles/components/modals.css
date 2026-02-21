@@ -161,6 +161,13 @@
   cursor: default;
 }
 
+#created-at-display,
+#updated-at-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .timestamp-item svg {
   color: var(--text-color);
   opacity: 1;

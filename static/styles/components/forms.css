@@ -95,15 +95,20 @@ input:-webkit-autofill:active,
 .input-group {
   display: flex;
   gap: 8px;
+  align-items: stretch;
 }
 
 .task-title-input-wrapper {
   flex: 1;
-  align-self: flex-start;
+  position: relative;
+  display: flex;
+  align-items: stretch;
 }
 
 .task-title-input-wrapper input {
   width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .input-group input {
@@ -216,8 +221,14 @@ input:-webkit-autofill:active,
   pointer-events: none;
   user-select: none;
 }
-.char-counter.visible { display: block; }
-.char-counter.at-limit { color: var(--danger-color, #e74c3c); }
+
+.char-counter.visible {
+  display: block;
+}
+
+.char-counter.at-limit {
+  color: var(--danger-color, #e74c3c);
+}
 
 /* Description editor counter: overlays bottom-right of the editor (no space wasted) */
 .char-counter.editor-counter {
@@ -226,4 +237,15 @@ input:-webkit-autofill:active,
   right: 8px;
   margin: 0;
   background: transparent;
+}
+
+/* New-task title counter: overlays inside the input (no layout shift, same style as task counters) */
+.char-counter.task-title-counter {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  margin: 0;
+  background: transparent;
+  font-size: 11px;
 }

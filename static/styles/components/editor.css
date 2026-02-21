@@ -120,6 +120,40 @@
   display: none;
 }
 
+/* Description Save/Cancel buttons */
+.inline-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inline-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  font-size: 18px;
+  width: 28px;
+  height: 28px;
+}
+
+.inline-edit-btn:hover {
+  background-color: var(--hover-bg);
+}
+
+.inline-cancel-btn {
+  color: var(--danger-color);
+}
+
+.inline-save-btn {
+  color: var(--success-color);
+}
+
 /* Ensure title input looks correct in inline mode */
 #title.inline-editable {
   color: var(--text-color);
@@ -130,17 +164,20 @@
   position: relative;
 }
 
-#title-edit-actions {
+/* Counter overlaid inside the title input, right-aligned */
+.title-input-container .char-counter {
   position: absolute;
-  right: 8px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  background-color: var(--bg-color);
-  padding-left: 4px;
-  z-index: 2;
+  margin: 0;
+}
+
+/* Pad the input so text doesn't scroll under the counter */
+#title.inline-editing {
+  padding-right: 44px;
 }
 
 #title {
-  padding-right: 70px;
-  /* Make space for buttons */
+  width: 100%;
 }
