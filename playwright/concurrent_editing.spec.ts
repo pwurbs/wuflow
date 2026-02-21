@@ -45,7 +45,7 @@ test.describe('Concurrent Editing', () => {
     await expect(page.locator('#issue-modal')).toBeVisible();
 
     // Verify reload notification appears
-    await expect(page.locator('#modal-notification-toast')).toContainText('Reloaded with latest data');
+    await expect(page.locator('#notification-toast')).toContainText('Reloaded with latest data');
   });
 
   test('normal edit succeeds when no conflict', async ({ page }) => {

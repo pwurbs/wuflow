@@ -1,4 +1,8 @@
 
+## 0.22.0
+
+- Improved the display of notifications
+
 ## 0.21.0
 
 - Removed explicit Save/Cancel buttons from title and tasks edit fields and implement autosave on blur

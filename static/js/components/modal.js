@@ -1,6 +1,6 @@
 import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
-import { showNotification, showModalNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
@@ -8,6 +8,7 @@ import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 let refreshAppCallback = null;
 let previousActiveNavBtn = null;
 let currentEtag = null; // Stores ETag for conflict detection
+let hasSavedDuringSession = false; // Tracks whether any save occurred in this modal session
 
 export function setupModal(refreshApp) {
   refreshAppCallback = refreshApp;
@@ -100,6 +101,7 @@ export function setupModal(refreshApp) {
 export async function openModal(issue = null) {
   const modal = document.getElementById('issue-modal');
   modal.classList.remove('hidden');
+  hasSavedDuringSession = false;
 
   if (issue) {
     // Show loading state to prevent interaction while fetching fresh data
@@ -113,7 +115,7 @@ export async function openModal(issue = null) {
       modalContent.classList.remove('loading-state');
 
       if (!freshIssue) {
-        showModalNotification('Issue not found or was deleted', 'error');
+        showNotification('Issue not found or was deleted', 'error');
         closeModal();
         return;
       }
@@ -124,7 +126,7 @@ export async function openModal(issue = null) {
     } catch (e) {
       modalContent.classList.remove('loading-state');
       console.error(e);
-      showModalNotification('Failed to load issue', 'error');
+      showNotification('Failed to load issue', 'error');
       modal.classList.add('hidden');
     }
   } else {
@@ -306,13 +308,9 @@ function renderTimestampEntry(container, dateStr, user) {
     container.appendChild(bySpan);
 
     const badge = document.createElement('div');
-    badge.className = 'user-badge';
+    badge.className = 'user-badge small';
     badge.textContent = getUserInitials(user);
     badge.title = `${user.first_name} ${user.last_name}`;
-    // Inline styles for the small badge in timestamps
-    badge.style.width = '18px';
-    badge.style.height = '18px';
-    badge.style.fontSize = '9px';
     badge.style.display = 'inline-flex';
     container.appendChild(badge);
   }
@@ -370,7 +368,7 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
         setCurrentIssue(freshIssue);
         renderModalDropdowns(freshIssue);
         setupEditModal(freshIssue);
-        showModalNotification('Reloaded with latest data');
+        showNotification('Reloaded with latest data');
       }
     }
     // If Cancel clicked, do nothing - keep modal open with current data
@@ -379,7 +377,8 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
 
   // Update stored ETag with new value
   currentEtag = result.etag;
-  showModalNotification(successMessage);
+  hasSavedDuringSession = true;
+  showNotification(successMessage);
   if (refreshAppCallback) refreshAppCallback();
   return true;
 }
@@ -446,7 +445,7 @@ async function handleIssueSubmit(e) {
     closeModal();
     if (refreshAppCallback) refreshAppCallback();
   } catch (err) {
-    showModalNotification(err.message, 'error');
+    showNotification(err.message, 'error');
   }
 }
 
@@ -456,6 +455,7 @@ async function handleDeleteIssue() {
   if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
     await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id));
     closeModal();
+    showNotification('Issue deleted');
   }
 }
 
@@ -472,8 +472,8 @@ async function handleArchiveIssue() {
   if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
     const updated = await archiveIssue(state.currentIssue.id);
     if (updated && updated.id) {
-      showModalNotification('Issue archived');
       closeModal();
+      showNotification('Issue archived');
     }
   }
 }
@@ -484,8 +484,8 @@ async function handleUnarchiveIssue() {
   if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
     const updated = await unarchiveIssue(state.currentIssue.id);
     if (updated && updated.id) {
-      showModalNotification('Issue unarchived');
       closeModal();
+      showNotification('Issue unarchived');
     }
   }
 }
@@ -562,7 +562,7 @@ function setupInlineEditing() {
         // Only update state after successful save (check for null in case modal closed during save)
         if (state.currentIssue) state.currentIssue.title = newTitle;
       } catch (err) {
-        showModalNotification(err.message, 'error');
+        showNotification(err.message, 'error');
         return; // Keep edit mode
       }
     }
@@ -627,7 +627,7 @@ function setupInlineEditing() {
         // Only update state after successful save (check for null in case modal closed during save)
         if (state.currentIssue) state.currentIssue.description = newDesc;
       } catch (err) {
-        showModalNotification(err.message, 'error');
+        showNotification(err.message, 'error');
         return; // Keep edit mode
       }
     }
@@ -669,7 +669,11 @@ async function handleDone() {
     editingTask.querySelector('.task-title-input').blur();
   }
 
+  const showUpdatedNotification = state.currentIssue && hasSavedDuringSession;
   closeModal();
+  if (showUpdatedNotification) {
+    showNotification('Issue updated');
+  }
 }
 
 async function processFieldOnDone(currentValue, originalValue, fieldName, saveBtnId, cancelBtnId) {
@@ -723,7 +727,7 @@ function setupSidebarImmediateSave() {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Priority updated');
         if (saved) state.currentIssue.priority = prioritySelect.value;
       } catch (err) {
-        showModalNotification(err.message, 'error');
+        showNotification(err.message, 'error');
         // Revert UI? Ideally yes, but tricky without knowing prev value. 
         // For now, at least user sees error.
       }
@@ -737,7 +741,7 @@ function setupSidebarImmediateSave() {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Status updated');
         if (saved) state.currentIssue.status = statusSelect.value;
       } catch (err) {
-        showModalNotification(err.message, 'error');
+        showNotification(err.message, 'error');
       }
     }
   });
@@ -757,7 +761,7 @@ function setupSidebarImmediateSave() {
             if (freshIssue) state.currentIssue.assignee = freshIssue.assignee;
           }
         } catch (err) {
-          showModalNotification(err.message, 'error');
+          showNotification(err.message, 'error');
         }
       }
     });
@@ -772,7 +776,7 @@ function setupSidebarImmediateSave() {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Deadline updated');
         if (saved) state.currentIssue.deadline = dateVal;
       } catch (err) {
-        showModalNotification(err.message, 'error');
+        showNotification(err.message, 'error');
       }
     }
   });
@@ -786,7 +790,7 @@ function setupSidebarImmediateSave() {
           const saved = await saveIssueWithConflictCheck(updatedIssue, 'Label updated');
           if (saved) state.currentIssue.label = labelVal;
         } catch (err) {
-          showModalNotification(err.message, 'error');
+          showNotification(err.message, 'error');
         }
       }
     });
@@ -940,9 +944,10 @@ async function handleTaskSubmit(e) {
       onTaskEditEnd: () => checkRemoveUnloadListener()
     });
     resetTaskForm();
+    showNotification('Task created');
     if (refreshAppCallback) refreshAppCallback();
   } catch (err) {
-    showModalNotification(err.message, 'error');
+    showNotification(err.message, 'error');
   }
 }
 
@@ -1207,7 +1212,7 @@ async function addPlannedDate(dateStr) {
           renderPlannedDateChips(state.currentIssue);
         }
       } catch (err) {
-        showModalNotification(err.message, 'error');
+        showNotification(err.message, 'error');
       }
     }
   } else {
@@ -1234,7 +1239,7 @@ async function removePlannedDate(dateStr) {
           renderPlannedDateChips(state.currentIssue);
         }
       } catch (err) {
-        showModalNotification(err.message, 'error');
+        showNotification(err.message, 'error');
       }
     }
   } else {

@@ -1,8 +1,5 @@
-/* Notification Toast */
+/* Notification Toast — shared appearance */
 .notification-toast {
-  position: fixed;
-  top: 20px;
-  right: 20px;
   background-color: #15803d;
   color: white;
   padding: 12px 24px;
@@ -14,23 +11,18 @@
   border: none;
   transition: opacity 0.3s ease, transform 0.3s ease;
   opacity: 1;
-  transform: translateY(0);
 }
 
-.notification-toast.hidden {
-  display: none;
-  opacity: 0;
-  transform: translateY(-20px);
-}
-
-.modal-toast {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  z-index: 10;
-  width: auto;
+/* App-level notification — centered by .header-center flexbox */
+#notification-toast {
   white-space: nowrap;
 }
+
+#notification-toast.hidden {
+  display: none;
+  opacity: 0;
+}
+
 
 .notification-toast.error {
   background-color: #dc2626;

@@ -106,7 +106,9 @@
   color: var(--text-color);
   transition: all 0.2s;
   min-width: 120px;
-  /* Match custom-select-trigger */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-menu-btn:hover {

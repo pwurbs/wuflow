@@ -42,19 +42,6 @@ export function showNotification(message, type = 'success') {
   }
 }
 
-let modalNotificationTimeout;
-export function showModalNotification(message, type = 'success') {
-  const toast = document.getElementById('modal-notification-toast');
-  if (!toast) return;
-  if (modalNotificationTimeout) clearTimeout(modalNotificationTimeout);
-  toast.textContent = message;
-  // Reset classes and add specific ones (keep modal-toast)
-  toast.className = 'notification-toast modal-toast ' + type;
-  toast.classList.remove('hidden');
-  modalNotificationTimeout = setTimeout(() => {
-    toast.classList.add('hidden');
-  }, 3000);
-}
 
 export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel', okType = 'danger') {
   const confirmModal = document.getElementById('confirm-modal');

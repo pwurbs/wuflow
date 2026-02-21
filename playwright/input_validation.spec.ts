@@ -14,9 +14,8 @@ import { login, createIssue, openIssueByTitle, navigateTo, selectStatus } from '
  *   User Email       : max 254 bytes (RFC 5321)
  *
  * The client-side guards mirror these limits; errors surface via
- *   - #notification-toast        (issue / task errors)
- *   - #modal-notification-toast  (label errors)
- *   - #user-modal-error          (user form errors)
+ *   - #notification-toast   (issue / task / label errors)
+ *   - #user-modal-error     (user form errors)
  */
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -25,13 +24,6 @@ import { login, createIssue, openIssueByTitle, navigateTo, selectStatus } from '
 async function expectMainError(page: Page, substring: string) {
   const toast = page.locator('#notification-toast');
   await expect(toast).toBeVisible({ timeout: 5000 });
-  await expect(toast).toContainText(substring);
-}
-
-/** Wait for the modal toast (#modal-notification-toast) to show an error message. */
-async function expectModalError(page: Page, substring: string) {
-  const toast = page.locator('#modal-notification-toast');
-  await toast.waitFor({ state: 'visible', timeout: 5000 });
   await expect(toast).toContainText(substring);
 }
 

@@ -155,7 +155,7 @@ function getAssigneeBadgeHTML(issue, extraStyle = '') {
   if (!issue.assignee) return '';
   const initials = getUserInitials(issue.assignee);
   const fullName = `${issue.assignee.first_name} ${issue.assignee.last_name}`;
-  return `<span class="user-badge" title="Assignee: ${escapeHtml(fullName)}" style="width: 20px; height: 20px; font-size: 9px; display: inline-block; text-align: center; line-height: 20px; vertical-align: middle; ${extraStyle}">${escapeHtml(initials)}</span>`;
+  return `<span class="user-badge" title="Assignee: ${escapeHtml(fullName)}" style="${extraStyle}">${escapeHtml(initials)}</span>`;
 }
 
 function getUserInitials(user) {

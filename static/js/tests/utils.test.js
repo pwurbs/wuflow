@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   stripHtml, escapeHtml, debounce, getUserInitials, sanitizeDescription,
   countCodepoints, canArchive,
-  showNotification, showModalNotification, showConfirm,
+  showNotification, showConfirm,
   updateDateInputStyle, initCharCounter,
 } from '../utils.js';
 
@@ -423,58 +423,6 @@ describe('showNotification', () => {
     toast.remove();
     expect(() => showNotification('Test')).not.toThrow();
     document.body.appendChild(toast); // restore for afterEach cleanup
-  });
-});
-
-describe('showModalNotification', () => {
-  let toast;
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    toast = document.createElement('div');
-    toast.id = 'modal-notification-toast';
-    toast.classList.add('hidden');
-    document.body.appendChild(toast);
-  });
-
-  afterEach(() => {
-    toast.remove();
-    vi.useRealTimers();
-  });
-
-  it('should set the message text', () => {
-    showModalNotification('Modal message');
-    expect(toast.textContent).toBe('Modal message');
-  });
-
-  it('should remove hidden class and add type class', () => {
-    showModalNotification('Test', 'warning');
-    expect(toast.classList.contains('hidden')).toBe(false);
-    expect(toast.classList.contains('warning')).toBe(true);
-  });
-
-  it('should default to success type', () => {
-    showModalNotification('Test');
-    expect(toast.classList.contains('success')).toBe(true);
-  });
-
-  it('should hide after 3000ms', () => {
-    showModalNotification('Test');
-    expect(toast.classList.contains('hidden')).toBe(false);
-    vi.advanceTimersByTime(3000);
-    expect(toast.classList.contains('hidden')).toBe(true);
-  });
-
-  it('should not hide before 3000ms', () => {
-    showModalNotification('Test');
-    vi.advanceTimersByTime(2999);
-    expect(toast.classList.contains('hidden')).toBe(false);
-  });
-
-  it('should return early when toast element is absent', () => {
-    toast.remove();
-    expect(() => showModalNotification('Test')).not.toThrow();
-    document.body.appendChild(toast);
   });
 });
 

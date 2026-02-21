@@ -13,7 +13,7 @@ export function setupUserMenu(user) {
     const initials = getUserInitials(user);
     // Create badge element
     const badge = document.createElement('div');
-    badge.className = 'user-badge';
+    badge.className = 'user-badge header';
     badge.textContent = initials;
 
     // Clear previous content and append badge + email

@@ -270,10 +270,7 @@ function createAssigneeBadgeElement(issue) {
   const initials = (issue.assignee.first_name ? issue.assignee.first_name.charAt(0) : '') +
     (issue.assignee.last_name ? issue.assignee.last_name.charAt(0) : '');
   const badge = document.createElement('span');
-  badge.className = 'user-badge';
-  badge.style.width = '16px';
-  badge.style.height = '16px';
-  badge.style.fontSize = '8px';
+  badge.className = 'user-badge small';
   badge.style.marginRight = '1px';
   badge.style.display = 'inline-flex';
   badge.textContent = initials.toUpperCase() || '?';

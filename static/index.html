@@ -60,6 +60,11 @@
                 </div>
             </div>
 
+            <!-- Notification area — occupies the free space between filters and user menu -->
+            <div class="header-center">
+                <div id="notification-toast" class="notification-toast hidden"></div>
+            </div>
+
             <div class="header-right">
                 <div class="user-menu-container filter-card">
                     <span class="filter-label">User</span>
@@ -73,7 +78,6 @@
                     </div>
                 </div>
             </div>
-
         </header>
 
         <div class="main-content">
@@ -287,6 +291,15 @@
                     </div>
                 </div>
 
+                <div class="flow-indicator flow-up" aria-hidden="true">
+                    <span class="flow-badge">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                        to Board
+                    </span>
+                </div>
+
                 <div id="backlog-open-section" class="backlog-section">
                     <div class="backlog-header" data-status="Open">
                         <h2>Backlog (Open)</h2>
@@ -308,6 +321,15 @@
                     </div>
                 </div>
 
+                <div class="flow-indicator flow-down" aria-hidden="true">
+                    <span class="flow-badge">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                        to Archive
+                    </span>
+                </div>
+
                 <div id="archive-archive-section" class="backlog-section">
                     <div class="backlog-header" data-status="Archive">
                         <h2>Archive</h2>
@@ -327,8 +349,6 @@
     <!-- Modal for New/Edit Issue -->
     <div id="issue-modal" class="modal hidden">
         <div class="modal-content issue-modal-content">
-            <div id="modal-notification-toast" class="notification-toast hidden modal-toast"></div>
-
             <h2 id="modal-title">New Issue</h2>
             <form id="issue-form">
                 <input type="hidden" id="issue-id" name="issue_id">
@@ -571,9 +591,6 @@
             </form>
         </div>
     </div>
-
-    <!-- Notification Toast -->
-    <div id="notification-toast" class="notification-toast hidden"></div>
 
     <script type="module" src="js/app.js"></script>
 </body>

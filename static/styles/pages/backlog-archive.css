@@ -131,3 +131,39 @@
 #archive-list .archive-month-header:first-child {
   margin-top: 8px;
 }
+
+/* ── Flow direction indicator ─────────────────────────────────── */
+.flow-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-indicator::before,
+.flow-indicator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--card-border);
+}
+
+.flow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 20px;
+  background-color: var(--column-bg);
+  border: 1px solid var(--card-border);
+  color: var(--muted-text);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.flow-badge svg {
+  flex-shrink: 0;
+  stroke: var(--muted-text);
+}

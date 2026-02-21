@@ -30,7 +30,6 @@ vi.mock('../state.js', () => ({
 
 vi.mock('../utils.js', () => ({
   showNotification: vi.fn(),
-  showModalNotification: vi.fn(),
   showConfirm: vi.fn(),
   updateDateInputStyle: vi.fn(),
   stripHtml: vi.fn(s => s),
@@ -247,7 +246,7 @@ describe('Modal Component', () => {
       id: 1,
       status: 'Done'
     }), expect.any(String));
-    expect(utils.showModalNotification).toHaveBeenCalled();
+    expect(utils.showNotification).toHaveBeenCalled();
   });
 
   it('should handle task creation', async () => {
@@ -295,7 +294,7 @@ describe('Modal Component', () => {
 
     expect(utils.showConfirm).toHaveBeenCalled();
     expect(api.archiveIssue).toHaveBeenCalledWith(100);
-    expect(utils.showModalNotification).toHaveBeenCalledWith('Issue archived');
+    expect(utils.showNotification).toHaveBeenCalledWith('Issue archived');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
   it('should drag and drop task', async () => {
@@ -511,7 +510,7 @@ describe('Modal Component', () => {
 
       expect(utils.showConfirm).toHaveBeenCalled();
       expect(api.unarchiveIssue).toHaveBeenCalledWith(101);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Issue unarchived');
+      expect(utils.showNotification).toHaveBeenCalledWith('Issue unarchived');
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
@@ -1015,7 +1014,7 @@ describe('Modal Component', () => {
 
       // Verify fresh data was fetched and modal was updated
       expect(api.fetchIssueById).toHaveBeenCalledWith(1);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Reloaded with latest data');
+      expect(utils.showNotification).toHaveBeenCalledWith('Reloaded with latest data');
     });
 
     it('should keep modal open when user cancels conflict reload', async () => {
@@ -1362,7 +1361,7 @@ describe('Modal Component', () => {
 
       await openModal({ id: 999 });
 
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Issue not found or was deleted', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Issue not found or was deleted', 'error');
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
@@ -1372,7 +1371,7 @@ describe('Modal Component', () => {
 
       await openModal({ id: 999 });
 
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Failed to load issue', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Failed to load issue', 'error');
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
@@ -1483,28 +1482,28 @@ describe('Modal Component', () => {
       // Test Priority failure
       document.getElementById('priority').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Status failure
       document.getElementById('status').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Deadline failure
       document.getElementById('deadline').value = '2023-01-01';
       document.getElementById('deadline').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Assignee failure
       document.getElementById('assignee-select').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Label failure
       document.getElementById('label-select').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
-      expect(utils.showModalNotification).toHaveBeenCalledWith('Save Failed', 'error');
+      expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
     });
 
     it('should handle "Me" assignee selection', async () => {

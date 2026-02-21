@@ -1,22 +1,32 @@
-/* User Badge */
+/* User Badge Base Styles */
 .user-badge {
-  width: 24px;
-  height: 24px;
   border-radius: 50%;
   background-color: var(--accent-blue);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
   text-transform: uppercase;
+  line-height: 1;
+
+  /* Default: Medium badge (e.g. used on Cards and User List) */
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
 }
 
-/* Larger badge for list view if needed */
-.user-badge.large {
-  width: 32px;
-  height: 32px;
-  font-size: 13px;
+/* Small badge for planning entries and timestamps */
+.user-badge.small {
+  width: 16px;
+  height: 16px;
+  font-size: 8px;
+}
+
+/* Header badge for user menu - slightly larger for better centering */
+.user-badge.header {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
 }

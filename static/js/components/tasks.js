@@ -1,4 +1,4 @@
-import { escapeHtml, showModalNotification, showConfirm, initCharCounter } from '../utils.js';
+import { escapeHtml, showNotification, showConfirm, initCharCounter } from '../utils.js';
 import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.js';
 
@@ -60,6 +60,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
           if (index > -1) currentIssue.tasks.splice(index, 1);
 
           renderTasks(currentIssue.tasks, container, currentIssue, callbacks);
+          showNotification('Task deleted');
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         }
       });
@@ -119,7 +120,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         if (newTitle !== task.title) {
           task.title = newTitle;
           await updateTask(task);
-          showModalNotification('Task updated');
+          showNotification('Task updated');
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         }
         exitEditMode();
@@ -146,7 +147,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
         task.deadline = newDate;
         await updateTask(task);
-        showModalNotification('Task deadline updated');
+        showNotification('Task deadline updated');
 
         const display = li.querySelector('.task-deadline-display');
         display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
