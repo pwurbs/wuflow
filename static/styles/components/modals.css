@@ -116,6 +116,14 @@
 
 
 /* Confirmation Modal */
+#confirm-modal {
+  z-index: 1100;
+}
+
+#password-modal {
+  z-index: 1200;
+}
+
 .modal-content.confirm {
   width: 400px;
   max-width: 90%;
@@ -125,11 +133,18 @@
   font-size: 18px;
   font-weight: 600;
   color: var(--text-color);
+  margin-bottom: 12px;
 }
 
 .modal-content.confirm p {
   font-size: 14px;
   line-height: 1.6;
+  margin-bottom: 24px;
+  color: #5e6c84;
+}
+
+#confirm-modal .form-actions {
+  justify-content: flex-end;
 }
 
 /* Custom Dropdown in Modal Sidebar */

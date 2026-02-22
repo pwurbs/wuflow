@@ -16,9 +16,12 @@ import (
 )
 
 var logLevel string
+var secureCookieStr string
+var secureCookie bool
 
 func init() {
 	flag.StringVar(&logLevel, "log-level", "", "Log level (debug, info, warn, error)")
+	flag.StringVar(&secureCookieStr, "secure-cookie", "", "Set Secure flag on auth cookies (true/false, default: true)")
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
@@ -35,6 +38,12 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 		logLevel = "info"
 	}
 
+	// Priority: Flag > Env > Default (true)
+	if secureCookieStr == "" {
+		secureCookieStr = os.Getenv("WF_SECURE_COOKIE")
+	}
+	secureCookie = secureCookieStr != "false"
+
 	level, err := parseLogLevel(logLevel)
 	if err != nil {
 		fmt.Println(err)
@@ -47,6 +56,7 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 	fmt.Printf("Starting wuFlow version: %s at %s\n", version, time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Printf("Using database: %s\n", dbPath)
 	fmt.Printf("Log level: %s\n", logLevel)
+	fmt.Printf("Secure cookies: %v\n", secureCookie)
 	if err := InitDB(dbPath); err != nil {
 		slog.Error("Failed to initialize database", "error", err)
 		os.Exit(1)
@@ -78,19 +88,19 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 	fileServer := http.FileServer(http.FS(staticFS))
 
 	// Login page — served without auth
-	http.Handle(loginPath, WithLogging(CSPMiddleware(HandleLoginHTML(fileServer))))
+	http.Handle(loginPath, WithLogging(SecurityHeadersMiddleware(HandleLoginHTML(fileServer))))
 
 	// Middleware stacks
 	// 1. commonAPI: Applied to ALL API routes (public & private)
 	//    Order: Logging -> CSP -> ValidatePath -> LimitBody -> RequireJSON -> Handler
 	commonAPI := func(h http.Handler) http.Handler {
-		return WithLogging(CSPMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(h)))))
+		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(h)))))
 	}
 
 	// 2. authAPI: Applied to PROTECTED API routes
 	//    Order: Logging -> CSP -> ValidatePath -> LimitBody -> RequireJSON -> Auth -> Handler
 	authAPI := func(h http.Handler) http.Handler {
-		return WithLogging(CSPMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(AuthMiddleware(h))))))
+		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(AuthMiddleware(h))))))
 	}
 
 	// Public auth endpoints
@@ -119,7 +129,7 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 
 	// Static files — require auth, redirect to login if not authenticated
 	// ValidatePathMiddleware is not applied for static files, we only want to protect the API
-	http.Handle("/", WithLogging(CSPMiddleware(HandleStaticFiles(fileServer))))
+	http.Handle("/", WithLogging(SecurityHeadersMiddleware(HandleStaticFiles(fileServer))))
 
 	fmt.Printf("Server starting on port %s\n", port)
 	slog.Info("Server starting", "port", port)
@@ -242,11 +252,16 @@ func ValidatePathMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// CSPMiddleware adds a Content-Security-Policy header to all responses.
-func CSPMiddleware(next http.Handler) http.Handler {
+// SecurityHeadersMiddleware adds security-related HTTP headers to all responses.
+func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
+		w.Header().Set("X-XSS-Protection", "0")
 		next.ServeHTTP(w, r)
 	})
 }

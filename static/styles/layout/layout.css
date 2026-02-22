@@ -73,3 +73,32 @@ header {
 .toggle-btn.active:hover {
   background-color: var(--primary-hover);
 }
+
+/* Logo / brand */
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-img {
+  height: 48px;
+}
+
+.logo-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.logo-app-name {
+  font-weight: 500;
+  color: white;
+}
+
+.logo-app-version {
+  font-size: 0.9rem;
+  font-weight: 400;
+  opacity: 0.8;
+  color: white;
+}

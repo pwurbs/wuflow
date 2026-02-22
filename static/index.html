@@ -13,12 +13,11 @@
     <div class="app-container">
         <header>
             <div class="header-left">
-                <h1 style="display: flex; align-items: center; gap: 12px;">
-                    <img src="logo.png" alt="wuFlow Logo" style="height: 48px;">
-                    <div style="display: flex; align-items: baseline; gap: 8px;">
-                        <span style="font-weight: 500; color: white;">wuFlow</span>
-                        <span id="app-version"
-                            style="font-size: 0.9rem; font-weight: 400; opacity: 0.8; color: white;">v...</span>
+                <h1 class="logo-row">
+                    <img src="logo.png" alt="wuFlow Logo" class="logo-img">
+                    <div class="logo-title-group">
+                        <span class="logo-app-name">wuFlow</span>
+                        <span id="app-version" class="logo-app-version">v...</span>
                     </div>
                 </h1>
                 <div id="filter-container" class="filter-card">
@@ -33,8 +32,7 @@
                     </div>
 
                     <!-- Priority Filter Wrapper -->
-                    <div id="priority-filter-wrapper" class="filter-input-wrapper custom-select-wrapper"
-                        style="margin-left: 10px;">
+                    <div id="priority-filter-wrapper" class="filter-input-wrapper custom-select-wrapper">
                         <button id="priority-filter-btn" class="custom-select-trigger"
                             aria-label="Filter by priority">Priority</button>
                         <div id="priority-filter-options" class="custom-select-options hidden">
@@ -43,8 +41,7 @@
                     </div>
 
                     <!-- User Filter Wrapper -->
-                    <div id="user-filter-wrapper" class="filter-input-wrapper custom-select-wrapper"
-                        style="margin-left: 10px;">
+                    <div id="user-filter-wrapper" class="filter-input-wrapper custom-select-wrapper">
                         <button id="user-filter-btn" class="custom-select-trigger"
                             aria-label="Filter by user">User</button>
                         <div id="user-filter-options" class="custom-select-options hidden">
@@ -53,7 +50,7 @@
                     </div>
 
                     <!-- Search Input -->
-                    <div id="search-filter-wrapper" class="filter-input-wrapper" style="margin-left: 10px;">
+                    <div id="search-filter-wrapper" class="filter-input-wrapper">
                         <input type="text" id="search-input" placeholder="Search..." class="search-input"
                             maxlength="50">
                     </div>
@@ -162,7 +159,7 @@
                     </div>
                 </div>
                 <!-- User Management Section (admin only) -->
-                <div id="user-management-section" class="setup-section" style="margin-top: 24px;">
+                <div id="user-management-section" class="setup-section">
                     <div class="column-header">
                         <h2>User Management</h2>
                     </div>
@@ -190,11 +187,15 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="user-first-name">First Name</label>
-                                <input type="text" id="user-first-name" required placeholder="First name">
+                                <div class="name-input-wrapper">
+                                    <input type="text" id="user-first-name" required placeholder="First name">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="user-last-name">Last Name</label>
-                                <input type="text" id="user-last-name" required placeholder="Last name">
+                                <div class="name-input-wrapper">
+                                    <input type="text" id="user-last-name" required placeholder="Last name">
+                                </div>
                             </div>
                         </div>
                         <div class="form-group">
@@ -410,8 +411,7 @@
                                             </path>
                                         </svg>
                                     </button>
-                                    <div id="description-edit-actions" class="inline-edit-actions hidden"
-                                        style="margin-left: auto;">
+                                    <div id="description-edit-actions" class="inline-edit-actions hidden">
                                         <button type="button" id="desc-cancel-btn"
                                             class="inline-edit-btn inline-cancel-btn" title="Cancel">
                                             ✕
@@ -543,7 +543,7 @@
                 </div>
 
                 <div class="form-actions">
-                    <div class="left-actions" style="display: flex; gap: 8px;">
+                    <div class="left-actions">
                         <button type="button" id="delete-issue-btn" class="btn danger hidden">Delete Issue</button>
                         <button type="button" id="archive-issue-btn" class="btn secondary hidden">Archive Issue</button>
                         <button type="button" id="unarchive-issue-btn" class="btn secondary hidden">Unarchive
@@ -560,11 +560,11 @@
     </div>
 
     <!-- Confirmation Modal -->
-    <div id="confirm-modal" class="modal hidden" style="z-index: 1100;">
+    <div id="confirm-modal" class="modal hidden">
         <div class="modal-content confirm">
-            <h2 id="confirm-title" style="margin-bottom: 12px;">Confirm Action</h2>
-            <p id="confirm-message" style="margin-bottom: 24px; color: #5e6c84;">Are you sure?</p>
-            <div class="form-actions" style="justify-content: flex-end;">
+            <h2 id="confirm-title">Confirm Action</h2>
+            <p id="confirm-message">Are you sure?</p>
+            <div class="form-actions">
                 <button id="confirm-cancel-btn" class="btn secondary">Cancel</button>
                 <button id="confirm-ok-btn" class="btn danger">Delete</button>
             </div>
@@ -572,7 +572,7 @@
     </div>
 
     <!-- Password Change Modal -->
-    <div id="password-modal" class="modal hidden" style="z-index: 1200;">
+    <div id="password-modal" class="modal hidden">
         <div class="user-modal">
             <div class="user-modal-header">
                 <h2>Change Password</h2>

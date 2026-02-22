@@ -127,6 +127,10 @@
   gap: 4px;
 }
 
+#description-edit-actions {
+  margin-left: auto;
+}
+
 .inline-edit-btn {
   background: none;
   border: none;

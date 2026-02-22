@@ -86,6 +86,11 @@ input:-webkit-autofill:active,
   background-color: var(--column-bg);
 }
 
+.left-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .right-actions {
   display: flex;
   gap: 8px;
@@ -237,6 +242,23 @@ input:-webkit-autofill:active,
   right: 8px;
   margin: 0;
   background: transparent;
+}
+
+/* Name input wrapper: enables inline char counter for first/last name fields */
+.name-input-wrapper {
+  position: relative;
+}
+
+.name-input-wrapper input {
+  padding-right: 40px;
+}
+
+.name-input-wrapper .char-counter {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  margin: 0;
 }
 
 /* New-task title counter: overlays inside the input (no layout shift, same style as task counters) */

@@ -190,6 +190,66 @@ test.describe('Authentication Security', () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test('Cookie Security: Auth cookies have correct security flags and lifetimes', async ({ page, context }) => {
+    await page.goto('/login');
+    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-password', adminPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('#nav-setup')).toBeVisible();
+
+    const cookies = await context.cookies();
+    const accessToken = cookies.find(c => c.name === 'wf_access_token');
+    const refreshToken = cookies.find(c => c.name === 'wf_refresh_token');
+
+    expect(accessToken, 'wf_access_token cookie missing').toBeDefined();
+    expect(refreshToken, 'wf_refresh_token cookie missing').toBeDefined();
+
+    for (const cookie of [accessToken!, refreshToken!]) {
+      expect(cookie.httpOnly, `${cookie.name}: must be HttpOnly`).toBe(true);
+      expect(cookie.secure,   `${cookie.name}: must be Secure`).toBe(true);
+      expect(cookie.sameSite, `${cookie.name}: must be SameSite=Strict`).toBe('Strict');
+      expect(cookie.path,     `${cookie.name}: path must be /`).toBe('/');
+    }
+
+    // Access token lifetime: MaxAge 900 s (15 min)
+    const nowSec = Date.now() / 1000;
+    expect(accessToken!.expires).toBeGreaterThan(0);
+    expect(accessToken!.expires - nowSec).toBeGreaterThan(800);
+    expect(accessToken!.expires - nowSec).toBeLessThanOrEqual(910);
+
+    // Refresh token lifetime: MaxAge 86400 s (24 h)
+    expect(refreshToken!.expires).toBeGreaterThan(0);
+    expect(refreshToken!.expires - nowSec).toBeGreaterThan(86000);
+    expect(refreshToken!.expires - nowSec).toBeLessThanOrEqual(86410);
+  });
+
+  test('HTTP Security Headers: All expected headers are present on every response type', async ({ request }) => {
+    // HTML page (public)
+    const loginPage = await request.get('/login');
+    expect(loginPage.status()).toBe(200);
+
+    // API endpoint (unauthenticated → 401, but headers must still be set)
+    const apiResp = await request.get('/api/issues');
+    expect(apiResp.status()).toBe(401);
+
+    for (const response of [loginPage, apiResp]) {
+      const h = response.headers();
+
+      // Content-Security-Policy — scripts strict, styles allow inline (required for dynamic label colors)
+      expect(h['content-security-policy']).toContain("default-src 'self'");
+      expect(h['content-security-policy']).toContain("script-src 'self'");
+      expect(h['content-security-policy']).toContain("style-src 'self' 'unsafe-inline'");
+      expect(h['content-security-policy']).not.toContain("'unsafe-eval'");
+      expect(h['content-security-policy']).toContain("frame-ancestors 'none'");
+
+      expect(h['x-content-type-options']).toBe('nosniff');
+      expect(h['x-frame-options']).toBe('DENY');
+      expect(h['referrer-policy']).toBe('strict-origin-when-cross-origin');
+      expect(h['permissions-policy']).toBe('geolocation=(), camera=(), microphone=()');
+      expect(h['x-xss-protection']).toBe('0');
+    }
+  });
+
   test('Guest Access: Unauthenticated users are redirected/blocked', async ({ page, request }) => {
     // 1. Ensure clean state (no cookies)
     await page.context().clearCookies();

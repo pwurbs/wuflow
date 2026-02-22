@@ -49,14 +49,15 @@
 
 .label-input-wrapper .char-counter {
     position: absolute;
-    top: 100%;
-    right: 0;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
     margin: 0;
 }
 
 .setup-input {
     flex: 1;
-    padding: 4px 8px;
+    padding: 8px;
     border: 1px solid var(--card-border);
     border-radius: 4px;
     font-size: 14px;
@@ -139,6 +140,10 @@
 .delete-label-btn:hover {
     opacity: 1;
     background-color: rgba(0, 0, 0, 0.2);
+}
+
+#user-management-section {
+    margin-top: 24px;
 }
 
 .no-data,

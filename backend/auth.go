@@ -178,7 +178,7 @@ func SetAuthCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secureCookie, //NOSONAR
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(accessTokenDuration.Seconds()),
 	})
@@ -187,7 +187,7 @@ func SetAuthCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 		Value:    refreshToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secureCookie, //NOSONAR
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   int(refreshTokenDuration.Seconds()),
 	})
@@ -200,7 +200,7 @@ func ClearAuthCookies(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secureCookie, //NOSONAR
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 	})
@@ -209,7 +209,7 @@ func ClearAuthCookies(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secureCookie, //NOSONAR
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1,
 	})

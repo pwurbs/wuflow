@@ -157,14 +157,14 @@ func TestRequireJSONMiddleware(t *testing.T) {
 	}
 }
 
-func TestCSPMiddleware(t *testing.T) {
+func TestSecurityHeadersMiddleware(t *testing.T) {
 	nextCalled := false
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := CSPMiddleware(nextHandler)
+	middleware := SecurityHeadersMiddleware(nextHandler)
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
 
@@ -553,7 +553,7 @@ func dummyTestHandler(w http.ResponseWriter, r *http.Request) {
 
 func TestMiddlewareIntegration(t *testing.T) {
 	// logging -> csp -> validatePath -> limitBody -> requireJSON -> handler
-	stack := WithLogging(CSPMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(http.HandlerFunc(dummyTestHandler))))))
+	stack := WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(http.HandlerFunc(dummyTestHandler))))))
 
 	t.Run("Body too large", func(t *testing.T) {
 		body := make([]byte, 33*1024)

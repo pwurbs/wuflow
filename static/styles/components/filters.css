@@ -163,3 +163,10 @@
   border-color: var(--primary-color);
   background-color: rgb(14, 18, 30);
 }
+
+/* Extra left gap for the filter items that follow the first (label) filter */
+#priority-filter-wrapper,
+#user-filter-wrapper,
+#search-filter-wrapper {
+  margin-left: 10px;
+}

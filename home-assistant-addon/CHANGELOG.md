@@ -1,4 +1,8 @@
 
+## 0.22.1
+
+- Improved http headers and CSP for more client security
+
 ## 0.22.0
 
 - Improved the display of notifications
