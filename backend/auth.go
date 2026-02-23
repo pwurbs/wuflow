@@ -2,8 +2,11 @@ package backend
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -26,6 +29,15 @@ const (
 	cookieAccessToken  = "wf_access_token"
 	cookieRefreshToken = "wf_refresh_token"
 )
+
+// computeTokenMAC returns an HMAC-SHA256 hex digest of secret, keyed with jwtSecret.
+// Used to hash opaque refresh token secrets for database storage.
+// Refresh token secrets have 256-bit entropy so bcrypt key-stretching is unnecessary.
+func computeTokenMAC(secret []byte) string {
+	mac := hmac.New(sha256.New, jwtSecret)
+	mac.Write(secret)
+	return hex.EncodeToString(mac.Sum(nil))
+}
 
 // contextKey is a custom type for context keys to avoid collisions.
 type contextKey string
@@ -106,10 +118,7 @@ func GenerateRefreshToken(sessionID int) (string, string, error) {
 	}
 
 	// Hash the secret for storage
-	hash, err := bcrypt.GenerateFromPassword(secret, bcrypt.DefaultCost)
-	if err != nil {
-		return "", "", err
-	}
+	hash := computeTokenMAC(secret)
 
 	// Create opaque token string: sessionID:base64(secret)
 	// We base64 encode the secret specifically to make it a safe string
@@ -117,7 +126,7 @@ func GenerateRefreshToken(sessionID int) (string, string, error) {
 	token := fmt.Sprintf("%d:%s", sessionID, secretStr)
 	encodedToken := base64.StdEncoding.EncodeToString([]byte(token))
 
-	return encodedToken, string(hash), nil
+	return encodedToken, hash, nil
 }
 
 // ValidateRefreshToken parses an opaque refresh token.
@@ -391,8 +400,8 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 	}
 
 	// 4. Verify Hash (Reuse Detection)
-	// 4. Verify Hash (Reuse Detection)
-	if bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(secret)) != nil {
+	expected := computeTokenMAC([]byte(secret))
+	if !hmac.Equal([]byte(expected), []byte(session.TokenHash)) {
 		slog.Warn("Reuse detection triggered: revoking all sessions for user", "user_id", session.UserID, "session_id", sessionID)
 		RevokeUserSessions(session.UserID) // Revoke ALL sessions for this user (Family Revocation)
 		return nil, "", "", fmt.Errorf("token reuse detected")

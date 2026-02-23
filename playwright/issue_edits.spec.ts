@@ -119,6 +119,7 @@ test.describe('Issue Edit Operations', () => {
 
     // Reopen and verify new deadline
     await openIssueByTitle(page, 'Change Deadline Issue');
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
     const deadlineValue = await page.locator('#deadline').inputValue();
     expect(deadlineValue).toBe(newDeadline);
   });

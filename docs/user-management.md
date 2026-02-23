@@ -101,8 +101,8 @@ sequenceDiagram
 
 #### Opaque Refresh Tokens
 Unlike JWTs, the Refresh Token is a random string (`base64(session_id:secret)`).
-- **Database Storage**: Only the **bcrypt hash** of the secret is stored.
-- **Leak Protection**: Even if the database is leaked, attackers cannot generate valid refresh tokens because they cannot reverse the hashes.
+- **Database Storage**: Only an **HMAC-SHA256** digest of the secret is stored (keyed with the server's JWT secret).
+- **Leak Protection**: Even if the database is leaked, attackers cannot generate valid refresh tokens without also knowing the server's secret key.
 
 #### Reuse Detection (Anti-Theft)
 If an attacker steals a Refresh Token and uses it, the legal user (or the attacker) will eventually try to use the *same* (now reused) token again.

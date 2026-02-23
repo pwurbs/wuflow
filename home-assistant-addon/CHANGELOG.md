@@ -1,4 +1,9 @@
 
+## 0.22.3
+
+- Changed to HMAC-SHA256 for refresh token hashing to accelerate waiting time for refresh tasks
+- Improved stale modal content during loading
+
 ## 0.22.2
 
 - Added Go fuzzy tests and improved sanitization regex

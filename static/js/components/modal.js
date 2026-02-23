@@ -108,6 +108,11 @@ export async function openModal(issue = null) {
     const modalContent = modal.querySelector('.modal-content');
     modalContent.classList.add('loading-state');
 
+    // Clear stale content so the previous issue's data isn't visible under the loading overlay.
+    // Use direct .value assignment (not form.reset()) to avoid triggering change event listeners.
+    document.getElementById('title').value = '';
+    document.getElementById('description-editor').innerHTML = '';
+
     // Fetch fresh data from server to ensure we have latest version
     try {
       const { issue: freshIssue, etag } = await fetchIssueById(issue.id);
