@@ -1,4 +1,8 @@
 
+## 0.22.2
+
+- Added Go fuzzy tests and improved sanitization regex
+
 ## 0.22.1
 
 - Improved http headers and CSP for more client security

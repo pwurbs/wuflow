@@ -19,5 +19,9 @@ test-results
 # JavaScript unit tests
 static/js/coverage
 
+# Go fuzz tests
+backend/testdata
+
+# local AI agents
 .agent
 .claude

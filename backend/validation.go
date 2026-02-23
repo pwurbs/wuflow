@@ -47,6 +47,10 @@ var (
 	ErrDateInvalid = errors.New("date must be in YYYY-MM-DD format")
 )
 
+// AllowedHTMLTags is the source of truth for safe HTML tags in descriptions.
+// Reverting these to lower-case as sanitizeHTML and the fuzzer handle case.
+var AllowedHTMLTags = []string{"b", "i", "u", "ul", "ol", "li", "p", "br", "a"}
+
 // Compiled regexes (package-level, compiled once).
 var (
 	// emailRegex is a basic check. Start/end anchors, one @, non-empty parts.
@@ -56,19 +60,40 @@ var (
 
 	// allowedAllTagRegex matches safe formatting tags AND safe anchors (rebuilt by sanitizeHTML).
 	// It is used to sentinel-replace safe tags before stripping unknown ones.
-	allowedAllTagRegex = regexp.MustCompile(`(?i)<(b|i|u|ul|ol|li|p|br)\s*/?>|</?(b|i|u|ul|ol|li|p|br)\s*>|<a href="[^"]*" target="_blank" rel="noopener noreferrer">|</a>`)
+	// We build this dynamically from AllowedHTMLTags (excluding 'a' which has special regex).
+	allowedAllTagRegex = buildAllowedTagRegex()
 	anchorTagRegex     = regexp.MustCompile(`(?i)<a\s[^>]*href="([^"]*)"[^>]*>`)
 	closeAnchorRegex   = regexp.MustCompile(`(?i)</a\s*>`)
-	anyTagRegex        = regexp.MustCompile(`<[^>]+>`)
+	anyTagRegex = regexp.MustCompile(`<[^>]+>`)
+	// partialTagRegex strips incomplete tag fragments left after sentineling, e.g.
+	// "<1 " in "<1 <B>" once <B> is sentineled and its ">" is no longer available
+	// to close the preceding fragment. Stops at \x00 (sentinel start) and > so it
+	// never consumes sentineled safe-tag placeholders.
+	partialTagRegex = regexp.MustCompile(`<[^ \t\n\r\f\x00>][^\x00>]*`)
 	// openDivRegex / closeDivRegex normalise Chrome's contenteditable <div>
 	// paragraph separators to <p> so line breaks survive sanitisation.
-	openDivRegex  = regexp.MustCompile(`(?i)<div[^>]*>`)
-	closeDivRegex = regexp.MustCompile(`(?i)</div\s*>`)
-	unsafeHrefRegex    = regexp.MustCompile(`(?i)^\s*(javascript|data):`)
+	openDivRegex    = regexp.MustCompile(`(?i)<div[^>]*>`)
+	closeDivRegex   = regexp.MustCompile(`(?i)</div\s*>`)
+	unsafeHrefRegex = regexp.MustCompile(`(?i)^\s*(javascript|data):`)
 	// sentinelRegex matches the two-rune sentinel sequences emitted by sanitizeHTML:
 	// NUL byte followed by a Unicode private-use codepoint (U+E000–U+F8FF).
 	sentinelRegex = regexp.MustCompile("\x00[\uE000-\uF8FF]")
 )
+
+// buildAllowedTagRegex constructs the regex for identifying safe tags from AllowedHTMLTags.
+func buildAllowedTagRegex() *regexp.Regexp {
+	// formatting tags: (b|i|u|ul|ol|li|p|br)
+	var formatting []string
+	for _, t := range AllowedHTMLTags {
+		if t != "a" {
+			formatting = append(formatting, t)
+		}
+	}
+	f := strings.Join(formatting, "|")
+	// Matches: <tag>, <tag/>, </tag>, or the rebuilt <a> tag.
+	pattern := `(?i)<(` + f + `)\s*/?>|</?(` + f + `)\s*>|<a href="[^"]*" target="_blank" rel="noopener noreferrer">|</a>`
+	return regexp.MustCompile(pattern)
+}
 
 func isValidStatus(status IssueStatus) bool {
 	switch status {
@@ -136,8 +161,15 @@ func sanitizeHTML(raw string) string {
 		return "\x00" + string(rune(idx+0xE000))
 	})
 
-	// Step 4 — strip any remaining HTML tags (dangerous ones).
+	// Step 4 — strip any remaining complete HTML tags (dangerous ones).
 	result = anyTagRegex.ReplaceAllString(result, "")
+
+	// Step 4b — strip incomplete tag fragments that have no closing ">".
+	// These arise when a safe tag's ">" was the only ">" closing a preceding
+	// unknown tag, e.g. "<1 <B>" → after sentineling → "<1 \x00…" with no ">"
+	// left for anyTagRegex to match. partialTagRegex stops at \x00 so it never
+	// reaches into sentinel placeholders.
+	result = partialTagRegex.ReplaceAllString(result, "")
 
 	// Step 5 — restore sentinels.
 	result = sentinelRegex.ReplaceAllStringFunc(result, func(m string) string {

@@ -6,6 +6,12 @@
       "type": "promptString",
       "description": "Image-Version",
       "default": ""
+    },
+    {
+      "id": "fuzzduration",
+      "type": "promptString",
+      "description": "Fuzz time per target (e.g. 30s, 2m)",
+      "default": "30s"
     }
   ],
   "tasks": [
@@ -17,6 +23,22 @@
       "presentation": {
         "reveal": "always",
         "panel": "shared"
+      },
+      "problemMatcher": [
+        "$go"
+      ]
+    },
+    {
+      "label": "Go Fuzz",
+      "type": "shell",
+      // Runs each fuzz target sequentially for the chosen duration.
+      // Stops immediately if a target finds a failure (|| break).
+      // To only run the seed corpus without fuzzing, use "Go Fuzz Seed Check".
+      "command": "for t in FuzzSanitizeHTML FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
       },
       "problemMatcher": [
         "$go"
@@ -88,6 +110,7 @@
       "label": "Full Pipeline",
       "dependsOn": [
         "Go Test",
+        "Go Fuzz",
         "JS Test",
         "Go Build",
         "Run Playwright Tests",
