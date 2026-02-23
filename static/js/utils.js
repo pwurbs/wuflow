@@ -144,7 +144,8 @@ export function countCodepoints(str) {
 
 export function initCharCounter(el, maxLength, options = {}) {
   const counter = document.createElement('span');
-  counter.className = 'char-counter' + (options.className ? ' ' + options.className : '');
+  counter.className = 'char-counter';
+  if (options.className) counter.classList.add(options.className);
 
   const insertAfterEl = options.insertAfter || el;
   insertAfterEl.parentNode.insertBefore(counter, insertAfterEl.nextSibling);

@@ -14,17 +14,19 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
     li.draggable = true;
     li.dataset.id = task.id;
 
+    // Coerce task.id to a safe integer before embedding in HTML attributes
+    const taskId = Number.isInteger(task.id) ? task.id : Math.trunc(Number(task.id));
     li.innerHTML = `
             <span class="task-drag-handle">⋮⋮</span>
-            <input type="checkbox" id="task-check-${task.id}" name="task_check_${task.id}" ${task.done ? 'checked' : ''}>
+            <input type="checkbox" id="task-check-${taskId}" name="task_check_${taskId}" ${task.done ? 'checked' : ''}>
             <div class="task-info">
-                <input type="text" id="task-title-${task.id}" name="task_title_${task.id}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
+                <input type="text" id="task-title-${taskId}" name="task_title_${taskId}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
                 <div class="task-actions">
                     <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="Set Deadline">
                         <span class="task-deadline task-deadline-display">
                             ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅'}
                         </span>
-                        <input type="date" id="task-deadline-${task.id}" name="task_deadline_${task.id}" class="task-deadline-input" value="${task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : ''}">
+                        <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : ''}">
                     </div>
                     <div class="delete-task-btn" title="Delete Task">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -150,7 +152,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         showNotification('Task deadline updated');
 
         const display = li.querySelector('.task-deadline-display');
-        display.innerHTML = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
+        display.textContent = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
         deadlineContainer.classList.toggle('no-deadline', !task.deadline);
         if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
       });

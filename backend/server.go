@@ -262,6 +262,11 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
 		w.Header().Set("X-XSS-Protection", "0")
+		if secureCookie {
+			// Only emit HSTS when TLS is enabled (secureCookie == true).
+			// HTTP-only deployments (e.g. access via internal network) must not receive this header.
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

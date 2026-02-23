@@ -44,7 +44,8 @@ var (
 	ErrPasswordIsEmail   = errors.New("password must not be your email address")
 	ErrPasswordBlacklist = errors.New("password is too common")
 
-	ErrDateInvalid = errors.New("date must be in YYYY-MM-DD format")
+	ErrDateInvalid    = errors.New("date must be in YYYY-MM-DD format")
+	ErrTooManyDates   = errors.New("too many planned dates (maximum 100)")
 )
 
 // AllowedHTMLTags is the source of truth for safe HTML tags in descriptions.
@@ -64,7 +65,7 @@ var (
 	allowedAllTagRegex = buildAllowedTagRegex()
 	anchorTagRegex     = regexp.MustCompile(`(?i)<a\s[^>]*href="([^"]*)"[^>]*>`)
 	closeAnchorRegex   = regexp.MustCompile(`(?i)</a\s*>`)
-	anyTagRegex = regexp.MustCompile(`<[^>]+>`)
+	anyTagRegex        = regexp.MustCompile(`<[^>]+>`)
 	// partialTagRegex strips incomplete tag fragments left after sentineling, e.g.
 	// "<1 " in "<1 <B>" once <B> is sentineled and its ">" is no longer available
 	// to close the preceding fragment. Stops at \x00 (sentinel start) and > so it
@@ -131,6 +132,12 @@ func isValidRole(role UserRole) bool {
 //  4. Strip every remaining <...> sequence (these are dangerous/unknown tags).
 //  5. Restore sentinels to original safe tag text.
 func sanitizeHTML(raw string) string {
+	// Strip NUL bytes before any other processing. The sentinel mechanism uses
+	// \x00 as the first byte of a two-rune sentinel pair; user-supplied \x00
+	// followed by a Unicode private-use codepoint could otherwise be
+	// misinterpreted during restoration (step 5), causing data corruption.
+	raw = strings.ReplaceAll(raw, "\x00", "")
+
 	// Step 0 — normalise <div> → <p>: Chrome's contenteditable uses <div> for
 	// Enter by default; converting them preserves paragraph breaks after save.
 	raw = openDivRegex.ReplaceAllString(raw, "<p>")
@@ -146,7 +153,7 @@ func sanitizeHTML(raw string) string {
 		if unsafeHrefRegex.MatchString(href) {
 			return "" // drop unsafe links entirely
 		}
-		return `<a href="` + href + `" target="_blank" rel="noopener noreferrer">`
+		return `<a href="` + html.EscapeString(href) + `" target="_blank" rel="noopener noreferrer">`
 	})
 
 	// Step 2 — normalise </a>.
@@ -185,6 +192,7 @@ func sanitizeHTML(raw string) string {
 }
 
 func validateIssue(i *Issue) error {
+	i.Title = strings.ReplaceAll(i.Title, "\x00", "")
 	i.Title = strings.TrimSpace(i.Title)
 	i.Title = anyTagRegex.ReplaceAllString(i.Title, "")
 	if i.Title == "" {
@@ -214,6 +222,9 @@ func validateIssue(i *Issue) error {
 		return errors.New("deadline year must be between 2000 and 2100")
 	}
 	// Validate planned dates format (each must be YYYY-MM-DD).
+	if len(i.PlannedDates) > 100 {
+		return ErrTooManyDates
+	}
 	for _, d := range i.PlannedDates {
 		if _, err := time.Parse("2006-01-02", d); err != nil {
 			return ErrDateInvalid
@@ -223,6 +234,7 @@ func validateIssue(i *Issue) error {
 }
 
 func validateTask(t *Task) error {
+	t.Title = strings.ReplaceAll(t.Title, "\x00", "")
 	t.Title = strings.TrimSpace(t.Title)
 	t.Title = anyTagRegex.ReplaceAllString(t.Title, "")
 	if t.Title == "" {
@@ -241,6 +253,7 @@ func validateTask(t *Task) error {
 }
 
 func validateLabel(l *Label) error {
+	l.Name = strings.ReplaceAll(l.Name, "\x00", "")
 	l.Name = strings.TrimSpace(l.Name)
 	l.Name = anyTagRegex.ReplaceAllString(l.Name, "")
 	l.Color = strings.TrimSpace(l.Color)
@@ -259,8 +272,10 @@ func validateLabel(l *Label) error {
 // validateUser validates user fields (not password).
 func validateUser(u *User) error {
 	u.Email = strings.TrimSpace(u.Email)
+	u.FirstName = strings.ReplaceAll(u.FirstName, "\x00", "")
 	u.FirstName = strings.TrimSpace(u.FirstName)
 	u.FirstName = anyTagRegex.ReplaceAllString(u.FirstName, "")
+	u.LastName = strings.ReplaceAll(u.LastName, "\x00", "")
 	u.LastName = strings.TrimSpace(u.LastName)
 	u.LastName = anyTagRegex.ReplaceAllString(u.LastName, "")
 

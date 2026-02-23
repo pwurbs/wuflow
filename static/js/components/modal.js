@@ -630,7 +630,7 @@ function setupInlineEditing() {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Description updated');
         if (!saved) return; // Conflict occurred - state not updated, user can try again
         // Only update state after successful save (check for null in case modal closed during save)
-        if (state.currentIssue) state.currentIssue.description = newDesc;
+        if (state.currentIssue) state.currentIssue.description = sanitizeDescription(newDesc);
       } catch (err) {
         showNotification(err.message, 'error');
         return; // Keep edit mode
@@ -845,11 +845,19 @@ function setupEditorToolbar() {
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
     // execCommand is deprecated but required for lightweight rich text editing
     document.execCommand('createLink', false, url);
-    // Force target _blank with noopener to prevent reverse tabnapping
-    const anchor = selection.anchorNode?.parentElement?.tagName === 'A' ? selection.anchorNode.parentElement : null;
-    if (anchor) {
-      anchor.target = '_blank';
-      anchor.rel = 'noopener noreferrer';
+    // Force target _blank with noopener to prevent reverse tabnapping.
+    // Walk up from anchorNode to find the created <a> element. anchorNode
+    // is typically a text node inside the anchor rather than its direct parent.
+    // instanceof Node guards against mock objects in tests and non-DOM contexts;
+    // editor.contains() bounds the walk to nodes within the editor.
+    let anchorEl = selection.anchorNode;
+    while (anchorEl instanceof Node && editor.contains(anchorEl)) {
+      if (anchorEl.tagName === 'A') break;
+      anchorEl = anchorEl.parentNode;
+    }
+    if (anchorEl instanceof Node && anchorEl.tagName === 'A') {
+      anchorEl.target = '_blank';
+      anchorEl.rel = 'noopener noreferrer';
     }
   }
 

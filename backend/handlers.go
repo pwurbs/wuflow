@@ -759,6 +759,8 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user == nil {
+		// Equalise timing with the valid-user path to prevent user enumeration.
+		dummyPasswordCheck(req.Password)
 		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "user_not_found")
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return

@@ -73,9 +73,10 @@ export async function renderSetupView(refreshCallback) {
       const labelEl = document.createElement('div');
       labelEl.className = 'label-item';
       // Match Board Style: Light BG, Border, Colored Text
-      labelEl.style.backgroundColor = label.color + '20';
-      labelEl.style.color = label.color;
-      labelEl.style.border = `1px solid ${label.color}`;
+      const safeColor = /^#[0-9A-Fa-f]{6}$/.test(label.color) ? label.color : '#808080';
+      labelEl.style.backgroundColor = safeColor + '20';
+      labelEl.style.color = safeColor;
+      labelEl.style.border = `1px solid ${safeColor}`;
 
       labelEl.innerHTML = `
                 <span class="label-name">${escapeHtml(label.name)}</span>

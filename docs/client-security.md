@@ -39,6 +39,7 @@ All responses include the following headers, set in `SecurityHeadersMiddleware` 
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Limits referrer header leakage |
 | `Permissions-Policy` | `geolocation=(), camera=(), microphone=()` | Disables unused browser features |
 | `X-XSS-Protection` | `0` | Disables the legacy XSS filter (per OWASP; CSP handles XSS) |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Enforces HTTPS for one year — emitted only when `WF_SECURE_COOKIE=true` (the default) |
 
 ### Content Security Policy
 
@@ -58,7 +59,7 @@ Notable points:
 - `'unsafe-inline'` is present in `style-src` — required because JavaScript sets dynamic inline styles for user-defined label colors (`element.style.backgroundColor/color/border`). These hex values come from the database and cannot be expressed as predefined CSS classes. Eliminating `'unsafe-inline'` entirely would require server-side nonce injection, which is out of scope.
 - No `'unsafe-inline'` or `'unsafe-eval'` in `script-src` — the strict limit that actually matters for XSS
 - `frame-ancestors 'none'` prevents clickjacking (equivalent to `X-Frame-Options: DENY`)
-- HSTS is not set at the application layer — it should be configured on the reverse proxy (e.g. the Home Assistant ingress)
+- HSTS (`Strict-Transport-Security`) is emitted by the application when `WF_SECURE_COOKIE=true` (the default). HTTP-only deployments (e.g. access via internal networks only, which sets `WF_SECURE_COOKIE=false`) should not receive this header due to lack of TLS
 
 ---
 

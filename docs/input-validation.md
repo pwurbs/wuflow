@@ -25,6 +25,7 @@ Input validation in wuFlow ensures data integrity and security by enforcing cons
 | **User Name** | 50 chars | Accommodates most names without layout breakage. |
 | **Search Filter** | 50 chars | Prevents performance issues and UX breakdown during string matching. |
 | **Email** | 254 bytes | RFC 5321 standard limit. |
+| **Planned Dates** | 100 entries | Prevents unbounded array iteration; each entry must be a valid `YYYY-MM-DD` date. |
 
 ## Description Sanitization
 To prevent XSS while allowing rich text:
@@ -37,10 +38,12 @@ To prevent XSS while allowing rich text:
 As a second layer of defense, the frontend applies `sanitizeDescription()` (using `DOMParser`) when rendering description content in the editor. This ensures that even if unsanitized content reached the database, it is cleaned before being rendered in a dangerous context.
 
 ## Plain-Text Sanitization
-As a defense-in-depth measure, the backend automatically strips ALL HTML tags from fields intended to be plain-text:
+As a defense-in-depth measure, the backend automatically strips ALL HTML tags and NUL bytes (`\x00`) from fields intended to be plain-text:
 - **Issue/Task**: Title
 - **Label**: Name
 - **User**: First Name, Last Name
+
+NUL bytes are stripped first (before tag removal) because they are used internally as sentinel delimiters inside `sanitizeHTML`; allowing them through would corrupt the description sanitization pipeline.
 
 This prevents malicious markup from being stored or accidentally rendered in these fields.
 

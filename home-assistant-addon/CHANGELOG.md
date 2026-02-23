@@ -1,4 +1,8 @@
 
+## 0.22.4
+
+- Improved sanitizing for some edge cases
+
 ## 0.22.3
 
 - Changed to HMAC-SHA256 for refresh token hashing to accelerate waiting time for refresh tasks
