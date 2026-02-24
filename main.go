@@ -39,15 +39,15 @@ func main() {
 		defaultInitialAdminPassword = envInitialAdminPW
 	}
 
-	defaultJWTSecret := ""
-	if envJWTSecret := os.Getenv("WF_JWT_SECRET"); envJWTSecret != "" {
-		defaultJWTSecret = envJWTSecret
+	defaultSecretKey := ""
+	if envSecretKey := os.Getenv("WF_SECRET_KEY"); envSecretKey != "" {
+		defaultSecretKey = envSecretKey
 	}
 
 	dbPath := flag.String("dbpath", defaultDBPath, "Path to the SQLite database file")
 	port := flag.String("port", defaultPort, "Port to run the server on")
 	initialAdminPassword := flag.String("initial-admin-password", defaultInitialAdminPassword, "Initial admin password (only used on first run)")
-	jwtSecret := flag.String("jwt-secret", defaultJWTSecret, "JWT secret key (if empty, a random one is generated)")
+	secretKey := flag.String("secret-key", defaultSecretKey, "Secret key for JWT signing and session token integrity (if empty, a random one is generated and all sessions are invalidated)")
 	flag.Parse()
 
 	cwd, err := os.Getwd()
@@ -60,5 +60,5 @@ func main() {
 		*dbPath = filepath.Join(cwd, *dbPath)
 	}
 
-	backend.StartServer(Version, *port, *dbPath, *initialAdminPassword, *jwtSecret, embeddedFiles)
+	backend.StartServer(Version, *port, *dbPath, *initialAdminPassword, *secretKey, embeddedFiles)
 }

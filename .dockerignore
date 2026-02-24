@@ -33,3 +33,7 @@ DOCS.md
 
 # Agent files
 .agent/
+.claude
+
+# local Trivy scan
+.trivy

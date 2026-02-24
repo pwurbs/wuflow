@@ -25,7 +25,7 @@ func init() {
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
-func StartServer(version string, port string, dbPath string, initialAdminPassword string, jwtSecret string, embeddedFiles embed.FS) {
+func StartServer(version string, port string, dbPath string, initialAdminPassword string, secretKey string, embeddedFiles embed.FS) {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -70,8 +70,8 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 		slog.Info("Cleaned up expired sessions", "count", deletedSessions)
 	}
 
-	// Initialize JWT secret
-	InitJWTSecret(jwtSecret)
+	// Initialize secret key
+	InitSecretKey(secretKey)
 
 	// Create initial admin user if no users exist
 	if err := EnsureInitialAdmin(initialAdminPassword); err != nil {

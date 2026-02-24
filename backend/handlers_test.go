@@ -1221,7 +1221,7 @@ func TestHandlersDBErrors(t *testing.T) {
 }
 
 func TestUpdateUserPassword(t *testing.T) {
-	InitJWTSecret("testsecret")
+	InitSecretKey("testsecret")
 
 	user := &User{Email: "test@example.com"}
 
@@ -1755,7 +1755,7 @@ func TestHandleUpdateSelfNoPassword(t *testing.T) {
 func TestHandleCreateIssueSetsCreator(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("secret")
+	InitSecretKey("secret")
 
 	// Create user
 	user := &User{Email: "creator@test.com", FirstName: "C", LastName: "U", Role: RoleUser, Active: true}

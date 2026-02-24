@@ -28,7 +28,7 @@ RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
 
 #------- Package stage ---------------------------------------------------------
 
-# Current slim Debian image
+# Slim Debian Trixie image
 FROM docker.io/library/debian:13.3-slim
 
 # Create a non-login, non-root user and group

@@ -859,12 +859,7 @@ func HandleRefresh(w http.ResponseWriter, r *http.Request) {
 	// Use Auth Service to refresh session
 	user, accessToken, newRefreshToken, err := RefreshSession(cookie.Value)
 	if err != nil {
-		// Log specific error for debugging
 		slog.Warn("Refresh failed", "error", err)
-
-		// If it was a reuse detection or invalid token, RefreshSession already handled cleanup/revocation logic implicitly?
-		// Actually RefreshSession does cleanup (DeleteSession) on errors.
-		// We just need to clear cookies and return 401.
 		ClearAuthCookies(w)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

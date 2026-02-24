@@ -101,8 +101,16 @@ sequenceDiagram
 
 #### Opaque Refresh Tokens
 Unlike JWTs, the Refresh Token is a random string (`base64(session_id:secret)`).
-- **Database Storage**: Only an **HMAC-SHA256** digest of the secret is stored (keyed with the server's JWT secret).
+- **Database Storage**: Only an **HMAC-SHA256** digest of the secret is stored, keyed with a token MAC key derived from the server's secret key (domain-separated HMAC-KDF — independent from the JWT signing key).
 - **Leak Protection**: Even if the database is leaked, attackers cannot generate valid refresh tokens without also knowing the server's secret key.
+
+#### Cryptographic Primitives
+
+| Credential | Algorithm | Key / Cost |
+| :--- | :--- | :--- |
+| User passwords | bcrypt | Default cost (~300 ms) |
+| JWT access tokens | HMAC-SHA256 (HS256) | Derived from `secretKey` via domain-separated HMAC-KDF |
+| Refresh token integrity | HMAC-SHA256 | Derived from `secretKey` via domain-separated HMAC-KDF |
 
 #### Reuse Detection (Anti-Theft)
 If an attacker steals a Refresh Token and uses it, the legal user (or the attacker) will eventually try to use the *same* (now reused) token again.
@@ -147,15 +155,15 @@ sequenceDiagram
 1. **API Requests**: The frontend uses a 401 interceptor with a mutex to catch expired access tokens. It calls `/api/auth/refresh` once, then retries all pending requests. This avoids race conditions (Token Reuse Detection) during concurrent API calls.
 2. **Static Page Loads**: On browser refresh or direct navigation, the server automatically checks the refresh token cookie. If valid, it refreshes the session and serves the page immediately without a redirect. This ensures a seamless initial load.
 
-### Custom JWT Secret
+### Custom Secret Key
 
-By default, a random JWT signing secret is generated on every startup. This means existing **Access Tokens** become invalid after a restart, forcing the client to perform a token refresh (transparent to the user). To prevent this slight overhead, you can provide a stable secret:
+By default, a random secret key is generated on every startup. This key serves two purposes: signing JWT access tokens and computing HMAC integrity hashes for refresh tokens. Without a configured key, all sessions are invalidated on restart and users must re-login. To persist sessions across restarts, provide a stable key:
 
 ```bash
-WF_JWT_SECRET=your-secure-random-string ./wuflow
+WF_SECRET_KEY=your-secure-random-string ./wuflow
 ```
 
-The secret should be a long, random string (32+ characters recommended).
+The key should be a long, random string (32+ characters recommended).
 
 
 
@@ -164,8 +172,6 @@ The secret should be a long, random string (32+ characters recommended).
 - Minimum **12 characters**
 - Must **not** be the user's email address
 - Must **not** be a commonly used password (checked against a blacklist)
-
-Passwords are hashed using **bcrypt** before storage.
 
 ## User Lifecycle
 

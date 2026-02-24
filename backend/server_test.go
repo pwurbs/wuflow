@@ -385,7 +385,7 @@ func TestHandleLoginHTML(t *testing.T) {
 }
 
 func TestHandleStaticFiles(t *testing.T) {
-	InitJWTSecret("testsecret")
+	InitSecretKey("testsecret")
 
 	t.Run("Public Asset", testPublicAsset)
 	t.Run("Private Asset No Auth", testPrivateAssetNoAuth)
@@ -459,7 +459,7 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	InitJWTSecret("testsecret")
+	InitSecretKey("testsecret")
 
 	// Create user
 	user := &User{Email: "refresh@example.com", Role: RoleUser, Active: true}

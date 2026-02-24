@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,6 +30,7 @@ const (
 	testUserEmail  = "user@test.com"
 	expectedEmail  = "expected email %s, got %s"
 	expectedRole   = "expected role admin, got %s"
+	sqliteMemoryDSN = ":memory:"
 )
 
 // --- Password Hashing ---
@@ -48,7 +51,7 @@ func TestHashAndCheckPassword(t *testing.T) {
 // --- JWT Tokens ---
 
 func TestJWTTokenGeneration(t *testing.T) {
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	user := &User{ID: 1, Email: testEmail, Role: RoleAdmin, Active: true}
 
@@ -129,15 +132,15 @@ func TestValidateRefreshTokenInvalid(t *testing.T) {
 }
 
 func TestValidateTokenInvalid(t *testing.T) {
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	if _, err := ValidateToken("invalid.token.string"); err == nil {
 		t.Error("expected error for invalid token, got nil")
 	}
 }
 
-func TestInitJWTSecretCustom(t *testing.T) {
-	InitJWTSecret("my-custom-secret")
+func TestInitSecretKeyCustom(t *testing.T) {
+	InitSecretKey("my-custom-secret")
 
 	user := &User{ID: 1, Email: testEmail, Role: RoleAdmin, Active: true}
 	token, err := GenerateAccessToken(user)
@@ -154,7 +157,7 @@ func TestInitJWTSecretCustom(t *testing.T) {
 	}
 
 	// Token from different secret should fail
-	InitJWTSecret("different-secret")
+	InitSecretKey("different-secret")
 	if _, err := ValidateToken(token); err == nil {
 		t.Error("expected error validating token with different secret")
 	}
@@ -185,7 +188,7 @@ func TestSetAndClearAuthCookies(t *testing.T) {
 // --- Auth Middleware ---
 
 func TestAuthMiddlewareNoCookie(t *testing.T) {
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	handler := AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called")
@@ -201,7 +204,7 @@ func TestAuthMiddlewareNoCookie(t *testing.T) {
 }
 
 func TestAuthMiddlewareInvalidToken(t *testing.T) {
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	handler := AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("handler should not be called")
@@ -218,7 +221,7 @@ func TestAuthMiddlewareInvalidToken(t *testing.T) {
 }
 
 func TestAuthMiddlewareValidToken(t *testing.T) {
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	user := &User{ID: 1, Email: testEmail, Role: RoleAdmin, Active: true}
 	token, _ := GenerateAccessToken(user)
@@ -272,7 +275,7 @@ func TestGetRoleFromContextEmpty(t *testing.T) {
 func TestEnsureInitialAdmin(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	err := EnsureInitialAdmin(testPassword)
 	if err != nil {
@@ -339,7 +342,7 @@ func TestEnsureInitialAdminWeakPassword(t *testing.T) {
 func TestHandleLoginSuccess(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
@@ -363,7 +366,7 @@ func TestHandleLoginSuccess(t *testing.T) {
 func TestHandleLoginInvalidPassword(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
@@ -381,7 +384,7 @@ func TestHandleLoginInvalidPassword(t *testing.T) {
 func TestHandleLoginUserNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	body, _ := json.Marshal(map[string]string{"email": "noone@test.com", "password": testPassword})
 	req := httptest.NewRequest("POST", apiAuthLogin, bytes.NewBuffer(body))
@@ -396,7 +399,7 @@ func TestHandleLoginUserNotFound(t *testing.T) {
 func TestHandleLoginInactiveUser(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: false})
@@ -434,7 +437,7 @@ func TestHandleLoginMethodNotAllowed(t *testing.T) {
 // --- Logout Handler ---
 
 func TestHandleLogoutSuccess(t *testing.T) {
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	req := httptest.NewRequest("POST", apiAuthLogout, nil)
 	rr := httptest.NewRecorder()
@@ -467,7 +470,7 @@ func TestHandleLogoutMethodNotAllowed(t *testing.T) {
 func TestHandleRefreshSuccess(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
@@ -506,7 +509,7 @@ func TestHandleRefreshNoCookie(t *testing.T) {
 }
 
 func TestHandleRefreshInvalidToken(t *testing.T) {
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
 	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: "bad-token"})
@@ -521,7 +524,7 @@ func TestHandleRefreshInvalidToken(t *testing.T) {
 func TestHandleRefreshInactiveUser(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
@@ -568,7 +571,7 @@ func TestHandleRefreshMethodNotAllowed(t *testing.T) {
 func TestHandleCurrentUser(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
@@ -688,7 +691,7 @@ func TestUpdateUser(t *testing.T) {
 func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	// 1. Setup Admin (acting as caller) and Target User
 	adminHash, _ := HashPassword(testPassword)
@@ -751,7 +754,7 @@ func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
 func TestRefreshSessionReuseRevokesAll(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	// 1. Setup User
 	hash, _ := HashPassword(testPassword)
@@ -782,8 +785,8 @@ func TestRefreshSessionReuseRevokesAll(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error on reuse, got nil")
 	}
-	if err.Error() != "token reuse detected" {
-		t.Errorf("Expected 'token reuse detected' error, got '%v'", err)
+	if !strings.HasPrefix(err.Error(), "token HMAC mismatch") {
+		t.Errorf("Expected 'token HMAC mismatch' error, got '%v'", err)
 	}
 
 	// 5. Verify Family Revocation
@@ -896,7 +899,7 @@ func TestUserDBErrors(t *testing.T) {
 	oldDB := DB
 	defer func() { DB = oldDB }()
 
-	closedDB, _ := sql.Open("sqlite3", ":memory:")
+	closedDB, _ := sql.Open("sqlite3", sqliteMemoryDSN)
 	closedDB.Close()
 	DB = closedDB
 
@@ -1294,10 +1297,10 @@ func TestAuthHandlersDBError(t *testing.T) {
 	oldDB := DB
 	defer func() { DB = oldDB }()
 
-	closedDB, _ := sql.Open("sqlite3", ":memory:")
+	closedDB, _ := sql.Open("sqlite3", sqliteMemoryDSN)
 	closedDB.Close()
 	DB = closedDB
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	t.Run("Login_DBError", func(t *testing.T) {
 		body, _ := json.Marshal(map[string]string{"email": testEmail, "password": testPassword})
@@ -1421,7 +1424,7 @@ func TestRevokeUserSessions(t *testing.T) {
 func TestCreateUserSession(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	InitJWTSecret("")
+	InitSecretKey("")
 
 	hash, _ := HashPassword("pass")
 	CreateUser(&User{Email: "session@test.com", FirstName: "S", LastName: "C", PasswordHash: hash, Role: RoleUser, Active: true})
@@ -1451,5 +1454,76 @@ func TestCreateUserSession(t *testing.T) {
 		t.Error("expected session to be persisted")
 	} else if stored.TokenHash == "" {
 		t.Error("expected token hash to be set in DB")
+	}
+}
+
+func TestGenerateAccessTokenInactiveUser(t *testing.T) {
+	InitSecretKey("")
+	user := &User{ID: 1, Email: "inactive@test.com", Role: RoleUser, Active: false}
+	_, err := GenerateAccessToken(user)
+	if err == nil {
+		t.Error("expected error for inactive user, got nil")
+	}
+}
+
+func TestValidateRefreshTokenInvalidSecretEncoding(t *testing.T) {
+	// Outer base64 is valid; session ID is valid; but secret part is not valid base64.
+	inner := "1:!!!" // "!!!" cannot be decoded as base64
+	token := base64.StdEncoding.EncodeToString([]byte(inner))
+	_, _, err := ValidateRefreshToken(token)
+	if err == nil {
+		t.Error("expected error for invalid secret encoding, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid secret encoding") {
+		t.Errorf("expected 'invalid secret encoding', got %q", err.Error())
+	}
+}
+
+func TestEnsureInitialAdminCountUsersError(t *testing.T) {
+	oldDB := DB
+	defer func() { DB = oldDB }()
+
+	closedDB, _ := sql.Open("sqlite3", sqliteMemoryDSN)
+	closedDB.Close()
+	DB = closedDB
+
+	err := EnsureInitialAdmin("SomePassword1!")
+	if err == nil {
+		t.Error("expected error with closed DB, got nil")
+	}
+}
+
+func TestTryRefreshSessionEmptyCookie(t *testing.T) {
+	InitSecretKey("")
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: ""})
+	rr := httptest.NewRecorder()
+	if tryRefreshSession(rr, req) {
+		t.Error("expected false for empty refresh token cookie")
+	}
+}
+
+func TestCreateUserSessionInactiveUser(t *testing.T) {
+	InitSecretKey("")
+	user := &User{ID: 1, Email: "inactive@test.com", Role: RoleUser, Active: false}
+	_, _, _, err := CreateUserSession(user)
+	if err == nil {
+		t.Error("expected error for inactive user, got nil")
+	}
+}
+
+func TestCreateUserSessionDBError(t *testing.T) {
+	oldDB := DB
+	defer func() { DB = oldDB }()
+
+	closedDB, _ := sql.Open("sqlite3", sqliteMemoryDSN)
+	closedDB.Close()
+	DB = closedDB
+	InitSecretKey("")
+
+	user := &User{ID: 1, Email: "active@test.com", Role: RoleUser, Active: true}
+	_, _, _, err := CreateUserSession(user)
+	if err == nil {
+		t.Error("expected error with closed DB, got nil")
 	}
 }

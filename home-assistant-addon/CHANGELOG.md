@@ -1,4 +1,8 @@
 
+## 0.22.5
+
+- Fixed the shared usage of jwt-secret for both JWT tokens and refresh token hashes
+
 ## 0.22.4
 
 - Improved sanitizing for some edge cases

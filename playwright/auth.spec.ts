@@ -250,6 +250,58 @@ test.describe('Authentication Security', () => {
     }
   });
 
+  test('Login timing equalization: Unknown email returns 401, not a server error', async ({ request }) => {
+    // Regression test for: InitSecretKey early-return bug when a configured JWT secret
+    // is provided — dummyPasswordHash was never initialised, causing a nil-pointer panic
+    // (server crash or 500) on the first login attempt with an unknown email.
+    // The global-setup now starts the server with --secret-key, exercising that code path.
+    const response = await request.post('/api/auth/login', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { email: 'nonexistent-user@example.com', password: 'whatever' }
+    });
+
+    // Must be 401 (wrong credentials), never 500 (nil panic).
+    expect(response.status()).toBe(401);
+
+    // Server must still be healthy after the attempt.
+    const health = await request.get('/login');
+    expect(health.status()).toBe(200);
+  });
+
+  test('Stable token MAC key: Refresh token remains valid across the session', async ({ page, context }) => {
+    // Regression test for: computeTokenMAC previously used jwtSecret directly as the HMAC
+    // key. After the fix, a domain-separated tokenMACKey is derived from jwtSecret so that
+    // JWT signing and refresh-token integrity use independent keys.
+    // With the configured --secret-key in global-setup, tokenMACKey is stable, and stored
+    // token_hash values must match on every refresh call within the same server run.
+
+    // 1. Login to obtain both tokens
+    await page.goto('/login');
+    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-password', adminPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('#nav-setup')).toBeVisible();
+
+    // 2. Drop the access token to force a full refresh cycle
+    const cookies = await context.cookies();
+    const refreshToken = cookies.find(c => c.name === 'wf_refresh_token');
+    expect(refreshToken, 'wf_refresh_token cookie must exist after login').toBeDefined();
+    await context.clearCookies();
+    await context.addCookies([refreshToken!]);
+
+    // 3. Call the refresh endpoint directly — tokenMACKey must match the stored token_hash
+    const refreshResponse = await page.request.post('/api/auth/refresh', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {}
+    });
+    expect(refreshResponse.status()).toBe(200);
+
+    // 4. A new access token must have been issued
+    const newCookies = await context.cookies();
+    expect(newCookies.find(c => c.name === 'wf_access_token'),
+      'New access token must be set after refresh').toBeDefined();
+  });
+
   test('Guest Access: Unauthenticated users are redirected/blocked', async ({ page, request }) => {
     // 1. Ensure clean state (no cookies)
     await page.context().clearCookies();

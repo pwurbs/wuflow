@@ -18,9 +18,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// jwtSecret is a randomly generated secret used to sign JWT tokens.
-// It is regenerated on each server start, invalidating all existing tokens.
+// jwtSecret is the signing key for JWT access tokens, derived from the configured
+// master key via domain-separated HMAC-KDF. Never equal to the raw master key.
 var jwtSecret []byte
+
+// tokenMACKey is the HMAC key for refresh token integrity, derived from the same
+// master key as jwtSecret but with a different domain string, ensuring the two
+// operational keys are cryptographically independent.
+var tokenMACKey []byte
 
 // dummyPasswordHash is a bcrypt hash of a random password generated at startup.
 // It is used by dummyPasswordCheck to equalise login response time when a
@@ -34,15 +39,6 @@ const (
 	cookieAccessToken  = "wf_access_token"
 	cookieRefreshToken = "wf_refresh_token"
 )
-
-// computeTokenMAC returns an HMAC-SHA256 hex digest of secret, keyed with jwtSecret.
-// Used to hash opaque refresh token secrets for database storage.
-// Refresh token secrets have 256-bit entropy so bcrypt key-stretching is unnecessary.
-func computeTokenMAC(secret []byte) string {
-	mac := hmac.New(sha256.New, jwtSecret)
-	mac.Write(secret)
-	return hex.EncodeToString(mac.Sum(nil))
-}
 
 // contextKey is a custom type for context keys to avoid collisions.
 type contextKey string
@@ -61,24 +57,37 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-// InitJWTSecret initializes the JWT secret.
-// If a specific secret is provided, it is used.
-// Otherwise, a random 32-byte secret is generated on each start.
-func InitJWTSecret(secret string) {
+// InitSecretKey initializes the operational keys used for JWT signing and refresh-token
+// MAC computation. The provided secret (or a random one) acts as master key material and
+// is never used directly for any cryptographic operation — all operational keys are derived
+// from it via domain-separated HMAC-KDF (golden rule: master keys derive, never sign/MAC).
+func InitSecretKey(secret string) {
+	var rawKey []byte
 	if secret != "" {
-		jwtSecret = []byte(secret)
-		slog.Info("JWT secret initialized from configuration")
-		return
+		rawKey = []byte(secret)
+		slog.Info("Secret key initialized from configuration")
+	} else {
+		rawKey = make([]byte, 32)
+		if _, err := rand.Read(rawKey); err != nil {
+			slog.Error("Failed to generate random secret key", "error", err)
+			panic(fmt.Sprintf("CRITICAL: Failed to generate random secret key: %v", err))
+		}
+		slog.Warn("Secret key not configured — a random key was generated; all sessions will become invalid. Set WF_SECRET_KEY for persistent sessions.")
 	}
 
-	jwtSecret = make([]byte, 32)
-	if _, err := rand.Read(jwtSecret); err != nil {
-		slog.Error("Failed to generate random JWT secret", "error", err)
-		panic(fmt.Sprintf("CRITICAL: Failed to generate random JWT secret: %v", err))
-	}
-	slog.Info("JWT secret initialized (randomly generated)")
+	// Derive both operational keys from rawKey using domain-separated HMAC-KDF.
+	// Each key has a unique, fixed domain string so that jwtSecret and tokenMACKey
+	// are cryptographically independent even though they share the same root material.
+	h1 := hmac.New(sha256.New, rawKey)
+	h1.Write([]byte("wuflow-jwt-signing-v1"))
+	jwtSecret = h1.Sum(nil)
+
+	h2 := hmac.New(sha256.New, rawKey)
+	h2.Write([]byte("wuflow-refresh-token-mac-v1"))
+	tokenMACKey = h2.Sum(nil)
 
 	// Pre-compute a dummy bcrypt hash used to equalise login timing for unknown emails.
+	// Must always run regardless of how jwtSecret was set.
 	dummyRaw := make([]byte, 16)
 	if _, err := rand.Read(dummyRaw); err != nil {
 		panic(fmt.Sprintf("CRITICAL: Failed to generate dummy password bytes: %v", err))
@@ -97,6 +106,15 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(hash), nil
+}
+
+// computeTokenMAC returns an HMAC-SHA256 hex digest of secret, keyed with tokenMACKey.
+// Used to hash opaque refresh token secrets for database storage.
+// Refresh token secrets have 256-bit entropy so bcrypt key-stretching is unnecessary.
+func computeTokenMAC(secret []byte) string {
+	mac := hmac.New(sha256.New, tokenMACKey)
+	mac.Write(secret)
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // CheckPassword compares a plaintext password with a bcrypt hash.
@@ -411,53 +429,52 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 	// 2. Fetch Session
 	session, err := GetSessionByID(sessionID)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("session lookup failed: %w", err)
+		return nil, "", "", fmt.Errorf("session lookup failed session_id=%d: %w", sessionID, err)
 	}
 	if session == nil {
-		return nil, "", "", fmt.Errorf("session not found")
+		return nil, "", "", fmt.Errorf("session not found session_id=%d", sessionID)
 	}
 
 	// 3. Check Expiry
 	if time.Now().After(session.ExpiresAt) {
 		DeleteSession(sessionID)
-		return nil, "", "", fmt.Errorf("session expired")
+		return nil, "", "", fmt.Errorf("session expired user_id=%d session_id=%d", session.UserID, sessionID)
 	}
 
 	// 4. Verify Hash (Reuse Detection)
 	expected := computeTokenMAC([]byte(secret))
 	if !hmac.Equal([]byte(expected), []byte(session.TokenHash)) {
-		slog.Warn("Reuse detection triggered: revoking all sessions for user", "user_id", session.UserID, "session_id", sessionID)
-		RevokeUserSessions(session.UserID) // Revoke ALL sessions for this user (Family Revocation)
-		return nil, "", "", fmt.Errorf("token reuse detected")
+		RevokeUserSessions(session.UserID)
+		return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_id=%d, revoking all sessions (possible token reuse or server restart without WF_SECRET_KEY)", session.UserID, sessionID)
 	}
 
 	// 5. Fetch User
 	user, err := GetUserByID(session.UserID)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("user lookup failed: %w", err)
+		return nil, "", "", fmt.Errorf("user lookup failed user_id=%d session_id=%d: %w", session.UserID, sessionID, err)
 	}
 	if user == nil || !user.Active {
 		DeleteSession(sessionID)
-		return nil, "", "", fmt.Errorf("user inactive or not found")
+		return nil, "", "", fmt.Errorf("user inactive or not found user_id=%d session_id=%d", session.UserID, sessionID)
 	}
 
 	// 6. Generate New Access Token
 	newAccessToken, err := GenerateAccessToken(user)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to generate access token: %w", err)
+		return nil, "", "", fmt.Errorf("failed to generate access token user_id=%d session_id=%d: %w", user.ID, sessionID, err)
 	}
 
 	// 7. Rotate Refresh Token
 	newRefreshToken, newTokenHash, err := GenerateRefreshToken(sessionID)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to rotate refresh token: %w", err)
+		return nil, "", "", fmt.Errorf("failed to rotate refresh token user_id=%d session_id=%d: %w", user.ID, sessionID, err)
 	}
 
 	// 8. Update Session
 	session.TokenHash = newTokenHash
 	session.ExpiresAt = time.Now().UTC().Add(refreshTokenDuration)
 	if err := UpdateSession(session); err != nil {
-		return nil, "", "", fmt.Errorf("failed to update session: %w", err)
+		return nil, "", "", fmt.Errorf("failed to update session user_id=%d session_id=%d: %w", session.UserID, sessionID, err)
 	}
 
 	return user, newAccessToken, newRefreshToken, nil

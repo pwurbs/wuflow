@@ -99,12 +99,16 @@ async function globalSetup(config: FullConfig) {
 
     const crypto = await import('node:crypto');
     const adminPassword = `${crypto.randomBytes(16).toString('hex')}A1!`;
+    // Generate a fixed-per-run secret key so the server exercises the configured-secret
+    // code path (InitSecretKey with secret != ""). This ensures dummyPasswordHash is
+    // always initialised via the configured branch and tokenMACKey is stable for the run.
+    const secretKey = crypto.randomBytes(32).toString('hex');
     const adminConfigPath = path.join(dbDir, 'admin.json');
 
-    fs.writeFileSync(adminConfigPath, JSON.stringify({ password: adminPassword }));
-    console.log(`Generated initial admin password and saved to ${adminConfigPath}`);
+    fs.writeFileSync(adminConfigPath, JSON.stringify({ password: adminPassword, secretKey }));
+    console.log(`Generated initial admin password and secret key, saved to ${adminConfigPath}`);
 
-    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-password=${adminPassword}`], {
+    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-password=${adminPassword}`, `-secret-key=${secretKey}`], {
       detached: true,
       stdio: ['ignore', logFile, logFile],
       cwd: projectRoot
