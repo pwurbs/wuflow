@@ -29,6 +29,7 @@ const (
 	errMsgInvalidRequestBody  = "Invalid request body"
 	errMsgFailedLogin         = "Failed login attempt"
 	errMsgInvalidCreds        = "Invalid email or password"
+	errMsgTooManyAttempts     = "Too many login attempts, please try again later"
 )
 
 // denyForbidden logs a permission-denied warning and writes a 403 response.
@@ -747,8 +748,22 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip := remoteIP(r)
+	if loginLimiter.checkIP(ip) {
+		slog.Warn("Login blocked: IP rate limit exceeded", "ip", ip)
+		http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
+		return
+	}
+
 	var req loginRequest
 	if !decodeAndValidate(w, r, &req, validateLoginRequest) {
+		return
+	}
+
+	if loginLimiter.checkIPAndEmail(ip, req.Email) {
+		slog.Warn("Login blocked: IP and email rate limit exceeded", "email", req.Email, "ip", ip)
+		dummyPasswordCheck(req.Password)                           // Equalize timing to prevent side channels
+		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized) // we don't reveal the actual cause here
 		return
 	}
 
@@ -762,18 +777,22 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		// Equalise timing with the valid-user path to prevent user enumeration.
 		dummyPasswordCheck(req.Password)
 		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "user_not_found")
+		loginLimiter.recordFailure(ip, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
 
 	if !user.Active {
+		dummyPasswordCheck(req.Password) // Equalize timing to prevent side channels
 		slog.Warn("Failed login attempt", "email", user.Email, "reason", "inactive_user")
+		loginLimiter.recordFailure(ip, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
 
 	if !CheckPassword(user.PasswordHash, req.Password) {
 		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "invalid_password")
+		loginLimiter.recordFailure(ip, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
@@ -786,6 +805,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	loginLimiter.resetOnSuccess(ip, req.Email)
 	SetAuthCookies(w, accessToken, refreshToken)
 	slog.Info("Successful login", "email", user.Email, "session_id", session.ID)
 

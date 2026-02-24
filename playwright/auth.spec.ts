@@ -1,6 +1,12 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+
+// Helper to generate random pass
+function generatePassword() {
+  return `${crypto.randomBytes(16).toString('hex')}U1!`;
+}
 
 // Helper to delay execution (if needed for token internal states, though we rely on API calls)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -206,9 +212,9 @@ test.describe('Authentication Security', () => {
 
     for (const cookie of [accessToken!, refreshToken!]) {
       expect(cookie.httpOnly, `${cookie.name}: must be HttpOnly`).toBe(true);
-      expect(cookie.secure,   `${cookie.name}: must be Secure`).toBe(true);
+      expect(cookie.secure, `${cookie.name}: must be Secure`).toBe(true);
       expect(cookie.sameSite, `${cookie.name}: must be SameSite=Strict`).toBe('Strict');
-      expect(cookie.path,     `${cookie.name}: path must be /`).toBe('/');
+      expect(cookie.path, `${cookie.name}: path must be /`).toBe('/');
     }
 
     // Access token lifetime: MaxAge 900 s (15 min)
@@ -257,7 +263,7 @@ test.describe('Authentication Security', () => {
     // The global-setup now starts the server with --secret-key, exercising that code path.
     const response = await request.post('/api/auth/login', {
       headers: { 'Content-Type': 'application/json' },
-      data: { email: 'nonexistent-user@example.com', password: 'whatever' }
+      data: { email: 'nonexistent-user@example.com', password: generatePassword() }
     });
 
     // Must be 401 (wrong credentials), never 500 (nil panic).
@@ -335,6 +341,56 @@ test.describe('Authentication Security', () => {
     // 6. Public Asset (/logo.png) -> Should be accessible (200 OK)
     const logoResponse = await request.get('/logo.png');
     expect(logoResponse.status()).toBe(200);
+  });
+
+});
+
+// Use 127.0.0.1 explicitly instead of localhost.
+// The rest of the test suite natively uses localhost which resolves to [::1] (IPv6).
+// By explicitly targeting 127.0.0.1 here, we can safely exhaust the global 
+// IP-based rate limit for IPv4 loopback without accidentally failing all 
+// the other concurrent/subsequent tests that use IPv6 loopback!
+test.describe('Authentication Rate Limiting', () => {
+
+  test.use({ baseURL: 'http://127.0.0.1:8081' });
+
+  test('IP+Email limit returns 401, IP limit returns 429', async ({ request }) => {
+
+    // 1. Exhaust the IP+Email limit for victim@example.com
+    // The limit is 10 failures per 15 mins.
+    for (let i = 0; i < 10; i++) {
+      const res = await request.post('/api/auth/login', {
+        data: { email: 'victim@example.com', password: generatePassword() }
+      });
+      expect(res.status()).toBe(401);
+    }
+
+    // 11th attempt for the SAME email should still be block by IP+Email limit (401)
+    const resBlockedEmail = await request.post('/api/auth/login', {
+      data: { email: 'victim@example.com', password: generatePassword() }
+    });
+    expect(resBlockedEmail.status()).toBe(401);
+
+    // 2. The IP itself has 10 failures now. The IP limit is 20.
+    // Let's use a DIFFERENT email to safely reach the IP limit without hitting
+    // the IP+Email limit for the second victim until the very end.
+    for (let i = 0; i < 10; i++) {
+      const res = await request.post('/api/auth/login', {
+        data: { email: 'secondvictim@example.com', password: generatePassword() }
+      });
+      expect(res.status()).toBe(401);
+    }
+
+    // At this point, the IP (127.0.0.1) has exactly 20 failures.
+    // The very next request from this IP (21st) should hit the pure IP limit and return 429.
+    const resBlockedIP = await request.post('/api/auth/login', {
+      data: { email: 'admin@local', password: generatePassword() }
+    });
+
+    expect(resBlockedIP.status()).toBe(429);
+
+    const responseText = await resBlockedIP.text();
+    expect(responseText).toContain('Too many login attempts');
   });
 
 });

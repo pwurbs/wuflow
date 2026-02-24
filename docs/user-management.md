@@ -141,6 +141,12 @@ sequenceDiagram
     S-->>U: 401 Unauthorized
 ```
 
+#### Rate Limiting & Brute Force Protection
+To protect against credential stuffing and brute force attacks while preventing targeted Denial of Service (DoS), the login endpoint employs a dual-layer rate limiting strategy:
+1. **Per-IP Limit**: Maximizes at 20 failures per 15 minutes. Returns a fast `429 Too Many Requests` to shed load and stop automated botnets.
+2. **Per-IP & Email Limit**: Maximizes at 10 failures per 15 minutes. Returns a generic `401 Unauthorized` to prevent attackers from locking out legitimate users from arbitrary IP addresses.
+   - **Timing Side-Channel Protection**: When this limit is hit (or when a requested account doesn't exist or is inactive), the server executes a "dummy" password hash. This intentionally burns the exact same CPU time (~150ms) as a real login attempt, completely hiding the rate-limit or account status from the attacking client's network timing measurements.
+
 ### Token Details
 
 | Token | Duration | Purpose | Storage |

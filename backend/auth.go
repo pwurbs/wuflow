@@ -27,11 +27,6 @@ var jwtSecret []byte
 // operational keys are cryptographically independent.
 var tokenMACKey []byte
 
-// dummyPasswordHash is a bcrypt hash of a random password generated at startup.
-// It is used by dummyPasswordCheck to equalise login response time when a
-// submitted email address does not exist, preventing user enumeration via timing.
-var dummyPasswordHash []byte
-
 const (
 	accessTokenDuration  = 15 * time.Minute
 	refreshTokenDuration = 24 * time.Hour
@@ -85,18 +80,6 @@ func InitSecretKey(secret string) {
 	h2 := hmac.New(sha256.New, rawKey)
 	h2.Write([]byte("wuflow-refresh-token-mac-v1"))
 	tokenMACKey = h2.Sum(nil)
-
-	// Pre-compute a dummy bcrypt hash used to equalise login timing for unknown emails.
-	// Must always run regardless of how jwtSecret was set.
-	dummyRaw := make([]byte, 16)
-	if _, err := rand.Read(dummyRaw); err != nil {
-		panic(fmt.Sprintf("CRITICAL: Failed to generate dummy password bytes: %v", err))
-	}
-	hash, err := bcrypt.GenerateFromPassword(dummyRaw, bcrypt.DefaultCost)
-	if err != nil {
-		panic(fmt.Sprintf("CRITICAL: Failed to generate dummy password hash: %v", err))
-	}
-	dummyPasswordHash = hash
 }
 
 // HashPassword hashes a plaintext password using bcrypt.
@@ -122,12 +105,11 @@ func CheckPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-// dummyPasswordCheck runs a bcrypt comparison against the pre-computed dummy hash.
-// It always fails and the result is discarded; the sole purpose is to consume the
-// same wall-clock time as a real CheckPassword call so that login attempts for
-// non-existent users are indistinguishable from wrong-password attempts by timing.
+// dummyPasswordCheck runs HashPassword to simulate the same wall-clock time
+// as a real CheckPassword call so that login attempts for non-existent or
+// blocked users are indistinguishable from wrong-password attempts by timing.
 func dummyPasswordCheck(password string) {
-	_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(password))
+	_, _ = HashPassword(password)
 }
 
 // GenerateAccessToken creates a short-lived JWT access token for the given user.

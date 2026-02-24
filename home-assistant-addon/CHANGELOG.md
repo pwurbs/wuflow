@@ -1,4 +1,8 @@
 
+## 0.23.0
+
+- Added login brute force attack prevention
+
 ## 0.22.5
 
 - Fixed the shared usage of jwt-secret for both JWT tokens and refresh token hashes
