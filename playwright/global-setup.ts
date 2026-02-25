@@ -104,11 +104,12 @@ async function globalSetup(config: FullConfig) {
     // always initialised via the configured branch and tokenMACKey is stable for the run.
     const secretKey = crypto.randomBytes(32).toString('hex');
     const adminConfigPath = path.join(dbDir, 'admin.json');
+    const adminEmail = 'superadmin@test.local';
 
-    fs.writeFileSync(adminConfigPath, JSON.stringify({ password: adminPassword, secretKey }));
-    console.log(`Generated initial admin password and secret key, saved to ${adminConfigPath}`);
+    fs.writeFileSync(adminConfigPath, JSON.stringify({ email: adminEmail, password: adminPassword, secretKey }));
+    console.log(`Generated initial admin email, password and secret key, saved to ${adminConfigPath}`);
 
-    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-password=${adminPassword}`, `-secret-key=${secretKey}`], {
+    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-email=${adminEmail}`, `-initial-admin-password=${adminPassword}`, `-secret-key=${secretKey}`], {
       detached: true,
       stdio: ['ignore', logFile, logFile],
       cwd: projectRoot

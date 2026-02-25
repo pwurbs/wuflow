@@ -153,8 +153,7 @@ describe('Modal Component', () => {
     setCurrentIssue.mockImplementation((val) => { state.currentIssue = val; });
 
     // Mock JSDOM missing functions BEFORE setupModal so execCommand is available at init
-    document.execCommand = vi.fn();
-    document.queryCommandState = vi.fn();
+    document.execCommand = vi.fn(); //NOSONAR
     HTMLElement.prototype.scrollIntoView = vi.fn();
     HTMLInputElement.prototype.reportValidity = vi.fn();
     vi.spyOn(console, "error").mockImplementation(() => { });
@@ -377,7 +376,7 @@ describe('Modal Component', () => {
     const editor = document.getElementById('description-editor');
 
     // Mock execCommand
-    document.execCommand = vi.fn();
+    document.execCommand = vi.fn(); //NOSONAR
     const textNode = document.createTextNode('* ');
     globalThis.getSelection = vi.fn().mockReturnValue({
       isCollapsed: true,
@@ -389,14 +388,13 @@ describe('Modal Component', () => {
 
     editor.dispatchEvent(new InputEvent('input', { data: ' ' }));
 
-    expect(document.execCommand).toHaveBeenCalledWith('insertUnorderedList');
+    expect(document.execCommand).toHaveBeenCalledWith('insertUnorderedList'); //NOSONAR
   });
 
   it('should handle toolbar button click', async () => {
     openModal(null);
 
-    document.execCommand = vi.fn();
-    document.queryCommandState = vi.fn();
+    document.execCommand = vi.fn(); //NOSONAR
     globalThis.getSelection = vi.fn().mockReturnValue({
       rangeCount: 0,
       toString: () => ''
@@ -405,7 +403,7 @@ describe('Modal Component', () => {
     const boldBtn = document.querySelector('.editor-btn[data-cmd="bold"]');
     boldBtn.click();
 
-    expect(document.execCommand).toHaveBeenCalledWith('bold', false, null);
+    expect(document.execCommand).toHaveBeenCalledWith('bold', false, null); //NOSONAR
   });
 
   it('should handle custom date input click', () => {
@@ -926,6 +924,22 @@ describe('Modal Component', () => {
       expect(descContainer.classList.contains('inline-editing')).toBe(true);
       expect(descEditor.contentEditable).toBe('true');
     });
+
+    it('should open link in new tab when clicked in description', async () => {
+      const issue = { id: 1, description: '<a href="https://example.com" id="test-link">Link</a>' };
+      await openModalWithMock(issue);
+
+      const link = document.getElementById('test-link');
+
+      // Mock globalThis.open
+      const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => { });
+
+      // Simulate click on the link
+      link.click();
+
+      expect(openSpy).toHaveBeenCalledWith('https://example.com/', '_blank');
+      openSpy.mockRestore();
+    });
   });
   describe('Multi-Day Date Management', () => {
     it('should add a date via the picker in existing issue mode', async () => {
@@ -1180,7 +1194,7 @@ describe('Modal Component', () => {
       openModal(null);
       const editor = document.getElementById('description-editor');
 
-      document.execCommand = vi.fn();
+      document.execCommand = vi.fn(); //NOSONAR
       const textNode = document.createTextNode('1. ');
       globalThis.getSelection = vi.fn().mockReturnValue({
         isCollapsed: true,
@@ -1192,7 +1206,7 @@ describe('Modal Component', () => {
 
       editor.dispatchEvent(new InputEvent('input', { data: ' ' }));
 
-      expect(document.execCommand).toHaveBeenCalledWith('insertOrderedList');
+      expect(document.execCommand).toHaveBeenCalledWith('insertOrderedList'); //NOSONAR
     });
 
     it('should create link via toolbar with selection', async () => {
@@ -1202,12 +1216,12 @@ describe('Modal Component', () => {
         toString: () => 'example.com',
         anchorNode: { parentElement: { tagName: 'A', target: '' } }
       });
-      document.execCommand = vi.fn();
+      document.execCommand = vi.fn();   //NOSONAR
 
       const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
       linkBtn.click();
 
-      expect(document.execCommand).toHaveBeenCalledWith('createLink', false, 'https://example.com');
+      expect(document.execCommand).toHaveBeenCalledWith('createLink', false, 'https://example.com'); //NOSONAR
     });
 
     it('should reject javascript: URIs in createLink', async () => {
@@ -1217,12 +1231,12 @@ describe('Modal Component', () => {
         toString: () => 'javascript:alert(1)', // NOSONAR
         anchorNode: { parentElement: { tagName: 'A', target: '' } }
       });
-      document.execCommand = vi.fn();
+      document.execCommand = vi.fn(); //NOSONAR
 
       const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
       linkBtn.click();
 
-      expect(document.execCommand).not.toHaveBeenCalled();
+      expect(document.execCommand).not.toHaveBeenCalled(); //NOSONAR
     });
 
     it('should handle planned date chip add button click', () => {
@@ -1276,17 +1290,18 @@ describe('Modal Component', () => {
       openModal(null);
       const editor = document.getElementById('description-editor');
 
-      // Mock selection inside a link
+      // Mock selection inside a link which is inside an underline tag
+      const uNode = document.createElement('u');
       const anchorNode = document.createElement('a');
       anchorNode.href = 'https://example.com';
       anchorNode.textContent = 'Link';
-      editor.appendChild(anchorNode); // Must be child to hit parentNode loop
+      uNode.appendChild(anchorNode);
+      editor.appendChild(uNode); // Must be child to hit parentNode loop
 
       globalThis.getSelection = vi.fn().mockReturnValue({
         rangeCount: 1,
         anchorNode: anchorNode
       });
-      document.queryCommandState = vi.fn().mockReturnValue(true);
 
       editor.dispatchEvent(new Event('mouseup')); // Triggers updateToolbarState
 

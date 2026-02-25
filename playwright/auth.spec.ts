@@ -11,19 +11,33 @@ function generatePassword() {
 // Helper to delay execution (if needed for token internal states, though we rely on API calls)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+let adminEmail = 'admin@local';
+let adminPassword = '';
+
 test.describe('Authentication Security', () => {
 
-  let adminPassword = '';
-
   test.beforeAll(() => {
-    // Load admin password from global setup
+    // Load admin config from global setup
     const configPath = path.join(__dirname, 'test-data', 'admin.json');
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      adminEmail = config.email || adminEmail;
       adminPassword = config.password;
     } else {
       throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
     }
+  });
+
+  test('Initial Admin Config: Verified correct admin user was created', async ({ request }) => {
+    // 1. Try to fetch the user by email utilizing the login endpoint to check existence
+    // We expect a 200 OK with cookies since the user should exist and have this password
+    const response = await request.post('/api/auth/login', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { email: adminEmail, password: adminPassword }
+    });
+
+    // Expect: 200 OK because the user exists and the password is correct
+    expect(response.status()).toBe(200);
   });
 
   test('Concurrent Sessions: Login on two devices (contexts) should verify both are active', async ({ browser }) => {
@@ -31,7 +45,7 @@ test.describe('Authentication Security', () => {
     const context1 = await browser.newContext();
     const page1 = await context1.newPage();
     await page1.goto('/login');
-    await page1.fill('#login-email', 'admin@local');
+    await page1.fill('#login-email', adminEmail);
     await page1.fill('#login-password', adminPassword);
     await page1.click('#login-btn');
     await expect(page1.locator('#nav-setup')).toBeVisible();
@@ -40,7 +54,7 @@ test.describe('Authentication Security', () => {
     const context2 = await browser.newContext();
     const page2 = await context2.newPage();
     await page2.goto('/login');
-    await page2.fill('#login-email', 'admin@local');
+    await page2.fill('#login-email', adminEmail);
     await page2.fill('#login-password', adminPassword);
     await page2.click('#login-btn');
     await expect(page2.locator('#nav-setup')).toBeVisible();
@@ -56,7 +70,7 @@ test.describe('Authentication Security', () => {
   test('Strict Logout: Old cookies cannot refresh session', async ({ page, context }) => {
     // 1. Login
     await page.goto('/login');
-    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
@@ -90,7 +104,7 @@ test.describe('Authentication Security', () => {
   test('Reuse Detection: Using an outdated refresh token revokes the session', async ({ page, context, request }) => {
     // 1. Login (Session A)
     await page.goto('/login');
-    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
@@ -136,7 +150,7 @@ test.describe('Authentication Security', () => {
   test('Automatic Token Refresh: Missing access token triggers silent refresh', async ({ page, context }) => {
     // 1. Login
     await page.goto('/login');
-    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
@@ -168,7 +182,7 @@ test.describe('Authentication Security', () => {
   test('Security: Tampered refresh token is rejected', async ({ page, context }) => {
     // 1. Login
     await page.goto('/login');
-    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
@@ -198,7 +212,7 @@ test.describe('Authentication Security', () => {
 
   test('Cookie Security: Auth cookies have correct security flags and lifetimes', async ({ page, context }) => {
     await page.goto('/login');
-    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
@@ -283,7 +297,7 @@ test.describe('Authentication Security', () => {
 
     // 1. Login to obtain both tokens
     await page.goto('/login');
-    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
@@ -384,7 +398,7 @@ test.describe('Authentication Rate Limiting', () => {
     // At this point, the IP (127.0.0.1) has exactly 20 failures.
     // The very next request from this IP (21st) should hit the pure IP limit and return 429.
     const resBlockedIP = await request.post('/api/auth/login', {
-      data: { email: 'admin@local', password: generatePassword() }
+      data: { email: adminEmail, password: generatePassword() }
     });
 
     expect(resBlockedIP.status()).toBe(429);

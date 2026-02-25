@@ -55,11 +55,11 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
     confirmMessage.textContent = message;
     confirmOkBtn.textContent = okText;
 
-    if (cancelText === null) {
-      confirmCancelBtn.classList.add('hidden');
-    } else {
+    if (cancelText) {
       confirmCancelBtn.classList.remove('hidden');
       confirmCancelBtn.textContent = cancelText;
+    } else {
+      confirmCancelBtn.classList.add('hidden');
     }
 
     // Reset classes and add specific one
@@ -215,7 +215,7 @@ export function initCharCounter(el, maxLength, options = {}) {
 export function canArchive(issue) {
   if (!issue) return { allowed: false, reason: 'No issue provided' };
 
-  if (issue.tasks && issue.tasks.some(t => !t.done)) {
+  if (issue.tasks?.some(t => !t.done)) {
     return { allowed: false, reason: 'Issue has open tasks' };
   }
 

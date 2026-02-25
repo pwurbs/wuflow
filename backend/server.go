@@ -25,7 +25,7 @@ func init() {
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
-func StartServer(version string, port string, dbPath string, initialAdminPassword string, secretKey string, embeddedFiles embed.FS) {
+func StartServer(version string, port string, dbPath string, initialAdminEmail string, initialAdminPassword string, secretKey string, embeddedFiles embed.FS) {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -74,7 +74,7 @@ func StartServer(version string, port string, dbPath string, initialAdminPasswor
 	InitSecretKey(secretKey)
 
 	// Create initial admin user if no users exist
-	if err := EnsureInitialAdmin(initialAdminPassword); err != nil {
+	if err := EnsureInitialAdmin(initialAdminEmail, initialAdminPassword); err != nil {
 		slog.Error("Failed to ensure initial admin user", "error", err)
 		os.Exit(1)
 	}

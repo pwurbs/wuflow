@@ -10,6 +10,8 @@ function generatePassword() {
 
 test.describe('User Management', () => {
 
+  let adminEmail = 'admin@local';
+
   test.beforeEach(async ({ page }) => {
     const configPath = path.join(__dirname, 'test-data', 'admin.json');
     let adminPassword = '';
@@ -17,12 +19,13 @@ test.describe('User Management', () => {
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       adminPassword = config.password;
+      adminEmail = config.email || adminEmail;
     } else {
       throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
     }
 
     await page.goto('/login');
-    await page.fill('#login-email', 'admin@local');
+    await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
@@ -77,8 +80,8 @@ test.describe('User Management', () => {
   });
 
   test('Admin cannot deactivate the last active administrator', async ({ page }) => {
-    // We expect admin@local to be the only active admin here if other tests cleaned up.
-    const adminRows = page.locator('.user-row:has-text("admin@local")');
+    // We expect the configured admin to be the only active admin here if other tests cleaned up.
+    const adminRows = page.locator(`.user-row:has-text("${adminEmail}")`);
     await expect(adminRows).toBeVisible();
 
     await adminRows.locator('.user-edit-btn').click();
@@ -157,15 +160,15 @@ test.describe('User Management', () => {
     await expect(badge).toHaveText(/^[A-Z]{2}$/);
 
     // Check for email text
-    await expect(userMenuBtn).toContainText('admin@local');
+    await expect(userMenuBtn).toContainText(adminEmail);
   });
 
   test('User Management list displays badges', async ({ page }) => {
     // Already on Setup page from beforeEach
     await expect(page.locator('.users-list')).toBeVisible();
 
-    // Find the row for admin@local
-    const adminRow = page.locator('.user-row:has-text("admin@local")');
+    // Find the row for the admin email
+    const adminRow = page.locator(`.user-row:has-text("${adminEmail}")`);
     await expect(adminRow).toBeVisible();
 
     // Check for badge in the list row

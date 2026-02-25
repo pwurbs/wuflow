@@ -1,4 +1,10 @@
 
+## 0.23.1
+
+- Fixed SQ issues in JS
+- Added local swagger file
+- initial admin email is now configurable
+
 ## 0.23.0
 
 - Added login brute force attack prevention

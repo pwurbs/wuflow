@@ -353,7 +353,7 @@ async function renderUserList(refreshCallback) {
   if (!usersList || !userSection) return;
 
   // Only show user management for admins
-  if (!state.currentUser || state.currentUser.role !== 'admin') {
+  if (state.currentUser?.role !== 'admin') {
     userSection.classList.add('hidden');
     return;
   }

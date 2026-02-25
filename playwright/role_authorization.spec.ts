@@ -20,6 +20,7 @@ test.describe('Role Based Authorization', () => {
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       adminPassword = config.password;
+      adminEmail = config.email || adminEmail;
     } else {
       throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
     }

@@ -46,7 +46,7 @@ export function renderBoard(refreshApp, openModal) {
           if (!getDragSuccess()) {
             // Revert
             const origin = getDraggedCardOrigin();
-            if (origin && origin.parent && document.body.contains(origin.parent)) {
+            if (origin?.parent && document.body.contains(origin.parent)) {
               if (origin.nextSibling) {
                 origin.nextSibling.before(cardEl);
               } else {
@@ -107,7 +107,7 @@ export function setupBoardView(refreshApp, openModal) {
 
         // If we leave the column and we are dragging a card, visually revert it to origin
         // This prevents it from "stuck" in the last column when moving to Planning Panel
-        if (draggedCard && origin && origin.parent) {
+        if (draggedCard && origin?.parent) {
           // We only revert if the card is technically IN this column currently (it should be, due to dragover)
           // But checking content.contains might is enough/safer?
           // Actually, just putting it back is safest behavior for "not dropping here".

@@ -35,15 +35,18 @@ The frontend mirrors this policy in `static/js/permissions.js` via `userCan(user
 
 ## Initial Admin
 
-On first startup, wuFlow requires an initial admin password to create the default admin account:
+On first startup (when the users table is empty), wuFlow creates the initial admin account based on the following configuration:
 
 ```bash
-WF_INITIAL_ADMIN_PASSWORD=YourSecurePass123! ./wuflow
+WF_INITIAL_ADMIN_EMAIL=admin@example.com WF_INITIAL_ADMIN_PASSWORD=YourSecurePass123! ./wuflow
 ```
 
-- The initial admin is created with the email `admin@local`.
-- This only happens when the users table is empty (first run).
-- The password must meet the password policy (see below).
+| Setting | Environment Variable | CLI Parameter | Default | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Email** | `WF_INITIAL_ADMIN_EMAIL` | `--initial-admin-email` | `admin@local` | Optional argument to overwerite the default, must be a valid email address |
+| **Password** | `WF_INITIAL_ADMIN_PASSWORD` | `--initial-admin-password` | *(Required)* | Mandatory argument for the first startup, must meet password policy (see below) |
+
+email address and password of the initially created admin user can be changed after login in setup page.
 
 ## Authentication Flow
 

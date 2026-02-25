@@ -291,7 +291,7 @@ func GetEmailFromContext(ctx context.Context) string {
 }
 
 // EnsureInitialAdmin creates the initial admin user if no users exist.
-func EnsureInitialAdmin(initialAdminPassword string) error {
+func EnsureInitialAdmin(initialAdminEmail, initialAdminPassword string) error {
 	count, err := CountUsers()
 	if err != nil {
 		return err
@@ -304,7 +304,19 @@ func EnsureInitialAdmin(initialAdminPassword string) error {
 		return fmt.Errorf("no users exist and no initial admin password provided, must terminate the application (set WF_INITIAL_ADMIN_PASSWORD or --initial-admin-password)")
 	}
 
-	if err := ValidatePassword(initialAdminPassword, "admin@local"); err != nil {
+	admin := &User{
+		Email:     initialAdminEmail,
+		FirstName: "Admin",
+		LastName:  "User",
+		Role:      RoleAdmin,
+		Active:    true,
+	}
+
+	if err := validateUser(admin); err != nil {
+		return fmt.Errorf("invalid initial admin configuration: %w", err)
+	}
+
+	if err := ValidatePassword(initialAdminPassword, admin.Email); err != nil {
 		return fmt.Errorf("initial admin password does not meet policy requirements: %w", err)
 	}
 
@@ -312,15 +324,7 @@ func EnsureInitialAdmin(initialAdminPassword string) error {
 	if err != nil {
 		return err
 	}
-
-	admin := &User{
-		Email:        "admin@local",
-		FirstName:    "Admin",
-		LastName:     "User",
-		PasswordHash: hash,
-		Role:         RoleAdmin,
-		Active:       true,
-	}
+	admin.PasswordHash = hash
 
 	if err := CreateUser(admin); err != nil {
 		return err

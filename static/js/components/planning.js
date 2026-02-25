@@ -248,7 +248,7 @@ export function createDeadlineBadge(issue, specificDateStr) {
     // Fallback? Or maybe we don't warn if date is unknown?
     // Current behavior was: check latest.
     // Let's keep existing logic ONLY if specificDateStr is not provided (e.g. board view?)
-    const sortedDates = [...issue.planned_dates].sort();
+    const sortedDates = [...issue.planned_dates].sort((a, b) => a.localeCompare(b));
     const lastPlan = new Date(sortedDates[sortedDates.length - 1]);
     lastPlan.setHours(0, 0, 0, 0);
 
@@ -377,7 +377,7 @@ function createUnscheduledSection(issues) {
 
   issues.forEach(issue => {
     const info = getEffectiveDeadlineInfo(issue);
-    if (info && info.date) {
+    if (info?.date) {
       const deadline = new Date(info.date);
       deadline.setHours(0, 0, 0, 0);
       if (deadline > tenDaysFromNow) {
@@ -519,8 +519,7 @@ export async function processDroppedCard(draggedCard, targetDateStr) {
     }
 
     newDates.push(targetDateStr);
-    newDates.sort();
-
+    newDates.sort((a, b) => a.localeCompare(b));
     issue.planned_dates = newDates;
     await updateIssue(issue);
     if (refreshAppCallback) refreshAppCallback();

@@ -30,7 +30,7 @@ export function setupModal(refreshApp) {
   setupInlineEditing();
   // Ensure Enter creates <p> elements (not <div>) so paragraph breaks survive sanitization
   // execCommand is deprecated but remains the only cross-browser way to set this
-  document.execCommand('defaultParagraphSeparator', false, 'p');
+  document.execCommand('defaultParagraphSeparator', false, 'p'); //NOSONAR
   setupEditorToolbar();
   setupSidebarImmediateSave();
 
@@ -476,7 +476,7 @@ async function handleArchiveIssue() {
 
   if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
     const updated = await archiveIssue(state.currentIssue.id);
-    if (updated && updated.id) {
+    if (updated?.id) {
       closeModal();
       showNotification('Issue archived');
     }
@@ -488,7 +488,7 @@ async function handleUnarchiveIssue() {
   if (!userCan(state.currentUser, ACTION_UNARCHIVE_ISSUE)) return;
   if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
     const updated = await unarchiveIssue(state.currentIssue.id);
-    if (updated && updated.id) {
+    if (updated?.id) {
       closeModal();
       showNotification('Issue unarchived');
     }
@@ -593,13 +593,10 @@ function setupInlineEditing() {
   // Description
   descEditor.addEventListener('click', (e) => {
     if (state.currentIssue?.status === 'Archive') return;
-    let node = e.target;
-    while (node && node !== descEditor) {
-      if (node.tagName === 'A') {
-        globalThis.open(node.href, '_blank');
-        return;
-      }
-      node = node.parentNode;
+    const anchor = e.target.closest('a');
+    if (anchor && descEditor.contains(anchor)) {
+      globalThis.open(anchor.href, '_blank');
+      return;
     }
     if (descContainer.classList.contains('inline-editable')) {
       originalDesc = descEditor.innerHTML;
@@ -802,6 +799,31 @@ function setupSidebarImmediateSave() {
   }
 }
 
+function isCommandActive(cmd, editor) {
+  const selection = globalThis.getSelection();
+  if (!selection.rangeCount) return false;
+
+  let node = selection.anchorNode;
+  if (!node) return false;
+  let element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  if (!element || !editor.contains(element)) return false;
+
+  switch (cmd) {
+    case 'bold':
+      return !!element.closest('b, strong');
+    case 'italic':
+      return !!element.closest('i, em');
+    case 'underline':
+      return !!element.closest('u');
+    case 'insertUnorderedList':
+      return !!element.closest('ul');
+    case 'insertOrderedList':
+      return !!element.closest('ol');
+    default:
+      return false;
+  }
+}
+
 function setupEditorToolbar() {
   const editor = document.getElementById('description-editor');
   const toolbarBtns = document.querySelectorAll('.editor-btn');
@@ -811,13 +833,11 @@ function setupEditorToolbar() {
     const selection = globalThis.getSelection();
     let inLink = false;
     if (selection.rangeCount > 0) {
-      let node = selection.anchorNode;
-      while (node && node !== editor && node !== document.body) {
-        if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'A') {
-          inLink = true;
-          break;
-        }
-        node = node.parentNode;
+      const anchorNode = selection.anchorNode;
+      const element = anchorNode.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode.parentElement;
+      const anchor = element?.closest('a');
+      if (anchor && editor.contains(anchor)) {
+        inLink = true;
       }
     }
     toolbarBtns.forEach(btn => {
@@ -825,11 +845,9 @@ function setupEditorToolbar() {
       if (cmd === 'createLink') {
         btn.classList.toggle('active', inLink);
       } else if (cmd === 'underline') {
-        // queryCommandState is deprecated but required for lightweight rich text editing
-        btn.classList.toggle('active', !inLink && document.queryCommandState(cmd));
+        btn.classList.toggle('active', !inLink && isCommandActive(cmd, editor));
       } else {
-        // queryCommandState is deprecated but required for lightweight rich text editing
-        btn.classList.toggle('active', document.queryCommandState(cmd));
+        btn.classList.toggle('active', isCommandActive(cmd, editor));
       }
     });
   }
@@ -844,7 +862,7 @@ function setupEditorToolbar() {
 
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
     // execCommand is deprecated but required for lightweight rich text editing
-    document.execCommand('createLink', false, url);
+    document.execCommand('createLink', false, url); //NOSONAR
     // Force target _blank with noopener to prevent reverse tabnapping.
     // Walk up from anchorNode to find the created <a> element. anchorNode
     // is typically a text node inside the anchor rather than its direct parent.
@@ -870,7 +888,7 @@ function setupEditorToolbar() {
         handleCreateLink();
       } else {
         // execCommand is deprecated but required for lightweight rich text editing
-        document.execCommand(cmd, false, null);
+        document.execCommand(cmd, false, null); //NOSONAR
       }
       editor.focus();
       updateToolbarState();
@@ -897,9 +915,9 @@ function setupEditorToolbar() {
             sel.removeAllRanges();
             sel.addRange(range);
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('delete');
+            document.execCommand('delete'); //NOSONAR
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('insertUnorderedList');
+            document.execCommand('insertUnorderedList'); //NOSONAR
           } else if (/^1\.\s$/.test(text)) {
             const range = document.createRange();
             range.setStart(anchorNode, 0);
@@ -907,9 +925,9 @@ function setupEditorToolbar() {
             sel.removeAllRanges();
             sel.addRange(range);
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('delete');
+            document.execCommand('delete'); //NOSONAR
             // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('insertOrderedList');
+            document.execCommand('insertOrderedList'); //NOSONAR
           }
         }
       }
@@ -1143,8 +1161,8 @@ function renderPlannedDateChips(issue) {
 
   container.innerHTML = '';
 
-  const dates = (issue && issue.planned_dates) ? [...issue.planned_dates] : [];
-  dates.sort();
+  const dates = issue?.planned_dates ? [...issue.planned_dates] : [];
+  dates.sort((a, b) => a.localeCompare(b));
 
   dates.forEach(dateStr => {
     container.appendChild(createDateChip(dateStr));
@@ -1216,7 +1234,7 @@ async function addPlannedDate(dateStr) {
   if (state.currentIssue) {
     const currentDates = state.currentIssue.planned_dates || [];
     if (!currentDates.includes(dateStr)) {
-      const newDates = [...currentDates, dateStr].sort();
+      const newDates = [...currentDates, dateStr].sort((a, b) => a.localeCompare(b));
       const updatedIssue = { ...state.currentIssue, planned_dates: newDates };
       try {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date added');
@@ -1234,7 +1252,7 @@ async function addPlannedDate(dateStr) {
     // Check dupe
     if (!dates.includes(dateStr)) {
       dates.push(dateStr);
-      dates.sort();
+      dates.sort((a, b) => a.localeCompare(b));
       renderPlannedDateChips({ planned_dates: dates });
     }
   }

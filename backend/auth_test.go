@@ -15,22 +15,24 @@ import (
 )
 
 const (
-	apiAuthLogin   = "/api/auth/login"
-	apiAuthLogout  = "/api/auth/logout"
-	apiAuthRefresh = "/api/auth/refresh"
-	apiAuthMe      = "/api/auth/me"
-	apiUsers       = "/api/users"
-	apiUsersBase   = "/api/users/"
-	apiUsers1      = apiUsersBase + "1"
-	apiTest        = "/api/test"
-	testPassword   = "SecurePass123!"
-	testEmail      = "test@example.com"
-	testEmailTwo   = "t@t.com"
-	testEmailThree = "a@b.com"
-	testUserEmail  = "user@test.com"
-	expectedEmail  = "expected email %s, got %s"
-	expectedRole   = "expected role admin, got %s"
-	sqliteMemoryDSN = ":memory:"
+	apiAuthLogin            = "/api/auth/login"
+	apiAuthLogout           = "/api/auth/logout"
+	apiAuthRefresh          = "/api/auth/refresh"
+	apiAuthMe               = "/api/auth/me"
+	apiUsers                = "/api/users"
+	apiUsersBase            = "/api/users/"
+	apiUsers1               = apiUsersBase + "1"
+	apiTest                 = "/api/test"
+	testPassword            = "SecurePass123!"
+	testEmail               = "test@example.com"
+	testEmailTwo            = "t@t.com"
+	testEmailThree          = "a@b.com"
+	testUserEmail           = "user@test.com"
+	expectedEmail           = "expected email %s, got %s"
+	expectedRole            = "expected role admin, got %s"
+	sqliteMemoryDSN         = ":memory:"
+	adminEmailLocal         = "admin@local"
+	errGetUserByEmailFailed = "GetUserByEmail failed: %v"
 )
 
 // --- Password Hashing ---
@@ -277,14 +279,14 @@ func TestEnsureInitialAdmin(t *testing.T) {
 	defer teardownTestDB()
 	InitSecretKey("")
 
-	err := EnsureInitialAdmin(testPassword)
+	err := EnsureInitialAdmin(adminEmailLocal, testPassword)
 	if err != nil {
 		t.Fatalf("EnsureInitialAdmin failed: %v", err)
 	}
 
-	user, err := GetUserByEmail("admin@local")
+	user, err := GetUserByEmail(adminEmailLocal)
 	if err != nil {
-		t.Fatalf("GetUserByEmail failed: %v", err)
+		t.Fatalf(errGetUserByEmailFailed, err)
 	}
 	if user == nil {
 		t.Fatal("expected admin user to be created")
@@ -297,6 +299,32 @@ func TestEnsureInitialAdmin(t *testing.T) {
 	}
 }
 
+func TestEnsureInitialAdminCustomEmail(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitSecretKey("")
+
+	customEmail := "custom-admin@example.com"
+	err := EnsureInitialAdmin(customEmail, testPassword)
+	if err != nil {
+		t.Fatalf("EnsureInitialAdmin failed: %v", err)
+	}
+
+	user, err := GetUserByEmail(customEmail)
+	if err != nil {
+		t.Fatalf(errGetUserByEmailFailed, err)
+	}
+	if user == nil {
+		t.Fatal("expected custom admin user to be created")
+	}
+	if user.Email != customEmail {
+		t.Errorf("expected email %s, got %s", customEmail, user.Email)
+	}
+	if user.Role != RoleAdmin {
+		t.Errorf(expectedRole, user.Role)
+	}
+}
+
 func TestEnsureInitialAdminSkipsExisting(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
@@ -306,7 +334,7 @@ func TestEnsureInitialAdminSkipsExisting(t *testing.T) {
 	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true})
 
 	// Should skip because users exist
-	err := EnsureInitialAdmin(testPassword)
+	err := EnsureInitialAdmin(adminEmailLocal, testPassword)
 	if err != nil {
 		t.Fatalf("EnsureInitialAdmin should succeed when users exist: %v", err)
 	}
@@ -321,7 +349,7 @@ func TestEnsureInitialAdminNoPassword(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	err := EnsureInitialAdmin("")
+	err := EnsureInitialAdmin(adminEmailLocal, "")
 	if err == nil {
 		t.Error("expected error when no password provided and no users exist")
 	}
@@ -331,7 +359,7 @@ func TestEnsureInitialAdminWeakPassword(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	err := EnsureInitialAdmin("short")
+	err := EnsureInitialAdmin(adminEmailLocal, "short")
 	if err == nil {
 		t.Error("expected error for weak password")
 	}
@@ -636,7 +664,7 @@ func TestCreateAndGetUser(t *testing.T) {
 	// GetUserByEmail
 	found, err := GetUserByEmail(testEmail)
 	if err != nil {
-		t.Fatalf("GetUserByEmail failed: %v", err)
+		t.Fatalf(errGetUserByEmailFailed, err)
 	}
 	if found == nil || found.Email != testEmail {
 		t.Error("expected to find user by email")
@@ -1487,7 +1515,7 @@ func TestEnsureInitialAdminCountUsersError(t *testing.T) {
 	closedDB.Close()
 	DB = closedDB
 
-	err := EnsureInitialAdmin("SomePassword1!")
+	err := EnsureInitialAdmin(adminEmailLocal, "SomePassword1!")
 	if err == nil {
 		t.Error("expected error with closed DB, got nil")
 	}

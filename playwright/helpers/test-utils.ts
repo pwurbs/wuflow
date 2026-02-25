@@ -159,16 +159,18 @@ export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'setup'
 export async function login(page: Page): Promise<void> {
   const configPath = path.join(__dirname, '..', 'test-data', 'admin.json');
   let adminPassword = '';
+  let adminEmail = 'admin@local';
 
   if (fs.existsSync(configPath)) {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     adminPassword = config.password;
+    adminEmail = config.email || adminEmail;
   } else {
     throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
   }
 
   await page.goto('/login');
-  await page.fill('#login-email', 'admin@local');
+  await page.fill('#login-email', adminEmail);
   await page.fill('#login-password', adminPassword);
   await page.click('#login-btn');
   // Wait for board or nav to confirm login
