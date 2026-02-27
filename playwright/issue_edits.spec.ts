@@ -13,8 +13,8 @@ test.describe('Issue Edit Operations', () => {
     // Open the issue
     await openIssueByTitle(page, 'Edit Description Issue');
 
-    // Click on description to enable inline editing
-    await page.click('#description-editor');
+    // Click on description preview to enable inline editing
+    await page.click('#description-preview');
 
     // Fill in new description
     const newDescription = 'This is the updated description';
@@ -29,7 +29,8 @@ test.describe('Issue Edit Operations', () => {
 
     // Reopen and verify the description was saved
     await openIssueByTitle(page, 'Edit Description Issue');
-    await expect(page.locator('#description-editor')).toContainText(newDescription);
+    await expect(page.locator('#description-editor')).toHaveValue(newDescription);
+    await expect(page.locator('#description-preview')).toContainText(newDescription);
   });
 
   test('change issue priority', async ({ page }) => {

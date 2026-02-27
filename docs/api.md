@@ -155,9 +155,9 @@ Creates a new issue.
   ```json
   {
     "title": "Issue Title",
-    "description": "Optional description",
-    "status": "Open", // Open, In Progress, Done, Archive
-    "priority": "Medium", // High, Medium, Low
+    "description": "Optional Markdown content",
+    "status": "Open", // Open, Todo, Pending, Working, Done, Archive
+    "priority": "Normal", // Normal, High
     "label_id": 1 // Optional
   }
   ```
@@ -210,7 +210,8 @@ Adds a task to a specific issue.
   ```json
   {
     "issue_id": 1,
-    "title": "Task Title"
+    "title": "Task Title",
+    "description": "Optional Markdown content"
   }
   ```
 

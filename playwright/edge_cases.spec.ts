@@ -193,7 +193,8 @@ test.describe('Edge Cases and Validation', () => {
     await expect(page.locator('#title')).toHaveValue('Persistent Issue');
 
     // Check description
-    await expect(page.locator('#description-editor')).toContainText('This issue should persist');
+    await expect(page.locator('#description-editor')).toHaveValue('This issue should persist');
+    await expect(page.locator('#description-preview')).toContainText('This issue should persist');
 
     // Check priority
     await expect(page.locator('#priority-text')).toContainText('High');

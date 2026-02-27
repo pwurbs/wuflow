@@ -1,4 +1,8 @@
 
+## 0.24.0
+
+- Moved to Markdown formatting in issue description field and changed the sanitization approach by using DOMPurify
+
 ## 0.23.1
 
 - Fixed SQ issues in JS

@@ -25,6 +25,8 @@ backend/testdata
 # local AI agents
 .agent
 .claude
+.claudeignore
+.antigravityignore
 
 # local Trivy scan
 .trivy

@@ -28,14 +28,19 @@ Input validation in wuFlow ensures data integrity and security by enforcing cons
 | **Planned Dates** | 100 entries | Prevents unbounded array iteration; each entry must be a valid `YYYY-MM-DD` date. |
 
 ## Description Sanitization
-To prevent XSS while allowing rich text:
-- The backend sanitizes all issue descriptions using a custom regex-based sanitizer (`sanitizeHTML`).
-- **Allowed**: Basic formatting (`<b>`, `<i>`, `<u>`, `<p>`, `<br>`), lists (`<ul>`, `<ol>`, `<li>`), and safe links (`<a>` with `href` attribute only).
-- **Stripped**: All other tags (e.g., `<script>`, `<iframe>`, `<img>`, headers), event handlers, and links using `javascript:` or `data:` URIs.
-- **Malformed HTML**: Unmatched or unwhitelisted tags are stripped without structural correction.
+To prevent XSS while allowing rich text editing, the description field now uses Markdown natively instead of HTML.
+
+### Backend Validation Layer
+The backend treats description content as plain Markdown text. It evaluates length constraints directly based on character (rune) counts. Unlike other plain-text fields, **no regex-based HTML filtering (`sanitizeHTML`) is applied** to the description on the backend. The raw Markdown (including any embedded HTML supplied by the user) is saved directly to the database.
 
 ### Frontend Sanitization Layer
-As a second layer of defense, the frontend applies `sanitizeDescription()` (using `DOMParser`) when rendering description content in the editor. This ensures that even if unsanitized content reached the database, it is cleaned before being rendered in a dangerous context.
+The frontend acts as the single security boundary for rendering descriptions. When retrieving an issue or task:
+1.  **Markdown Parsing**: The `marked` library converts the raw Markdown string into HTML.
+2.  **DOMPurify Sandbox**: The output is strictly sanitized by DOMPurify before being inserted into the DOM.
+    - **Allowed**: Basic formatting (`h1`-`h6`, `b`, `strong`, `i`, `em`, `s`, `del`, `p`, `br`), lists (`ul`, `ol`, `li`), links (`a`), and code blocks (`code`, `pre`).
+    - **Stripped**: Dangerous tags (e.g., `<script>`, `<iframe>`, `<img>`), unapproved attributes, and links using `javascript:` or `data:` URIs.
+
+This ensures that even if malicious or unsanitized content is stored in the database, it cannot cause XSS when evaluated in the browser.
 
 ## Plain-Text Sanitization
 As a defense-in-depth measure, the backend automatically strips ALL HTML tags and NUL bytes (`\x00`) from fields intended to be plain-text:
@@ -50,7 +55,7 @@ This prevents malicious markup from being stored or accidentally rendered in the
 ### Frontend Defense-in-Depth
 Even with backend stripping, the frontend applies additional layers of protection:
 1.  **Escaping**: Fields like titles and names are rendered using `textContent` or `escapeHtml()` to ensure residual characters (like `<` or `>` missed by the backend's `anyTagRegex`) are treated as literals.
-2.  **Plain-Text Previews**: When generating plain-text previews of rich descriptions (e.g., in the Backlog), the frontend uses `stripHtml()`. This function utilizes `DOMParser` in an inert context to safely extract text content, which protects against unclosed tags that might bypass the backend's regex-based sanitization.
+2.  **Plain-Text Previews**: When generating plain-text previews of rich descriptions (e.g., in the Backlog), the frontend uses `stripMarkdown()`. This function relies on `renderMarkdown(md)` to create fully sanitized HTML via DOMPurify, and then extracts raw text using an inert `div` element via `textContent`. This guarantees unclosed embedded tags cannot break the outer page structure while safely converting the Markdown snippet for display.
 
 
 ## Link Validation

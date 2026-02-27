@@ -1,4 +1,5 @@
-import { escapeHtml, stripHtml } from '../utils.js';
+import { escapeHtml } from '../utils.js';
+import { stripMarkdown } from '../markdown.js';
 import { setDraggedCard, setDraggedCardOrigin } from '../drag.js';
 
 export function createCardElement(issue, isBoard = false, callbacks = {}) {
@@ -130,7 +131,7 @@ function getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls) {
                     <span>${escapeHtml(issue.title)}</span>
                   </div>
                 </div>
-                <div class="card-description">${escapeHtml(stripHtml(issue.description || ''))}</div>
+                <div class="card-description">${escapeHtml(stripMarkdown(issue.description || ''))}</div>
             </div>
             ${'' /* Task list hidden for backlog view to match Open issues layout */}
             ${(() => {

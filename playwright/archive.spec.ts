@@ -269,7 +269,7 @@ test.describe('Archive View', () => {
     await expect(page.locator('#title-edit-actions')).toBeHidden();
 
     // 3. Description not inline-editable
-    await page.click('#description-editor');
+    await page.click('#description-preview');
     await expect(page.locator('.editor-container')).not.toHaveClass(/inline-editing/);
 
     // 4. Dropdowns disabled

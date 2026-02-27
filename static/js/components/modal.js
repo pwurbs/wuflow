@@ -1,6 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, sanitizeDescription, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
+import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
@@ -28,9 +29,6 @@ export function setupModal(refreshApp) {
   document.getElementById('unarchive-issue-btn').addEventListener('click', handleUnarchiveIssue);
 
   setupInlineEditing();
-  // Ensure Enter creates <p> elements (not <div>) so paragraph breaks survive sanitization
-  // execCommand is deprecated but remains the only cross-browser way to set this
-  document.execCommand('defaultParagraphSeparator', false, 'p'); //NOSONAR
   setupEditorToolbar();
   setupSidebarImmediateSave();
 
@@ -111,7 +109,8 @@ export async function openModal(issue = null) {
     // Clear stale content so the previous issue's data isn't visible under the loading overlay.
     // Use direct .value assignment (not form.reset()) to avoid triggering change event listeners.
     document.getElementById('title').value = '';
-    document.getElementById('description-editor').innerHTML = '';
+    document.getElementById('description-editor').value = '';
+    document.getElementById('description-preview').innerHTML = '';
 
     // Fetch fresh data from server to ensure we have latest version
     try {
@@ -190,7 +189,11 @@ function setupEditModal(issue) {
   document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Edit Issue #${issue.id}`;
   document.getElementById('issue-id').value = issue.id;
   document.getElementById('title').value = issue.title;
-  document.getElementById('description-editor').innerHTML = sanitizeDescription(issue.description || '');
+  document.getElementById('description-editor').value = issue.description || '';
+  const { html } = renderMarkdown(issue.description || '', true);
+  document.getElementById('description-preview').innerHTML = html;
+  // We do NOT show the toast on initial load to avoid spamming the user when opening an issue with old bad data,
+  // we only show the error on active edit actions (Save / Preview).
 
   // Planned Date Chip Logic
   renderPlannedDateChips(issue);
@@ -246,7 +249,8 @@ function setupEditModal(issue) {
 function setupNewModal() {
   document.getElementById('modal-title').textContent = 'New Issue';
   document.getElementById('issue-form').reset();
-  document.getElementById('description-editor').innerHTML = '';
+  document.getElementById('description-editor').value = '';
+  document.getElementById('description-preview').innerHTML = '';
   document.getElementById('issue-id').value = '';
 
   renderPlannedDateChips(null);
@@ -277,19 +281,22 @@ function toggleInlineEditMode(enable) {
   const titleInput = document.getElementById('title');
   const descContainer = document.querySelector('.editor-container');
   const descEditor = document.getElementById('description-editor');
+  const descPreview = document.getElementById('description-preview');
   const descEditActions = document.getElementById('description-edit-actions');
 
   if (enable) {
     titleInput.classList.add('inline-editable');
     titleInput.readOnly = true;
     descContainer.classList.add('inline-editable');
-    descEditor.contentEditable = "false";
+    descEditor.classList.add('hidden');
+    descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
   } else {
     titleInput.classList.remove('inline-editable');
     titleInput.readOnly = false;
     descContainer.classList.remove('inline-editable');
-    descEditor.contentEditable = "true";
+    descEditor.classList.remove('hidden');
+    descPreview.classList.add('hidden');
     descEditActions.classList.add('hidden');
   }
 }
@@ -403,7 +410,7 @@ async function handleIssueSubmit(e) {
     document.getElementById('title').focus();
     return;
   }
-  const descText = document.getElementById('description-editor').textContent || '';
+  const descText = document.getElementById('description-editor').value || '';
   if (countCodepoints(descText) > 5000) {
     showNotification('Description must not exceed 5000 characters.', 'error');
     return;
@@ -415,7 +422,7 @@ async function handleIssueSubmit(e) {
 
   const issueData = {
     title: titleValue,
-    description: document.getElementById('description-editor').innerHTML,
+    description: descText,
     deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
     // For both new and existing issues, read planned dates from the DOM container
     planned_dates: getPlannedDatesFromDOM(),
@@ -564,8 +571,17 @@ function setupInlineEditing() {
       try {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Title updated');
         if (!saved) return; // Conflict occurred - stay in edit mode
-        // Only update state after successful save (check for null in case modal closed during save)
-        if (state.currentIssue) state.currentIssue.title = newTitle;
+
+        // Fetch fresh copy to ensure frontend model exactly matches backend 
+        // sanitization (e.g. stripped HTML tags / null bytes in Title).
+        const { issue: freshIssue } = await import('../api.js').then(m => m.fetchIssueById(state.currentIssue.id));
+        if (freshIssue) {
+          state.currentIssue.title = freshIssue.title;
+          if (titleInput.value !== freshIssue.title) {
+            titleInput.value = freshIssue.title;
+            showNotification('Unsupported HTML tags are not rendered for security.', 'error');
+          }
+        }
       } catch (err) {
         showNotification(err.message, 'error');
         return; // Keep edit mode
@@ -590,52 +606,67 @@ function setupInlineEditing() {
   _saveTitleFn = saveTitle;
   _cancelTitleFn = cancelTitle;
 
-  // Description
-  descEditor.addEventListener('click', (e) => {
-    if (state.currentIssue?.status === 'Archive') return;
+  // Description — click on preview to enter edit mode
+  const descPreview = document.getElementById('description-preview');
+
+  descPreview.addEventListener('click', (e) => {
     const anchor = e.target.closest('a');
-    if (anchor && descEditor.contains(anchor)) {
-      globalThis.open(anchor.href, '_blank');
+    if (anchor) {
+      e.preventDefault();
+      globalThis.open(anchor.href, '_blank', 'noopener,noreferrer');
       return;
     }
+    if (state.currentIssue?.status === 'Archive') return;
     if (descContainer.classList.contains('inline-editable')) {
-      originalDesc = descEditor.innerHTML;
+      originalDesc = descEditor.value;
       descContainer.classList.remove('inline-editable');
       descContainer.classList.add('inline-editing');
-      descEditor.contentEditable = "true";
+      descPreview.classList.add('hidden');
+      descEditor.classList.remove('hidden');
       descEditActions.classList.remove('hidden');
       descEditor.focus();
       addUnloadListener();
     }
   });
 
+  // Live preview while editing
+  descEditor.addEventListener('input', () => {
+    descPreview.innerHTML = renderMarkdown(descEditor.value);
+  });
+
   const cancelDesc = () => {
-    descEditor.innerHTML = originalDesc;
+    descEditor.value = originalDesc;
+    descPreview.innerHTML = renderMarkdown(originalDesc);
     descContainer.classList.add('inline-editable');
     descContainer.classList.remove('inline-editing');
-    descEditor.contentEditable = "false";
+    descEditor.classList.add('hidden');
+    descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
     checkRemoveUnloadListener();
   };
 
   const saveDesc = async () => {
-    const newDesc = descEditor.innerHTML;
+    const newDesc = descEditor.value;
     if (newDesc !== state.currentIssue.description) {
-      // Create a copy to avoid mutating state before save succeeds
       const updatedIssue = { ...state.currentIssue, description: newDesc };
       try {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Description updated');
-        if (!saved) return; // Conflict occurred - state not updated, user can try again
-        // Only update state after successful save (check for null in case modal closed during save)
-        if (state.currentIssue) state.currentIssue.description = sanitizeDescription(newDesc);
+        if (!saved) return;
+        if (state.currentIssue) state.currentIssue.description = newDesc;
       } catch (err) {
         showNotification(err.message, 'error');
-        return; // Keep edit mode
+        return;
       }
+    }
+    const { html, strippedHTML } = renderMarkdown(newDesc, true);
+    descPreview.innerHTML = html;
+    if (strippedHTML) {
+      showNotification('Unsupported HTML tags are not rendered for security.', 'error');
     }
     descContainer.classList.add('inline-editable');
     descContainer.classList.remove('inline-editing');
-    descEditor.contentEditable = "false";
+    descEditor.classList.add('hidden');
+    descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
     checkRemoveUnloadListener();
   };
@@ -657,7 +688,7 @@ async function handleDone() {
   // Description: keep explicit prompt behavior
   if (document.querySelector('.editor-container').classList.contains('inline-editing')) {
     await processFieldOnDone(
-      descEditor.innerHTML,
+      descEditor.value,
       originalDesc,
       'Description',
       'desc-save-btn',
@@ -799,140 +830,186 @@ function setupSidebarImmediateSave() {
   }
 }
 
-function isCommandActive(cmd, editor) {
-  const selection = globalThis.getSelection();
-  if (!selection.rangeCount) return false;
-
-  let node = selection.anchorNode;
-  if (!node) return false;
-  let element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-  if (!element || !editor.contains(element)) return false;
-
-  switch (cmd) {
-    case 'bold':
-      return !!element.closest('b, strong');
-    case 'italic':
-      return !!element.closest('i, em');
-    case 'underline':
-      return !!element.closest('u');
-    case 'insertUnorderedList':
-      return !!element.closest('ul');
-    case 'insertOrderedList':
-      return !!element.closest('ol');
-    default:
-      return false;
-  }
-}
-
 function setupEditorToolbar() {
   const editor = document.getElementById('description-editor');
-  const toolbarBtns = document.querySelectorAll('.editor-btn');
+  const preview = document.getElementById('description-preview');
 
-  function updateToolbarState() {
-    // Implementation from app.js
-    const selection = globalThis.getSelection();
-    let inLink = false;
-    if (selection.rangeCount > 0) {
-      const anchorNode = selection.anchorNode;
-      const element = anchorNode.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode.parentElement;
-      const anchor = element?.closest('a');
-      if (anchor && editor.contains(anchor)) {
-        inLink = true;
-      }
-    }
-    toolbarBtns.forEach(btn => {
-      const cmd = btn.dataset.cmd;
-      if (cmd === 'createLink') {
-        btn.classList.toggle('active', inLink);
-      } else if (cmd === 'underline') {
-        btn.classList.toggle('active', !inLink && isCommandActive(cmd, editor));
-      } else {
-        btn.classList.toggle('active', isCommandActive(cmd, editor));
-      }
-    });
-  }
-
-  function handleCreateLink() {
-    const selection = globalThis.getSelection();
-    let url = selection.toString().trim();
-    if (!url) return;
-
-    // Explicitly reject dangerous URI schemes (javascript:, data:, vbscript:)
-    if (/^(javascript:|data:|vbscript:)/i.test(url)) return;
-
-    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    // execCommand is deprecated but required for lightweight rich text editing
-    document.execCommand('createLink', false, url); //NOSONAR
-    // Force target _blank with noopener to prevent reverse tabnapping.
-    // Walk up from anchorNode to find the created <a> element. anchorNode
-    // is typically a text node inside the anchor rather than its direct parent.
-    // instanceof Node guards against mock objects in tests and non-DOM contexts;
-    // editor.contains() bounds the walk to nodes within the editor.
-    let anchorEl = selection.anchorNode;
-    while (anchorEl instanceof Node && editor.contains(anchorEl)) {
-      if (anchorEl.tagName === 'A') break;
-      anchorEl = anchorEl.parentNode;
-    }
-    if (anchorEl instanceof Node && anchorEl.tagName === 'A') {
-      anchorEl.target = '_blank';
-      anchorEl.rel = 'noopener noreferrer';
-    }
-  }
-
-  toolbarBtns.forEach(btn => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', (e) => {
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
       e.preventDefault();
-      const cmd = e.currentTarget.dataset.cmd;
-      if (cmd === 'createLink') {
-        handleCreateLink();
-      } else {
-        // execCommand is deprecated but required for lightweight rich text editing
-        document.execCommand(cmd, false, null); //NOSONAR
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const value = editor.value;
+
+      // If no text is selected, and Shift is NOT pressed, just insert two spaces.
+      if (start === end && !e.shiftKey) {
+        editor.value = value.substring(0, start) + '  ' + value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 2;
+        editor.dispatchEvent(new Event('input'));
+        return;
       }
-      editor.focus();
-      updateToolbarState();
+
+      // Multi-line or Shift+Tab logic
+      let adjustedEnd = end;
+      if (end > start && value[end - 1] === '\n') {
+        adjustedEnd = end - 1;
+      }
+
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = value.indexOf('\n', adjustedEnd);
+      if (lineEnd === -1) lineEnd = value.length;
+
+      const beforeStr = value.substring(0, lineStart);
+      const lines = value.substring(lineStart, lineEnd).split('\n');
+      const afterStr = value.substring(lineEnd);
+
+      let startOffset = 0;
+      let endOffset = 0;
+
+      const newLines = lines.map((line, idx) => {
+        let newLine = line;
+        let diff = 0;
+
+        if (e.shiftKey) {
+          if (newLine.startsWith('  ')) {
+            newLine = newLine.substring(2);
+            diff = -2;
+          } else if (newLine.startsWith(' ') || newLine.startsWith('\t')) {
+            newLine = newLine.substring(1);
+            diff = -1;
+          }
+        } else {
+          newLine = '  ' + newLine;
+          diff = 2;
+        }
+
+        if (idx === 0) startOffset += diff;
+        endOffset += diff;
+
+        return newLine;
+      });
+
+      editor.value = beforeStr + newLines.join('\n') + afterStr;
+
+      const newStart = Math.max(lineStart, start + startOffset);
+      const newEnd = Math.max(lineStart, end + endOffset);
+
+      editor.selectionStart = newStart;
+      editor.selectionEnd = start === end ? newStart : newEnd;
+
+      editor.dispatchEvent(new Event('input'));
+    }
+  });
+
+  function insertMarkdown(before, after = '') {
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const selected = editor.value.slice(start, end);
+    editor.value = editor.value.slice(0, start) + before + selected + after + editor.value.slice(end);
+    editor.selectionStart = start + before.length;
+    editor.selectionEnd = start + before.length + selected.length;
+    editor.focus();
+    preview.innerHTML = renderMarkdown(editor.value);
+  }
+
+  function applyList(type) {
+    const start = editor.selectionStart;
+    const lines = editor.value.slice(start, editor.selectionEnd).split('\n');
+    const replaced = lines.map((l, i) => type === 'ol' ? `${i + 1}. ` + l : '- ' + l).join('\n');
+    editor.value = editor.value.slice(0, start) + replaced + editor.value.slice(editor.selectionEnd);
+    editor.focus();
+    preview.innerHTML = renderMarkdown(editor.value);
+  }
+
+  function applyHeading(level) {
+    const start = editor.selectionStart;
+    const lines = editor.value.slice(start, editor.selectionEnd).split('\n');
+    const prefix = level === 1 ? '# ' : '## ';
+    const replaced = lines.map(l => prefix + l.replace(/^#+\s/, '')).join('\n');
+    editor.value = editor.value.slice(0, start) + replaced + editor.value.slice(editor.selectionEnd);
+    editor.focus();
+    preview.innerHTML = renderMarkdown(editor.value);
+  }
+
+  function applyLink() {
+    const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim();
+    if (selected && /^https?:\/\//i.test(selected)) {
+      insertMarkdown('[', `](${selected})`);
+    } else {
+      insertMarkdown('[', '](https://)');
+    }
+  }
+
+  function applyCode() {
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const selected = editor.value.slice(start, end);
+
+    if (selected.includes('\n')) {
+      const needsNewlineBefore = start > 0 && editor.value[start - 1] !== '\n';
+      const needsNewlineAfter = end < editor.value.length && editor.value[end] !== '\n';
+      const beforePfx = needsNewlineBefore ? '\n```\n' : '```\n';
+      const afterSfx = needsNewlineAfter ? '\n```\n' : '\n```';
+      insertMarkdown(beforePfx, afterSfx);
+    } else {
+      insertMarkdown('`', '`');
+    }
+  }
+
+  function handleMarkdownCommand(cmd) {
+    switch (cmd) {
+      case 'ul': applyList('ul'); break;
+      case 'ol': applyList('ol'); break;
+      case 'h1': applyHeading(1); break;
+      case 'h2': applyHeading(2); break;
+      case 'link': applyLink(); break;
+      case 'code': applyCode(); break;
+    }
+  }
+
+  document.querySelectorAll('.editor-btn[data-md]').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', () => {
+      if (btn.dataset.prefix) {
+        insertMarkdown(btn.dataset.prefix, btn.dataset.suffix || '');
+      } else {
+        handleMarkdownCommand(btn.dataset.md);
+      }
     });
   });
 
-  if (editor) {
-    editor.addEventListener('keyup', updateToolbarState);
-    editor.addEventListener('mouseup', updateToolbarState);
-    editor.addEventListener('input', (e) => {
-      updateToolbarState();
-      // Auto List Logic
-      if (e.data === ' ') {
-        const sel = globalThis.getSelection();
-        if (sel.isCollapsed && sel.anchorNode.nodeType === Node.TEXT_NODE) {
-          const anchorNode = sel.anchorNode;
-          const offset = sel.anchorOffset;
-          const text = anchorNode.textContent.slice(0, offset);
+  // Preview toggle
+  document.getElementById('md-preview-toggle')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    const showingPreview = !preview.classList.contains('hidden');
+    const toolbarBtns = document.querySelectorAll('.editor-btn[data-md]');
 
-          if (/^[*|-]\s$/.test(text)) {
-            const range = document.createRange();
-            range.setStart(anchorNode, 0);
-            range.setEnd(anchorNode, offset);
-            sel.removeAllRanges();
-            sel.addRange(range);
-            // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('delete'); //NOSONAR
-            // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('insertUnorderedList'); //NOSONAR
-          } else if (/^1\.\s$/.test(text)) {
-            const range = document.createRange();
-            range.setStart(anchorNode, 0);
-            range.setEnd(anchorNode, offset);
-            sel.removeAllRanges();
-            sel.addRange(range);
-            // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('delete'); //NOSONAR
-            // execCommand is deprecated but required for lightweight rich text editing
-            document.execCommand('insertOrderedList'); //NOSONAR
-          }
-        }
+    if (showingPreview) {
+      preview.classList.add('hidden');
+      preview.classList.remove('active');
+      editor.classList.remove('hidden');
+      editor.focus();
+      btn.classList.remove('active');
+      toolbarBtns.forEach(b => {
+        b.disabled = false;
+        b.classList.remove('disabled');
+      });
+    } else {
+      const { html, strippedHTML } = renderMarkdown(editor.value, true);
+      preview.innerHTML = html;
+      if (strippedHTML) {
+        showNotification('Unsupported HTML tags are not rendered for security.', 'error');
       }
-    });
-  }
+      preview.classList.remove('hidden');
+      preview.classList.add('active');
+      editor.classList.add('hidden');
+      btn.classList.add('active');
+      toolbarBtns.forEach(b => {
+        b.disabled = true;
+        b.classList.add('disabled');
+      });
+    }
+  });
 }
 
 // Task Logic Helpers

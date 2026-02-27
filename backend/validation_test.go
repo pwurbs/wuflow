@@ -51,40 +51,36 @@ func TestValidateIssueDescriptionTooLong(t *testing.T) {
 	}
 }
 
-func TestValidateIssueDescriptionCountsTextNotTags(t *testing.T) {
-	// HTML tags must not count toward the limit — MaxDescLength text chars
-	// wrapped in <b>…</b> should be accepted.
-	desc := "<b>" + strings.Repeat("x", MaxDescLength) + "</b>"
-	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
+func TestValidateIssueDescriptionHTMLAccepted(t *testing.T) {
+	// HTML in descriptions is allowed — DOMPurify sanitises rendered output on the frontend.
+	cases := []string{
+		"<b>bold</b>",
+		"<script>alert(1)</script>",
+		"Price < 100 & tax > 0",
+		"Use <br> for line breaks",
+	}
+	for _, desc := range cases {
+		i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
+		if err := validateIssue(i); err != nil {
+			t.Errorf("description %q should be accepted, got: %v", desc, err)
+		}
+	}
+}
+
+func TestValidateIssueDescriptionMarkdownAccepted(t *testing.T) {
+	i := &Issue{Title: "T", Status: StatusOpen, Description: "**bold** and *italic*\n\n- item"}
 	if err := validateIssue(i); err != nil {
-		t.Errorf("expected no error for description at text-only max length with tags, got %v", err)
+		t.Errorf("expected no error for valid Markdown description, got %v", err)
 	}
 }
 
-func TestValidateIssueDescriptionTooLongWithTags(t *testing.T) {
-	// MaxDescLength+1 visible text chars must be rejected even when wrapped in tags.
-	desc := "<b>" + strings.Repeat("x", MaxDescLength+1) + "</b>"
-	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
-	if err := validateIssue(i); err != ErrDescTooLong {
-		t.Errorf("expected ErrDescTooLong for text-over-limit description with tags, got %v", err)
-	}
-}
-
-func TestValidateIssueDescriptionEntitiesDecodedForCount(t *testing.T) {
-	// &lt; decodes to < (1 char) — MaxDescLength such entities must be accepted.
-	desc := strings.Repeat("&lt;", MaxDescLength)
-	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
+func TestValidateIssueDescriptionTrimmed(t *testing.T) {
+	i := &Issue{Title: "T", Status: StatusOpen, Description: "  hello  "}
 	if err := validateIssue(i); err != nil {
-		t.Errorf("expected no error for MaxDescLength decoded entity chars, got %v", err)
+		t.Fatalf(errUnexpected, err)
 	}
-}
-
-func TestValidateIssueDescriptionEntitiesDecodedTooLong(t *testing.T) {
-	// MaxDescLength+1 decoded entity chars must be rejected.
-	desc := strings.Repeat("&lt;", MaxDescLength+1)
-	i := &Issue{Title: "T", Status: StatusOpen, Description: desc}
-	if err := validateIssue(i); err != ErrDescTooLong {
-		t.Errorf("expected ErrDescTooLong for entity-encoded text exceeding limit, got %v", err)
+	if i.Description != "hello" {
+		t.Errorf("expected trimmed description 'hello', got '%s'", i.Description)
 	}
 }
 
@@ -366,85 +362,3 @@ func TestValidatePasswordValid(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// sanitizeHTML
-// ---------------------------------------------------------------------------
-
-func TestSanitizeHTMLScriptTagStripped(t *testing.T) {
-	result := sanitizeHTML(`<script>alert(1)</script><b>bold</b>`)
-	if strings.Contains(result, "<script>") {
-		t.Errorf("expected <script> to be stripped, got: %s", result)
-	}
-	if !strings.Contains(result, "<b>bold</b>") {
-		t.Errorf("expected <b>bold</b> to be preserved, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLEventAttributeStripped(t *testing.T) {
-	result := sanitizeHTML(`<img src="x" onerror="alert(1)">`)
-	if strings.Contains(result, "onerror") {
-		t.Errorf("expected onerror to be stripped, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLJavascriptHrefStripped(t *testing.T) {
-	result := sanitizeHTML(`<a href="javascript:alert(1)">click</a>`)
-	if strings.Contains(result, "javascript:") {
-		t.Errorf("expected javascript: href to be stripped, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLDataHrefStripped(t *testing.T) {
-	result := sanitizeHTML(`<a href="data:text/html,<script>alert(1)</script>">click</a>`)
-	if strings.Contains(result, "data:text/html") {
-		t.Errorf("expected data: href to be stripped, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLJavascriptWithSpacesHrefStripped(t *testing.T) {
-	result := sanitizeHTML(`<a href="  javascript:alert(1)">click</a>`)
-	if strings.Contains(result, "javascript:") {
-		t.Errorf("expected javascript: href with leading spaces to be stripped, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLSafeAnchorPreserved(t *testing.T) {
-	result := sanitizeHTML(`<a href="https://example.com">link</a>`)
-	if !strings.Contains(result, `href="https://example.com" target="_blank" rel="noopener noreferrer"`) {
-		t.Errorf("expected safe href to be preserved, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLSafeFormattingPreserved(t *testing.T) {
-	input := `<b>bold</b> <i>italic</i> <ul><li>item</li></ul>`
-	result := sanitizeHTML(input)
-	for _, tag := range []string{"<b>", "</b>", "<i>", "</i>", "<ul>", "<li>", "</ul>", "</li>"} {
-		if !strings.Contains(result, tag) {
-			t.Errorf("expected %q to be preserved in: %s", tag, result)
-		}
-	}
-}
-
-func TestSanitizeHTMLIframeStripped(t *testing.T) {
-	result := sanitizeHTML(`<iframe src="evil.com"></iframe>`)
-	if strings.Contains(result, "iframe") {
-		t.Errorf("expected iframe to be stripped, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLDivNormalisedToParagraph(t *testing.T) {
-	// Chrome contenteditable emits <div> for Enter — these must be preserved
-	// as <p> so line breaks survive a save/reload cycle.
-	result := sanitizeHTML(`<div>line1</div><div>line2</div>`)
-	if !strings.Contains(result, "<p>line1</p>") || !strings.Contains(result, "<p>line2</p>") {
-		t.Errorf("expected <div> normalised to <p>, got: %s", result)
-	}
-}
-
-func TestSanitizeHTMLPlainTextUnchanged(t *testing.T) {
-	input := "Hello, world! No tags here."
-	result := sanitizeHTML(input)
-	if result != input {
-		t.Errorf("expected plain text unchanged, got: %s", result)
-	}
-}

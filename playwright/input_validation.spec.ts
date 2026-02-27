@@ -2,7 +2,10 @@ import { test, expect, Page } from '@playwright/test';
 import { login, createIssue, openIssueByTitle, navigateTo, selectStatus } from './helpers/test-utils';
 
 /**
- * Sad-path tests for all validation limits.
+ * Tests for:
+ *  1. Validation limits (lengths) for issue, task, label and user fields.
+ *  2. Markdown description rendering (basic formatting, allowed tags).
+ *  3. XSS & sanitization for description (preview + roundtrip) and title.
  *
  * Limits (from backend/validation.go):
  *   Issue Title      : 100 characters (rune count)
@@ -16,6 +19,13 @@ import { login, createIssue, openIssueByTitle, navigateTo, selectStatus } from '
  * The client-side guards mirror these limits; errors surface via
  *   - #notification-toast   (issue / task / label errors)
  *   - #user-modal-error     (user form errors)
+ *
+ * Security model:
+ *   - Titles: sanitized server-side (HTML tags stripped).
+ *   - Descriptions: stored as raw Markdown; sanitized client-side by DOMPurify
+ *     on every render. Allowed tags: h1-h6, b, strong, i, em, u, s, del, ul,
+ *     ol, li, p, br, a, code, pre. Allowed attrs: href, title, target, rel.
+ *     javascript: and data: URIs are always stripped by DOMPurify.
  */
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -34,7 +44,21 @@ async function expectUserError(page: Page, substring: string) {
   await expect(err).toContainText(substring);
 }
 
-// ─── Issue validation ────────────────────────────────────────────────────────
+/**
+ * Opens a new-issue modal, fills in a description, clicks the preview toggle
+ * and returns the innerHTML of the preview pane. Leaves the modal open.
+ */
+async function fillDescriptionAndPreview(page: Page, title: string, description: string): Promise<string> {
+  await page.click('#add-issue-btn');
+  await expect(page.locator('#issue-modal')).toBeVisible();
+  await page.fill('#title', title);
+  await page.fill('#description-editor', description);
+  await page.click('#md-preview-toggle');
+  await expect(page.locator('#description-preview')).toBeVisible();
+  return page.locator('#description-preview').innerHTML();
+}
+
+// ─── Validation limits — Issue ───────────────────────────────────────────────
 
 test.describe('Validation limits – Issue', () => {
   test.beforeEach(async ({ page }) => {
@@ -63,10 +87,9 @@ test.describe('Validation limits – Issue', () => {
 
     await page.fill('#title', 'Desc Limit Test');
 
-    // contenteditable – set via evaluate
+    // Set value directly (bypasses input-event truncation) to test JS validation backstop
     await page.evaluate((text) => {
-      const el = document.getElementById('description-editor');
-      if (el) el.innerText = text;
+      (document.getElementById('description-editor') as HTMLTextAreaElement).value = text;
     }, 'a'.repeat(5_001));
 
     await page.click('#save-issue-btn');
@@ -76,7 +99,7 @@ test.describe('Validation limits – Issue', () => {
   });
 });
 
-// ─── Task validation ─────────────────────────────────────────────────────────
+// ─── Validation limits — Task ────────────────────────────────────────────────
 
 test.describe('Validation limits – Task', () => {
   test.beforeEach(async ({ page }) => {
@@ -103,7 +126,7 @@ test.describe('Validation limits – Task', () => {
   });
 });
 
-// ─── Label validation ─────────────────────────────────────────────────────────
+// ─── Validation limits — Label ────────────────────────────────────────────────
 
 test.describe('Validation limits – Label', () => {
   test.beforeEach(async ({ page }) => {
@@ -123,7 +146,7 @@ test.describe('Validation limits – Label', () => {
   });
 });
 
-// ─── User validation ──────────────────────────────────────────────────────────
+// ─── Validation limits — User ─────────────────────────────────────────────────
 
 test.describe('Validation limits – User', () => {
   test.beforeEach(async ({ page }) => {
@@ -189,100 +212,273 @@ test.describe('Validation limits – User', () => {
   });
 });
 
-// ─── XSS Roundtrip Validation ────────────────────────────────────────────────
+// ─── Markdown Description Rendering ──────────────────────────────────────────
 
-test.describe('XSS Roundtrip Validation', () => {
+test.describe('Markdown description rendering', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
   });
 
-  test('issue description is sanitized after reload', async ({ page }) => {
-    const title = `XSS-D-${Date.now().toString().slice(-6)}`;
-    // Payload: safe <b> (preserved), dangerous <script> (stripped), dangerous <img onerror> (stripped)
-    const xssPayload = '<b>Safe Bold</b><script>alert(1)</script><img src=x onerror="alert(2)">Trailing';
+  test('GFM formatting renders correctly in preview and after save', async ({ page }) => {
+    const title = `MD-Test-${Date.now()}`;
+    const markdown = '# Heading\n**Bold** *Italic* ~~Strike~~';
 
     await page.click('#add-issue-btn');
-    await expect(page.locator('#issue-modal')).toBeVisible();
-
     await page.fill('#title', title);
+    await page.fill('#description-editor', markdown);
+
+    // Check live preview
+    await page.click('#md-preview-toggle');
+    const preview = page.locator('#description-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview.locator('h1')).toHaveText('Heading');
+    await expect(preview.locator('strong')).toHaveText('Bold');
+    await expect(preview.locator('em')).toHaveText('Italic');
+    await expect(preview.locator('del')).toHaveText('Strike');
+
+    // Save, re-open, verify persistence
     await selectStatus(page, 'Todo');
-
-    await page.evaluate((payload) => {
-      const el = document.getElementById('description-editor');
-      if (el) el.innerHTML = payload;
-    }, xssPayload);
-
     await page.click('#save-issue-btn');
     await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Reload page to ensure full store→reload cycle
-    await page.reload({ waitUntil: 'networkidle' });
     await openIssueByTitle(page, title);
-
-    const descriptionEditor = page.locator('#description-editor');
-    // Wait for the modal to finish loading (heading changes from "New Issue" to "Edit Issue #N")
-    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
-    await expect(descriptionEditor).toBeVisible();
-
-    const innerHTML = await descriptionEditor.innerHTML();
-    const textContent = await descriptionEditor.textContent();
-
-    // Dangerous elements/attributes must be gone
-    expect(innerHTML).not.toContain('<script');
-    expect(innerHTML).not.toContain('onerror');
-
-    // Safe text content should survive
-    expect(textContent).toContain('Bold');
-    expect(textContent).toContain('Trailing');
+    const savedPreview = page.locator('#description-preview');
+    await expect(savedPreview).toBeVisible();
+    await expect(savedPreview.locator('h1')).toHaveText('Heading');
+    await expect(savedPreview.locator('strong')).toHaveText('Bold');
   });
 
-  test('safe links preserve target="_blank" and rel="noopener noreferrer"', async ({ page }) => {
+  test('inline allowed HTML tags are preserved in preview', async ({ page }) => {
+    const title = `HTML-MD-${Date.now()}`;
+    // These tags are explicitly in the DOMPurify allowlist
+    const payload = 'Markdown **bold** and <u>HTML underline</u> and <b>HTML bold</b>';
+
+    await page.click('#add-issue-btn');
+    await page.fill('#title', title);
+    await page.fill('#description-editor', payload);
+
+    await page.click('#md-preview-toggle');
+    const preview = page.locator('#description-preview');
+    await expect(preview.locator('strong')).toHaveText('bold');
+    await expect(preview.locator('u')).toHaveText('HTML underline');
+    await expect(preview.locator('b')).toHaveText('HTML bold');
+
+    // Persist and re-verify
+    await selectStatus(page, 'Todo');
+    await page.click('#save-issue-btn');
+    await openIssueByTitle(page, title);
+    await expect(page.locator('#description-preview').locator('u')).toHaveText('HTML underline');
+  });
+
+  test('safe links preserve href, target="_blank" and rel="noopener noreferrer"', async ({ page }) => {
     const title = `Link-Attr-${Date.now().toString().slice(-6)}`;
-    const linkPayload = '<a href="https://example.com">Preserved Link</a>';
+    // Inline HTML with all safe link attributes
+    const linkPayload = '<a href="https://example.com" target="_blank" rel="noopener noreferrer">Preserved Link</a>';
 
     await page.click('#add-issue-btn');
     await expect(page.locator('#issue-modal')).toBeVisible();
-
     await page.fill('#title', title);
     await selectStatus(page, 'Todo');
-
-    await page.evaluate((payload) => {
-      const el = document.getElementById('description-editor');
-      if (el) el.innerHTML = payload;
-    }, linkPayload);
-
+    await page.fill('#description-editor', linkPayload);
     await page.click('#save-issue-btn');
     await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Re-open and verify
     await openIssueByTitle(page, title);
     await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
 
-    const anchor = page.locator('#description-editor a');
+    const anchor = page.locator('#description-preview a');
     await expect(anchor).toBeVisible();
     await expect(anchor).toHaveAttribute('href', 'https://example.com');
     await expect(anchor).toHaveAttribute('target', '_blank');
     await expect(anchor).toHaveAttribute('rel', 'noopener noreferrer');
   });
+});
 
-  test('issue title tags are stripped for security', async ({ page }) => {
-    const dangerousTitle = `<b>Bold Title</b> ${Date.now()}`;
+// ─── XSS & Sanitization ──────────────────────────────────────────────────────
 
-    await createIssue(page, {
-      title: dangerousTitle,
-      status: 'Todo'
-    });
+test.describe('XSS and Sanitization', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page);
+  });
 
-    // Locate the card - it should match the text without tags
+  // ── Description ────────────────────────────────────────────────────────────
+
+  test('desc: script tags and onerror attributes are stripped (preview + roundtrip)', async ({ page }) => {
+    const title = `XSS-D-${Date.now().toString().slice(-6)}`;
+    // Mix of safe content + dangerous tags — safe text must survive, dangerous must be gone
+    const payload = '<b>Safe Bold</b><script>alert(1)</script><img src=x onerror="alert(2)">Trailing';
+
+    await page.click('#add-issue-btn');
+    await page.fill('#title', title);
+    await selectStatus(page, 'Todo');
+    await page.fill('#description-editor', payload);
+
+    // Preview check — warning toast expected, no dangerous elements
+    await page.click('#md-preview-toggle');
+    await expect(page.locator('#notification-toast')).toContainText('Unsupported HTML tags are not rendered for security.');
+    const preview = page.locator('#description-preview');
+    expect(await preview.innerHTML()).not.toContain('<script');
+    expect(await preview.innerHTML()).not.toContain('onerror');
+    await expect(preview.locator('script')).toHaveCount(0);
+    await expect(preview.locator('img[onerror]')).toHaveCount(0);
+    // Safe content preserved
+    expect(await preview.textContent()).toContain('Safe Bold');
+    expect(await preview.textContent()).toContain('Trailing');
+
+    // Roundtrip — save, reload, re-open
+    await page.click('#save-issue-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+    await page.reload({ waitUntil: 'networkidle' });
+    await openIssueByTitle(page, title);
+    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
+    const savedPreview = page.locator('#description-preview');
+    expect(await savedPreview.innerHTML()).not.toContain('<script');
+    expect(await savedPreview.innerHTML()).not.toContain('onerror');
+    expect(await savedPreview.textContent()).toContain('Safe Bold');
+  });
+
+  test('desc: javascript: URI in markdown link is neutralised', async ({ page }) => {
+    const title = `XSS-JS-URI-${Date.now().toString().slice(-6)}`;
+    // DOMPurify neutralises javascript: hrefs
+    const payload = 'Click [here](javascript:alert(1)) for a surprise.';
+
+    const previewHTML = await fillDescriptionAndPreview(page, title, payload);
+
+    // The rendered link must not contain a javascript: href
+    expect(previewHTML).not.toContain('javascript:'); //NOSONAR
+    // The link text itself should still be visible
+    await expect(page.locator('#description-preview')).toContainText('here');
+  });
+
+  test('desc: data: URI in <img> src is stripped', async ({ page }) => {
+    const title = `XSS-DATA-${Date.now().toString().slice(-6)}`;
+    // data: URIs can be used to load malicious content
+    const payload = '<img src="data:text/html,<script>alert(1)</script>" alt="x">';
+
+    const previewHTML = await fillDescriptionAndPreview(page, title, payload);
+
+    // img tag itself is not allowed; it must not appear at all in the output
+    expect(previewHTML).not.toContain('<img');
+    expect(previewHTML).not.toContain('data:');
+  });
+
+  test('desc: SVG with onload handler is stripped', async ({ page }) => {
+    const title = `XSS-SVG-${Date.now().toString().slice(-6)}`;
+    const payload = '<svg/onload=alert(1)><circle r="10"/></svg>';
+
+    await fillDescriptionAndPreview(page, title, payload);
+
+    // marked entity-encodes the raw SVG tag (treats it as plain text), so the
+    // browser never parses it as markup. The DOM must contain no live <svg> element.
+    await expect(page.locator('#description-preview svg')).toHaveCount(0);
+    // No live onload attribute either
+    await expect(page.locator('#description-preview [onload]')).toHaveCount(0);
+  });
+
+  test('desc: CSS expression / style injection is stripped', async ({ page }) => {
+    const title = `XSS-STYLE-${Date.now().toString().slice(-6)}`;
+    // style attribute with expression() is a historical IE XSS vector
+    const payload = '<p style="color:red; background-image:url(javascript:alert(1))">Styled</p>';
+
+    const previewHTML = await fillDescriptionAndPreview(page, title, payload);
+
+    // style attribute is not in the allowlist
+    expect(previewHTML).not.toContain('style=');
+    expect(previewHTML).not.toContain('javascript:'); //NOSONAR
+    // Text content should survive (p tag is allowed)
+    await expect(page.locator('#description-preview')).toContainText('Styled');
+  });
+
+  test('desc: iframe and object tags are stripped', async ({ page }) => {
+    const title = `XSS-IFRM-${Date.now().toString().slice(-6)}`;
+    const payload = '<iframe src="https://evil.com"></iframe><object data="malware.swf"></object>Visible';
+
+    const previewHTML = await fillDescriptionAndPreview(page, title, payload);
+
+    expect(previewHTML).not.toContain('<iframe');
+    expect(previewHTML).not.toContain('<object');
+    await expect(page.locator('#description-preview')).toContainText('Visible');
+  });
+
+  test('desc: HTML entity-encoded script tag is not executed', async ({ page }) => {
+    const title = `XSS-ENT-${Date.now().toString().slice(-6)}`;
+    // Entity-encoded attempts to sneak past naive regex filters
+    const payload = '&lt;script&gt;alert(1)&lt;/script&gt; Plain text';
+
+    const previewHTML = await fillDescriptionAndPreview(page, title, payload);
+
+    // Should appear as literal text, not as an executed script
+    expect(previewHTML).not.toContain('<script');
+    // The text representation of the entities should be visible
+    await expect(page.locator('#description-preview')).toContainText('Plain text');
+  });
+
+  test('desc: mutation XSS — nested tags that reconstruct after parsing are stripped', async ({ page }) => {
+    // A classic mXSS pattern: the browser may reconstruct dangerous markup from
+    // seemingly-harmless fragments after innerHTML serialisation rounds. DOMPurify
+    // is specifically hardened against this.
+    const title = `XSS-MXSS-${Date.now().toString().slice(-6)}`;
+    const payload = '<p><img src=x onerror=alert(1)<!-- --></p>';
+
+    const previewHTML = await fillDescriptionAndPreview(page, title, payload);
+
+    expect(previewHTML).not.toContain('onerror');
+    expect(previewHTML).not.toContain('<img');
+  });
+
+  test('desc: template literal / Angular-style injection has no effect', async ({ page }) => {
+    const title = `XSS-TMPL-${Date.now().toString().slice(-6)}`;
+    // Not applicable in plain JS, but good to verify literal output
+    const payload = '{{7*7}} ${7*7} #{7*7} Literal';
+
+    await fillDescriptionAndPreview(page, title, payload);
+
+    // The critical invariant: nothing is evaluated. Regardless of how GFM
+    // processes the input (e.g. italic markers may alter spacing), none of these
+    // expressions produce a numeric result.
+    const text = await page.locator('#description-preview').textContent() ?? '';
+    expect(text).toContain('Literal'); // plain text survives
+    expect(text).not.toContain('49');  // 7*7 is never evaluated
+  });
+
+  // ── Title ──────────────────────────────────────────────────────────────────
+
+  test('title: HTML tags are stripped server-side and card shows plain text', async ({ page }) => {
+    const dangerousTitle = `<b>Bold Title</b><script>alert(1)</script> ${Date.now()}`;
+
+    await createIssue(page, { title: dangerousTitle, status: 'Todo' });
+
+    // Card must show plain text, no raw tags
     const card = page.locator('.board-card', { hasText: 'Bold Title' });
     await expect(card).toBeVisible();
 
     const boardTitle = card.locator('.board-card-title');
     const textContent = await boardTitle.textContent();
-
-    // Backend strips tags using anyTagRegex in validateIssue
     expect(textContent).not.toContain('<b>');
-    expect(textContent).not.toContain('</b>');
+    expect(textContent).not.toContain('<script');
     expect(textContent).toContain('Bold Title');
+  });
+
+  test('title: inline edit strips tags and shows warning toast', async ({ page }) => {
+    // Create a clean issue first
+    const base = `Title-XSS-${Date.now().toString().slice(-6)}`;
+    await createIssue(page, { title: base, status: 'Todo' });
+
+    const card = page.locator('.board-card', { hasText: base });
+    await card.click();
+
+    const titleInput = page.locator('#title');
+    await titleInput.click(); // enter inline-edit mode
+    await titleInput.fill('Updated <i>Italic</i><img src=x onerror=alert(1)>');
+    await titleInput.blur(); // triggers save
+
+    // Warning toast expected
+    const toast = page.locator('#notification-toast');
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText('Unsupported HTML tags are not rendered for security.');
+
+    // Input value is sanitized by backend (tags stripped, text content kept)
+    const finalValue = await titleInput.inputValue();
+    expect(finalValue).toBe('Updated Italic');
   });
 });

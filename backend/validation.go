@@ -2,7 +2,6 @@ package backend
 
 import (
 	"errors"
-	"html"
 	"regexp"
 	"strings"
 	"time"
@@ -10,8 +9,7 @@ import (
 )
 
 // Length limits — kept in sync with the frontend character counters in
-// modal.js / setup.js. MaxDescLength counts visible text codepoints (HTML tags
-// excluded); all other limits apply to plain-text codepoints.
+// modal.js / setup.js. All limits apply to plain-text codepoints.
 const (
 	MaxTitleLength    = 100
 	MaxDescLength     = 5000
@@ -48,53 +46,14 @@ var (
 	ErrTooManyDates   = errors.New("too many planned dates (maximum 100)")
 )
 
-// AllowedHTMLTags is the source of truth for safe HTML tags in descriptions.
-// Reverting these to lower-case as sanitizeHTML and the fuzzer handle case.
-var AllowedHTMLTags = []string{"b", "i", "u", "ul", "ol", "li", "p", "br", "a"}
-
 // Compiled regexes (package-level, compiled once).
 var (
 	// emailRegex is a basic check. Start/end anchors, one @, non-empty parts.
 	// We allow minimal "user@domain" without enforcing a .TLD to support local/intranet use (e.g. admin@local).
 	emailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+$`)
 	colorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-
-	// allowedAllTagRegex matches safe formatting tags AND safe anchors (rebuilt by sanitizeHTML).
-	// It is used to sentinel-replace safe tags before stripping unknown ones.
-	// We build this dynamically from AllowedHTMLTags (excluding 'a' which has special regex).
-	allowedAllTagRegex = buildAllowedTagRegex()
-	anchorTagRegex     = regexp.MustCompile(`(?i)<a\s[^>]*href="([^"]*)"[^>]*>`)
-	closeAnchorRegex   = regexp.MustCompile(`(?i)</a\s*>`)
-	anyTagRegex        = regexp.MustCompile(`<[^>]+>`)
-	// partialTagRegex strips incomplete tag fragments left after sentineling, e.g.
-	// "<1 " in "<1 <B>" once <B> is sentineled and its ">" is no longer available
-	// to close the preceding fragment. Stops at \x00 (sentinel start) and > so it
-	// never consumes sentineled safe-tag placeholders.
-	partialTagRegex = regexp.MustCompile(`<[^ \t\n\r\f\x00>][^\x00>]*`)
-	// openDivRegex / closeDivRegex normalise Chrome's contenteditable <div>
-	// paragraph separators to <p> so line breaks survive sanitisation.
-	openDivRegex    = regexp.MustCompile(`(?i)<div[^>]*>`)
-	closeDivRegex   = regexp.MustCompile(`(?i)</div\s*>`)
-	unsafeHrefRegex = regexp.MustCompile(`(?i)^\s*(javascript|data):`)
-	// sentinelRegex matches the two-rune sentinel sequences emitted by sanitizeHTML:
-	// NUL byte followed by a Unicode private-use codepoint (U+E000–U+F8FF).
-	sentinelRegex = regexp.MustCompile("\x00[\uE000-\uF8FF]")
+	anyTagRegex = regexp.MustCompile(`<[^>]+>`)
 )
-
-// buildAllowedTagRegex constructs the regex for identifying safe tags from AllowedHTMLTags.
-func buildAllowedTagRegex() *regexp.Regexp {
-	// formatting tags: (b|i|u|ul|ol|li|p|br)
-	var formatting []string
-	for _, t := range AllowedHTMLTags {
-		if t != "a" {
-			formatting = append(formatting, t)
-		}
-	}
-	f := strings.Join(formatting, "|")
-	// Matches: <tag>, <tag/>, </tag>, or the rebuilt <a> tag.
-	pattern := `(?i)<(` + f + `)\s*/?>|</?(` + f + `)\s*>|<a href="[^"]*" target="_blank" rel="noopener noreferrer">|</a>`
-	return regexp.MustCompile(pattern)
-}
 
 func isValidStatus(status IssueStatus) bool {
 	switch status {
@@ -120,76 +79,6 @@ func isValidRole(role UserRole) bool {
 	return false
 }
 
-// sanitizeHTML strips disallowed or dangerous HTML from description content.
-// It preserves safe formatting tags (b, i, u, ul, ol, li, p, br) and safe
-// anchor tags (href only, no javascript: URIs). All other tags and event
-// attributes are removed.
-//
-// Algorithm:
-//  1. Rebuild any <a href="..."> tags sanitised (remove event attrs, drop javascript: hrefs).
-//  2. Normalise </a> closing tags.
-//  3. Sentinel-replace ALL safe tags (including the freshly rebuilt anchors).
-//  4. Strip every remaining <...> sequence (these are dangerous/unknown tags).
-//  5. Restore sentinels to original safe tag text.
-func sanitizeHTML(raw string) string {
-	// Strip NUL bytes before any other processing. The sentinel mechanism uses
-	// \x00 as the first byte of a two-rune sentinel pair; user-supplied \x00
-	// followed by a Unicode private-use codepoint could otherwise be
-	// misinterpreted during restoration (step 5), causing data corruption.
-	raw = strings.ReplaceAll(raw, "\x00", "")
-
-	// Step 0 — normalise <div> → <p>: Chrome's contenteditable uses <div> for
-	// Enter by default; converting them preserves paragraph breaks after save.
-	raw = openDivRegex.ReplaceAllString(raw, "<p>")
-	raw = closeDivRegex.ReplaceAllString(raw, "</p>")
-
-	// Step 1 — rebuild <a href="..."> stripping all attributes except href.
-	result := anchorTagRegex.ReplaceAllStringFunc(raw, func(match string) string {
-		sub := anchorTagRegex.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return ""
-		}
-		href := sub[1]
-		if unsafeHrefRegex.MatchString(href) {
-			return "" // drop unsafe links entirely
-		}
-		return `<a href="` + html.EscapeString(href) + `" target="_blank" rel="noopener noreferrer">`
-	})
-
-	// Step 2 — normalise </a>.
-	result = closeAnchorRegex.ReplaceAllString(result, "</a>")
-
-	// Step 3 — sentinel-replace ALL safe tags (formatting + rebuilt anchors).
-	// allowedAllTagRegex also matches <a href="..."> and </a> produced above.
-	var safeMatches []string
-	result = allowedAllTagRegex.ReplaceAllStringFunc(result, func(m string) string {
-		idx := len(safeMatches)
-		safeMatches = append(safeMatches, m)
-		return "\x00" + string(rune(idx+0xE000))
-	})
-
-	// Step 4 — strip any remaining complete HTML tags (dangerous ones).
-	result = anyTagRegex.ReplaceAllString(result, "")
-
-	// Step 4b — strip incomplete tag fragments that have no closing ">".
-	// These arise when a safe tag's ">" was the only ">" closing a preceding
-	// unknown tag, e.g. "<1 <B>" → after sentineling → "<1 \x00…" with no ">"
-	// left for anyTagRegex to match. partialTagRegex stops at \x00 so it never
-	// reaches into sentinel placeholders.
-	result = partialTagRegex.ReplaceAllString(result, "")
-
-	// Step 5 — restore sentinels.
-	result = sentinelRegex.ReplaceAllStringFunc(result, func(m string) string {
-		runes := []rune(m)
-		idx := int(runes[1]) - 0xE000
-		if idx >= 0 && idx < len(safeMatches) {
-			return safeMatches[idx]
-		}
-		return ""
-	})
-
-	return result
-}
 
 func validateIssue(i *Issue) error {
 	i.Title = strings.ReplaceAll(i.Title, "\x00", "")
@@ -201,13 +90,12 @@ func validateIssue(i *Issue) error {
 	if utf8.RuneCountInString(i.Title) > MaxTitleLength {
 		return ErrTitleTooLong
 	}
-	// Count visible text codepoints: strip HTML tags, then decode entities
-	// (e.g. &lt; → <) to match what the browser's textContent counter shows.
-	descText := html.UnescapeString(anyTagRegex.ReplaceAllString(i.Description, ""))
-	if utf8.RuneCountInString(descText) > MaxDescLength {
+	// Description is plain Markdown text — count runes directly.
+	// No HTML filtering: DOMPurify sanitises the rendered output on the frontend.
+	i.Description = strings.TrimSpace(i.Description)
+	if utf8.RuneCountInString(i.Description) > MaxDescLength {
 		return ErrDescTooLong
 	}
-	i.Description = sanitizeHTML(i.Description)
 
 	if !isValidStatus(i.Status) {
 		return ErrInvalidStatus

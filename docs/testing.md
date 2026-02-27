@@ -16,10 +16,15 @@
 
 ## 2. Backend Unit Testing (Go)
 All business logic, database interactions (via interfaces), and API handlers must be covered by unit tests.
-* **Focus:** Edge cases, error handling, and data validation.
+* **Focus:** Edge cases, error handling, and data validation (Title, Name, Color).
+ 
+## 3. Fuzz Testing (Go)
+We use Go's native fuzzing (`go test -fuzz`) to discover edge-case panics and security bypasses in our validation logic.
+* **Focus:** NUL byte stripping, HTML tag removal from plain-text fields (Title), and password normalization across complex character sets.
+* **Markdown:** Note that the Markdown **description** field is *not* sanitized by the backend (only length-checked). Sanitization is a frontend responsibility. See [Description Management](description-management.md).
 
 
-## 3. Frontend Unit Testing (Plain JS)
+## 4. Frontend Unit Testing (Plain JS)
 Since the frontend contains complex state logic, we do not rely solely on the browser for testing.
 Unit Tests verify logic and state.
 Any JavaScript file containing "decisions" (if/else, state transitions, data mapping) must have a corresponding unit test.

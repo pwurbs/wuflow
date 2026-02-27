@@ -1,22 +1,5 @@
 // Utility Functions
 
-export function stripHtml(html) {
-  if (!html) return '';
-
-  // Add spaces around block-level tags to prevent text merging
-  const processed = html.replaceAll(
-    /<\/?(div|p|li|ul|ol|h[1-6]|blockquote|pre|br)\b[^>]*>/gi,
-    ' $& '
-  );
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(processed, 'text/html');
-  const text = doc.body.textContent || doc.body.innerText || "";
-
-  // Collapse multiple spaces into one and trim
-  return text.replaceAll(/\s+/g, ' ').trim();
-}
-
 export function escapeHtml(text) {
   if (!text) return '';
   return text
@@ -150,39 +133,18 @@ export function initCharCounter(el, maxLength, options = {}) {
   const insertAfterEl = options.insertAfter || el;
   insertAfterEl.parentNode.insertBefore(counter, insertAfterEl.nextSibling);
 
-  const isContentEditable = el.contentEditable === 'true';
-
-  // For contenteditable: capture last valid HTML before each change so we can revert
-  let lastValidHtml = '';
-  if (isContentEditable) {
-    el.addEventListener('beforeinput', () => {
-      lastValidHtml = el.innerHTML;
-    });
-  }
-
   function getCount() {
-    return countCodepoints(isContentEditable ? el.textContent : el.value);
+    return countCodepoints(el.value);
   }
 
   function update() {
-    if (!isContentEditable) {
-      // Enforce codepoint limit by truncating excess characters
-      const codepoints = [...el.value];
-      if (codepoints.length > maxLength) {
-        const pos = el.selectionStart;
-        el.value = codepoints.slice(0, maxLength).join('');
-        // Restore cursor position (clamped to new length)
-        el.selectionStart = el.selectionEnd = Math.min(pos, el.value.length);
-      }
-    } else if (countCodepoints(el.textContent) > maxLength) {
-      // Revert to last valid HTML and restore cursor to end
-      el.innerHTML = lastValidHtml;
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      const sel = globalThis.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
+    // Enforce codepoint limit by truncating excess characters
+    const codepoints = [...el.value];
+    if (codepoints.length > maxLength) {
+      const pos = el.selectionStart;
+      el.value = codepoints.slice(0, maxLength).join('');
+      // Restore cursor position (clamped to new length)
+      el.selectionStart = el.selectionEnd = Math.min(pos, el.value.length);
     }
     const count = getCount();
     counter.textContent = count + '/' + maxLength;
@@ -240,75 +202,3 @@ export function getUserInitials(user) {
   return '??';
 }
 
-const allowedTags = new Set(['B', 'I', 'U', 'UL', 'OL', 'LI', 'P', 'BR', 'A']);
-
-/**
- * Removes all attributes from an element except for safe hrefs on anchor tags.
- * @param {HTMLElement} element 
- */
-function cleanAttributes(element) {
-  const isAnchor = element.tagName === 'A';
-  const allowedAnchorAttrs = new Set(['href', 'target', 'rel']);
-  const attrs = Array.from(element.attributes);
-
-  for (const attr of attrs) {
-    const isAllowed = isAnchor && allowedAnchorAttrs.has(attr.name);
-    if (!isAllowed) {
-      element.removeAttribute(attr.name);
-      continue;
-    }
-
-    if (attr.name === 'href' && !/^(https?:\/\/)/i.test(attr.value)) {
-      element.removeAttribute(attr.name);
-    }
-  }
-
-  // Enforce security attributes on all links
-  if (isAnchor && element.hasAttribute('href')) {
-    element.setAttribute('target', '_blank');
-    element.setAttribute('rel', 'noopener noreferrer');
-  }
-}
-
-/**
- * Sanitizes HTML content for the description field.
- * Allows a safe subset of tags and attributes to prevent XSS.
- * @param {string} html 
- * @returns {string} Sanitized HTML
- */
-export function sanitizeDescription(html) {
-  if (!html) return '';
-  const parser = new DOMParser();
-  // 'text/html' creates an inert document where scripts don't execute
-  const doc = parser.parseFromString(html, 'text/html');
-
-  function clean(node) {
-    // 1. Recurse into children first (bottom-up processing)
-    let child = node.firstChild;
-    while (child) {
-      const next = child.nextSibling;
-      clean(child);
-      child = next;
-    }
-
-    // 2. Handle this node (skip body and document)
-    if (node.nodeType === 9 || node === doc.body) return;
-
-    if (node.nodeType === 1) { // ELEMENT_NODE
-      if (allowedTags.has(node.tagName)) {
-        cleanAttributes(node);
-      } else {
-        // Unwrap disallowed tag: move children up to parent, then remove node
-        while (node.firstChild) {
-          node.parentNode.insertBefore(node.firstChild, node);
-        }
-        node.remove();
-      }
-    } else if (node.nodeType !== 3) { // Not TEXT_NODE (e.g. Comment)
-      node.remove();
-    }
-  }
-
-  clean(doc.body);
-  return doc.body.innerHTML;
-}

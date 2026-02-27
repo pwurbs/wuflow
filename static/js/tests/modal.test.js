@@ -32,16 +32,23 @@ vi.mock('../utils.js', () => ({
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   updateDateInputStyle: vi.fn(),
-  stripHtml: vi.fn(s => s),
   escapeHtml: vi.fn(s => s),
   canArchive: vi.fn().mockReturnValue({ allowed: true }),
-  sanitizeDescription: vi.fn(s => s),
   initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
   countCodepoints: vi.fn(s => [...s].length),
   getUserInitials: vi.fn(user => {
     if (!user) return '??';
     return ((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || '??';
   })
+}));
+
+vi.mock('../markdown.js', () => ({
+  renderMarkdown: vi.fn((s, returnObject = false) => {
+    const html = s ? `<p>${s}</p>` : '';
+    // Let tests mock strippedHTML by throwing something specific in the string, or just default to false
+    const strippedHTML = s && s.includes('<script>');
+    return returnObject ? { html, strippedHTML } : html;
+  }),
 }));
 
 vi.mock('../components/tasks.js', () => ({
@@ -73,7 +80,10 @@ describe('Modal Component', () => {
             <input id="issue-id" type="hidden">
             <input id="title" type="text" value="">
             <div class="editor-container">
-              <div id="description-editor" contenteditable="true"></div>
+              <div class="md-editor-panes">
+                <textarea id="description-editor"></textarea>
+                <div id="description-preview" class="hidden"></div>
+              </div>
               <div id="description-edit-actions" class="hidden">
                 <button id="desc-cancel-btn"></button>
                 <button id="desc-save-btn"></button>
@@ -126,10 +136,16 @@ describe('Modal Component', () => {
             <button id="done-btn" type="button"></button>
 
             <!-- Editor toolbar btns for setup -->
-            <button class="editor-btn" data-cmd="bold"></button>
-            <button class="editor-btn" data-cmd="underline"></button>
-            <button class="editor-btn" data-cmd="italic"></button>
-            <button class="editor-btn" data-cmd="createLink"></button>
+            <button class="editor-btn" data-md="bold" data-prefix="**" data-suffix="**"></button>
+            <button class="editor-btn" data-md="italic" data-prefix="*" data-suffix="*"></button>
+            <button class="editor-btn" data-md="strike" data-prefix="~~" data-suffix="~~"></button>
+            <button class="editor-btn" data-md="h1"></button>
+            <button class="editor-btn" data-md="h2"></button>
+            <button class="editor-btn" data-md="ul"></button>
+            <button class="editor-btn" data-md="ol"></button>
+            <button class="editor-btn" data-md="link"></button>
+            <button class="editor-btn" data-md="code"></button>
+            <button id="md-preview-toggle" class="editor-btn">Preview</button>
           </form>
         </div>
       </div>
@@ -152,8 +168,6 @@ describe('Modal Component', () => {
     state.currentUser = { role: 'admin' };
     setCurrentIssue.mockImplementation((val) => { state.currentIssue = val; });
 
-    // Mock JSDOM missing functions BEFORE setupModal so execCommand is available at init
-    document.execCommand = vi.fn(); //NOSONAR
     HTMLElement.prototype.scrollIntoView = vi.fn();
     HTMLInputElement.prototype.reportValidity = vi.fn();
     vi.spyOn(console, "error").mockImplementation(() => { });
@@ -188,7 +202,7 @@ describe('Modal Component', () => {
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('modal-title').textContent).toBe('Edit Issue #123');
     expect(document.getElementById('title').value).toBe('Test Issue');
-    expect(document.getElementById('description-editor').innerHTML).toBe('Test Desc');
+    expect(document.getElementById('description-editor').value).toBe('Test Desc');
     expect(setCurrentIssue).toHaveBeenCalledWith(issue);
     expect(api.fetchLabels).toHaveBeenCalled(); // labels fetched to render options
   });
@@ -206,7 +220,7 @@ describe('Modal Component', () => {
 
     // Fill form
     document.getElementById('title').value = 'New Title';
-    document.getElementById('description-editor').innerHTML = 'New Desc';
+    document.getElementById('description-editor').value = 'New Desc';
     document.getElementById('status').value = 'Todo';
     document.getElementById('priority').value = 'Normal';
 
@@ -371,39 +385,103 @@ describe('Modal Component', () => {
     expect(titleInput.classList.contains('inline-editing')).toBe(false);
   });
 
-  it('should handle inline description markdown auto-list', async () => {
+  it('should update description preview on input', () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+    const preview = document.getElementById('description-preview');
+
+    editor.value = '**bold text**';
+    editor.dispatchEvent(new InputEvent('input'));
+
+    // renderMarkdown is mocked as s => `<p>${s}</p>`
+    expect(preview.innerHTML).toBe('<p>**bold text**</p>');
+  });
+
+  it('should handle toolbar button click for basic styles', async () => {
     openModal(null);
     const editor = document.getElementById('description-editor');
 
-    // Mock execCommand
-    document.execCommand = vi.fn(); //NOSONAR
-    const textNode = document.createTextNode('* ');
-    globalThis.getSelection = vi.fn().mockReturnValue({
-      isCollapsed: true,
-      anchorNode: textNode,
-      anchorOffset: 2,
-      removeAllRanges: vi.fn(),
-      addRange: vi.fn()
-    });
+    editor.value = 'hello';
+    editor.selectionStart = 0;
+    editor.selectionEnd = 5;
 
-    editor.dispatchEvent(new InputEvent('input', { data: ' ' }));
-
-    expect(document.execCommand).toHaveBeenCalledWith('insertUnorderedList'); //NOSONAR
-  });
-
-  it('should handle toolbar button click', async () => {
-    openModal(null);
-
-    document.execCommand = vi.fn(); //NOSONAR
-    globalThis.getSelection = vi.fn().mockReturnValue({
-      rangeCount: 0,
-      toString: () => ''
-    });
-
-    const boldBtn = document.querySelector('.editor-btn[data-cmd="bold"]');
+    const boldBtn = document.querySelector('.editor-btn[data-md="bold"]');
     boldBtn.click();
 
-    expect(document.execCommand).toHaveBeenCalledWith('bold', false, null); //NOSONAR
+    expect(editor.value).toBe('**hello**');
+  });
+
+  it('should handle toolbar button click for h1 and h2', async () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+
+    // Test H1
+    editor.value = 'heading';
+    editor.selectionStart = 0;
+    editor.selectionEnd = 7;
+    const h1Btn = document.querySelector('.editor-btn[data-md="h1"]');
+    h1Btn.click();
+    expect(editor.value).toBe('# heading');
+
+    // Test H2
+    editor.value = 'heading';
+    editor.selectionStart = 0;
+    editor.selectionEnd = 7;
+    const h2Btn = document.querySelector('.editor-btn[data-md="h2"]');
+    h2Btn.click();
+    expect(editor.value).toBe('## heading');
+  });
+
+  it('should handle toolbar button click for code inline vs block', async () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+    const codeBtn = document.querySelector('.editor-btn[data-md="code"]');
+
+    // Test inline code
+    editor.value = 'let x = 1;';
+    editor.selectionStart = 0;
+    editor.selectionEnd = 10;
+    codeBtn.click();
+    expect(editor.value).toBe('`let x = 1;`');
+
+    // Test code block
+    editor.value = 'let x = 1;\nlet y = 2;';
+    editor.selectionStart = 0;
+    editor.selectionEnd = 21;
+    codeBtn.click();
+    expect(editor.value).toBe('```\nlet x = 1;\nlet y = 2;\n```');
+  });
+
+  it('should toggle edit and preview modes and disable toolbar', () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+    const preview = document.getElementById('description-preview');
+    const toggleBtn = document.getElementById('md-preview-toggle');
+    const boldBtn = document.querySelector('.editor-btn[data-md="bold"]');
+
+    // Initially in edit mode
+    expect(preview.classList.contains('hidden')).toBe(true);
+    expect(editor.classList.contains('hidden')).toBe(false);
+    expect(toggleBtn.classList.contains('active')).toBe(false);
+    expect(boldBtn.disabled).toBeFalsy();
+
+    // Switch to preview mode
+    toggleBtn.click();
+
+    expect(preview.classList.contains('hidden')).toBe(false);
+    expect(editor.classList.contains('hidden')).toBe(true);
+    expect(toggleBtn.classList.contains('active')).toBe(true);
+    expect(boldBtn.disabled).toBe(true);
+    expect(boldBtn.classList.contains('disabled')).toBe(true);
+
+    // Switch back to edit mode
+    toggleBtn.click();
+
+    expect(preview.classList.contains('hidden')).toBe(true);
+    expect(editor.classList.contains('hidden')).toBe(false);
+    expect(toggleBtn.classList.contains('active')).toBe(false);
+    expect(boldBtn.disabled).toBe(false);
+    expect(boldBtn.classList.contains('disabled')).toBe(false);
   });
 
   it('should handle custom date input click', () => {
@@ -570,7 +648,7 @@ describe('Modal Component', () => {
       expect(titleInput.classList.contains('inline-editable')).toBe(true);
       expect(titleInput.readOnly).toBe(true);
       expect(descContainer.classList.contains('inline-editable')).toBe(true);
-      expect(descEditor.contentEditable).toBe('false');
+      expect(descEditor.classList.contains('hidden')).toBe(true);
     });
 
     it('should toggle inline edit mode off', () => {
@@ -583,7 +661,7 @@ describe('Modal Component', () => {
       expect(titleInput.classList.contains('inline-editable')).toBe(false);
       expect(titleInput.readOnly).toBe(false);
       expect(descContainer.classList.contains('inline-editable')).toBe(false);
-      expect(descEditor.contentEditable).toBe('true');
+      expect(descEditor.classList.contains('hidden')).toBe(false);
     });
 
     it('should render timestamps with missing data gracefully', async () => {
@@ -858,10 +936,11 @@ describe('Modal Component', () => {
       const issue = { id: 1, description: 'Original' };
       await openModalWithMock(issue);
 
-      // Enter description edit
+      // Enter description edit mode by clicking the preview
       const descEditor = document.getElementById('description-editor');
-      descEditor.click();
-      descEditor.innerHTML = 'Changed Desc';
+      const descPreview = document.getElementById('description-preview');
+      descPreview.click();
+      descEditor.value = 'Changed Desc';
 
       utils.showConfirm.mockResolvedValue(true);
 
@@ -918,11 +997,12 @@ describe('Modal Component', () => {
 
       const descContainer = document.querySelector('.editor-container');
       const descEditor = document.getElementById('description-editor');
+      const descPreview = document.getElementById('description-preview');
 
-      descEditor.click();
+      descPreview.click();
 
       expect(descContainer.classList.contains('inline-editing')).toBe(true);
-      expect(descEditor.contentEditable).toBe('true');
+      expect(descEditor.classList.contains('hidden')).toBe(false);
     });
 
     it('should open link in new tab when clicked in description', async () => {
@@ -937,7 +1017,7 @@ describe('Modal Component', () => {
       // Simulate click on the link
       link.click();
 
-      expect(openSpy).toHaveBeenCalledWith('https://example.com/', '_blank');
+      expect(openSpy).toHaveBeenCalledWith('https://example.com/', '_blank', 'noopener,noreferrer');
       openSpy.mockRestore();
     });
   });
@@ -1105,8 +1185,8 @@ describe('Modal Component', () => {
       const issue = { id: 1, description: '<a id="test-link" href="https://example.com">Link</a>' };
       await openModalWithMock(issue);
 
-      const descEditor = document.getElementById('description-editor');
-      const link = descEditor.querySelector('a'); // ID might be stripped by sanitizer in real app
+      const descPreview = document.getElementById('description-preview');
+      const link = descPreview.querySelector('a'); // link is rendered into the preview pane
       const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => ({}));
 
       // Ensure we are NOT in edit mode yet
@@ -1190,53 +1270,49 @@ describe('Modal Component', () => {
       expect(issue.tasks[0].id).toBe(102);
     });
 
-    it('should handle ordered list auto-markdown', async () => {
+    it('should insert ordered list via toolbar button', async () => {
       openModal(null);
       const editor = document.getElementById('description-editor');
 
-      document.execCommand = vi.fn(); //NOSONAR
-      const textNode = document.createTextNode('1. ');
-      globalThis.getSelection = vi.fn().mockReturnValue({
-        isCollapsed: true,
-        anchorNode: textNode,
-        anchorOffset: 3,
-        removeAllRanges: vi.fn(),
-        addRange: vi.fn()
-      });
+      editor.value = 'item one\nitem two';
+      editor.selectionStart = 0;
+      editor.selectionEnd = 17;
 
-      editor.dispatchEvent(new InputEvent('input', { data: ' ' }));
+      const olBtn = document.querySelector('.editor-btn[data-md="ol"]');
+      if (olBtn) olBtn.click();
 
-      expect(document.execCommand).toHaveBeenCalledWith('insertOrderedList'); //NOSONAR
+      expect(editor.value).toContain('1. item one');
+      expect(editor.value).toContain('2. item two');
     });
 
-    it('should create link via toolbar with selection', async () => {
+    it('should create link via toolbar with URL selection', async () => {
       openModal(null);
+      const editor = document.getElementById('description-editor');
 
-      globalThis.getSelection = vi.fn().mockReturnValue({
-        toString: () => 'example.com',
-        anchorNode: { parentElement: { tagName: 'A', target: '' } }
-      });
-      document.execCommand = vi.fn();   //NOSONAR
+      editor.value = 'https://example.com';
+      editor.selectionStart = 0;
+      editor.selectionEnd = 19;
 
-      const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
+      const linkBtn = document.querySelector('.editor-btn[data-md="link"]');
       linkBtn.click();
 
-      expect(document.execCommand).toHaveBeenCalledWith('createLink', false, 'https://example.com'); //NOSONAR
+      expect(editor.value).toBe('[https://example.com](https://example.com)');
     });
 
-    it('should reject javascript: URIs in createLink', async () => {
+    it('should use placeholder URL when selection is not a valid URL', async () => {
       openModal(null);
+      const editor = document.getElementById('description-editor');
 
-      globalThis.getSelection = vi.fn().mockReturnValue({
-        toString: () => 'javascript:alert(1)', // NOSONAR
-        anchorNode: { parentElement: { tagName: 'A', target: '' } }
-      });
-      document.execCommand = vi.fn(); //NOSONAR
+      editor.value = 'click here';
+      editor.selectionStart = 0;
+      editor.selectionEnd = 10;
 
-      const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
+      const linkBtn = document.querySelector('.editor-btn[data-md="link"]');
       linkBtn.click();
 
-      expect(document.execCommand).not.toHaveBeenCalled(); //NOSONAR
+      // Non-URL selection becomes link text; URL is a safe https:// placeholder
+      expect(editor.value).toBe('[click here](https://)');
+      expect(editor.value).not.toContain('javascript:'); //NOSONAR
     });
 
     it('should handle planned date chip add button click', () => {
@@ -1286,30 +1362,66 @@ describe('Modal Component', () => {
       expect(event.returnValue).toBe('');
     });
 
-    it('should handle updateToolbarState for links and underline', async () => {
+    it('should toggle preview in new-issue mode', () => {
+      openModal(null);
+      const editor = document.getElementById('description-editor');
+      const preview = document.getElementById('description-preview');
+      const previewToggle = document.getElementById('md-preview-toggle');
+
+      // In new-issue mode: editor visible, preview hidden
+      expect(editor.classList.contains('hidden')).toBe(false);
+      expect(preview.classList.contains('hidden')).toBe(true);
+
+      // Toggle to preview
+      editor.value = 'hello world';
+      previewToggle.click();
+      expect(preview.classList.contains('hidden')).toBe(false);
+      expect(editor.classList.contains('hidden')).toBe(true);
+
+      // Toggle back to editor
+      previewToggle.click();
+      expect(editor.classList.contains('hidden')).toBe(false);
+      expect(preview.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should indent and unindent multi-line text on Tab and Shift+Tab', () => {
       openModal(null);
       const editor = document.getElementById('description-editor');
 
-      // Mock selection inside a link which is inside an underline tag
-      const uNode = document.createElement('u');
-      const anchorNode = document.createElement('a');
-      anchorNode.href = 'https://example.com';
-      anchorNode.textContent = 'Link';
-      uNode.appendChild(anchorNode);
-      editor.appendChild(uNode); // Must be child to hit parentNode loop
+      // Test 1: Single line insert spaces
+      editor.value = 'hello';
+      editor.selectionStart = 2; // after 'e'
+      editor.selectionEnd = 2;
 
-      globalThis.getSelection = vi.fn().mockReturnValue({
-        rangeCount: 1,
-        anchorNode: anchorNode
-      });
+      let event = new globalThis.KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+      vi.spyOn(event, 'preventDefault');
+      const dispatchInputSpy = vi.spyOn(editor, 'dispatchEvent');
+      editor.dispatchEvent(event);
 
-      editor.dispatchEvent(new Event('mouseup')); // Triggers updateToolbarState
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(editor.value).toBe('he  llo');
+      expect(dispatchInputSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'input' }));
 
-      const linkBtn = document.querySelector('.editor-btn[data-cmd="createLink"]');
-      const underlineBtn = document.querySelector('.editor-btn[data-cmd="underline"]');
+      // Test 2: Multi-line indent (Tab on selected block)
+      editor.value = 'line1\nline2\nline3';
+      editor.selectionStart = 0; // Select from "line1"
+      editor.selectionEnd = 10;  // to mid of "line2"
 
-      expect(linkBtn.classList.contains('active')).toBe(true);
-      expect(underlineBtn.classList.contains('active')).toBe(false); // Should be false when inLink is true
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+      editor.dispatchEvent(event);
+      // It should indent line1 and line2, but not line3
+      expect(editor.value).toBe('  line1\n  line2\nline3');
+      expect(editor.selectionStart).toBe(2);
+      expect(editor.selectionEnd).toBe(14); // 10 original + 2 (line1) + 2 (line2) = 14
+
+      // Test 3: Multi-line unindent (Shift+Tab)
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true });
+      editor.dispatchEvent(event);
+      // It should revert back
+      expect(editor.value).toBe('line1\nline2\nline3');
+      expect(editor.selectionStart).toBe(0);
+      expect(editor.selectionEnd).toBe(10);
+      dispatchInputSpy.mockRestore();
     });
 
     it('should handle dropdown option clicks', async () => {
@@ -1395,15 +1507,16 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       const descEditor = document.getElementById('description-editor');
+      const descPreview = document.getElementById('description-preview');
       const descContainer = document.querySelector('.editor-container');
 
-      descEditor.click(); // Enter edit
-      descEditor.innerHTML = 'Changed';
+      descPreview.click(); // Enter edit mode via preview click
+      descEditor.value = 'Changed';
 
       const cancelBtn = document.getElementById('desc-cancel-btn');
       cancelBtn.dispatchEvent(new MouseEvent('mousedown'));
 
-      expect(descEditor.innerHTML).toBe('Original');
+      expect(descEditor.value).toBe('Original');
       expect(descContainer.classList.contains('inline-editing')).toBe(false);
     });
 
@@ -1412,8 +1525,8 @@ describe('Modal Component', () => {
       const issue = { id: 1, description: '<a href="https://example.com"><span id="inner">Link</span></a>' };
       await openModalWithMock(issue);
 
-      const descEditor = document.getElementById('description-editor');
-      const inner = descEditor.querySelector('span'); // ID might be stripped by sanitizer
+      const descPreview = document.getElementById('description-preview');
+      const inner = descPreview.querySelector('span'); // link is rendered into the preview pane
       const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => ({}));
 
       inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -1439,7 +1552,7 @@ describe('Modal Component', () => {
       await openModalWithMock(null);
       document.getElementById('title').value = 'Valid Title';
       const longDesc = 'a'.repeat(5001);
-      document.getElementById('description-editor').textContent = longDesc;
+      document.getElementById('description-editor').value = longDesc;
 
       document.getElementById('save-issue-btn').click();
 
