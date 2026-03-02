@@ -145,10 +145,19 @@ sequenceDiagram
 ```
 
 #### Rate Limiting & Brute Force Protection
-To protect against credential stuffing and brute force attacks while preventing targeted Denial of Service (DoS), the login endpoint employs a dual-layer rate limiting strategy:
+To protect against credential stuffing and brute force attacks while preventing targeted Denial of Service (DoS), the application employs rate limiting at two layers:
+
+**Login endpoint** — dual-layer strategy:
 1. **Per-IP Limit**: Maximizes at 20 failures per 15 minutes. Returns a fast `429 Too Many Requests` to shed load and stop automated botnets.
 2. **Per-IP & Email Limit**: Maximizes at 10 failures per 15 minutes. Returns a generic `401 Unauthorized` to prevent attackers from locking out legitimate users from arbitrary IP addresses.
    - **Timing Side-Channel Protection**: When this limit is hit (or when a requested account doesn't exist or is inactive), the server executes a "dummy" password hash. This intentionally burns the exact same CPU time (~150ms) as a real login attempt, completely hiding the rate-limit or account status from the attacking client's network timing measurements.
+   - **Reset-on-success scope**: Only the per-IP+Email counter is cleared on a successful login. The global per-IP counter persists so an attacker cannot reset IP-wide throttling by authenticating with a secondary account.
+   - **Reverse Proxy Support**: If `wuFlow` is deployed behind a proxy or CDN, use `--remote-ip-header=X-Forwarded-For` (or `WF_REMOTE_IP_HEADER=X-Forwarded-For`) to ensure the actual client IP is used for rate limiting. If this setting is not provided, the application defaults to the direct connection IP (`r.RemoteAddr`).
+
+**Authenticated API endpoints** — per-user write limit:
+- Write requests (`POST`, `PUT`, `DELETE`) are limited to **60 per minute per authenticated user**. Read-only `GET` requests are not counted.
+- Exceeding the limit returns `429 Too Many Requests`.
+- Rate limiting can be disabled with `--api-rate-limit=false` (or `WF_API_RATE_LIMIT=false`), e.g. during automated test runs.
 
 ### Token Details
 

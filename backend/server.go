@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"log"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -18,10 +17,15 @@ import (
 var logLevel string
 var secureCookieStr string
 var secureCookie bool
+var apiRateLimitStr string
+var apiRateLimitEnabled bool
+var remoteIPHeader string
 
 func init() {
 	flag.StringVar(&logLevel, "log-level", "", "Log level (debug, info, warn, error)")
 	flag.StringVar(&secureCookieStr, "secure-cookie", "", "Set Secure flag on auth cookies (true/false, default: true)")
+	flag.StringVar(&apiRateLimitStr, "api-rate-limit", "", "Enable per-user API rate limiting (true/false, default: true)")
+	flag.StringVar(&remoteIPHeader, "remote-ip-header", "", "Trusted HTTP header for client IP (must contain a single IP address)")
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
@@ -44,6 +48,17 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	}
 	secureCookie = secureCookieStr != "false"
 
+	// Priority: Flag > Env > Default (true)
+	if apiRateLimitStr == "" {
+		apiRateLimitStr = os.Getenv("WF_API_RATE_LIMIT")
+	}
+	apiRateLimitEnabled = apiRateLimitStr != "false"
+
+	// Priority: Flag > Env
+	if remoteIPHeader == "" {
+		remoteIPHeader = os.Getenv("WF_REMOTE_IP_HEADER")
+	}
+
 	level, err := parseLogLevel(logLevel)
 	if err != nil {
 		fmt.Println(err)
@@ -57,6 +72,10 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	fmt.Printf("Using database: %s\n", dbPath)
 	fmt.Printf("Log level: %s\n", logLevel)
 	fmt.Printf("Secure cookies: %v\n", secureCookie)
+	fmt.Printf("API rate limiting: %v\n", apiRateLimitEnabled)
+	if remoteIPHeader != "" {
+		fmt.Printf("Remote IP header: %s\n", remoteIPHeader)
+	}
 	if err := InitDB(dbPath); err != nil {
 		slog.Error("Failed to initialize database", "error", err)
 		os.Exit(1)
@@ -98,9 +117,9 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	}
 
 	// 2. authAPI: Applied to PROTECTED API routes
-	//    Order: Logging -> CSP -> ValidatePath -> LimitBody -> RequireJSON -> Auth -> Handler
+	//    Order: Logging -> CSP -> ValidatePath -> LimitBody -> RequireJSON -> Auth -> USerRateLimit -> Handler
 	authAPI := func(h http.Handler) http.Handler {
-		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(AuthMiddleware(h))))))
+		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(AuthMiddleware(UserRateLimitMiddleware(h)))))))
 	}
 
 	// Public auth endpoints
@@ -175,6 +194,7 @@ func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 		}
 
 		// If we get here, no valid session exists and it's not a public asset
+		slog.Info("Unauthenticated access, redirecting to login", "path", path, "ip", GetClientIP(r))
 		http.Redirect(w, r, loginPath, http.StatusFound)
 	}
 }
@@ -231,6 +251,43 @@ func RequireJSONMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// UserRateLimitMiddleware throttles write requests (POST, PUT, DELETE) from
+// authenticated users to apiMaxRequests per apiRateWindow. Read-only methods
+// (GET, HEAD, OPTIONS) pass through unconditionally. Requests without a user ID
+// in context (unauthenticated) also pass through — AuthMiddleware handles those.
+// It must be placed after AuthMiddleware in the chain so the user ID is in context.
+// Rate limiting can be disabled with --api-rate-limit=false (or WF_API_RATE_LIMIT=false).
+func UserRateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !apiRateLimitEnabled {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodDelete:
+		default:
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		userID := GetUserIDFromContext(r.Context())
+		if userID == 0 {
+			// AuthMiddleware did not set a user ID — let its own 401 handle this.
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !apiLimiter.allow(userID) {
+			slog.Warn("API rate limit exceeded", "user_id", userID,
+				"method", r.Method, "path", r.URL.Path)
+			http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // ValidatePathMiddleware enforces strict rules on API requests.
 // Currently, it rejects any request containing query parameters, as the API does not support them.
 func ValidatePathMiddleware(next http.Handler) http.Handler {
@@ -242,7 +299,7 @@ func ValidatePathMiddleware(next http.Handler) http.Handler {
 			slog.Warn("Strict validation failed: query parameters not allowed",
 				"path", r.URL.Path,
 				"query", r.URL.RawQuery,
-				"ip", r.RemoteAddr,
+				"ip", GetClientIP(r),
 			)
 			http.Error(w, "Query parameters are not allowed on this endpoint", http.StatusBadRequest)
 			return
@@ -279,13 +336,8 @@ func WithLogging(next http.Handler) http.Handler {
 		next.ServeHTTP(wrapper, r)
 		duration := time.Since(start)
 
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			ip = r.RemoteAddr
-		}
-
 		slog.Info("HTTP Request",
-			"ip", ip,
+			"ip", GetClientIP(r),
 			"method", r.Method,
 			"path", r.URL.Path,
 			"duration", duration,

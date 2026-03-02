@@ -1675,5 +1675,74 @@ describe('Modal Component', () => {
       statusTrigger.click(); // Close
       expect(statusOptions.classList.contains('hidden')).toBe(true);
     });
+
+    it('should show notification and keep modal open on delete failure', async () => {
+      const issue = { id: 99, title: 'To Delete' };
+      await openModalWithMock(issue);
+
+      utils.showConfirm.mockResolvedValue(true);
+      api.deleteIssue.mockRejectedValue(new Error('Delete failed'));
+
+      document.getElementById('delete-issue-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Delete failed', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show notification and keep modal open on archive failure', async () => {
+      const issue = { id: 100, title: 'To Archive', status: 'Open' };
+      await openModalWithMock(issue);
+
+      utils.canArchive.mockReturnValue({ allowed: true });
+      utils.showConfirm.mockResolvedValue(true);
+      api.archiveIssue.mockRejectedValue(new Error('Archive failed'));
+
+      document.getElementById('archive-issue-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Archive failed', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show notification and keep modal open on unarchive failure', async () => {
+      const issue = { id: 101, title: 'To Unarchive', status: 'Archive' };
+      await openModalWithMock(issue);
+
+      utils.showConfirm.mockResolvedValue(true);
+      api.unarchiveIssue.mockRejectedValue(new Error('Unarchive failed'));
+
+      document.getElementById('unarchive-issue-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Unarchive failed', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show notification when saveTaskOrder fails', async () => {
+      const issue = {
+        id: 1,
+        tasks: [
+          { id: 101, title: 'T1', position: 0 },
+          { id: 102, title: 'T2', position: 1 }
+        ]
+      };
+      await openModalWithMock(issue);
+
+      // Set up DOM as if tasks were reordered (positions differ from stored)
+      const taskList = document.getElementById('task-list');
+      taskList.innerHTML = `
+        <li class="task-item" data-id="102"></li>
+        <li class="task-item" data-id="101"></li>
+      `;
+
+      api.updateTask.mockRejectedValue(new Error('Order save failed'));
+
+      // Invoke onTaskOrderSave via the captured callback
+      const onTaskOrderSave = tasks.renderTasks.mock.calls[tasks.renderTasks.mock.calls.length - 1][3].onTaskOrderSave;
+      await onTaskOrderSave();
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Order save failed', 'error');
+    });
   });
 });

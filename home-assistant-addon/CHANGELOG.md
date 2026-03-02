@@ -1,4 +1,11 @@
 
+## 0.24.1
+
+- Added configurable API rate limit for POST, PUT and DELETE actions
+- Improved JWT secret checks
+- Improved client IP address detection
+- Fix minor security issues
+
 ## 0.24.0
 
 - Moved to Markdown formatting in issue description field and changed the sanitization approach by using DOMPurify

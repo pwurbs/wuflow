@@ -1,5 +1,6 @@
 import { state, isFilterActive } from '../state.js';
 import { updateIssue } from '../api.js';
+import { showNotification } from '../utils.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
@@ -132,8 +133,13 @@ export function setupBoardView(refreshApp, openModal) {
       // Save State
       const updates = getBoardUpdates();
 
-      await Promise.all(updates);
-      if (refreshAppCallback) refreshAppCallback();
+      try {
+        await Promise.all(updates);
+        if (refreshAppCallback) refreshAppCallback();
+      } catch (err) {
+        showNotification(err.message, 'error');
+        if (refreshAppCallback) refreshAppCallback(); // re-render to restore actual server state
+      }
     });
   });
 }

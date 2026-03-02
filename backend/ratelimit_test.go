@@ -88,11 +88,13 @@ func TestRateLimiterResetOnSuccess(t *testing.T) {
 		t.Fatal("expected IP to be blocked before reset")
 	}
 	rl.resetOnSuccess(testIP1, testEmail1)
-	if rl.checkIP(testIP1) {
-		t.Error("IP should not be blocked after resetOnSuccess")
+	// Global IP counter must survive a successful login so that an attacker
+	// cannot reset IP-wide throttling by authenticating with a sacrificial account.
+	if !rl.checkIP(testIP1) {
+		t.Error("IP should remain blocked after resetOnSuccess (global counter must not be cleared)")
 	}
 	if rl.checkIPAndEmail(testIP1, testEmail1) {
-		t.Error("email should not be blocked after resetOnSuccess")
+		t.Error("IP+email counter should be cleared after resetOnSuccess")
 	}
 }
 
@@ -122,6 +124,71 @@ func TestRateLimiterNoDoS(t *testing.T) {
 	// A different IP trying the same email should not be blocked
 	if rl.checkIPAndEmail(testIP2, testEmail1) {
 		t.Error(testIP2 + "|" + testEmail1 + " should NOT be blocked")
+	}
+}
+
+// --- requestLimiter tests ---
+
+func newTestRequestLimiter() *requestLimiter {
+	return &requestLimiter{byUser: make(map[int]*failEntry)}
+}
+
+func TestRequestLimiterAllowsUnderLimit(t *testing.T) {
+	rl := newTestRequestLimiter()
+	for i := 0; i < apiMaxRequests; i++ {
+		if !rl.allow(1) {
+			t.Fatalf("should be allowed at request %d (limit %d)", i+1, apiMaxRequests)
+		}
+	}
+}
+
+func TestRequestLimiterBlocksAtLimit(t *testing.T) {
+	rl := newTestRequestLimiter()
+	for i := 0; i < apiMaxRequests; i++ {
+		rl.allow(1)
+	}
+	if rl.allow(1) {
+		t.Error("request beyond limit should be denied")
+	}
+}
+
+func TestRequestLimiterWindowExpiry(t *testing.T) {
+	rl := newTestRequestLimiter()
+	rl.byUser[1] = &failEntry{count: apiMaxRequests + 1, windowEnd: time.Now().Add(-time.Second)}
+	if !rl.allow(1) {
+		t.Error("expired window should reset counter and allow request")
+	}
+}
+
+func TestRequestLimiterIndependentUsers(t *testing.T) {
+	rl := newTestRequestLimiter()
+	for i := 0; i <= apiMaxRequests; i++ {
+		rl.allow(1)
+	}
+	if !rl.allow(2) {
+		t.Error("user 2 should not be blocked because user 1 hit the limit")
+	}
+}
+
+func TestRequestLimiterCleanup(t *testing.T) {
+	rl := newTestRequestLimiter()
+	rl.byUser[99] = &failEntry{count: 1, windowEnd: time.Now().Add(-(rlMaxAge + time.Second))}
+	rl.mu.Lock()
+	rl.cleanup()
+	rl.mu.Unlock()
+	if _, ok := rl.byUser[99]; ok {
+		t.Error("stale entry should have been evicted")
+	}
+}
+
+func TestRequestLimiterCleanupPreservesActive(t *testing.T) {
+	rl := newTestRequestLimiter()
+	rl.byUser[42] = &failEntry{count: 1, windowEnd: time.Now().Add(apiRateWindow)}
+	rl.mu.Lock()
+	rl.cleanup()
+	rl.mu.Unlock()
+	if _, ok := rl.byUser[42]; !ok {
+		t.Error("active entry should not be evicted")
 	}
 }
 

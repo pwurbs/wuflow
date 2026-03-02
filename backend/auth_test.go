@@ -141,6 +141,47 @@ func TestValidateTokenInvalid(t *testing.T) {
 	}
 }
 
+func TestValidateTokenAlgorithmSubstitution(t *testing.T) {
+	InitSecretKey("test-secret")
+
+	// 1. Create a "none" algorithm token
+	// Header: {"alg":"none","typ":"JWT"}
+	// Payload: {"user_id":1,"email":"test@example.com","role":"admin"}
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"user_id":1,"email":"test@example.com","role":"admin"}`))
+	noneToken := header + "." + payload + "."
+
+	_, err := ValidateToken(noneToken)
+	if err == nil {
+		t.Error("expected error for 'none' algorithm token, got nil")
+	} else if !strings.Contains(err.Error(), "unexpected signing method") {
+		t.Errorf("expected 'unexpected signing method' error, got: %v", err)
+	}
+
+	// 2. Create an RS256 token (but we use HMAC key)
+	// Even if someone manages to get the public key and signs it, we should reject it because we expect HMAC.
+	/*
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, &CustomClaims{
+			UserID: 1,
+			Email:  testEmail,
+			Role:   RoleAdmin,
+		})
+	*/
+
+	// Let's just manually craft a header with RS256
+	headerRS := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	// We need a valid base64 signature to avoid "malformed" error before keyfunc check
+	validSig := base64.RawURLEncoding.EncodeToString([]byte("signature-must-be-valid-base64"))
+	rsTokenManual := headerRS + "." + payload + "." + validSig
+
+	_, err = ValidateToken(rsTokenManual)
+	if err == nil {
+		t.Error("expected error for 'RS256' algorithm token, got nil")
+	} else if !strings.Contains(err.Error(), "unexpected signing method") {
+		t.Errorf("expected 'unexpected signing method' error, got: %v", err)
+	}
+}
+
 func TestInitSecretKeyCustom(t *testing.T) {
 	InitSecretKey("my-custom-secret")
 

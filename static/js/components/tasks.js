@@ -47,23 +47,33 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
     } else {
       checkbox.addEventListener('change', async () => {
         task.done = checkbox.checked;
-        await updateTask(task);
-        li.className = `task-item ${task.done ? 'done' : ''}`;
-        if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+        try {
+          await updateTask(task);
+          li.className = `task-item ${task.done ? 'done' : ''}`;
+          if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+        } catch (err) {
+          task.done = !checkbox.checked; // revert local state
+          checkbox.checked = !checkbox.checked;
+          showNotification(err.message, 'error');
+        }
       });
 
       // Delete Logic
       const deleteBtn = li.querySelector('.delete-task-btn');
       deleteBtn.addEventListener('click', async () => {
         if (await showConfirm('Delete Task', `Delete "${task.title}"?`, 'Delete')) {
-          await deleteTask(task.id);
-          // Remove from local array to update UI immediately if needed
-          const index = currentIssue.tasks.findIndex(t => t.id === task.id);
-          if (index > -1) currentIssue.tasks.splice(index, 1);
+          try {
+            await deleteTask(task.id);
+            // Remove from local array to update UI immediately if needed
+            const index = currentIssue.tasks.findIndex(t => t.id === task.id);
+            if (index > -1) currentIssue.tasks.splice(index, 1);
 
-          renderTasks(currentIssue.tasks, container, currentIssue, callbacks);
-          showNotification('Task deleted');
-          if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+            renderTasks(currentIssue.tasks, container, currentIssue, callbacks);
+            showNotification('Task deleted');
+            if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+          } catch (err) {
+            showNotification(err.message, 'error');
+          }
         }
       });
 
@@ -121,9 +131,16 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         }
         if (newTitle !== task.title) {
           task.title = newTitle;
-          await updateTask(task);
-          showNotification('Task updated');
-          if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+          try {
+            await updateTask(task);
+            showNotification('Task updated');
+            if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+          } catch (err) {
+            task.title = originalTitle; // revert local state
+            titleInput.value = originalTitle;
+            showNotification(err.message, 'error');
+            return; // keep edit mode so user can retry
+          }
         }
         exitEditMode();
       };
@@ -146,15 +163,21 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       const deadlineInput = li.querySelector('.task-deadline-input');
       deadlineContainer.addEventListener('click', () => deadlineInput.showPicker());
       deadlineInput.addEventListener('change', async () => {
+        const prevDeadline = task.deadline;
         const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
         task.deadline = newDate;
-        await updateTask(task);
-        showNotification('Task deadline updated');
-
-        const display = li.querySelector('.task-deadline-display');
-        display.textContent = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
-        deadlineContainer.classList.toggle('no-deadline', !task.deadline);
-        if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+        try {
+          await updateTask(task);
+          showNotification('Task deadline updated');
+          const display = li.querySelector('.task-deadline-display');
+          display.textContent = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
+          deadlineContainer.classList.toggle('no-deadline', !task.deadline);
+          if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
+        } catch (err) {
+          task.deadline = prevDeadline; // revert local state
+          deadlineInput.value = prevDeadline ? new Date(prevDeadline).toISOString().slice(0, 10) : '';
+          showNotification(err.message, 'error');
+        }
       });
     }
 

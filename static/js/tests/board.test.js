@@ -6,6 +6,7 @@ import * as card from '../components/card.js';
 import * as filters from '../filters.js';
 import * as drag from '../drag.js';
 import * as api from '../api.js';
+import * as utils from '../utils.js';
 
 // Mock dependencies
 vi.mock('../state.js', () => ({
@@ -44,6 +45,10 @@ vi.mock('../drag.js', () => ({
   setDragSuccess: vi.fn(),
   getDragSuccess: vi.fn().mockReturnValue(false)
 
+}));
+
+vi.mock('../utils.js', () => ({
+  showNotification: vi.fn()
 }));
 
 describe('Board Component', () => {
@@ -352,6 +357,34 @@ describe('Board Component', () => {
       colContent.dispatchEvent(event);
 
       expect(drag.getDragAfterElement).not.toHaveBeenCalled();
+    });
+
+    it('should show notification and still call refreshApp on drop failure', async () => {
+      const refreshApp = vi.fn();
+      setupBoardView(refreshApp, vi.fn());
+
+      const mockCard = document.createElement('div');
+      mockCard.classList.add('card');
+      mockCard.dataset.id = '1';
+
+      state.state.issues = [
+        { id: 1, title: 'Task 1', status: 'Todo', position: 0 }
+      ];
+
+      drag.getDraggedCard.mockReturnValue(mockCard);
+      api.updateIssue.mockRejectedValue(new Error('Network error'));
+
+      const colWorking = document.querySelector('.column[data-status="Working"]');
+      const workingContent = colWorking.querySelector('.column-content');
+      workingContent.appendChild(mockCard);
+
+      const event = new Event('drop', { bubbles: true, cancelable: true });
+      workingContent.dispatchEvent(event);
+
+      await vi.waitFor(() => {
+        expect(utils.showNotification).toHaveBeenCalledWith('Network error', 'error');
+        expect(refreshApp).toHaveBeenCalled();
+      });
     });
   });
 });

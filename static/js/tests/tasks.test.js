@@ -313,4 +313,72 @@ describe('Tasks Component', () => {
     // Should exit edit mode
     expect(item.classList.contains('editing')).toBe(false);
   });
+
+  it('should revert checkbox state and show notification on toggle failure', async () => {
+    api.updateTask.mockRejectedValue(new Error('Server error'));
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const li = container.querySelector('.task-item');
+    const checkbox = li.querySelector('input[type="checkbox"]');
+    // Task A starts as done: false; simulate checking it
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change'));
+
+    await new Promise(process.nextTick);
+
+    expect(issue.tasks[0].done).toBe(false); // reverted in local state
+    expect(checkbox.checked).toBe(false); // reverted in DOM
+    expect(utils.showNotification).toHaveBeenCalledWith('Server error', 'error');
+    expect(callbacks.onTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  it('should show notification and not remove task on delete failure', async () => {
+    api.deleteTask.mockRejectedValue(new Error('Delete failed'));
+    utils.showConfirm.mockResolvedValue(true);
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const deleteBtn = container.querySelector('.delete-task-btn');
+    deleteBtn.click();
+
+    await new Promise(process.nextTick);
+
+    expect(api.deleteTask).toHaveBeenCalledWith(10);
+    expect(issue.tasks.length).toBe(2); // not removed on failure
+    expect(utils.showNotification).toHaveBeenCalledWith('Delete failed', 'error');
+    expect(callbacks.onTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  it('should revert title and keep edit mode open on save failure', async () => {
+    api.updateTask.mockRejectedValue(new Error('Save failed'));
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const li = container.querySelector('.task-item');
+    const input = li.querySelector('.task-title-input');
+
+    input.click(); // enter edit mode
+    input.value = 'New Title';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    await new Promise(process.nextTick);
+
+    expect(issue.tasks[0].title).toBe('Task A'); // reverted in local state
+    expect(input.value).toBe('Task A'); // reverted in DOM
+    expect(utils.showNotification).toHaveBeenCalledWith('Save failed', 'error');
+    expect(li.classList.contains('editing')).toBe(true); // stays in edit mode so user can retry
+  });
+
+  it('should revert deadline and show notification on deadline update failure', async () => {
+    api.updateTask.mockRejectedValue(new Error('Deadline error'));
+    renderTasks(issue.tasks, container, issue, callbacks);
+
+    const deadlineInput = container.querySelector('.task-deadline-input');
+    deadlineInput.value = '2025-01-15';
+    deadlineInput.dispatchEvent(new Event('change'));
+
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledWith('Deadline error', 'error');
+    // Original task had no deadline, so input is reverted to empty string
+    expect(deadlineInput.value).toBe('');
+  });
 });

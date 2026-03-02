@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard } from '../components/planning.js';
 import * as api from '../api.js';
+import * as utils from '../utils.js';
 import { state } from '../state.js'; // Imported from mock
 
 // Mock dependencies
+vi.mock('../utils.js', () => ({
+  showNotification: vi.fn()
+}));
+
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
@@ -309,6 +314,49 @@ describe('planning.js', () => {
       expect(dayToday.querySelectorAll('.planning-item').length).toBe(1);
       expect(dayToday.textContent).toContain('Keep');
       expect(dayToday.textContent).not.toContain('Filtered');
+    });
+
+    it('should revert planned_dates and show notification when remove date button fails', async () => {
+      state.filter.search = ''; // prevent leak from previous filter test
+      const refreshApp = vi.fn();
+      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' };
+      state.issues = [issue];
+
+      renderPlanningPanel(refreshApp, vi.fn());
+
+      api.updateIssue.mockRejectedValueOnce(new Error('Remove failed'));
+
+      const list = document.getElementById('planning-list');
+      const removeBtn = list.querySelector('.planning-item-remove');
+      await removeBtn.click();
+
+      expect(issue.planned_dates).toEqual(['2023-10-10']); // reverted
+      expect(utils.showNotification).toHaveBeenCalledWith('Remove failed', 'error');
+      expect(refreshApp).toHaveBeenCalled();
+    });
+
+    it('should show notification and call refreshApp when planning drop fails', async () => {
+      const refreshApp = vi.fn();
+      const issue = { id: 1, title: 'Test', planned_dates: [], status: 'Todo' };
+      state.issues = [issue];
+
+      const dragModule = await import('../drag.js');
+      const draggedCard = document.createElement('div');
+      draggedCard.dataset.id = '1';
+      dragModule.getDraggedCard.mockReturnValue(draggedCard);
+
+      api.updateIssue.mockRejectedValueOnce(new Error('Drop failed'));
+
+      renderPlanningPanel(refreshApp, vi.fn());
+
+      // Dispatch drop on today's day slot
+      const dayToday = document.getElementById('day-2023-10-10');
+      dayToday.dispatchEvent(new Event('drop'));
+
+      await vi.waitFor(() => {
+        expect(utils.showNotification).toHaveBeenCalledWith('Drop failed', 'error');
+        expect(refreshApp).toHaveBeenCalled();
+      });
     });
   });
 

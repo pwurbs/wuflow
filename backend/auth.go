@@ -188,6 +188,10 @@ func ValidateRefreshToken(tokenString string) (int, string, error) {
 // Returns the claims if valid, or an error if invalid/expired.
 func ValidateToken(tokenString string) (*CustomClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return jwtSecret, nil
 	})
 	if err != nil {
@@ -345,7 +349,7 @@ func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
 	// Use shared RefreshSession logic
 	user, newAccessToken, newRefreshToken, err := RefreshSession(refreshTokenCookie.Value)
 	if err != nil {
-		slog.Warn("Static refresh failed", "error", err)
+		slog.Info("Session refresh failed, redirecting to login", "reason", err.Error())
 		return false
 	}
 

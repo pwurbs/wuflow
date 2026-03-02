@@ -81,10 +81,11 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
 }
 
 function getBoardCardHTML(issue, openTasks) {
+  const labelColor = issue.label && /^#[0-9A-Fa-f]{6}$/.test(issue.label.color) ? issue.label.color : '#808080';
   return `
             <div class="board-card-title">${escapeHtml(issue.title)}</div>
             <div class="board-card-label-space">
-                ${issue.label ? `<span class="label-chip" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</span>` : ''}
+                ${issue.label ? `<span class="label-chip" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
             </div>
             <div class="board-card-bottom">
                 <div class="board-card-id-group" style="display: flex; align-items: center; gap: 8px;">
@@ -116,6 +117,7 @@ function getBoardCardHTML(issue, openTasks) {
 }
 
 function getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls) {
+  const labelColor = issue.label && /^#[0-9A-Fa-f]{6}$/.test(issue.label.color) ? issue.label.color : '#808080';
   return `
             ${showMoveControls ? `
             <div class="card-move-controls">
@@ -148,7 +150,7 @@ function getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls) {
                     </div>` : ''}
                 </div>`;
     })()}
-      ${issue.label ? `<div class="backlog-card-label" style="background-color: ${issue.label.color}20; color: ${issue.label.color}; border: 1px solid ${issue.label.color};">${escapeHtml(issue.label.name)}</div>` : ''}
+      ${issue.label ? `<div class="backlog-card-label" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</div>` : ''}
         `;
 }
 

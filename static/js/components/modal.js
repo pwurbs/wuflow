@@ -465,9 +465,13 @@ async function handleDeleteIssue() {
   if (!state.currentIssue) return;
   if (!userCan(state.currentUser, ACTION_DELETE_ISSUE)) return;
   if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
-    await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id));
-    closeModal();
-    showNotification('Issue deleted');
+    try {
+      await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id));
+      closeModal();
+      showNotification('Issue deleted');
+    } catch (err) {
+      showNotification(err.message, 'error');
+    }
   }
 }
 
@@ -482,10 +486,14 @@ async function handleArchiveIssue() {
   }
 
   if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
-    const updated = await archiveIssue(state.currentIssue.id);
-    if (updated?.id) {
-      closeModal();
-      showNotification('Issue archived');
+    try {
+      const updated = await archiveIssue(state.currentIssue.id);
+      if (updated?.id) {
+        closeModal();
+        showNotification('Issue archived');
+      }
+    } catch (err) {
+      showNotification(err.message, 'error');
     }
   }
 }
@@ -494,10 +502,14 @@ async function handleUnarchiveIssue() {
   if (!state.currentIssue) return;
   if (!userCan(state.currentUser, ACTION_UNARCHIVE_ISSUE)) return;
   if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
-    const updated = await unarchiveIssue(state.currentIssue.id);
-    if (updated?.id) {
-      closeModal();
-      showNotification('Issue unarchived');
+    try {
+      const updated = await unarchiveIssue(state.currentIssue.id);
+      if (updated?.id) {
+        closeModal();
+        showNotification('Issue unarchived');
+      }
+    } catch (err) {
+      showNotification(err.message, 'error');
     }
   }
 }
@@ -1072,8 +1084,12 @@ async function saveTaskOrder(issue) {
   });
 
   if (updates.length > 0) {
-    await Promise.all(updates);
-    issue.tasks.sort((a, b) => a.position - b.position);
+    try {
+      await Promise.all(updates);
+      issue.tasks.sort((a, b) => a.position - b.position);
+    } catch (err) {
+      showNotification(err.message, 'error');
+    }
   }
 }
 

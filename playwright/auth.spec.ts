@@ -8,8 +8,6 @@ function generatePassword() {
   return `${crypto.randomBytes(16).toString('hex')}U1!`;
 }
 
-// Helper to delay execution (if needed for token internal states, though we rely on API calls)
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 let adminEmail = 'admin@local';
 let adminPassword = '';
@@ -405,6 +403,59 @@ test.describe('Authentication Rate Limiting', () => {
 
     const responseText = await resBlockedIP.text();
     expect(responseText).toContain('Too many login attempts');
+  });
+
+  test('X-Forwarded-For header is trusted for rate limiting', async ({ request }) => {
+    // We use different IPs in X-Forwarded-For to bypass IP-based rate limiting
+    // The limit is 20 failures per IP.
+
+    const spoofedIP1 = '1.1.1.1'; //NOSONAR
+    const spoofedIP2 = '2.2.2.2'; //NOSONAR
+
+    // 1. Fail 20 times with spoofedIP1
+    for (let i = 0; i < 20; i++) {
+      const res = await request.post('/api/auth/login', {
+        headers: { 'X-Forwarded-For': spoofedIP1 },
+        data: { email: `fake-${i}@example.com`, password: generatePassword() }
+      });
+      expect(res.status()).toBe(401);
+    }
+
+    // 21st attempt with spoofedIP1 should be blocked (429)
+    const blockedRes1 = await request.post('/api/auth/login', {
+      headers: { 'X-Forwarded-For': spoofedIP1 },
+      data: { email: 'another@example.com', password: generatePassword() }
+    });
+    expect(blockedRes1.status()).toBe(429);
+
+    // 2. Attempt with spoofedIP2 should still be allowed (401)
+    const allowedRes2 = await request.post('/api/auth/login', {
+      headers: { 'X-Forwarded-For': spoofedIP2 },
+      data: { email: 'yet-another@example.com', password: generatePassword() }
+    });
+    expect(allowedRes2.status()).toBe(401);
+  });
+
+  test('Invalid IP in X-Forwarded-For falls back to RemoteAddr', async ({ request }) => {
+    // We use an invalid IP in X-Forwarded-For. 
+    // The server should log a warning and use the actual remote addr (127.0.0.1).
+    const invalidIP = 'not-an-ip';
+
+    const res = await request.post('/api/auth/login', {
+      headers: { 'X-Forwarded-For': invalidIP },
+      data: { email: 'fake@example.com', password: generatePassword() }
+    });
+
+    // It should be 401 or 429, but definitely NOT 500.
+    expect(res.status()).not.toBe(500);
+
+    // Check backend log for the warning
+    const logPath = path.join(__dirname, 'test-data', 'backend.log');
+    if (fs.existsSync(logPath)) {
+      const logs = fs.readFileSync(logPath, 'utf8');
+      expect(logs).toContain('GetClientIP: invalid IP in header, falling back to RemoteAddr');
+      expect(logs).toContain('value=not-an-ip');
+    }
   });
 
 });

@@ -601,3 +601,86 @@ func TestMiddlewareIntegration(t *testing.T) {
 		}
 	})
 }
+
+func TestUserRateLimitMiddleware(t *testing.T) {
+	origLimiter := apiLimiter
+	apiLimiter = &requestLimiter{byUser: make(map[int]*failEntry)}
+	origEnabled := apiRateLimitEnabled
+	apiRateLimitEnabled = true
+	defer func() {
+		apiLimiter = origLimiter
+		apiRateLimitEnabled = origEnabled
+	}()
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mw := UserRateLimitMiddleware(next)
+
+	ctxWith := func(id int) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, apiIssues, nil)
+		return req.WithContext(context.WithValue(req.Context(), contextKeyUserID, id))
+	}
+
+	t.Run("request without user ID passes through", func(t *testing.T) {
+		// No userID in context (unauthenticated) — middleware defers to AuthMiddleware.
+		req := httptest.NewRequest(http.MethodGet, apiIssues+"/active", nil)
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200 for request with no user ID, got %d", rr.Code)
+		}
+	})
+
+	t.Run("GET bypasses rate limiter even when quota exhausted", func(t *testing.T) {
+		const uid = 30
+		apiLimiter.byUser[uid] = &failEntry{count: apiMaxRequests + 10, windowEnd: time.Now().Add(apiRateWindow)}
+		req := httptest.NewRequest(http.MethodGet, apiIssues+"/active", nil)
+		req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, uid))
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200 for GET (read-only bypass), got %d", rr.Code)
+		}
+	})
+
+	t.Run("POST allowed under limit", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, ctxWith(10))
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d", rr.Code)
+		}
+	})
+
+	t.Run("POST blocked after limit", func(t *testing.T) {
+		apiLimiter.byUser[20] = &failEntry{count: apiMaxRequests, windowEnd: time.Now().Add(apiRateWindow)}
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, ctxWith(20))
+		if rr.Code != http.StatusTooManyRequests {
+			t.Errorf("expected 429, got %d", rr.Code)
+		}
+	})
+
+	t.Run("zero userID passes through", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, apiIssues, nil)
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req) // no userID in context
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200 pass-through for zero userID, got %d", rr.Code)
+		}
+	})
+
+	t.Run("disabled rate limit passes through even when quota exhausted", func(t *testing.T) {
+		const uid = 99
+		apiLimiter.byUser[uid] = &failEntry{count: apiMaxRequests + 10, windowEnd: time.Now().Add(apiRateWindow)}
+		apiRateLimitEnabled = false
+		defer func() { apiRateLimitEnabled = true }()
+		req := httptest.NewRequest(http.MethodPost, apiIssues, nil)
+		req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, uid))
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("disabled rate limit should pass through, got %d", rr.Code)
+		}
+	})
+}

@@ -1,6 +1,7 @@
 import { updateIssue, archiveIssue } from './api.js';
 import { state } from './state.js';
 import { getDraggedCard, getDragAfterElement } from './drag.js';
+import { showNotification } from './utils.js';
 
 export async function handleMoveTop(issue, allIssuesInList, refreshCallback) {
   if (allIssuesInList.length <= 1 || allIssuesInList[0].id === issue.id) return;
@@ -10,7 +11,12 @@ export async function handleMoveTop(issue, allIssuesInList, refreshCallback) {
   // Add the issue to the beginning
   const newOrder = [issue, ...otherIssues];
 
-  await updatePositions(newOrder, refreshCallback);
+  try {
+    await updatePositions(newOrder, refreshCallback);
+  } catch (err) {
+    showNotification(err.message, 'error');
+    if (refreshCallback) refreshCallback(); // re-render to restore actual server state
+  }
 }
 
 export async function handleMoveBottom(issue, allIssuesInList, refreshCallback) {
@@ -21,7 +27,12 @@ export async function handleMoveBottom(issue, allIssuesInList, refreshCallback) 
   // Add the issue to the end
   const newOrder = [...otherIssues, issue];
 
-  await updatePositions(newOrder, refreshCallback);
+  try {
+    await updatePositions(newOrder, refreshCallback);
+  } catch (err) {
+    showNotification(err.message, 'error');
+    if (refreshCallback) refreshCallback(); // re-render to restore actual server state
+  }
 }
 
 export async function updatePositions(orderedIssues, refreshCallback) {
@@ -111,14 +122,19 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
     }
 
     issue.status = targetStatus;
-    if (targetStatus === 'Archive') {
-      await archiveIssue(issue.id);
-    } else {
-      issue.planned_dates = [];
-      await updateIssue(issue);
+    try {
+      if (targetStatus === 'Archive') {
+        await archiveIssue(issue.id);
+      } else {
+        issue.planned_dates = [];
+        await updateIssue(issue);
+      }
+      if (refreshApp) refreshApp();
+      if (onDrop) onDrop(issue);
+    } catch (err) {
+      showNotification(err.message, 'error');
+      if (refreshApp) refreshApp(); // re-render to restore actual server state
     }
-    if (refreshApp) refreshApp();
-    if (onDrop) onDrop(issue);
   });
 }
 
@@ -171,12 +187,17 @@ export function setupListDrag(listId, targetStatus, options = {}) {
       return;
     }
 
-    if (onDrop) {
-      await onDrop(issue, targetStatus);
-    } else {
-      const updates = getListUpdates(listId, targetStatus);
-      await Promise.all(updates);
-      if (refreshApp) refreshApp();
+    try {
+      if (onDrop) {
+        await onDrop(issue, targetStatus);
+      } else {
+        const updates = getListUpdates(listId, targetStatus);
+        await Promise.all(updates);
+        if (refreshApp) refreshApp();
+      }
+    } catch (err) {
+      showNotification(err.message, 'error');
+      if (refreshApp) refreshApp(); // re-render to restore actual server state
     }
   });
 }

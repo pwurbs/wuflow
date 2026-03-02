@@ -109,7 +109,7 @@ async function globalSetup(config: FullConfig) {
     fs.writeFileSync(adminConfigPath, JSON.stringify({ email: adminEmail, password: adminPassword, secretKey }));
     console.log(`Generated initial admin email, password and secret key, saved to ${adminConfigPath}`);
 
-    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-email=${adminEmail}`, `-initial-admin-password=${adminPassword}`, `-secret-key=${secretKey}`], {
+    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-email=${adminEmail}`, `-initial-admin-password=${adminPassword}`, `-secret-key=${secretKey}`, `-api-rate-limit=false`, `-remote-ip-header=X-Forwarded-For`], {
       detached: true,
       stdio: ['ignore', logFile, logFile],
       cwd: projectRoot

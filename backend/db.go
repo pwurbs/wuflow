@@ -28,6 +28,9 @@ var ErrLabelNotFound = errors.New("label not found")
 // ErrUserNotFound is returned when a user is not found.
 var ErrUserNotFound = errors.New("user not found")
 
+// ErrSessionNotFound is returned when a session is not found.
+var ErrSessionNotFound = errors.New("session not found")
+
 // ErrDuplicateEmail is returned when a user with the same email already exists.
 var ErrDuplicateEmail = errors.New("email already exists")
 
@@ -1075,7 +1078,7 @@ func UpdateSession(s *Session) error {
 		return err
 	}
 	if rowsAffected == 0 {
-		return errors.New("session not found")
+		return ErrSessionNotFound
 	}
 	return nil
 }
@@ -1094,7 +1097,7 @@ func DeleteSession(id int) error {
 		return err
 	}
 	if rowsAffected == 0 {
-		return errors.New("session not found")
+		return ErrSessionNotFound
 	}
 	return nil
 }

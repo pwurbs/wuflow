@@ -1,8 +1,6 @@
 package backend
 
 import (
-	"net"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -14,6 +12,10 @@ const (
 	emailWindow      = 15 * time.Minute
 	rlCleanupEvery   = 500       // run lazy cleanup every N recordFailure calls
 	rlMaxAge         = time.Hour // evict entries this long after their window ends
+
+	apiMaxRequests  = 60          // max requests per authenticated user per window
+	apiRateWindow   = time.Minute // sliding window for API rate limiting
+	apiCleanupEvery = 200         // run lazy cleanup every N allow() calls
 )
 
 type failEntry struct {
@@ -31,6 +33,57 @@ type rateLimiter struct {
 var loginLimiter = &rateLimiter{
 	byIP:         make(map[string]*failEntry),
 	byIPAndEmail: make(map[string]*failEntry),
+}
+
+// requestLimiter counts requests per authenticated user.
+// It is intentionally separate from rateLimiter to keep the two threat models
+// (brute-force login vs. authenticated API abuse) decoupled.
+type requestLimiter struct {
+	mu     sync.Mutex
+	byUser map[int]*failEntry // keyed by user ID
+	calls  int
+}
+
+var apiLimiter = &requestLimiter{
+	byUser: make(map[int]*failEntry),
+}
+
+// allow records one write request for userID and returns true if the user is
+// within their rate limit, false if they have exceeded it.
+func (rl *requestLimiter) allow(userID int) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	e, ok := rl.byUser[userID]
+	if !ok || now.After(e.windowEnd) {
+		rl.byUser[userID] = &failEntry{count: 1, windowEnd: now.Add(apiRateWindow)}
+		rl.recordCall()
+		return true
+	}
+	e.count++
+	rl.recordCall()
+	return e.count <= apiMaxRequests
+}
+
+// recordCall increments the call counter and triggers lazy cleanup.
+// Must be called with rl.mu held.
+func (rl *requestLimiter) recordCall() {
+	rl.calls++
+	if rl.calls%apiCleanupEvery == 0 {
+		rl.cleanup()
+	}
+}
+
+// cleanup removes entries whose window ended more than rlMaxAge ago.
+// Must be called with rl.mu held.
+func (rl *requestLimiter) cleanup() {
+	cutoff := time.Now().Add(-rlMaxAge)
+	for k, e := range rl.byUser {
+		if e.windowEnd.Before(cutoff) {
+			delete(rl.byUser, k)
+		}
+	}
 }
 
 // isBlocked returns true if the key has exceeded max failures within window.
@@ -86,11 +139,12 @@ func (rl *rateLimiter) recordFailure(ip, email string) {
 	}
 }
 
-// resetOnSuccess clears failure counters for the given IP and email.
+// resetOnSuccess clears the per-IP+Email failure counter on a successful login.
+// The global per-IP counter is intentionally left intact so that an attacker
+// cannot reset IP-wide throttling by authenticating with a sacrificial account.
 func (rl *rateLimiter) resetOnSuccess(ip, email string) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	delete(rl.byIP, ip)
 	delete(rl.byIPAndEmail, ip+"|"+email)
 }
 
@@ -107,14 +161,4 @@ func (rl *rateLimiter) cleanup() {
 			delete(rl.byIPAndEmail, k)
 		}
 	}
-}
-
-// remoteIP extracts the host portion of r.RemoteAddr.
-// Consistent with the WithLogging middleware in server.go.
-func remoteIP(r *http.Request) string {
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return ip
 }

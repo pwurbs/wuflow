@@ -1,5 +1,6 @@
 import { state, isFilterActive } from '../state.js';
 import { updateIssue } from '../api.js';
+import { showNotification } from '../utils.js';
 import { getDraggedCard, setDraggedCard } from '../drag.js';
 import { filterIssues } from '../filters.js';
 
@@ -315,9 +316,16 @@ function createPlanningItem(issue, dateStr) {
 
     // Remove ONLY this date
     if (issue.planned_dates) {
+      const prevDates = [...issue.planned_dates];
       issue.planned_dates = issue.planned_dates.filter(d => d !== dateStr);
-      await updateIssue(issue);
-      if (refreshAppCallback) refreshAppCallback();
+      try {
+        await updateIssue(issue);
+        if (refreshAppCallback) refreshAppCallback();
+      } catch (err) {
+        issue.planned_dates = prevDates; // revert local state
+        showNotification(err.message, 'error');
+        if (refreshAppCallback) refreshAppCallback();
+      }
     }
   });
 
@@ -499,7 +507,12 @@ async function handlePlanningDrop(e) {
 
   if (draggedCard) {
     draggedCard.dataset.droppedInPlanning = 'true';
-    await processDroppedCard(draggedCard, targetDateStr);
+    try {
+      await processDroppedCard(draggedCard, targetDateStr);
+    } catch (err) {
+      showNotification(err.message, 'error');
+      if (refreshAppCallback) refreshAppCallback(); // re-render to restore actual server state
+    }
   }
 }
 

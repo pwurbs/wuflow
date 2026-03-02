@@ -17,6 +17,14 @@ let refreshPromise = null;
 async function authFetch(url, options = {}) {
   let res = await fetch(url, options);
 
+  if (res.status === 429) {
+    // Return a synthetic response so every caller's error path shows a clear message.
+    return new Response('Too many requests. Please slow down and try again.', {
+      status: 429,
+      statusText: 'Too Many Requests',
+    });
+  }
+
   if (res.status === 401) {
     if (!isRefreshing) {
       isRefreshing = true;

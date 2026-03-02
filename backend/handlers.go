@@ -32,6 +32,12 @@ const (
 	errMsgTooManyAttempts     = "Too many login attempts, please try again later"
 )
 
+// errAdminCheckDB is a sentinel returned by checkLastAdminProtection when the
+// admin-count query fails. It lets callers distinguish a server-side DB error
+// (→ 500) from a business-logic validation error (→ 400) without leaking the
+// internal error detail to the client.
+var errAdminCheckDB = errors.New("internal admin count check failed")
+
 // denyForbidden logs a permission-denied warning and writes a 403 response.
 func denyForbidden(w http.ResponseWriter, r *http.Request, action Action) {
 	email := GetEmailFromContext(r.Context())
@@ -748,7 +754,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ip := remoteIP(r)
+	ip := GetClientIP(r)
 	if loginLimiter.checkIP(ip) {
 		slog.Warn("Login blocked: IP rate limit exceeded", "ip", ip)
 		http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
@@ -843,7 +849,7 @@ func revokeSessionFromCookie(r *http.Request) {
 		sessionID, _, err := ValidateRefreshToken(cookie.Value)
 		if err == nil {
 			if err := RevokeSession(sessionID); err != nil {
-				if err.Error() == "session not found" {
+				if errors.Is(err, ErrSessionNotFound) {
 					slog.Info("Logout: session already revoked or not found", "session_id", sessionID)
 				} else {
 					slog.Warn("Logout: failed to revoke session", "session_id", sessionID, "error", err)
@@ -1195,7 +1201,11 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 
 	revokeSessions, err := validateAndPrepareUserUpdate(existing, req, userEmail)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		if errors.Is(err, errAdminCheckDB) {
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
 		return
 	}
 
@@ -1233,7 +1243,9 @@ func validateAndPrepareUserUpdate(existing *User, req createUserRequest, userEma
 	existing.LastName = strings.TrimSpace(req.LastName)
 
 	if err := checkLastAdminProtection(existing, req.Role, req.Active); err != nil {
-		slog.Warn("UpdateUser: last admin protection triggered", "error", err, "admin_email", userEmail)
+		if !errors.Is(err, errAdminCheckDB) {
+			slog.Warn("UpdateUser: last admin protection triggered", "error", err, "admin_email", userEmail)
+		}
 		return false, err
 	}
 
@@ -1266,7 +1278,8 @@ func checkLastAdminProtection(existing *User, newRole UserRole, newActive bool) 
 		if newRole != RoleAdmin || !newActive {
 			adminCount, err := CountActiveAdmins()
 			if err != nil {
-				return fmt.Errorf("failed to check admin count")
+				slog.Error("checkLastAdminProtection: failed to count active admins", "error", err)
+				return errAdminCheckDB
 			}
 			if adminCount <= 1 {
 				return fmt.Errorf("Cannot deactivate or demote the last active administrator")
