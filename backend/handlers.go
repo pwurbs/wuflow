@@ -144,6 +144,7 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 		}
 
 		slog.Info("Issue created", "id", i.ID, "user_email", userEmail)
+		w.Header().Set(headerContentType, contentTypeJSON)
 		w.WriteHeader(http.StatusCreated)
 		if err := json.NewEncoder(w).Encode(created); err != nil {
 			slog.Error("CreateIssue: failed to encode response", "error", err, "user_email", userEmail)
@@ -190,6 +191,7 @@ func HandleArchivedIssues(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 			return
 		}
+		w.Header().Set(headerContentType, contentTypeJSON)
 		if err := json.NewEncoder(w).Encode(issues); err != nil {
 			slog.Error("HandleArchivedIssues: failed to encode response", "error", err)
 		}
@@ -282,6 +284,7 @@ func handleGetIssue(w http.ResponseWriter, id int) {
 	// Set ETag header based on updated_at timestamp
 	etag := issue.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	w.Header().Set("ETag", `"`+etag+`"`)
+	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(issue); err != nil {
 		slog.Error("handleGetIssue: failed to encode response", "id", id, "error", err)
 	}
@@ -517,6 +520,7 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("Task created", "id", t.ID, "issue_id", t.IssueID, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(t); err != nil {
 		slog.Error("handleCreateTask: failed to encode response", "id", t.ID, "error", err, "user_email", userEmail)
@@ -594,6 +598,7 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 	slog.Info("Task updated", "id", id, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(t); err != nil {
 		slog.Error("handlePutTask: failed to encode response", "id", id, "error", err, "user_email", userEmail)
 	}
@@ -662,6 +667,7 @@ func handleListLabels(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(labels); err != nil {
 		userEmail := GetEmailFromContext(r.Context()) // Fix unused parameter 'r'
 		slog.Error("HandleLabels: failed to encode response", "error", err, "user_email", userEmail)
@@ -681,6 +687,7 @@ func handleCreateLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("Label created", "id", l.ID, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(l); err != nil {
 		slog.Error("CreateLabel: failed to encode response", "error", err, "user_email", userEmail)
@@ -1317,6 +1324,7 @@ func respondWithUpdatedIssue(w http.ResponseWriter, id int, actionLog, userEmail
 
 	newEtag := updated.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	w.Header().Set("ETag", `"`+newEtag+`"`)
+	w.Header().Set(headerContentType, contentTypeJSON)
 
 	if err := json.NewEncoder(w).Encode(updated); err != nil {
 		slog.Error("Failed to encode response", "id", id, "error", err, "user_email", userEmail)

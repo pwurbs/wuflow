@@ -391,6 +391,7 @@ func CreateUserSession(user *User) (*Session, string, string, error) {
 	// 4. Update session with the real hash
 	session.TokenHash = tokenHash
 	if err := UpdateSession(session); err != nil {
+		DeleteSession(session.ID) // cleanup orphaned session with empty token hash
 		return nil, "", "", fmt.Errorf("failed to update session hash: %w", err)
 	}
 

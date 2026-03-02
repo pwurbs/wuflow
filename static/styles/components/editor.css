@@ -4,8 +4,10 @@
   background-color: rgb(16, 22, 35);
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 300px;
   position: relative;
+  overflow: hidden;
 }
 
 .editor-toolbar {
@@ -202,11 +204,14 @@
 .md-editor-panes {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .md-textarea {
   width: 100%;
   field-sizing: content;
+  flex: 1;
   padding: 12px;
   outline: none;
   font-family: monospace;
@@ -217,6 +222,15 @@
   resize: none;
   line-height: 1.5;
   min-height: 280px;
+}
+
+/* Suppress the generic .form-group textarea focus border — the container's
+   .inline-editing border is the single visible border in edit mode. */
+.editor-container .md-textarea,
+.editor-container .md-textarea:focus {
+  border: none;
+  outline: none;
+  background-color: transparent;
 }
 
 .md-preview {
@@ -235,7 +249,6 @@
 
 .md-preview.active {
   background-color: rgba(59, 130, 246, 0.05);
-  border: 1px solid var(--primary-color);
   border-radius: 4px;
 }
 

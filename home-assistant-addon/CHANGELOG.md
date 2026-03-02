@@ -1,4 +1,9 @@
 
+## 0.24.2
+
+- Some more minor security improvements
+- Improved the UI of Edit Issue modal
+
 ## 0.24.1
 
 - Added configurable API rate limit for POST, PUT and DELETE actions

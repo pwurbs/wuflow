@@ -90,7 +90,9 @@ export function setupModal(refreshApp) {
     ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
       const container = document.getElementById(id);
       if (container && !container.contains(e.target)) {
-        container.querySelector('.custom-select-options').classList.add('hidden');
+        const opts = container.querySelector('.custom-select-options');
+        opts.classList.add('hidden');
+        opts.style.maxHeight = '';
       }
     });
   });
@@ -277,12 +279,23 @@ function setupNewModal() {
 
 }
 
+function resetMdPreview(previewEl) {
+  previewEl.classList.remove('active');
+  document.getElementById('md-preview-toggle')?.classList.remove('active');
+  document.querySelectorAll('.editor-btn[data-md]').forEach(b => {
+    b.disabled = false;
+    b.classList.remove('disabled');
+  });
+}
+
 function toggleInlineEditMode(enable) {
   const titleInput = document.getElementById('title');
   const descContainer = document.querySelector('.editor-container');
   const descEditor = document.getElementById('description-editor');
   const descPreview = document.getElementById('description-preview');
   const descEditActions = document.getElementById('description-edit-actions');
+
+  resetMdPreview(descPreview);
 
   if (enable) {
     titleInput.classList.add('inline-editable');
@@ -637,6 +650,11 @@ function setupInlineEditing() {
       descEditor.classList.remove('hidden');
       descEditActions.classList.remove('hidden');
       descEditor.focus();
+      descEditor.setSelectionRange(0, 0);
+      descEditor.scrollTop = 0;
+      requestAnimationFrame(() => {
+        document.querySelector('.modal-body')?.scrollTo({ top: 0 });
+      });
       addUnloadListener();
     }
   });
@@ -654,6 +672,7 @@ function setupInlineEditing() {
     descEditor.classList.add('hidden');
     descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
+    resetMdPreview(descPreview);
     checkRemoveUnloadListener();
   };
 
@@ -680,6 +699,7 @@ function setupInlineEditing() {
     descEditor.classList.add('hidden');
     descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
+    resetMdPreview(descPreview);
     checkRemoveUnloadListener();
   };
 
@@ -1108,21 +1128,27 @@ function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
     const wasHidden = options.classList.contains('hidden');
 
     // Close others
-    ['status-dropdown', 'label-dropdown', 'priority-dropdown'].forEach(id => {
+    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
       if (id !== wrapperId) {
-        document.getElementById(id).querySelector('.custom-select-options').classList.add('hidden');
+        const otherOptions = document.getElementById(id).querySelector('.custom-select-options');
+        otherOptions.classList.add('hidden');
+        otherOptions.style.maxHeight = '';
       }
     });
 
     if (wasHidden) {
+      // Constrain dropdown to available space below the trigger within the modal
+      const triggerRect = trigger.getBoundingClientRect();
+      const modalContent = document.querySelector('.issue-modal-content');
+      if (modalContent) {
+        const modalRect = modalContent.getBoundingClientRect();
+        const spaceBelow = modalRect.bottom - 20 - triggerRect.bottom;
+        options.style.maxHeight = Math.max(80, Math.min(300, spaceBelow)) + 'px';
+      }
       options.classList.remove('hidden');
-
-      // Auto-scroll to make visible
-      setTimeout(() => {
-        options.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 50);
     } else {
       options.classList.add('hidden');
+      options.style.maxHeight = '';
     }
   });
 }
@@ -1232,6 +1258,7 @@ function selectOption(inputId, textId, optionsId, value, text) {
   }
 
   options.classList.add('hidden');
+  options.style.maxHeight = '';
 }
 
 

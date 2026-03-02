@@ -92,6 +92,7 @@ func validateIssue(i *Issue) error {
 	}
 	// Description is plain Markdown text — count runes directly.
 	// No HTML filtering: DOMPurify sanitises the rendered output on the frontend.
+	i.Description = strings.ReplaceAll(i.Description, "\x00", "")
 	i.Description = strings.TrimSpace(i.Description)
 	if utf8.RuneCountInString(i.Description) > MaxDescLength {
 		return ErrDescTooLong
