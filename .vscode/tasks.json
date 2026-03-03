@@ -31,9 +31,6 @@
     {
       "label": "Go Fuzz",
       "type": "shell",
-      // Runs each fuzz target sequentially for the chosen duration.
-      // Stops immediately if a target finds a failure (|| break).
-      // To only run the seed corpus without fuzzing, use "Go Fuzz Seed Check".
       "command": "for t in FuzzSanitizeHTML FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
       "group": "test",
       "presentation": {
@@ -87,10 +84,7 @@
     {
       "label": "Sonar Scanner",
       "type": "shell",
-      // SONAR_TOKEN is a secret token that needs to be set in the environment
-      // projectVersion must be set to get correct "new code" related results in SonarQube
       "command": "export VERSION=$(cat VERSION) && sonar-scanner -Dsonar.token=${env:SONAR_TOKEN} -Dsonar.projectVersion=$VERSION",
-      // Use a login interactive shell to ensure the user's PATH and SONAR_TOKEN are loaded correctly (finding sonar-scanner binary)
       "options": {
         "shell": {
           "args": [
@@ -100,6 +94,17 @@
           ]
         }
       },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Wapiti",
+      "type": "shell",
+      "command": "./scripts/run_wapiti_scan.sh",
+      "group": "test",
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -124,9 +129,6 @@
       "problemMatcher": []
     },
     {
-      // Builds the container image (latest tag) and tags it with the given version
-      // Uses --no-cache to ensure latest static files are embedded
-      // Also executes Trivy scan
       "label": "Build & Scan Image",
       "type": "shell",
       "command": "export VERSION=$(cat VERSION) && container build --no-cache --build-arg VERSION=$VERSION -t wuflow . && container image tag wuflow:latest wuflow:$VERSION && sh scripts/trivy_scan.sh",
@@ -138,8 +140,6 @@
       "problemMatcher": []
     },
     {
-      // Logs in to registry, tags and pushes the container image to ghcr.io
-      // Note: GHCR_TOKEN is a secret token that needs to be set in the environment
       "label": "Push Image",
       "type": "shell",
       "command": "export VERSION=$(cat VERSION) && echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container image tag wuflow:$VERSION ghcr.io/pwurbs/wuflow:$VERSION && container image push ghcr.io/pwurbs/wuflow:$VERSION",

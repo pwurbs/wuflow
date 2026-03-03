@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -170,7 +171,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 
 	middleware.ServeHTTP(rr, req)
 
-	expectedCSP := "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	expectedCSP := "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 	if got := rr.Header().Get("Content-Security-Policy"); got != expectedCSP {
 		t.Errorf("CSP header mismatch:\ngot:  %q\nwant: %q", got, expectedCSP)
 	}
@@ -683,4 +684,39 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 			t.Errorf("disabled rate limit should pass through, got %d", rr.Code)
 		}
 	})
+}
+
+func TestNeuteredFileSystem(t *testing.T) {
+	fsMap := fstest.MapFS{
+		"index.html":     &fstest.MapFile{Data: []byte("main index")},
+		"test.txt":       &fstest.MapFile{Data: []byte("test")},
+		"dir/index.html": &fstest.MapFile{Data: []byte("dir index")},
+		"dir/test.txt":   &fstest.MapFile{Data: []byte("test in dir")},
+		"nodir/test.txt": &fstest.MapFile{Data: []byte("no index in this dir")},
+	}
+	nfs := neuteredFileSystem{http.FS(fsMap)}
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{"File exists", "test.txt", false},
+		{"Directory with index", "dir", false},
+		{"Directory without index", "nodir", true},
+		{"File inside directory without index", "nodir/test.txt", false},
+		{"Non-existent file", "nonexistent.txt", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := nfs.Open(tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("neuteredFileSystem.Open(%q) error = %v, wantErr %v", tt.path, err, tt.wantErr)
+			}
+			if f != nil {
+				f.Close()
+			}
+		})
+	}
 }

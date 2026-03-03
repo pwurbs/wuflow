@@ -84,7 +84,7 @@ func InitSecretKey(secret string) {
 
 // HashPassword hashes a plaintext password using bcrypt.
 func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return "", err
 	}
@@ -156,6 +156,9 @@ func GenerateRefreshToken(sessionID int) (string, string, error) {
 // ValidateRefreshToken parses an opaque refresh token.
 // Returns the session ID and the raw secret (to be verified against the DB hash).
 func ValidateRefreshToken(tokenString string) (int, string, error) {
+	if len(tokenString) > MaxRefreshTokenLength {
+		return 0, "", fmt.Errorf("token too long")
+	}
 	decodedBytes, err := base64.StdEncoding.DecodeString(tokenString)
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid token encoding")
@@ -187,6 +190,9 @@ func ValidateRefreshToken(tokenString string) (int, string, error) {
 // ValidateToken parses and validates a JWT token string.
 // Returns the claims if valid, or an error if invalid/expired.
 func ValidateToken(tokenString string) (*CustomClaims, error) {
+	if len(tokenString) > MaxAccessTokenLength {
+		return nil, fmt.Errorf("token too long")
+	}
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

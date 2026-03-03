@@ -14,7 +14,7 @@ import (
 // embeddedFiles holds the static files embedded into the binary.
 // don't remove the line below, it's used by go:embed to embed the static files during build
 //
-//go:embed static
+//go:embed static/index.html static/login.html static/logo.png static/styles static/js/*.js static/js/components static/js/vendor
 var embeddedFiles embed.FS
 
 // Version is the current version of the application, set by ldflags or defaults to "dev"

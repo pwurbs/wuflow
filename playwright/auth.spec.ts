@@ -253,12 +253,9 @@ test.describe('Authentication Security', () => {
     for (const response of [loginPage, apiResp]) {
       const h = response.headers();
 
-      // Content-Security-Policy — scripts strict, styles allow inline (required for dynamic label colors)
-      expect(h['content-security-policy']).toContain("default-src 'self'");
-      expect(h['content-security-policy']).toContain("script-src 'self'");
-      expect(h['content-security-policy']).toContain("style-src 'self' 'unsafe-inline'");
-      expect(h['content-security-policy']).not.toContain("'unsafe-eval'");
-      expect(h['content-security-policy']).toContain("frame-ancestors 'none'");
+      // Content-Security-Policy — strictly matched against the backend definition
+      const expectedCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+      expect(h['content-security-policy']).toEqual(expectedCSP);
 
       expect(h['x-content-type-options']).toBe('nosniff');
       expect(h['x-frame-options']).toBe('DENY');

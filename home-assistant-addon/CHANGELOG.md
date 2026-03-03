@@ -1,4 +1,9 @@
 
+## 0.24.3
+
+- Added Wapiti vulnerability scanner
+- Fixed some more minor security issues
+
 ## 0.24.2
 
 - Some more minor security improvements

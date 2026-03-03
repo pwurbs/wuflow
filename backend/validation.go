@@ -11,12 +11,14 @@ import (
 // Length limits — kept in sync with the frontend character counters in
 // modal.js / setup.js. All limits apply to plain-text codepoints.
 const (
-	MaxTitleLength    = 100
-	MaxDescLength     = 5000
-	MaxLabelNameLen   = 15
-	MaxEmailLength    = 254
-	MaxUserNameLength = 50
-	MaxPasswordLength = 128
+	MaxTitleLength        = 100
+	MaxDescLength         = 5000
+	MaxLabelNameLen       = 15
+	MaxEmailLength        = 254
+	MaxUserNameLength     = 50
+	MaxPasswordLength     = 128
+	MaxRefreshTokenLength = 512
+	MaxAccessTokenLength  = 4096
 )
 
 // Validation errors
@@ -42,16 +44,16 @@ var (
 	ErrPasswordIsEmail   = errors.New("password must not be your email address")
 	ErrPasswordBlacklist = errors.New("password is too common")
 
-	ErrDateInvalid    = errors.New("date must be in YYYY-MM-DD format")
-	ErrTooManyDates   = errors.New("too many planned dates (maximum 100)")
+	ErrDateInvalid  = errors.New("date must be in YYYY-MM-DD format")
+	ErrTooManyDates = errors.New("too many planned dates (maximum 100)")
 )
 
 // Compiled regexes (package-level, compiled once).
 var (
 	// emailRegex is a basic check. Start/end anchors, one @, non-empty parts.
 	// We allow minimal "user@domain" without enforcing a .TLD to support local/intranet use (e.g. admin@local).
-	emailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+$`)
-	colorRegex = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+	emailRegex  = regexp.MustCompile(`^[^\s@]+@[^\s@]+$`)
+	colorRegex  = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 	anyTagRegex = regexp.MustCompile(`<[^>]+>`)
 )
 
@@ -78,7 +80,6 @@ func isValidRole(role UserRole) bool {
 	}
 	return false
 }
-
 
 func validateIssue(i *Issue) error {
 	i.Title = strings.ReplaceAll(i.Title, "\x00", "")

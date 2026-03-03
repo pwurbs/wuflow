@@ -104,7 +104,7 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	if err != nil {
 		log.Fatal(err)
 	}
-	fileServer := http.FileServer(http.FS(staticFS))
+	fileServer := http.FileServer(neuteredFileSystem{http.FS(staticFS)})
 
 	// Login page — served without auth
 	http.Handle(loginPath, WithLogging(SecurityHeadersMiddleware(HandleLoginHTML(fileServer))))
@@ -152,7 +152,13 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 
 	fmt.Printf("Server starting on port %s\n", port)
 	slog.Info("Server starting", "port", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	srv := &http.Server{
+		Addr:         ":" + port,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	log.Fatal(srv.ListenAndServe())
 }
 
 // HandleLoginHTML serves the login page.
@@ -195,7 +201,8 @@ func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 
 		// If we get here, no valid session exists and it's not a public asset
 		slog.Info("Unauthenticated access, redirecting to login", "path", path, "ip", GetClientIP(r))
-		http.Redirect(w, r, loginPath, http.StatusFound)
+		w.Header().Set("Location", loginPath)
+		w.WriteHeader(http.StatusFound)
 	}
 }
 
@@ -209,6 +216,30 @@ func isPublicAsset(path string) bool {
 		"/styles/pages/login.css":         true,
 	}
 	return publicAssets[path]
+}
+
+type neuteredFileSystem struct {
+	fs http.FileSystem
+}
+
+func (nfs neuteredFileSystem) Open(path string) (http.File, error) {
+	f, err := nfs.fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if s.IsDir() {
+		index := strings.TrimSuffix(path, "/") + "/index.html"
+		if _, err := nfs.fs.Open(index); err != nil {
+			return nil, err // Returning error here prevents folder listing
+		}
+	}
+
+	return f, nil
 }
 
 func parseLogLevel(levelStr string) (slog.Level, error) {
@@ -313,7 +344,7 @@ func ValidatePathMiddleware(next http.Handler) http.Handler {
 func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy",
-			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
