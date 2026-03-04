@@ -18,6 +18,10 @@ test.describe('Backlog View', () => {
     // Backlog sections should be visible
     await expect(page.locator('#backlog-todo-section')).toBeVisible();
     await expect(page.locator('#backlog-open-section')).toBeVisible();
+
+    // Check headers
+    await expect(page.locator('#backlog-todo-section h2')).toContainText('Board (Todo)');
+    await expect(page.locator('#backlog-open-section h2')).toContainText('Open');
   });
 
   test('create issue with Open status appears in Backlog', async ({ page }) => {

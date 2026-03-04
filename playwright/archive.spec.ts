@@ -17,7 +17,7 @@ test.describe('Archive View', () => {
     await expect(page.locator('#archive-archive-section')).toBeVisible();
 
     // Check headers
-    await expect(page.locator('#archive-done-section h2')).toContainText('Move from Board (Done)');
+    await expect(page.locator('#archive-done-section h2')).toContainText('Board (Done)');
     await expect(page.locator('#archive-archive-section h2')).toContainText('Archive');
   });
 

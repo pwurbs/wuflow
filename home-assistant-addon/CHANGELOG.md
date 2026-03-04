@@ -1,4 +1,9 @@
 
+## 0.24.4
+
+- Improved area headers for archive and backlog view
+- Added script to check for available dependency updates
+
 ## 0.24.3
 
 - Added Wapiti vulnerability scanner

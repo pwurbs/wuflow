@@ -112,19 +112,13 @@
       "problemMatcher": []
     },
     {
-      "label": "Full Pipeline",
-      "dependsOn": [
-        "Go Test",
-        "Go Fuzz",
-        "JS Test",
-        "Go Build",
-        "Run Playwright Tests",
-        "Sonar Scanner"
-      ],
-      "dependsOrder": "sequence",
-      "group": {
-        "kind": "build",
-        "isDefault": true
+      "label": "Dependency Check",
+      "type": "shell",
+      "command": "./scripts/check_dependencies.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
       },
       "problemMatcher": []
     },

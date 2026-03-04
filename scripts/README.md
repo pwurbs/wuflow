@@ -37,3 +37,14 @@ A fully automated two-phase shell script that:
 ./scripts/run_wapiti_scan.sh
 ```
 The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory.
+
+### `check_dependencies.sh`
+A shell script to check for available updates across all dependencies in the repository. It checks:
+1. NPM dependencies in `static/js` and `playwright`.
+2. Go modules updates, local Go version (including minor patch updates), and runs `govulncheck`.
+
+**Usage:**
+```bash
+./scripts/check_dependencies.sh
+```
+The script expects `go` and `npm` to be available in your PATH.
