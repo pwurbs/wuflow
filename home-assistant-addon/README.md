@@ -7,3 +7,5 @@ Install it either by using the Home Assistant Add-on store or by manually copyin
 Configuration options are not supported yet. You can configure wuFlow by editing the configuration file directly and adapting the environment section in the config.yaml file.
 
 To set the initial admin password once for the first start, set the envvar WF_INITIAL_ADMIN_PASSWORD in the config.yaml file. After the first start, the password will be stored in the database and the envvar will be ignored. So afterwards, you should remove it from the config.yaml file again.
+
+It's recommended to stotre the database in the Home Assistant 'share' folder, e.g. /share/wuflow/wuflow.db. This way the database will be backed up when you backup Home Assistant. You have to create the sub folder yourself and adapt permissions accordingly. The wuflow app start with user id 999 and group id 100. So the folder must be writable by this user/group.

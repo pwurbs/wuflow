@@ -1,4 +1,8 @@
 
+## 0.24.5
+
+- Last changes for initial release
+
 ## 0.24.4
 
 - Improved area headers for archive and backlog view

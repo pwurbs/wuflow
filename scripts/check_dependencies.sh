@@ -23,7 +23,7 @@ echo -e "\n${BLUE}--- Checking NPM Dependencies ---${NC}"
 NPM_DIRS=("static/js" "playwright")
 
 for dir in "${NPM_DIRS[@]}"; do
-    if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then
+    if [[ -d "$dir" ]] && [[ -f "$dir/package.json" ]]; then
         echo -e "${YELLOW}--> Checking $dir...${NC}"
         # npm outdated returns exit code 1 if there are updates available.
         # We disable 'set -e' temporarily to handle this gracefully.
@@ -32,7 +32,7 @@ for dir in "${NPM_DIRS[@]}"; do
         EXIT_CODE=$?
         set -e
         
-        if [ $EXIT_CODE -eq 0 ] && [ -z "$OUTPUT" ]; then
+        if [[ $EXIT_CODE -eq 0 ]] && [[ -z "$OUTPUT" ]]; then
             echo -e "${GREEN}All NPM packages in $dir are up to date.${NC}"
         else
             echo -e "${YELLOW}Note: Only packages with available updates are listed below.${NC}"
@@ -63,13 +63,13 @@ if command -v go >/dev/null 2>&1; then
     LATEST_MINOR=$(curl -s "https://go.dev/dl/?mode=json" | grep -o 'go[0-9]\+\.[0-9]\+\.[0-9]\+' | sort -uV | grep -E "^go$LOCAL_MINOR\." | tail -n 1 | sed 's/go//')
     
     # Fallback if we couldn't parse the minor properly
-    if [ -z "$LATEST_MINOR" ]; then
+    if [[ -z "$LATEST_MINOR" ]]; then
         LATEST_MINOR="$LOCAL_GO_VERSION"
     fi
 
-    if [ "$LOCAL_GO_VERSION" = "$LATEST_ALL_GO" ]; then
+    if [[ "$LOCAL_GO_VERSION" == "$LATEST_ALL_GO" ]]; then
         echo -e "${GREEN}Go version ($LOCAL_GO_VERSION) is fully up-to-date with the absolute latest.${NC}"
-    elif [ "$LOCAL_GO_VERSION" = "$LATEST_MINOR" ]; then
+    elif [[ "$LOCAL_GO_VERSION" == "$LATEST_MINOR" ]]; then
         echo -e "Go version ($LOCAL_GO_VERSION) is up to date for its minor release branch. (Latest overall is $LATEST_ALL_GO)."
     else
         echo -e "${RED}Go version ($LOCAL_GO_VERSION) is outdated! An update for your minor version ($LATEST_MINOR) is available. (Latest overall is $LATEST_ALL_GO).${NC}"
@@ -79,14 +79,14 @@ else
 fi
 set -e
 
-if [ -f "go.mod" ]; then
+if [[ -f "go.mod" ]]; then
     echo -e "${YELLOW}--> Checking Go modules...${NC}"
     set +e
     # Lists modules with updates and marks indirect ones
     OUTPUT=$(go list -m -u -f '{{if .Update}}{{if .Indirect}} (indirect) {{end}}{{.Path}} {{.Version}} [{{.Update.Version}}]{{end}}' all | grep -v "^$")
     set -e
     
-    if [ -z "$OUTPUT" ]; then
+if [[ -z "$OUTPUT" ]]; then
         echo -e "${GREEN}All Go modules are up to date.${NC}"
     else
         echo "$OUTPUT"

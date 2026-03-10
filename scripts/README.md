@@ -48,3 +48,12 @@ A shell script to check for available updates across all dependencies in the rep
 ./scripts/check_dependencies.sh
 ```
 The script expects `go` and `npm` to be available in your PATH.
+
+### `new_version.sh`
+A shell script to automate the versioning process for wuFlow and its Home Assistant Add-on. It prompts for the new version and changelog text, updates the `VERSION` file, patches the Home Assistant `config.yaml`, and automatically inserts the new version headers into both the root `CHANGELOG.md` and the `home-assistant-addon/CHANGELOG.md`.
+
+**Usage:**
+```bash
+./scripts/new_version.sh
+```
+The script uses `osascript` to trigger macOS dialog boxes for input, so it must be run on a macOS environment.

@@ -167,7 +167,7 @@
     {
       "label": "New Version",
       "type": "shell",
-      "command": "OLD_VERSION=$(cat VERSION) && NEW_VERSION=$(osascript -e \"display dialog \\\"New Version:\\\" default answer \\\"$OLD_VERSION\\\"\" -e \"text returned of result\") && [ -n \"$NEW_VERSION\" ] && CHANGELOG=$(osascript -e \"display dialog \\\"Changelog:\\\" default answer \\\"\\\"\" -e \"text returned of result\") && [ -n \"$CHANGELOG\" ] && echo \"$NEW_VERSION\" > VERSION && sed -i '' \"s/^version: \\\".*\\\"/version: \\\"$NEW_VERSION\\\"/\" home-assistant-addon/config.yaml && printf '\\n## %s\\n\\n%s\\n' \"$NEW_VERSION\" \"$CHANGELOG\" | cat - home-assistant-addon/CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp home-assistant-addon/CHANGELOG.md",
+      "command": "./scripts/new_version.sh",
       "problemMatcher": []
     }
   ]

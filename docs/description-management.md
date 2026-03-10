@@ -59,10 +59,9 @@ This is **bold**, *italic*, and ~~strikethrough~~.
 
 `inline code`
 
-\```javascript
+```
 // Block code
 console.log("Hello World");
-\```
 ```
 
 ### 🟡 2. Allowed Embedded HTML

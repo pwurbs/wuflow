@@ -183,8 +183,6 @@ WF_SECRET_KEY=your-secure-random-string ./wuflow
 
 The key should be a long, random string (32+ characters recommended).
 
-
-
 ## Password Policy
 
 - Minimum **12 characters**
