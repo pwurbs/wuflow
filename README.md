@@ -4,9 +4,8 @@
 [![GitHub Release](https://img.shields.io/github/v/release/pwurbs/wuflow)](https://github.com/pwurbs/wuflow/releases) 
 [![GitHub issues](https://img.shields.io/github/issues/pwurbs/wuflow)](https://github.com/pwurbs/wuflow/issues)  <br>
 [![Go Version](https://img.shields.io/github/go-mod/go-version/pwurbs/wuflow)](https://github.com/pwurbs/wuflow) 
+[![Go Report Card](https://goreportcard.com/badge/github.com/pwurbs/wuflow)](https://goreportcard.com/report/github.com/pwurbs/wuflow) <br>
 [![Container Version](https://img.shields.io/github/v/release/pwurbs/wuflow?label=ghcr.io%20image&logo=docker)](https://github.com/users/pwurbs/packages/container/package/wuflow) <br>
-[![Snyk Security](https://snyk.io/test/github/pwurbs/wuflow/badge.svg)](https://snyk.io/test/github/pwurbs/wuflow)
-[![Go Report Card](https://goreportcard.com/badge/github.com/pwurbs/wuflow)](https://goreportcard.com/report/github.com/pwurbs/wuflow) 
 ![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=alert_status&token=70554a588df3511feeedd61292f37aa8a1785d11) 
 ![Coverage](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=coverage&token=70554a588df3511feeedd61292f37aa8a1785d11) 
 ![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=vulnerabilities&token=70554a588df3511feeedd61292f37aa8a1785d11) 

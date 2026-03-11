@@ -44,7 +44,7 @@ The length of the title (100 chars) and description text (5000 chars) is limited
 Some more fields can be set here, but are optional and can be adapted at any time later, when editing an issue. 
 Click on **Save** to create the issue. There will be a green notification toast showing the id of the created issue. If you have not explicitly adapted the Status field, the issue gets the **status OPEN and is therefore placed in the Backlog**. If you want to have the issue on the board right from the start, then assign an appropriate status during issue creation.
 
-<img src="screenshots/issue.png" alt="Issue Details" width="900" align="right" style="margin-left: 20px; margin-bottom: 20px;">
+<img src="screenshots/issue.png" alt="Issue Details" width="900">
 
 ### Editing Issues
 Click on an issue card to view and adapt details. In addition to title and description, there are these properties available:
@@ -69,7 +69,6 @@ As a consequence, tasks can only be managed as part of an issue and owns these p
 - **Done**: If checked, the task is considered done. 
 
 Tasks can also be deleted by clicking the cross icon in the task card. This action can't be undone. Sometimes it's better to delete to clean a long list of already done tasks.
-<br clear="right">
 
 ## Planning Sidebar
 
@@ -105,7 +104,7 @@ If there are many users active on the board, the entries in the planning sidebar
 
 ## The Backlog View
 
-<img src="screenshots/backlog.png" alt="Backlog Management" width="900" align="right" style="margin-left: 20px; margin-bottom: 20px;">
+<img src="screenshots/backlog.png" alt="Backlog Management" width="900">
 
 According to the issue lifecycle above, the backlog is usually the starting point for all issues. Here, all ideas, planned topics, issues not yet ready to work etc. are collected in the backlog. 
 To keep the board clean, only issues ready to work on should be on the board. INVEST is a checklist often used to determine if a user story meets the DoR (Definition of Ready) criteria:
@@ -123,22 +122,18 @@ On the Backlog view, you can:
 - **Move** issues from the backlog to the board by dragging them to the TODO area. This makes them visible in the TODO column of the Board
 - **Filter** issues by label, priority, assignee or text search.
 
-<br clear="right">
-
 ## The Archive View
 
-<img src="screenshots/archive.png" alt="Archive" width="900" align="right" style="margin-left: 20px; margin-bottom: 20px;">
+<img src="screenshots/archive.png" alt="Archive" width="900">
 
 Once an issue is completed (DONE status) and no longer needed on the board, you can archive it. This hides the issue from the active views while keeping it stored for future reference. Archived issues are not deleted; they can be reviewed, searched, or even restored to the board at any time.
 The Archive View is similar to the Backlog View, but the other way round: Issue to be archived are moved from top (DONE area) to bottom (ARCHIVE area). By this, the issue vanishes from the board and is instead visible in the Archive area, sorted and grouped per month of archiving.
 Archiving a bunch of DONE issues could be done along with a kind of a review process in the team or celebrating the completion of a project or milestone. 
 Archived issues are read-only. Users owning the admin role are entitled to **restore** archived issues to the board. This is done by clicking the "Restore" button in the Issue details view.
 
-<br clear="right">
-
 ## The Setup View
 
-<img src="screenshots/setup.png" alt="Initial Setup" width="900" align="right" style="margin-left: 20px; margin-bottom: 20px;">
+<img src="screenshots/setup.png" alt="Initial Setup" width="900">
 
 The Setup View is only available for users with admin role and allows to configure **labels** and **users**.
 
@@ -150,8 +145,6 @@ Users can be created, adapted or deactivated here.
 - When you **create a new user**, enter the properties, assign a role, set an initial password and click "Save". Then the user can log in using Email and password and should then be requested to set an own password. 
 - To **adapt an existing user**, click on the user in the list, adapt what you want, and click "Save". Here, an admin can re-define a new password for a user, when e.g. a user has forgotten their password.
 - To **deactivate a user**, click on the user in the list and click "Deactivate". This is useful when a user is no longer active in the team or organization. Deactivated users can't log in and are not visible in the user list to be assigned for issues. Deletion of users is currently not supported.
-
-<br clear="right">
 
 ## User Roles
 When a new user is created a role is assigned. This can either be the "Admin" role or the "User" role. The following table shows the permissions for each role. 
