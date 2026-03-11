@@ -47,6 +47,7 @@ All responses include the following headers, set in `SecurityHeadersMiddleware` 
 default-src 'self';
 script-src 'self';
 style-src 'self' 'unsafe-inline';
+object-src 'none';
 img-src 'self' data:;
 font-src 'self';
 connect-src 'self';
@@ -71,3 +72,14 @@ Notable points:
 | `RequireJSONMiddleware` | Enforces `Content-Type: application/json` on POST/PUT |
 | `ValidatePathMiddleware` | Rejects API requests with query parameters |
 | `AuthMiddleware` | Validates JWT from cookie; returns 401 if missing or invalid |
+| `UserRateLimitMiddleware` | Throttles write requests (POST/PUT/DELETE) per user |
+
+### Directory Listing Protection
+
+The application uses a `neuteredFileSystem` wrapper for static assets. This prevents browsers from listing the contents of directories (e.g., `/js/`, `/styles/`) by returning a 404/403 error if an `index.html` file is not present in the requested path.
+
+---
+
+## Application-Level Security
+
+- **Markdown & XSS Protection**: User-generated content (like issue descriptions) is sanitized on the client side using DOMPurify. See [markdown-security.md](./markdown-security.md) for details on the data flow and sanitization policy.

@@ -1,6 +1,6 @@
 # Config file for running as Home Assistent Add-on
 name: "wuFlow"
-version: "0.24.5"
+version: "1.0.0"
 slug: "wuflow"
 description: "Simple issue tracking app"
 arch:

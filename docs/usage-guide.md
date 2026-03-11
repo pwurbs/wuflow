@@ -24,7 +24,7 @@ wuFlow is built with a clearly arranged layout that combines all relevant inform
 
 ### What is an issue?
 
-An issue is a discrete unit of work that tracks a specific task, bug, or requirement from inception to completion. It serves as a centralized record containing essential details like priority, assignee, and status to ensure team alignment. Ultimately, issues function as the fundamental building blocks for the collaboration in an agile team, allowing for well balancing the work and guarantee for an optimal flow in the team.
+An issue is a discrete unit of work that tracks a specific task, bug, or requirement from inception to completion. It serves as a centralized record containing essential details like priority, assignee, and status to ensure team alignment. Ultimately, issues function as the fundamental building blocks for collaboration in an agile team, allowing for well balancing the work and guaranteeing an optimal flow in the team.
 
 ### Status and Lifecycle of an Issue
 The scheme is borrowed from the way how Jira handles issues, but simplified and currently not configurable.
@@ -49,11 +49,11 @@ Click on **Save** to create the issue. There will be a green notification toast 
 ### Editing Issues
 Click on an issue card to view and adapt details. In addition to title and description, there are these properties available:
 - **Status**: The current status of the issue (OPEN, TODO, PENDING, WORKING, DONE). The ARCHIVED status can only be entered in the Archive view or when clicking the "Archive Issue" button.
-- **Planned Date(s)**: Here you can assign one or more dates when you intend to work on this issue or define a follow-up date. If set, then the issue is places in the planning sidebar. As an alternative, the planned date can be set by dragging the issue card on the board onto one of the days in the planning sidebar.
+- **Planned Date(s)**: Here you can assign one or more dates when you intend to work on this issue or define a follow-up date. If set, then the issue is placed in the planning sidebar. As an alternative, the planned date can be set by dragging the issue card on the board onto one of the days in the planning sidebar.
 - **Deadline**: Here you can assign a deadline for the issue. If set, then the issue is considered in the planning sidebar. See the Planning section below for more details.
 - **Assignee**: At least when the issue arrives on the board, it should get an Assignee. The Assignee user is responsible for the issue. Select one of the configured users. The assignee is shown on the cards with a user badge, built from the first letters of the first and last name. 
-- **Priority**: This sets an urgency level for the issue. We only support two levels: **Normal** and **High**. It's failrly useless to have more levels. Usually, teams are only able to cope with these two levels. Issues with High priority are red colored on the board. 
-- **Label**: If labels have been created in the Setup view, you can assign them to the issue here. This leads to a colored lable badge on the issues card and can be used too as filter criteria. Use labels to either define issue types (story, bug, question etc.) or to seperate different topics or domains. So, use labels until features like Releases or EPICs are available.
+- **Priority**: This sets an urgency level for the issue. We only support two levels: **Normal** and **High**. It's fairly useless to have more levels. Usually, teams are only able to cope with these two levels. Issues with High priority are red colored on the board. 
+- **Label**: If labels have been created in the Setup view, you can assign them to the issue here. This leads to a colored label badge on the issues card and can be used too as filter criteria. Use labels to either define issue types (story, bug, question etc.) or to separate different topics or domains. So, use labels until features like Releases or EPICs are available.
 - **Tasks**: Here you can define subtasks for the issue. See the Tasks section below for more details.
 
 In the bottom right corner there is information when and by whom the issue was created and lastly updated. The user is indicated using the users badge. These fields are automatically filled and can't be edited.
@@ -62,7 +62,7 @@ The Issue details view is closed by clicking the DONE button at the bottom of th
 Additionally, users owning the Admin role can archive or delete the issue by clicking the Archive or Delete button at the bottom of the view.
 
 ### Tasks
-We decided against to treat (sub)tasks as separate issues like it's done in Jira. We think, that actual (sub)tasks belong fixed to an issue and are just a checklist of things to do. This helps to break issues down into smaller, checkable items.
+We decided against treating (sub)tasks as separate issues like it's done in Jira. We think, that actual (sub)tasks belong fixed to an issue and are just a checklist of things to do. This helps to break issues down into smaller, checkable items.
 As a consequence, tasks can only be managed as part of an issue and owns these properties:
 - **Title**: A short summary of the task (max. 100 chars).
 - **Deadline**: You can optionally assign a deadline only for one task. If set, then the task is considered in the planning sidebar too. See the Planning section below for more details.
@@ -83,7 +83,7 @@ To use it effectively it is crucial to understand the difference between a **Dea
 - A **Planned Date** is a date, when you intend to work on an issue or want to define a follow-up date (reminder).
 
 Both properties can be used **independently of each other**. So you can have an issue with a deadline but no planned date, or a planned date but no deadline.
-Deadlines can be assigbed to issues and/or tasks. But **planned dates can only be assigned to issues**.
+Deadlines can be assigned to issues and/or tasks. But **planned dates can only be assigned to issues**.
 
 **How is it done:**
 - Start to think over, **when you intend to work on an issue or want to define a reminder**. Then drag and drop the issue card to a **specific day in the planning sidebar**. If you plan for several days, then drag and drop several times to different days. You can also assign planned dates in the Edit issue view.
@@ -92,8 +92,8 @@ Deadlines can be assigbed to issues and/or tasks. But **planned dates can only b
 
 **What else is shown here:**
 - In the **Unplanned Deadlines** box at top of the Planning Sidebar, you see all issues with a deadline that **are not planned yet**. This is a kind of warning, that you should plan these issues.
-- Unplanned issues due 10+ days away are **hidden behind an expandable item**. This shall avoid to much noise in the Unplanned Deadlines box, especially if the due dates are far in the future.
-- **Issue or Task deadlines** are shown in the planning item card. In case of multiple deadlines per issue (issue deadline and task deadline or muultiple task deadlines), then only the **earliest deadline** is shown.
+- Unplanned issues due 10+ days away are **hidden behind an expandable item**. This shall avoid too much noise in the Unplanned Deadlines box, especially if the due dates are far in the future.
+- **Issue or Task deadlines** are shown in the planning item card. In case of multiple deadlines per issue (issue deadline and task deadline or multiple task deadlines), then only the **earliest deadline** is shown.
 - When a task or issue **deadline is overdue** or if the **planned date is later than the due date**, then the deadline is **red-colored**.
 - **Planned items in the past** are shown in a dedicated box "Past Planning". You should **delete these entries or move them to another day**.
 - Issues **planned more than 10 days in the future** are collected in a box "Future Planning" at the bottom of the Planning Sidebar. 
@@ -148,7 +148,7 @@ Create labels which can be used in issues to categorize and color-code them. The
 ### Users
 Users can be created, adapted or deactivated here. 
 - When you **create a new user**, enter the properties, assign a role, set an initial password and click "Save". Then the user can log in using Email and password and should then be requested to set an own password. 
-- To **adapt an existing user**, click on the user in the list adapt what you want and click "Save". Here, an admin can re-define a new password for a user, when e.g. a user has forgotten his password.
+- To **adapt an existing user**, click on the user in the list, adapt what you want, and click "Save". Here, an admin can re-define a new password for a user, when e.g. a user has forgotten their password.
 - To **deactivate a user**, click on the user in the list and click "Deactivate". This is useful when a user is no longer active in the team or organization. Deactivated users can't log in and are not visible in the user list to be assigned for issues. Deletion of users is currently not supported.
 
 <br clear="right">

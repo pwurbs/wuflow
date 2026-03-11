@@ -5,6 +5,7 @@
 [![GitHub issues](https://img.shields.io/github/issues/pwurbs/wuflow)](https://github.com/pwurbs/wuflow/issues)  <br>
 [![Go Version](https://img.shields.io/github/go-mod/go-version/pwurbs/wuflow)](https://github.com/pwurbs/wuflow) 
 [![Container Version](https://img.shields.io/github/v/release/pwurbs/wuflow?label=ghcr.io%20image&logo=docker)](https://github.com/users/pwurbs/packages/container/package/wuflow) <br>
+[![Snyk Security](https://snyk.io/test/github/pwurbs/wuflow/badge.svg)](https://snyk.io/test/github/pwurbs/wuflow)
 [![Go Report Card](https://goreportcard.com/badge/github.com/pwurbs/wuflow)](https://goreportcard.com/report/github.com/pwurbs/wuflow) 
 ![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=alert_status&token=70554a588df3511feeedd61292f37aa8a1785d11) 
 ![Coverage](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=coverage&token=70554a588df3511feeedd61292f37aa8a1785d11) 
@@ -15,7 +16,7 @@
 
 ## General
 wuFlow is a simple, modern, and lightweight issue tracking and planning application. It is designed to combine the immediate visual overview of a classic Kanban board with structural planning capabilities to help you organize tasks effectively without unnecessary complexity.
-This tool wants to help you to organize, balance and track the work in a team to achieve a better **flow** of work by a transparent visualization. This is one of the main intenations of a [Kanban board](https://en.wikipedia.org/wiki/Kanban_board).
+This tool wants to help you to organize, balance and track the work in a team to achieve a better **flow** of work by a transparent visualization. This is one of the main intentions of a [Kanban board](https://en.wikipedia.org/wiki/Kanban_board).
 The usage is not limited to software development teams, it can be used by any person, group or even families that wants to organize and track their work.
 
 <img src="docs/screenshots/board.png" alt="wuFlow Board" >
@@ -30,7 +31,7 @@ We developed this app having the following goals in mind:
 - Ensure **"Security by Design"** through strict headers, CSRF/XSS prevention, and rigorous testing.
 - Slim and **modern software architecture** using Go and Vanilla JavaScript.
 - Rely only on **few dependencies** to significantly reduce the **Supply Chain Attack surface**.
-- **No any tracking, telemetry or any other "calling home"** functions.
+- **No tracking, telemetry or any other "calling home"** functions.
 - Easy to deploy and use.
 - Open Source.
 
@@ -44,9 +45,9 @@ We developed this app having the following goals in mind:
 - **Prioritization & Assignment**: Assign issues directly to specific users and flag important work with High Priority.
 - **Backlog Management**: Use the backlog view to plan and prioritize your work.
 - **Issue Archiving**: Keep your active board clean by archiving completed issues for later reference.
-- **No any dependencies** on external services or libs during runtime. Allow for air gapped deployments.
+- **No dependencies** on external services or libs during runtime. Allows for air-gapped deployments.
 
-The app is currently only tested to run in Chrome browser.
+The app is currently only tested to run in the Chrome browser.
 
 ## Configuration
 Configuration is done by either Envvar or command line argument using the following priority (highest to lowest):
@@ -68,8 +69,8 @@ Configuration is done by either Envvar or command line argument using the follow
 | API Rate Limit | `WF_API_RATE_LIMIT` | `-api-rate-limit` | `true` | Enables per-user API rate limiting to prevent abuse. |
 | Remote IP Header | `WF_REMOTE_IP_HEADER` | `-remote-ip-header` | *None* | Trusted HTTP header for detecting client IP behind proxies (e.g., `X-Forwarded-For`). |
 
-**Configuration Remarks:**
-- **Initial admin email/password** is **only** used to create the first admin user on initial startup and store it in the database. For email, the default can be suded, but the password **must** be defined for the initial startup and comply to the password policy (12 characters, no common passwords). The app won't start initially without a valid password You can change email or password later in the user settings.
+Configuration Remarks:
+- **Initial admin email/password** is **only** used to create the first admin user on initial startup and store it in the database. For email, the default can be used, but the password **must** be defined for the initial startup and comply to the password policy (12 characters, no common passwords). The app won't start initially without a valid password. You can change email or password later in the user settings.
 - If the **Secret Key** is not configured, a random key is generated on startup. This invalidates all sessions and forces users to login again. If you want to provide persistent sessions which survive restarts, you **must** provide a stable secret key. This key should have at least 32 characters, be a high-entropy random string and **must** be stored securely. Because it's used for JWT signing and session token hash, a **revealed or compromised key will compromise the security** of the entire application.
 - **Secure Cookie** must be kept **enabled** for production environments. Otherwise, there is the risk that the critical security related cookies are sent over unencrypted connections. The Secure cookie flag requires TLS, so this only works correctly when the app runs behind a TLS-terminating reverse proxy. Setting this to false and going without a TLS terminating reverse proxy **is only recommended for internal and trustworthy HTTP networks**.
 - The **Remote IP Header** setting is used to correctly detect the actual client IP when the app is running behind proxies. If empty, the client IP is directly taken from the request. If you are running the app behind a reverse proxy, you **must** set this to the HTTP header that the proxy sets with the actual client IP (e.g., `X-Forwarded-For` or `X-Real-IP`). Otherwise, the login rate limiting is based on wrong IP address information and the request logging contains the IP address of the reverse proxy instead of the actual client IP.
@@ -117,11 +118,12 @@ For deeper technical insights, architecture overviews, and detailed functional d
 - [API Design](docs/api.md)
 - [Swagger](docs/swagger.json)
 - [User Management](docs/user-management.md)
-- [Client Security Concepts](docs/client-security.md)
-- [Concurrent Issue Edits](docs/concurrent-issue-edits.md)
-- [Description Management & Markdown](docs/description-management.md)
-- [Input Validation Rules](docs/input-validation.md)
-- [Testing Strategy](docs/testing.md)
+- [Input Validation](docs/input-validation.md)
+- [Client Security](docs/client-security.md)
+- [Markdown Security & Sanitization](docs/markdown-security.md)
+- [Concurrency Control](docs/concurrency-control.md)
+- [Lazy Loading / Data Fetching](docs/lazy-loading.md)
+- [Testing](docs/testing.md)
 
 ## Outlook
 We plan to add the following features in the future:

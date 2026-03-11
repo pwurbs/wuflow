@@ -1,4 +1,4 @@
-# Description Field Management
+# Markdown Security & Sanitization
 
 ## Overview
 The description field in wuFlow natively supports Markdown to allow rich-text formatting while mitigating XSS (Cross-Site Scripting) risks. This document summarizes the approach, the end-to-end data flow, supported mappings, and provides test cases for validating the implementation.

@@ -1,4 +1,4 @@
-# Handling Concurrent Issue Edits
+# Concurrency Control (Optimistic Locking)
 
 To ensure data integrity when multiple users edit the same issue simultaneously, we implement optimistic locking using HTTP `ETag` and `If-Match` headers.
 

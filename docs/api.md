@@ -6,12 +6,6 @@ Base URL: `/api`
 
 All API endpoints except `/api/auth/login` require authentication via HTTPOnly cookies. The server uses JWT tokens with automatic refresh.
 
-### Auth Requirements Legend
-- **Public**: No authentication required
-- **Required**: Valid access token required (any authenticated user)
-- **Admin**: Valid access token required with admin role
-- **Refresh Token**: Valid refresh token required (for token renewal)
-
 ## Handler Mapping
 
 | Endpoint | Method | Handler | Auth | Description |
@@ -39,6 +33,12 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/labels` | POST | `HandleLabels` | Admin | Create label |
 | `/labels/:id` | DELETE | `HandleLabel` | Admin | Delete label |
 | `/version` | GET | `Anonymous Func` | Public | Get app version |
+
+**Legend:**
+- **Public**: No authentication required
+- **Required**: Valid access token required (any authenticated user)
+- **Admin**: Valid access token required with admin role
+- **Refresh Token**: Valid refresh token required (for token renewal)
 
 ## Authentication & Users
 

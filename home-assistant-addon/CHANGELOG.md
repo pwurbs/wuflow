@@ -1,7 +1,7 @@
 
-## 0.24.5
+## 1.0.0
 
-- Last changes for initial release
+- Initial public release
 
 ## 0.24.4
 

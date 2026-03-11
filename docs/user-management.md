@@ -2,7 +2,7 @@
 
 ## Overview
 
-wuFlow uses a **Hybrid Authentication** model with HTTPOnly cookies.
+wuFlow applies a **Hybrid Authentication** model using HTTPOnly cookies.
 - **Access** is stateless (JWT).
 - **Sessions** are stateful (Opaque Tokens stored in DB), allowing for secure revocation and rotation.
 - Access is restricted by user roles.
@@ -43,16 +43,16 @@ WF_INITIAL_ADMIN_EMAIL=admin@example.com WF_INITIAL_ADMIN_PASSWORD=YourSecurePas
 
 | Setting | Environment Variable | CLI Parameter | Default | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **Email** | `WF_INITIAL_ADMIN_EMAIL` | `--initial-admin-email` | `admin@local` | Optional argument to overwerite the default, must be a valid email address |
+| **Email** | `WF_INITIAL_ADMIN_EMAIL` | `--initial-admin-email` | `admin@local` | Optional argument to overwrite the default, must be a valid email address |
 | **Password** | `WF_INITIAL_ADMIN_PASSWORD` | `--initial-admin-password` | *(Required)* | Mandatory argument for the first startup, must meet password policy (see below) |
 
 email address and password of the initially created admin user can be changed after login in setup page.
 
 ## Authentication Flow
 
-wuFlow uses a **Hybrid Authentication** model:
-- **Access Tokens**: Short-lived, stateless JWTs (JSON Web Tokens) for high-performance API authorization.
-- **Refresh Tokens**: Long-lived, stateful **Opaque Tokens** (Random Strings) backed by a database session for enhanced security.
+The **Hybrid Authentication** model shall achieve the following goals:
+- **Access Tokens**: Short-lived, stateless JWTs (JSON Web Tokens) for high-performance API authentication without database access.
+- **Refresh Tokens**: Long-lived, stateful **Opaque Tokens** (Random Strings) backed by a database session for enhanced security and convenience for the user to automatically create new short-lived access tokens without re-entering credentials.
 
 ### 1. Normal Operation
 ```mermaid
@@ -163,9 +163,10 @@ To protect against credential stuffing and brute force attacks while preventing 
 
 | Token | Duration | Purpose | Storage |
 | :--- | :--- | :--- | :--- |
-| **Access Token** | 15 minutes | API Authorization | Stateless (JWT) |
+| **Access Token** | 15 minutes | API Authentication | Stateless (JWT) |
 | **Refresh Token** | 24 hours | Session Renewal | Stateful (DB Hash) |
 
+- **Stolen JWT**: Because access tokens are stateless, a stolen JWT could be used by an attacker, but only for a **maximum of 15 minutes**, greatly reducing the window of opportunity.
 - **Idle Timeout**: If a user is inactive for >24 hours, their session expires and they must re-login.
 - **Active Sessions**: As long as the user uses the app once every 24 hours, the session effectively never expires (Sliding Window).
 ### Token Refresh Details
@@ -175,7 +176,7 @@ To protect against credential stuffing and brute force attacks while preventing 
 
 ### Custom Secret Key
 
-By default, a random secret key is generated on every startup. This key serves two purposes: signing JWT access tokens and computing HMAC integrity hashes for refresh tokens. Without a configured key, all sessions are invalidated on restart and users must re-login. To persist sessions across restarts, provide a stable key:
+By default, a random secret key is generated on every startup. This key serves as the master key material from which two independent operational keys are derived via domain-separated HMAC-KDF: one for signing JWT access tokens, and another for computing HMAC integrity hashes for refresh tokens. Without a configured key, all sessions are invalidated on restart and users must re-login. To persist sessions across restarts, provide a stable key:
 
 ```bash
 WF_SECRET_KEY=your-secure-random-string ./wuflow
@@ -198,4 +199,4 @@ The key should be a long, random string (32+ characters recommended).
   - Changing a user's password
   - **Changing a user's role** (e.g. Admin -> User)
   - Detecting **Token Reuse** (suspected theft)
-  - **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401), causing the application to log the user out.
+- **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401), causing the application to log the user out.
