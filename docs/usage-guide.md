@@ -70,6 +70,8 @@ As a consequence, tasks can only be managed as part of an issue and owns these p
 
 Tasks can also be deleted by clicking the cross icon in the task card. This action can't be undone. Sometimes it's better to delete to clean a long list of already done tasks.
 
+The number of tasks is shown on the Issue card in the Board view. When you hover over this number, then the tasks including possible deadline are listed in a popup.
+
 ## Planning Sidebar
 
 <img src="screenshots/planning.png" alt="Planning Sidebar" width="300" align="right" style="margin-left: 20px; margin-bottom: 20px;">

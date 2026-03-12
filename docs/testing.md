@@ -1,7 +1,3 @@
-
-
-
-
 # Testing Approach
 
 ## Overview
