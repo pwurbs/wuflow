@@ -105,6 +105,7 @@ export async function renderSetupView(refreshCallback) {
       const deleteBtn = labelEl.querySelector('.delete-label-btn');
       if (deleteBtn) {
         deleteBtn.addEventListener('click', async () => {
+          if (!userCan(state.currentUser, ACTION_DELETE_LABEL)) return;
           const confirmed = await showConfirm(
             'Delete Label',
             `Are you sure you want to delete the label "${label.name}"? This action cannot be undone.`
@@ -231,9 +232,11 @@ async function handleProjectSubmit(refreshCallback) {
 
   try {
     if (editingProjectId) {
+      if (!userCan(state.currentUser, ACTION_UPDATE_PROJECT)) return;
       await updateProject(editingProjectId, { name, description });
       showNotification('Project updated', 'success');
     } else {
+      if (!userCan(state.currentUser, ACTION_CREATE_PROJECT)) return;
       await createProject({ name, description });
       showNotification('Project created', 'success');
     }
@@ -252,6 +255,7 @@ function showProjectError(el, message) {
 
 function handleDeleteProject(refreshCallback) {
   if (!editingProjectId || editingProjectId === 1) return;
+  if (!userCan(state.currentUser, ACTION_DELETE_PROJECT)) return;
 
   const confirmModal = document.getElementById('confirm-modal');
   const confirmTitle = document.getElementById('confirm-title');
@@ -474,64 +478,72 @@ async function handleUserSubmit(refreshCallback) {
     active: activeInput.checked,
   };
 
-  // --- Client-side field validation ---
-  const emailRegex = /^[^\s@]+@[^\s@]+$/;
-  if (!userData.email || !emailRegex.test(userData.email)) {
-    showUserError(errorDisplay, 'A valid email address is required.');
-    emailInput.focus();
-    return;
-  }
-  if (userData.email.length > 254) {
-    showUserError(errorDisplay, 'Email must not exceed 254 characters.');
-    emailInput.focus();
-    return;
-  }
-  if (!userData.first_name || !userData.last_name) {
-    showUserError(errorDisplay, 'First name and last name are required.');
-    return;
-  }
-  if (countCodepoints(userData.first_name) > 50 || countCodepoints(userData.last_name) > 50) {
-    showUserError(errorDisplay, 'First and last name must not exceed 50 characters.');
-    return;
-  }
-  // --- End field validation ---
-
-  // Include password only if provided
   if (passwordInput.value) {
     userData.password = passwordInput.value;
   }
 
-  // Client-side password validation (create mode requires password)
-  if (!editingUserId && !userData.password) {
-    showUserError(errorDisplay, 'Password is required for new users');
+  if (!validateUserInput(userData, errorDisplay)) {
     return;
   }
 
-  if (userData.password) {
-    if (countCodepoints(userData.password) > 128) {
-      showUserError(errorDisplay, 'Password must not exceed 128 characters.');
-      return;
-    }
-    const pwError = validatePasswordPolicy(userData.password, userData.email);
-    if (pwError) {
-      showUserError(errorDisplay, pwError);
-      return;
-    }
-  }
-
   try {
-    if (editingUserId) {
+    const isEditing = !!editingUserId;
+    const action = isEditing ? ACTION_UPDATE_USER : ACTION_CREATE_USER;
+    if (!userCan(state.currentUser, action)) return;
+
+    if (isEditing) {
       await updateUser(editingUserId, userData);
-      showNotification('User updated', 'success');
     } else {
       await createUser(userData);
-      showNotification('User created', 'success');
     }
+
+    showNotification(isEditing ? 'User updated' : 'User created', 'success');
     closeUserModal();
     renderSetupView(refreshCallback);
   } catch (err) {
     showUserError(errorDisplay, err.message);
   }
+}
+
+function validateUserInput(userData, errorDisplay) {
+  const emailRegex = /^[^\s@]+@[^\s@]+$/;
+  if (!userData.email || !emailRegex.test(userData.email)) {
+    showUserError(errorDisplay, 'A valid email address is required.');
+    document.getElementById('user-email')?.focus();
+    return false;
+  }
+  if (userData.email.length > 254) {
+    showUserError(errorDisplay, 'Email must not exceed 254 characters.');
+    document.getElementById('user-email')?.focus();
+    return false;
+  }
+  if (!userData.first_name || !userData.last_name) {
+    showUserError(errorDisplay, 'First name and last name are required.');
+    return false;
+  }
+  if (countCodepoints(userData.first_name) > 50 || countCodepoints(userData.last_name) > 50) {
+    showUserError(errorDisplay, 'First and last name must not exceed 50 characters.');
+    return false;
+  }
+
+  if (!editingUserId && !userData.password) {
+    showUserError(errorDisplay, 'Password is required for new users');
+    return false;
+  }
+
+  if (userData.password) {
+    if (countCodepoints(userData.password) > 128) {
+      showUserError(errorDisplay, 'Password must not exceed 128 characters.');
+      return false;
+    }
+    const pwError = validatePasswordPolicy(userData.password, userData.email);
+    if (pwError) {
+      showUserError(errorDisplay, pwError);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function showUserError(el, message) {

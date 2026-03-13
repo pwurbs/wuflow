@@ -2,7 +2,7 @@ import { state, setCurrentIssue } from '../state.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
-import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
+import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
@@ -471,12 +471,14 @@ async function handleIssueSubmit(e) {
 
   try {
     if (state.currentIssue) {
+      if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
       issueData.id = state.currentIssue.id;
       const result = await updateIssue(issueData, currentEtag);
       if (result.conflict) {
         await saveIssueWithConflictCheck(issueData, 'Issue updated');
       }
     } else {
+      if (!userCan(state.currentUser, ACTION_CREATE_ISSUE)) return;
       const newIssue = await createIssue(issueData);
       showNotification(`Issue #${newIssue.id} created successfully`);
     }
@@ -1087,6 +1089,7 @@ function resetTaskForm() {
 
 async function handleTaskSubmit(e) {
   if (!state.currentIssue) return;
+  if (!userCan(state.currentUser, ACTION_CREATE_TASK)) return;
   const titleInput = document.getElementById('new-task-title');
   const deadlineInput = document.getElementById('new-task-deadline');
   if (!titleInput.value.trim()) return;
@@ -1122,6 +1125,7 @@ async function handleTaskSubmit(e) {
 }
 
 async function saveTaskOrder(issue) {
+  if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
   const taskItems = [...document.querySelectorAll('#task-list .task-item')];
   const updates = [];
   taskItems.forEach((item, index) => {

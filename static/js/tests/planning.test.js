@@ -12,7 +12,8 @@ vi.mock('../utils.js', () => ({
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
-    filter: { label: null, priority: null, search: '' }
+    filter: { label: null, priority: null, search: '' },
+    currentUser: { role: 'admin' }
   },
   isFilterActive: vi.fn(),
 }));

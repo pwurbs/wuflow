@@ -2,6 +2,7 @@ import { state, isFilterActive } from '../state.js';
 import { updateIssue } from '../api.js';
 import { showNotification } from '../utils.js';
 import { getDraggedCard, setDraggedCard } from '../drag.js';
+import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { filterIssues } from '../filters.js';
 
 let refreshAppCallback = null;
@@ -250,7 +251,7 @@ export function createDeadlineBadge(issue, specificDateStr) {
     // Current behavior was: check latest.
     // Let's keep existing logic ONLY if specificDateStr is not provided (e.g. board view?)
     const sortedDates = [...issue.planned_dates].sort((a, b) => a.localeCompare(b));
-    const lastPlan = new Date(sortedDates[sortedDates.length - 1]);
+    const lastPlan = new Date(sortedDates.at(-1));
     lastPlan.setHours(0, 0, 0, 0);
 
     if (lastPlan > d) {
@@ -317,6 +318,7 @@ function createPlanningItem(issue, dateStr) {
     // Remove ONLY this date
     if (issue.planned_dates) {
       const prevDates = [...issue.planned_dates];
+      if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
       issue.planned_dates = issue.planned_dates.filter(d => d !== dateStr);
       try {
         await updateIssue(issue);
@@ -531,6 +533,7 @@ export async function processDroppedCard(draggedCard, targetDateStr) {
       if (idx > -1) newDates.splice(idx, 1);
     }
 
+    if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
     newDates.push(targetDateStr);
     newDates.sort((a, b) => a.localeCompare(b));
     issue.planned_dates = newDates;

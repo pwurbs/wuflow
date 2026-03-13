@@ -22,6 +22,16 @@ vi.mock('../drag.js', () => ({
   getDraggedTask: vi.fn()
 }));
 
+vi.mock('../state.js', () => ({
+  state: { currentUser: { role: 'admin' } }
+}));
+
+vi.mock('../permissions.js', () => ({
+  userCan: vi.fn(() => true),
+  ACTION_UPDATE_TASK: 'task:update',
+  ACTION_DELETE_TASK: 'task:delete'
+}));
+
 describe('Tasks Component', () => {
   let container;
   let issue;

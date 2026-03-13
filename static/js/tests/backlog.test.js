@@ -8,7 +8,8 @@ import * as api from '../api.js';
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
-    filter: {}
+    filter: {},
+    currentUser: { role: 'admin' }
   },
   isFilterActive: vi.fn(),
 }));

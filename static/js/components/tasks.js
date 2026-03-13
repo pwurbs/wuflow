@@ -1,6 +1,8 @@
 import { escapeHtml, showNotification, showConfirm, initCharCounter } from '../utils.js';
 import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.js';
+import { userCan, ACTION_UPDATE_TASK, ACTION_DELETE_TASK } from '../permissions.js';
+import { state } from '../state.js';
 
 export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
   container.innerHTML = '';
@@ -46,6 +48,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       li.querySelector('.task-deadline-container').style.pointerEvents = 'none';
     } else {
       checkbox.addEventListener('change', async () => {
+        if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { checkbox.checked = !checkbox.checked; return; }
         task.done = checkbox.checked;
         try {
           await updateTask(task);
@@ -61,6 +64,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       // Delete Logic
       const deleteBtn = li.querySelector('.delete-task-btn');
       deleteBtn.addEventListener('click', async () => {
+        if (!userCan(state.currentUser, ACTION_DELETE_TASK)) return;
         if (await showConfirm('Delete Task', `Delete "${task.title}"?`, 'Delete')) {
           try {
             await deleteTask(task.id);
@@ -130,6 +134,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
           return;
         }
         if (newTitle !== task.title) {
+          if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { cancelEdit(); return; }
           task.title = newTitle;
           try {
             await updateTask(task);
@@ -163,6 +168,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       const deadlineInput = li.querySelector('.task-deadline-input');
       deadlineContainer.addEventListener('click', () => deadlineInput.showPicker());
       deadlineInput.addEventListener('change', async () => {
+        if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
         const prevDeadline = task.deadline;
         const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
         task.deadline = newDate;

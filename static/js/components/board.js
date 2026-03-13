@@ -1,6 +1,7 @@
 import { state, isFilterActive } from '../state.js';
 import { updateIssue } from '../api.js';
 import { showNotification } from '../utils.js';
+import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
@@ -127,6 +128,10 @@ export function setupBoardView(refreshApp, openModal) {
       const draggedCard = getDraggedCard();
 
       if (!draggedCard?.classList.contains('card')) return;
+      if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) {
+        if (refreshAppCallback) refreshAppCallback();
+        return;
+      }
 
       setDragSuccess(true);
 

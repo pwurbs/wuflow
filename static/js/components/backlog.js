@@ -1,7 +1,7 @@
 import { state, isFilterActive } from '../state.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
-
+import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
@@ -51,8 +51,11 @@ export function setupBacklogView(refreshApp, openModal) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
 
+  const validateUpdate = () => userCan(state.currentUser, ACTION_UPDATE_ISSUE);
+
   const dropOptions = {
     refreshApp: refreshAppCallback,
+    onValidate: validateUpdate,
     onDrop: async () => {
       const updates = [
         ...getListUpdates('backlog-list', 'Open'),
@@ -63,8 +66,8 @@ export function setupBacklogView(refreshApp, openModal) {
     }
   };
 
-  setupSectionDrop('backlog-open-section', 'Open', { refreshApp: refreshAppCallback, showDragHighlight: false });
-  setupSectionDrop('backlog-todo-section', 'Todo', { refreshApp: refreshAppCallback, showDragHighlight: false });
+  setupSectionDrop('backlog-open-section', 'Open', { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
+  setupSectionDrop('backlog-todo-section', 'Todo', { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
 
   setupListDrag('backlog-list', 'Open', { ...dropOptions, showDragHighlight: false });
   setupListDrag('move-to-todo-list', 'Todo', { ...dropOptions, showDragHighlight: false });

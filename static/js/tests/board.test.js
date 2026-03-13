@@ -12,7 +12,8 @@ import * as utils from '../utils.js';
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
-    filter: {}
+    filter: {},
+    currentUser: { role: 'admin' }
   },
   isFilterActive: vi.fn(),
 }));
