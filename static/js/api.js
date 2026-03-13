@@ -305,3 +305,51 @@ export async function updateCurrentUser(data) {
   }
   return await res.json();
 }
+
+// --- Project API functions ---
+
+export async function fetchProjects() {
+  try {
+    const res = await authFetch(`${API_URL}/projects`);
+    const data = await res.json();
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createProject(project) {
+  const res = await authFetch(`${API_URL}/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(project)
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to create project');
+  }
+  return await res.json();
+}
+
+export async function updateProject(id, project) {
+  const res = await authFetch(`${API_URL}/projects/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(project)
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to update project');
+  }
+  return await res.json();
+}
+
+export async function deleteProject(id) {
+  const res = await authFetch(`${API_URL}/projects/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to delete project');
+  }
+}

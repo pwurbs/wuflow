@@ -36,6 +36,7 @@ We developed this app having the following goals in mind:
 
 ## Features
 - **Intuitive Planning & Kanban**: Combine flexible daily planning with a classic Kanban board view to easily organize your workflow side-by-side.
+- **Projects**: Projects allow you to separate the visibility of issues for different teams, projects or topics. Each issue belongs to exactly one project.
 - **Subtasks & Deadlines**: Break down larger issues into smaller, actionable tasks with individual deadlines.
 - **Custom Labels**: Categorize and color-code issues with an easy-to-use label management system.
 - **Advanced Filtering & Search**: Quickly find issues by filtering based on labels, priority, assignees, or text search.

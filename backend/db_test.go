@@ -51,6 +51,7 @@ func TestCreateIssue(t *testing.T) {
 		Title:       testIssueTitle,
 		Description: "Test Description",
 		Status:      StatusOpen,
+		ProjectID:   1,
 		Deadline:    &deadline,
 	}
 
@@ -76,6 +77,7 @@ func TestIssuePlannedDates(t *testing.T) {
 	issue := &Issue{
 		Title:        "Planned Issue",
 		Status:       StatusOpen,
+		ProjectID:    1,
 		PlannedDates: dates,
 	}
 
@@ -117,8 +119,8 @@ func TestGetAllActiveIssues(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue1 := &Issue{Title: "Issue 1", Status: StatusOpen}
-	issue2 := &Issue{Title: "Issue 2", Status: StatusOpen}
+	issue1 := &Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1}
+	issue2 := &Issue{Title: "Issue 2", Status: StatusOpen, ProjectID: 1}
 
 	CreateIssue(issue1)
 	CreateIssue(issue2)
@@ -137,7 +139,7 @@ func TestUpdateIssue(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Original Title", Status: StatusOpen}
+	issue := &Issue{Title: "Original Title", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	issue.Title = "Updated Title"
@@ -162,7 +164,7 @@ func TestDeleteIssue(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "To Delete", Status: StatusOpen}
+	issue := &Issue{Title: "To Delete", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	err := DeleteIssue(issue.ID)
@@ -180,8 +182,8 @@ func TestGetAllTasks(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue1 := &Issue{Title: "Issue 1", Status: StatusOpen}
-	issue2 := &Issue{Title: "Issue 2", Status: StatusOpen}
+	issue1 := &Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1}
+	issue2 := &Issue{Title: "Issue 2", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue1)
 	CreateIssue(issue2)
 
@@ -209,9 +211,9 @@ func TestGetArchivedIssues(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue1 := &Issue{Title: "Active Issue", Status: StatusOpen}
-	issue2 := &Issue{Title: "Archived Issue", Status: StatusArchive}
-	issue3 := &Issue{Title: "Another Archived", Status: StatusArchive}
+	issue1 := &Issue{Title: "Active Issue", Status: StatusOpen, ProjectID: 1}
+	issue2 := &Issue{Title: "Archived Issue", Status: StatusArchive, ProjectID: 1}
+	issue3 := &Issue{Title: "Another Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue1)
 	CreateIssue(issue2)
 	CreateIssue(issue3)
@@ -239,7 +241,7 @@ func TestCreateTask(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Issue for Task", Status: StatusOpen}
+	issue := &Issue{Title: "Issue for Task", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	task := &Task{
@@ -262,7 +264,7 @@ func TestGetTasksByIssueID(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Issue with Tasks", Status: StatusOpen}
+	issue := &Issue{Title: "Issue with Tasks", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	task1 := &Task{IssueID: issue.ID, Title: "Task 1"}
@@ -285,7 +287,7 @@ func TestUpdateTask(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Issue", Status: StatusOpen}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	task := &Task{IssueID: issue.ID, Title: "Original Task"}
@@ -311,7 +313,7 @@ func TestDeleteTask(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Issue", Status: StatusOpen}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	task := &Task{IssueID: issue.ID, Title: "To Delete"}
@@ -348,8 +350,8 @@ func TestDBErrors(t *testing.T) {
 	}{
 		{"GetAllActiveIssues", func() error { _, err := GetAllActiveIssues(); return err }},
 		{"GetTasksByIssueID", func() error { _, err := GetTasksByIssueID(1); return err }},
-		{"CreateIssue", func() error { return CreateIssue(&Issue{Title: "T"}) }},
-		{"UpdateIssue", func() error { return UpdateIssue(&Issue{ID: 1, Title: "T"}) }},
+		{"CreateIssue", func() error { return CreateIssue(&Issue{Title: "T", ProjectID: 1}) }},
+		{"UpdateIssue", func() error { return UpdateIssue(&Issue{ID: 1, Title: "T", ProjectID: 1}) }},
 		{"DeleteIssue", func() error { return DeleteIssue(1) }},
 		{"CreateTask", func() error { return CreateTask(&Task{IssueID: 1, Title: "T"}) }},
 		{"UpdateTask", func() error { return UpdateTask(&Task{ID: 1, Title: "T"}) }},
@@ -361,6 +363,12 @@ func TestDBErrors(t *testing.T) {
 		{"GetTaskByID", func() error { _, err := GetTaskByID(1); return err }},
 		{"GetAllArchivedIssues", func() error { _, err := GetAllArchivedIssues(); return err }},
 		{"GetAllTasks", func() error { _, err := GetAllTasks(); return err }},
+		{"GetAllProjects", func() error { _, err := GetAllProjects(); return err }},
+		{"CreateProject", func() error { return CreateProject(&Project{Name: "P"}) }},
+		{"UpdateProject", func() error { return UpdateProject(&Project{ID: 1, Name: "P"}) }},
+		{"DeleteProject", func() error { return DeleteProject(1) }},
+		{"GetProjectByID", func() error { _, err := GetProjectByID(1); return err }},
+		{"CountIssuesByProject", func() error { _, err := CountIssuesByProject(1); return err }},
 	}
 
 	for _, tt := range tests {
@@ -390,6 +398,7 @@ func TestDBScanErrors(t *testing.T) {
 		{"GetArchivedIssues_ScanError", scanErrorGetArchivedIssues},
 		{"GetIssueByID_ScanError", scanErrorGetIssueByID},
 		{"GetTaskByID_ScanError", scanErrorGetTaskByID},
+		{"GetAllProjects_ScanError", scanErrorGetAllProjects},
 	}
 
 	for _, tt := range tests {
@@ -408,11 +417,11 @@ func TestDBScanErrors(t *testing.T) {
 }
 
 const (
-	insertMockIssueQuery = "INSERT INTO issues(id, title, status, position) VALUES(1, 'T', 'todo', 1)"
+	insertMockIssueQuery = "INSERT INTO issues(id, title, status, position, project_id) VALUES(1, 'T', 'todo', 1, 1)"
 )
 
 func scanErrorGetAllActiveIssues(t *testing.T) error {
-	if _, err := DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "todo", notAnInt); err != nil {
+	if _, err := DB.Exec("INSERT INTO issues(title, status, position, project_id) VALUES(?, ?, ?, ?)", "T", "todo", notAnInt, 1); err != nil {
 		return err
 	}
 	if _, err := GetAllActiveIssues(); err == nil {
@@ -487,13 +496,13 @@ func scanErrorGetAllTasks(t *testing.T) error {
 }
 
 func scanErrorGetArchivedIssues(t *testing.T) error {
-	if _, err := DB.Exec("INSERT INTO issues(title, status, position) VALUES(?, ?, ?)", "T", "Archive", 1); err != nil {
+	if _, err := DB.Exec("INSERT INTO issues(title, status, position, project_id) VALUES(?, ?, ?, ?)", "T", "Archive", 1, 1); err != nil {
 		return err
 	}
 	if _, err := DB.Exec("DROP TABLE issues"); err != nil {
 		return err
 	}
-	if _, err := DB.Exec("CREATE TABLE issues (id TEXT, title TEXT, description TEXT, status TEXT, position INTEGER, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, creator_id INTEGER, assignee_id INTEGER, updated_by INTEGER, created_at DATETIME, updated_at DATETIME)"); err != nil {
+	if _, err := DB.Exec("CREATE TABLE issues (id TEXT, title TEXT, description TEXT, status TEXT, position INTEGER, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, creator_id INTEGER, assignee_id INTEGER, updated_by INTEGER, project_id INTEGER, created_at DATETIME, updated_at DATETIME)"); err != nil {
 		return err
 	}
 	if _, err := DB.Exec("INSERT INTO issues(id, title, status) VALUES(?, ?, ?)", notAnInt, "T", "Archive"); err != nil {
@@ -512,10 +521,10 @@ func scanErrorGetIssueByID(t *testing.T) error {
 	}
 	// id must be INTEGER or compatible for lookup to find it easily, but we want to break scan.
 	// Let's break position scan.
-	if _, err := DB.Exec("CREATE TABLE issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, status TEXT, position TEXT, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, creator_id INTEGER, assignee_id INTEGER, updated_by INTEGER, created_at DATETIME, updated_at DATETIME)"); err != nil {
+	if _, err := DB.Exec("CREATE TABLE issues (id INTEGER PRIMARY KEY, title TEXT, description TEXT, status TEXT, position TEXT, deadline DATETIME, planned_dates TEXT, label_id INTEGER, priority TEXT, creator_id INTEGER, assignee_id INTEGER, updated_by INTEGER, project_id INTEGER, created_at DATETIME, updated_at DATETIME)"); err != nil {
 		return err
 	}
-	if _, err := DB.Exec("INSERT INTO issues(id, title, position) VALUES(1, 'T', ?)", notAnInt); err != nil {
+	if _, err := DB.Exec("INSERT INTO issues(id, title, position, project_id) VALUES(1, 'T', ?, 1)", notAnInt); err != nil {
 		return err
 	}
 
@@ -557,7 +566,7 @@ func TestDBConstraintErrors(t *testing.T) {
 
 	t.Run("CreateIssue_ExecError", func(t *testing.T) {
 		_, _ = DB.Exec(foreignKeyConst)
-		if CreateIssue(&Issue{Title: "T", Status: "todo", Label: &Label{ID: 999}}) == nil {
+		if CreateIssue(&Issue{Title: "T", Status: "todo", ProjectID: 1, Label: &Label{ID: 999}}) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -565,8 +574,8 @@ func TestDBConstraintErrors(t *testing.T) {
 	t.Run("UpdateIssue_ExecError", func(t *testing.T) {
 		setupTestDB()
 		_, _ = DB.Exec(foreignKeyConst)
-		CreateIssue(&Issue{Title: "T", Status: "todo"})
-		if UpdateIssue(&Issue{ID: 1, Title: "T", Status: "todo", Label: &Label{ID: 999}}) == nil {
+		CreateIssue(&Issue{Title: "T", Status: "todo", ProjectID: 1})
+		if UpdateIssue(&Issue{ID: 1, Title: "T", Status: "todo", ProjectID: 1, Label: &Label{ID: 999}}) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -643,7 +652,7 @@ func TestScanIssueInvalidJSON(t *testing.T) {
 	defer teardownTestDB()
 
 	// Manually insert invalid JSON into planned_dates
-	_, err := DB.Exec("INSERT INTO issues (title, description, status, position, planned_dates) VALUES (?, ?, ?, ?, ?)", "Invalid JSON Issue", "", "todo", 1, "{invalid-json}")
+	_, err := DB.Exec("INSERT INTO issues (title, description, status, position, planned_dates, project_id) VALUES (?, ?, ?, ?, ?, ?)", "Invalid JSON Issue", "", "todo", 1, "{invalid-json}", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -724,8 +733,10 @@ func TestGetIssueByID(t *testing.T) {
 	}
 
 	// 2. Success
-	newIssue := &Issue{Title: testIssueTitle, Status: StatusOpen}
-	CreateIssue(newIssue)
+	newIssue := &Issue{Title: testIssueTitle, Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(newIssue); err != nil {
+		t.Fatalf("Failed to create issue: %v", err)
+	}
 
 	storedIssue, err := GetIssueByID(newIssue.ID)
 	if err != nil {
@@ -750,7 +761,7 @@ func TestGetTaskByID(t *testing.T) {
 	}
 
 	// 2. Success
-	issue := &Issue{Title: "Issue", Status: StatusOpen}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 	newTask := &Task{IssueID: issue.ID, Title: testTaskTitle}
 	CreateTask(newTask)
@@ -900,6 +911,7 @@ func TestCreateIssueWithCreatorAndAssignee(t *testing.T) {
 	issue := &Issue{
 		Title:      "Assigned Issue",
 		Status:     StatusOpen,
+		ProjectID:  1,
 		CreatorID:  creator.ID,
 		AssigneeID: &assignee.ID,
 	}
@@ -944,6 +956,7 @@ func TestUpdateIssueAssignee(t *testing.T) {
 	issue := &Issue{
 		Title:      "Transfer Issue",
 		Status:     StatusOpen,
+		ProjectID:  1,
 		AssigneeID: &user1.ID,
 	}
 	CreateIssue(issue)
@@ -970,7 +983,7 @@ func TestUpdateIssueUnassign(t *testing.T) {
 	user1 := &User{Email: "u1@test.com", FirstName: "User", LastName: "One", Role: RoleUser}
 	CreateUser(user1)
 
-	issue := &Issue{Title: "Unassign Issue", Status: StatusOpen, AssigneeID: &user1.ID}
+	issue := &Issue{Title: "Unassign Issue", Status: StatusOpen, ProjectID: 1, AssigneeID: &user1.ID}
 	CreateIssue(issue)
 
 	// Unassign
@@ -1041,9 +1054,10 @@ func TestLabelAssociation(t *testing.T) {
 
 	// Create Issue with Label
 	issue := &Issue{
-		Title:  "Issue with Label",
-		Status: StatusOpen,
-		Label:  lbl,
+		Title:     "Issue with Label",
+		Status:    StatusOpen,
+		ProjectID: 1,
+		Label:     lbl,
 	}
 	if err := CreateIssue(issue); err != nil {
 		t.Fatalf(failedToCreateIssueError, err)
@@ -1080,5 +1094,187 @@ func TestLabelAssociation(t *testing.T) {
 	// In db.go GetAllActiveIssues, we check `if lID.Valid`. If label deleted -> lID is NULL -> i.Label is nil.
 	if fetchedIssues[0].Label != nil {
 		t.Errorf("Expected issue label to be nil after label deletion (SET NULL), got %v", fetchedIssues[0].Label)
+	}
+}
+
+func TestProjectsCRUD(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// 0. Ensure default project exists (seeded in InitDB)
+	projects, _ := GetAllProjects()
+	if len(projects) != 1 {
+		t.Errorf("Expected 1 project (default) at start, got %d", len(projects))
+	}
+
+	// 1. CreateProject
+	p := &Project{Name: "Project A", Description: "Desc A"}
+	err := CreateProject(p)
+	if err != nil {
+		t.Fatalf("Failed to create project: %v", err)
+	}
+	if p.ID == 0 {
+		t.Errorf("Expected project ID to be set, got 0")
+	}
+
+	// 2. GetProjectByID
+	retrieved, err := GetProjectByID(p.ID)
+	if err != nil {
+		t.Fatalf("GetProjectByID failed: %v", err)
+	}
+	if retrieved == nil || retrieved.Name != "Project A" {
+		t.Errorf("Expected project 'Project A', got %v", retrieved)
+	}
+
+	// 3. GetAllProjects
+	projects, err = GetAllProjects()
+	if err != nil {
+		t.Fatalf("GetAllProjects failed: %v", err)
+	}
+	if len(projects) != 2 {
+		t.Errorf("Expected 2 projects, got %d", len(projects))
+	}
+
+	// 4. UpdateProject
+	p.Name = "Updated Project"
+	err = UpdateProject(p)
+	if err != nil {
+		t.Fatalf("UpdateProject failed: %v", err)
+	}
+	updated, _ := GetProjectByID(p.ID)
+	if updated.Name != "Updated Project" {
+		t.Errorf("Expected name 'Updated Project', got '%s'", updated.Name)
+	}
+
+	// 5. CountIssuesByProject
+	count, err := CountIssuesByProject(p.ID)
+	if err != nil {
+		t.Fatalf("CountIssuesByProject failed: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("Expected 0 issues for new project, got %d", count)
+	}
+
+	// Create an issue for this project
+	issue := &Issue{Title: "P Issue", Status: StatusOpen, ProjectID: p.ID}
+	CreateIssue(issue)
+	count, _ = CountIssuesByProject(p.ID)
+	if count != 1 {
+		t.Errorf("Expected 1 issue, got %d", count)
+	}
+
+	// Attempt to delete project with issue (should fail due to FK)
+	err = DeleteProject(p.ID)
+	if err == nil {
+		t.Errorf("Expected FK error when deleting project with issues, got nil")
+	}
+
+	// Delete issue first
+	DeleteIssue(issue.ID)
+
+	// 6. DeleteProject
+	err = DeleteProject(p.ID)
+	if err != nil {
+		t.Fatalf("DeleteProject failed: %v", err)
+	}
+	deleted, _ := GetProjectByID(p.ID)
+	if deleted != nil {
+		t.Errorf("Expected nil after deletion, got %v", deleted)
+	}
+}
+
+func TestProjectErrors(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// 1. Create duplicate project name
+	p1 := &Project{Name: "Dup", Description: "D1"}
+	CreateProject(p1)
+	p2 := &Project{Name: "Dup", Description: "D2"}
+	err := CreateProject(p2)
+	if err == nil || err != ErrDuplicateProjectName {
+		t.Errorf("Expected ErrDuplicateProjectName for duplicate project name, got %v", err)
+	}
+
+	// 2. Update to duplicate name
+	p3 := &Project{Name: "Project 3", Description: "D3"}
+	CreateProject(p3)
+	p3.Name = "Dup"
+	err = UpdateProject(p3)
+	if err == nil || err != ErrDuplicateProjectName {
+		t.Errorf("Expected ErrDuplicateProjectName for duplicate project name on update, got %v", err)
+	}
+
+	// 3. Update non-existent
+	err = UpdateProject(&Project{ID: 999, Name: "Non-existent"})
+	if err == nil || err != ErrProjectNotFound {
+		t.Errorf("Expected ErrProjectNotFound for updating non-existent project, got %v", err)
+	}
+
+	// 4. Delete non-existent
+	err = DeleteProject(999)
+	if err == nil || err != ErrProjectNotFound {
+		t.Errorf("Expected ErrProjectNotFound for deleting non-existent project, got %v", err)
+	}
+
+	// 5. Get non-existent
+	ret, err := GetProjectByID(9999)
+	if err != nil {
+		t.Errorf("Expected nil error for non-existent ID, got %v", err)
+	}
+	if ret != nil {
+		t.Errorf("Expected nil project, got %v", ret)
+	}
+}
+
+func scanErrorGetAllProjects(t *testing.T) error {
+	if _, err := DB.Exec("INSERT INTO projects(name) VALUES(?)", "P"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("DROP TABLE projects"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("CREATE TABLE projects (id TEXT, name TEXT, description TEXT)"); err != nil {
+		return err
+	}
+	if _, err := DB.Exec("INSERT INTO projects(id, name) VALUES(?, ?)", notAnInt, "P"); err != nil {
+		return err
+	}
+	if _, err := GetAllProjects(); err == nil {
+		t.Error(expectedScanError)
+	}
+	return nil
+}
+
+func TestScanIssueNulls(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create issue with all optional fields null (project_id defaults to 1)
+	_, err := DB.Exec(`INSERT INTO issues (title, status, position, project_id) VALUES (?, ?, ?, ?)`, "Null fields", StatusOpen, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	issues, err := GetAllActiveIssues()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) == 0 {
+		t.Fatalf("Expected issues")
+	}
+	// Find our issue
+	var found bool
+	for _, i := range issues {
+		if i.Title == "Null fields" {
+			found = true
+			if i.Label != nil || i.Assignee != nil || i.Updater != nil {
+				t.Errorf("Expected nil for optional fields, got Label:%v, Assignee:%v, Updater:%v", i.Label, i.Assignee, i.Updater)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("Did not find the issue with null fields")
 	}
 }

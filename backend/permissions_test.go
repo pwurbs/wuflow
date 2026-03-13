@@ -28,6 +28,10 @@ func TestCan(t *testing.T) {
 		{RoleAdmin, ActionGetUser, true},
 		{RoleAdmin, ActionCreateUser, true},
 		{RoleAdmin, ActionUpdateUser, true},
+		{RoleAdmin, ActionListProjects, true},
+		{RoleAdmin, ActionCreateProject, true},
+		{RoleAdmin, ActionUpdateProject, true},
+		{RoleAdmin, ActionDeleteProject, true},
 
 		// User is granted all non-destructive actions
 		{RoleUser, ActionListIssues, true},
@@ -40,6 +44,7 @@ func TestCan(t *testing.T) {
 		{RoleUser, ActionListLabels, true},
 		{RoleUser, ActionListUsers, true},
 		{RoleUser, ActionGetUser, true},
+		{RoleUser, ActionListProjects, true},
 
 		// User is denied all admin-only actions
 		{RoleUser, ActionDeleteIssue, false},
@@ -49,6 +54,9 @@ func TestCan(t *testing.T) {
 		{RoleUser, ActionDeleteLabel, false},
 		{RoleUser, ActionCreateUser, false},
 		{RoleUser, ActionUpdateUser, false},
+		{RoleUser, ActionCreateProject, false},
+		{RoleUser, ActionUpdateProject, false},
+		{RoleUser, ActionDeleteProject, false},
 
 		// Unknown / empty role is denied everything
 		{UserRole("unknown"), ActionCreateIssue, false},

@@ -16,6 +16,7 @@ wuFlow is built with a clearly arranged layout that combines all relevant inform
 - **Board** (Main view): Displays issues in the usual Kanban style with columns. You can freely drag and drop issues between columns. Click on an issue card to view and adapt details. The board layout changes when you switch to backlog or archive view (see below).
 - **Planning Sidebar**: Placed on the right, this simple calendar view allows you to plan issues by dragging them to a specific date. This allows you additionally to plan issues and tasks over the next 10 days, keeping an eye on upcoming deadlines.
 - **User Menu**: In the top right corner, there is the menu of the currently logged in user. Currently, password management and log out is available.
+- **Project Selection**: Select the project for which you want to see issues on the boards and in the planning sidebar.
 - **Filter Bar**: Placed above the board, this bar allows you to filter issues by label, priority, assignee and full text search. The filter influences the shown issue cards and planning entries.
 
 <img src="screenshots/board.png" alt="Kanban Board">
@@ -137,10 +138,16 @@ Archived issues are read-only. Users owning the admin role are entitled to **res
 
 <img src="screenshots/setup.png" alt="Initial Setup" width="900">
 
-The Setup View is only available for users with admin role and allows to configure **labels** and **users**.
+The Setup View is only available for users with admin role and allows to configure **projects**, **labels** and **users**.
+
+### Projects
+Projects group issues into separate workstreams or areas of responsibility. Each issue belongs to exactly one project. A **default project** (id=1) is always present and cannot be deleted.
+- **Create** a new project by entering a name (max 15 characters) and an optional description (max 100 characters), then click "Save".
+- **Rename or update** a project by clicking on it, changing the values, and saving. The project name must be unique.
+- **Delete** a project by clicking "Delete". Deletion is only possible if no issues are currently assigned to that project. The default project cannot be deleted.
 
 ### Labels
-Create labels which can be used in issues to categorize and color-code them. The label name is limited and the color is randomly generated. Labels can't be edited, only deletion is possible.  
+Create labels which can be used in issues to categorize and color-code them. The label name is limited and the color is randomly generated. Labels can't be edited, only deletion is possible.
 
 ### Users
 Users can be created, adapted or deactivated here. 
@@ -163,3 +170,5 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | View labels & users | ✓ | ✓ |
 | Create / delete labels | ✓ | — |
 | Create / edit / deactivate users | ✓ | — |
+| View projects | ✓ | ✓ |
+| Create / update / delete projects | ✓ | — |

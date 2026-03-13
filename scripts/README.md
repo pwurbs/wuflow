@@ -57,3 +57,12 @@ A shell script to automate the versioning process for wuFlow and its Home Assist
 ./scripts/new_version.sh
 ```
 The script uses `osascript` to trigger macOS dialog boxes for input, so it must be run on a macOS environment.
+
+### `diff_coverage.sh`
+Calculates and visualizes code coverage changes compared to the `main` branch for both Go (backend) and Vitest (frontend). It generates a combined HTML report showing which new or modified lines are covered by tests.
+
+**Usage:**
+```bash
+./scripts/diff_coverage.sh
+```
+The script expects `diff-cover` and `gocover-cobertura` (via `go run`) to be available. It assumes coverage data has already been generated.

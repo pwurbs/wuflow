@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setupSetupView, renderSetupView, validatePasswordPolicy, isBlacklistedPassword, isLight, getUnusedColor } from '../components/setup.js';
 import * as api from '../api.js';
 import * as utils from '../utils.js';
+import * as permissions from '../permissions.js';
 import { state } from '../state.js';
 
 // Helper to generate random pass
@@ -16,7 +17,11 @@ vi.mock('../api.js', () => ({
   deleteLabel: vi.fn(),
   fetchUsers: vi.fn(),
   createUser: vi.fn(),
-  updateUser: vi.fn()
+  updateUser: vi.fn(),
+  fetchProjects: vi.fn(),
+  createProject: vi.fn(),
+  updateProject: vi.fn(),
+  deleteProject: vi.fn()
 }));
 
 vi.mock('../utils.js', () => ({
@@ -27,6 +32,14 @@ vi.mock('../utils.js', () => ({
   initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
   countCodepoints: vi.fn(s => [...s].length)
 }));
+
+vi.mock('../permissions.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    userCan: vi.fn()
+  };
+});
 
 vi.mock('../state.js', () => ({
   state: {
@@ -82,6 +95,7 @@ describe('setup.js component', () => {
     // Default mock returns
     api.fetchLabels.mockResolvedValue([]);
     api.fetchUsers.mockResolvedValue([]);
+    permissions.userCan.mockReturnValue(true);
     // Suppress console.error in tests
     vi.spyOn(console, 'error').mockImplementation(() => { });
   });
@@ -173,13 +187,18 @@ describe('setup.js component', () => {
 
   describe('User Management Rendering', () => {
     it('should hide user management section for non-admins', async () => {
+      // Non-admins do not have ACTION_LIST_USERS permission
       state.currentUser = { role: 'user' };
+      permissions.userCan.mockImplementation((user, action) => {
+        return !(action === permissions.ACTION_LIST_USERS && user.role !== 'admin');
+      });
       await renderSetupView();
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(true);
     });
 
     it('should show and render user list for admins', async () => {
       state.currentUser = { role: 'admin' };
+      permissions.userCan.mockReturnValue(true);
       const users = [
         { id: 1, email: 'admin@test.com', first_name: 'Ad', last_name: 'Min', role: 'admin', active: true },
         { id: 2, email: 'user@test.com', first_name: 'Us', last_name: 'Er', role: 'user', active: true }
@@ -441,10 +460,51 @@ describe('Additional Coverage', () => {
       expect(utils.showNotification).toHaveBeenCalledWith('Failed to delete label', 'error');
     });
   });
-
   describe('User Management Validation & Errors', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+      // Re-initialize DOM specifically for these tests to guarantee elements exist
+      document.body.innerHTML = `
+        <div id="setup-view">
+          <div class="setup-section">
+            <input type="text" id="new-label-input">
+            <button id="add-label-btn"></button>
+            <div id="labels-list"></div>
+          </div>
+          <div id="user-management-section">
+            <button id="add-user-btn"></button>
+            <div id="users-list"></div>
+          </div>
+        </div>
+
+        <div id="user-modal-overlay" class="modal-overlay hidden">
+          <h2 id="user-modal-title"></h2>
+          <form id="user-form">
+            <input type="text" id="user-email">
+            <input type="text" id="user-first-name">
+            <input type="text" id="user-last-name">
+            <input type="password" id="user-password">
+            <small id="user-password-hint"></small>
+            <div id="user-role-dropdown">
+              <input type="hidden" id="user-role">
+              <button type="button" id="user-role-trigger">
+                <span id="user-role-text"></span>
+              </button>
+              <div id="user-role-options" class="hidden">
+                <div class="custom-option" data-value="user">User</div>
+                <div class="custom-option" data-value="admin">Admin</div>
+              </div>
+            </div>
+            <div id="user-active-options" class="hidden"></div>
+            <input type="checkbox" id="user-active">
+            <div id="user-modal-error" class="hidden"></div>
+            <button type="button" id="user-modal-cancel"></button>
+            <button type="submit" id="user-modal-save"></button>
+          </form>
+        </div>
+      `;
+      state.currentUser = { role: 'admin' };
       setupSetupView();
+      await renderSetupView();
       document.getElementById('add-user-btn').click();
     });
 
@@ -530,6 +590,312 @@ describe('Additional Coverage', () => {
       // isLight(color) uses color.replaceAll('#', '')
       expect(isLight('FFFFFF')).toBe(true);
       expect(isLight('#000000')).toBe(false);
+    });
+  });
+});
+
+const PROJECT_DOM = `
+  <div id="setup-view">
+    <div class="setup-section">
+      <input type="text" id="new-label-input">
+      <button id="add-label-btn"></button>
+      <div id="labels-list"></div>
+    </div>
+    <div id="project-management-section">
+      <button id="add-project-btn"></button>
+      <div id="projects-list"></div>
+    </div>
+    <div id="user-management-section">
+      <button id="add-user-btn"></button>
+      <div id="users-list"></div>
+    </div>
+  </div>
+
+  <!-- Project Modal -->
+  <div id="project-modal-overlay" class="hidden">
+    <h2 id="project-modal-title"></h2>
+    <form id="project-form">
+      <input type="text" id="project-name">
+      <textarea id="project-description"></textarea>
+      <div id="project-modal-error" class="hidden"></div>
+      <button type="button" id="project-modal-cancel"></button>
+      <button type="button" id="project-modal-delete" class="hidden"></button>
+      <button type="submit" id="project-modal-save"></button>
+    </form>
+  </div>
+
+  <!-- Confirm Modal -->
+  <div id="confirm-modal" class="hidden">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-message"></p>
+    <button id="confirm-ok-btn"></button>
+    <button id="confirm-cancel-btn"></button>
+  </div>
+
+  <!-- User Modal (required by setupUserModal) -->
+  <div id="user-modal-overlay" class="modal-overlay hidden">
+    <h2 id="user-modal-title"></h2>
+    <form id="user-form">
+      <input type="text" id="user-email">
+      <input type="text" id="user-first-name">
+      <input type="text" id="user-last-name">
+      <input type="password" id="user-password">
+      <small id="user-password-hint"></small>
+      <div id="user-role-dropdown">
+        <input type="hidden" id="user-role">
+        <button type="button" id="user-role-trigger"><span id="user-role-text"></span></button>
+        <div id="user-role-options" class="hidden">
+          <div class="custom-option" data-value="user">User</div>
+          <div class="custom-option" data-value="admin">Admin</div>
+        </div>
+      </div>
+      <div id="user-active-options" class="hidden"></div>
+      <input type="checkbox" id="user-active">
+      <div id="user-modal-error" class="hidden"></div>
+      <button type="button" id="user-modal-cancel"></button>
+      <button type="submit" id="user-modal-save"></button>
+    </form>
+  </div>
+`;
+
+describe('Project Management', () => {
+  beforeEach(() => {
+    document.body.innerHTML = PROJECT_DOM;
+    state.currentUser = { role: 'admin' };
+    vi.clearAllMocks();
+    api.fetchLabels.mockResolvedValue([]);
+    api.fetchUsers.mockResolvedValue([]);
+    api.fetchProjects.mockResolvedValue([]);
+    permissions.userCan.mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => { });
+
+    setupSetupView();
+  });
+
+  describe('setupProjectModal', () => {
+    it('should open project modal for new project on add-project-btn click', () => {
+      document.getElementById('add-project-btn').click();
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('project-modal-title').textContent).toBe('New Project');
+      expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should close project modal on cancel click', () => {
+      document.getElementById('add-project-btn').click();
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+      document.getElementById('project-modal-cancel').click();
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(true);
+    });
+  });
+
+  describe('openProjectModal for edit', () => {
+    it('should populate form when opening for an existing project', async () => {
+      const project = { id: 2, name: 'My Project', description: 'desc' };
+      api.fetchProjects.mockResolvedValue([project]);
+      await renderSetupView();
+
+      const editBtn = document.querySelector('.project-edit-btn');
+      editBtn.click();
+
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('project-modal-title').textContent).toBe('Edit Project');
+      expect(document.getElementById('project-name').value).toBe('My Project');
+      expect(document.getElementById('project-description').value).toBe('desc');
+    });
+
+    it('should hide delete button for the default project (id 1)', async () => {
+      const project = { id: 1, name: 'default', description: '' };
+      api.fetchProjects.mockResolvedValue([project]);
+      await renderSetupView();
+
+      document.querySelector('.project-edit-btn').click();
+
+      expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should show delete button for non-default project with permission', async () => {
+      const project = { id: 2, name: 'Other', description: '' };
+      api.fetchProjects.mockResolvedValue([project]);
+      await renderSetupView();
+
+      document.querySelector('.project-edit-btn').click();
+
+      expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(false);
+    });
+  });
+
+  describe('handleProjectSubmit', () => {
+    it('should show error when name is empty', () => {
+      document.getElementById('add-project-btn').click();
+      document.getElementById('project-name').value = '';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      const err = document.getElementById('project-modal-error');
+      expect(err.textContent).toBe('Project name is required.');
+      expect(err.classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show error when name exceeds 15 characters', () => {
+      document.getElementById('add-project-btn').click();
+      document.getElementById('project-name').value = 'a'.repeat(16);
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('project-modal-error').textContent)
+        .toBe('Project name must not exceed 15 characters.');
+    });
+
+    it('should show error when description exceeds 100 characters', () => {
+      document.getElementById('add-project-btn').click();
+      document.getElementById('project-name').value = 'Valid';
+      document.getElementById('project-description').value = 'a'.repeat(101);
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('project-modal-error').textContent)
+        .toBe('Project description must not exceed 100 characters.');
+    });
+
+    it('should create project and show success notification', async () => {
+      api.createProject.mockResolvedValue({ id: 5, name: 'New' });
+      document.getElementById('add-project-btn').click();
+      document.getElementById('project-name').value = 'New';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.createProject).toHaveBeenCalledWith(expect.objectContaining({ name: 'New' }));
+      expect(utils.showNotification).toHaveBeenCalledWith('Project created', 'success');
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should update project and show success notification', async () => {
+      const project = { id: 2, name: 'Existing', description: '' };
+      api.fetchProjects.mockResolvedValue([project]);
+      api.updateProject.mockResolvedValue({});
+      await renderSetupView();
+
+      document.querySelector('.project-edit-btn').click();
+      document.getElementById('project-name').value = 'Updated';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateProject).toHaveBeenCalledWith(2, expect.objectContaining({ name: 'Updated' }));
+      expect(utils.showNotification).toHaveBeenCalledWith('Project updated', 'success');
+    });
+
+    it('should show error in modal when API call fails', async () => {
+      api.createProject.mockRejectedValue(new Error('API Error'));
+      document.getElementById('add-project-btn').click();
+      document.getElementById('project-name').value = 'Fail';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('project-modal-error').textContent).toBe('API Error');
+    });
+  });
+
+  describe('handleDeleteProject', () => {
+    it('should show confirm modal and delete project on confirm', async () => {
+      const project = { id: 2, name: 'To Delete', description: '' };
+      api.fetchProjects.mockResolvedValue([project]);
+      api.deleteProject.mockResolvedValue({});
+      await renderSetupView();
+
+      document.querySelector('.project-edit-btn').click();
+
+      document.getElementById('project-modal-delete').click();
+
+      expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('confirm-title').textContent).toBe('Delete Project');
+
+      document.getElementById('confirm-ok-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(api.deleteProject).toHaveBeenCalledWith(2);
+      expect(utils.showNotification).toHaveBeenCalledWith('Project deleted', 'success');
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should hide confirm modal on cancel without deleting', async () => {
+      const project = { id: 3, name: 'Keep Me', description: '' };
+      api.fetchProjects.mockResolvedValue([project]);
+      await renderSetupView();
+
+      document.querySelector('.project-edit-btn').click();
+      document.getElementById('project-modal-delete').click();
+
+      document.getElementById('confirm-cancel-btn').click();
+
+      expect(api.deleteProject).not.toHaveBeenCalled();
+      expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should show error in project modal when delete API fails', async () => {
+      const project = { id: 4, name: 'Fail Delete', description: '' };
+      api.fetchProjects.mockResolvedValue([project]);
+      api.deleteProject.mockRejectedValue(new Error('Delete failed'));
+      await renderSetupView();
+
+      document.querySelector('.project-edit-btn').click();
+      document.getElementById('project-modal-delete').click();
+      document.getElementById('confirm-ok-btn').click();
+
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('project-modal-error').textContent).toBe('Delete failed');
+    });
+  });
+
+  describe('renderProjectList', () => {
+    it('should hide project section when user lacks LIST_PROJECTS permission', async () => {
+      permissions.userCan.mockImplementation((user, action) => {
+        return action !== permissions.ACTION_LIST_PROJECTS;
+      });
+      await renderSetupView();
+
+      expect(document.getElementById('project-management-section').style.display).toBe('none');
+    });
+
+    it('should render project rows', async () => {
+      const projects = [
+        { id: 1, name: 'default', description: '' },
+        { id: 2, name: 'Alpha', description: 'Alpha project' }
+      ];
+      api.fetchProjects.mockResolvedValue(projects);
+      await renderSetupView();
+
+      const rows = document.querySelectorAll('#projects-list .user-row');
+      expect(rows.length).toBe(2);
+      expect(rows[0].textContent).toContain('default');
+      expect(rows[1].textContent).toContain('Alpha');
+    });
+
+    it('should show "default" badge for project with id 1', async () => {
+      api.fetchProjects.mockResolvedValue([{ id: 1, name: 'default', description: '' }]);
+      await renderSetupView();
+
+      const row = document.querySelector('#projects-list .user-row');
+      expect(row.textContent).toContain('default');
+      expect(row.innerHTML).toContain('admin');
+    });
+
+    it('should show error message when fetchProjects fails', async () => {
+      api.fetchProjects.mockRejectedValue(new Error('Fetch failed'));
+      await renderSetupView();
+
+      expect(document.getElementById('projects-list').innerHTML).toContain('Failed to load projects');
+    });
+
+    it('should hide add-project-btn when user lacks CREATE_PROJECT permission', async () => {
+      permissions.userCan.mockImplementation((user, action) => {
+        return action !== permissions.ACTION_CREATE_PROJECT;
+      });
+      api.fetchProjects.mockResolvedValue([]);
+      await renderSetupView();
+
+      expect(document.getElementById('add-project-btn').style.display).toBe('none');
     });
   });
 });

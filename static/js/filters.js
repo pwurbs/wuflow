@@ -18,6 +18,11 @@ export function filterIssues(issues, filter) {
 
   let result = issues;
 
+  // Project pre-filter: applied before label/priority/search filters
+  if (state.selectedProjectId !== null && state.selectedProjectId !== undefined) {
+    result = result.filter(issue => issue.project && issue.project.id === state.selectedProjectId);
+  }
+
   // Label filter
   if (filter.labelId !== null && filter.labelId !== undefined) {
     if (filter.labelId === '__no_label__') {

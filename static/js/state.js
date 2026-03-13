@@ -2,6 +2,7 @@ export const state = {
   issues: [],
   currentIssue: null,
   currentUser: null,
+  selectedProjectId: null, // null = show all projects (project selector context)
   filter: {
     labelId: null,
     priority: null,
@@ -24,6 +25,10 @@ export function setFilterAssignee(assigneeId) {
 
 export function setFilterSearch(term) {
   state.filter.search = term;
+}
+
+export function setSelectedProject(projectId) {
+  state.selectedProjectId = projectId;
 }
 
 export function setIssues(newIssues) {

@@ -1,6 +1,7 @@
-import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser } from '../api.js';
+import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject } from '../api.js';
 import { showNotification, showConfirm, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
 import { state } from '../state.js';
+import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
 const HINT_NEW_USER = 'Minimum 12 characters. No common passwords.';
@@ -15,42 +16,50 @@ export function setupSetupView(refreshCallback) {
   const addLabelBtn = document.getElementById('add-label-btn');
 
   if (addLabelBtn && addLabelInput) {
-    initCharCounter(addLabelInput, 15);
+    if (userCan(state.currentUser, ACTION_CREATE_LABEL)) {
+      initCharCounter(addLabelInput, 15);
 
-    // Function to handle adding label
-    const handleAdd = async () => {
-      const name = addLabelInput.value.trim();
-      if (!name) return;
-      if (countCodepoints(name) > 15) {
-        showNotification('Label name must not exceed 15 characters.', 'error');
-        return;
-      }
+      // Function to handle adding label
+      const handleAdd = async () => {
+        const name = addLabelInput.value.trim();
+        if (!name) return;
+        if (countCodepoints(name) > 15) {
+          showNotification('Label name must not exceed 15 characters.', 'error');
+          return;
+        }
 
-      try {
-        // Fetch existing labels to check used colors
-        const existingLabels = await fetchLabels();
-        const usedColors = existingLabels.map(l => l.color);
+        try {
+          // Fetch existing labels to check used colors
+          const existingLabels = await fetchLabels();
+          const usedColors = existingLabels.map(l => l.color);
 
-        const color = getUnusedColor(usedColors);
-        await createLabel({ name, color });
-        addLabelInput.value = '';
-        renderSetupView(refreshCallback); // Refresh list
-        if (refreshCallback) refreshCallback(); // Refresh board/app
-        showNotification('Label created', 'success');
-      } catch (err) {
-        console.error(err);
-        showNotification('Failed to create label', 'error');
-      }
-    };
+          const color = getUnusedColor(usedColors);
+          await createLabel({ name, color });
+          addLabelInput.value = '';
+          renderSetupView(refreshCallback); // Refresh list
+          if (refreshCallback) refreshCallback(); // Refresh board/app
+          showNotification('Label created', 'success');
+        } catch (err) {
+          console.error(err);
+          showNotification('Failed to create label', 'error');
+        }
+      };
 
-    addLabelBtn.addEventListener('click', handleAdd);
-    addLabelInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') handleAdd();
-    });
+      addLabelBtn.addEventListener('click', handleAdd);
+      addLabelInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleAdd();
+      });
+    } else {
+      const group = addLabelBtn.closest('.label-input-group');
+      if (group) group.style.display = 'none';
+    }
   }
 
   // User management
   setupUserModal(refreshCallback);
+
+  // Project management
+  setupProjectModal(refreshCallback);
 }
 
 export async function renderSetupView(refreshCallback) {
@@ -58,6 +67,16 @@ export async function renderSetupView(refreshCallback) {
 
   const labelsList = document.getElementById('labels-list');
   if (!labelsList) return;
+
+  const labelsSection = labelsList.closest('.setup-section');
+  if (labelsSection) {
+    if (userCan(state.currentUser, ACTION_LIST_LABELS)) {
+      labelsSection.style.display = '';
+    } else {
+      labelsSection.style.display = 'none';
+      return;
+    }
+  }
 
   labelsList.innerHTML = '<div class="loader">Loading...</div>';
 
@@ -80,27 +99,29 @@ export async function renderSetupView(refreshCallback) {
 
       labelEl.innerHTML = `
                 <span class="label-name">${escapeHtml(label.name)}</span>
-                <button class="delete-label-btn" title="Delete Label">×</button>
+                ${userCan(state.currentUser, ACTION_DELETE_LABEL) ? '<button class="delete-label-btn" title="Delete Label">×</button>' : ''}
             `;
 
       const deleteBtn = labelEl.querySelector('.delete-label-btn');
-      deleteBtn.addEventListener('click', async () => {
-        const confirmed = await showConfirm(
-          'Delete Label',
-          `Are you sure you want to delete the label "${label.name}"? This action cannot be undone.`
-        );
-        if (confirmed) {
-          try {
-            await deleteLabel(label.id);
-            renderSetupView(refreshCallback); // Refresh
-            if (refreshCallback) refreshCallback(); // Refresh board/app
-            showNotification('Label deleted', 'success');
-          } catch (err) {
-            console.error(err);
-            showNotification('Failed to delete label', 'error');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', async () => {
+          const confirmed = await showConfirm(
+            'Delete Label',
+            `Are you sure you want to delete the label "${label.name}"? This action cannot be undone.`
+          );
+          if (confirmed) {
+            try {
+              await deleteLabel(label.id);
+              renderSetupView(refreshCallback); // Refresh
+              if (refreshCallback) refreshCallback(); // Refresh board/app
+              showNotification('Label deleted', 'success');
+            } catch (err) {
+              console.error(err);
+              showNotification('Failed to delete label', 'error');
+            }
           }
-        }
-      });
+        });
+      }
 
       labelsList.appendChild(labelEl);
     });
@@ -110,8 +131,225 @@ export async function renderSetupView(refreshCallback) {
     labelsList.innerHTML = '<div class="error">Failed to load labels.</div>';
   }
 
-  // Render user list (admin only)
+  // Render project list
+  await renderProjectList(refreshCallback);
+
+  // Render user list
   await renderUserList(refreshCallback);
+}
+
+// --- Project Management ---
+
+let editingProjectId = null;
+
+function setupProjectModal(refreshCallback) {
+  const addProjectBtn = document.getElementById('add-project-btn');
+  const cancelBtn = document.getElementById('project-modal-cancel');
+  const form = document.getElementById('project-form');
+  const projectDeleteBtn = document.getElementById('project-modal-delete');
+
+  if (addProjectBtn) {
+    addProjectBtn.addEventListener('click', () => openProjectModal(null));
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', closeProjectModal);
+  }
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await handleProjectSubmit(refreshCallback);
+    });
+  }
+  if (projectDeleteBtn) {
+    projectDeleteBtn.addEventListener('click', () => handleDeleteProject(refreshCallback));
+  }
+}
+
+function openProjectModal(project) {
+  const overlay = document.getElementById('project-modal-overlay');
+  const title = document.getElementById('project-modal-title');
+  const nameInput = document.getElementById('project-name');
+  const descInput = document.getElementById('project-description');
+  const errorDisplay = document.getElementById('project-modal-error');
+  const deleteBtn = document.getElementById('project-modal-delete');
+
+  errorDisplay.textContent = '';
+  errorDisplay.classList.add('hidden');
+
+  if (project) {
+    editingProjectId = project.id;
+    title.textContent = 'Edit Project';
+    nameInput.value = project.name;
+    nameInput.disabled = false;
+    descInput.value = project.description || '';
+
+    // Show delete button, but not for the default project (id 1) or if missing permission
+    if (project.id !== 1 && userCan(state.currentUser, ACTION_DELETE_PROJECT)) {
+      deleteBtn.classList.remove('hidden');
+    } else {
+      deleteBtn.classList.add('hidden');
+    }
+  } else {
+    editingProjectId = null;
+    title.textContent = 'New Project';
+    nameInput.value = '';
+    nameInput.disabled = false;
+    descInput.value = '';
+    deleteBtn.classList.add('hidden');
+  }
+
+  overlay.classList.remove('hidden');
+  nameInput.focus();
+}
+
+function closeProjectModal() {
+  const overlay = document.getElementById('project-modal-overlay');
+  overlay.classList.add('hidden');
+  editingProjectId = null;
+}
+
+async function handleProjectSubmit(refreshCallback) {
+  const nameInput = document.getElementById('project-name');
+  const descInput = document.getElementById('project-description');
+  const errorDisplay = document.getElementById('project-modal-error');
+
+  const name = nameInput.value.trim();
+  const description = descInput.value.trim();
+
+  if (!name) {
+    showProjectError(errorDisplay, 'Project name is required.');
+    return;
+  }
+  if (countCodepoints(name) > 15) {
+    showProjectError(errorDisplay, 'Project name must not exceed 15 characters.');
+    return;
+  }
+  if (countCodepoints(description) > 100) {
+    showProjectError(errorDisplay, 'Project description must not exceed 100 characters.');
+    return;
+  }
+
+  try {
+    if (editingProjectId) {
+      await updateProject(editingProjectId, { name, description });
+      showNotification('Project updated', 'success');
+    } else {
+      await createProject({ name, description });
+      showNotification('Project created', 'success');
+    }
+    closeProjectModal();
+    renderSetupView(refreshCallback);
+    if (refreshCallback) refreshCallback();
+  } catch (err) {
+    showProjectError(errorDisplay, err.message);
+  }
+}
+
+function showProjectError(el, message) {
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+function handleDeleteProject(refreshCallback) {
+  if (!editingProjectId || editingProjectId === 1) return;
+
+  const confirmModal = document.getElementById('confirm-modal');
+  const confirmTitle = document.getElementById('confirm-title');
+  const confirmMessage = document.getElementById('confirm-message');
+  const okBtn = document.getElementById('confirm-ok-btn');
+  const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+  confirmTitle.textContent = 'Delete Project';
+  confirmMessage.textContent = 'Are you sure you want to delete this project?';
+
+  const handleOk = async () => {
+    try {
+      await deleteProject(editingProjectId);
+      showNotification('Project deleted', 'success');
+      closeProjectModal();
+      renderSetupView(refreshCallback);
+      if (refreshCallback) refreshCallback();
+    } catch (err) {
+      const errorDisplay = document.getElementById('project-modal-error');
+      showProjectError(errorDisplay, err.message);
+    } finally {
+      cleanup();
+    }
+  };
+
+  const handleCancel = () => {
+    cleanup();
+  };
+
+  const cleanup = () => {
+    confirmModal.classList.add('hidden');
+    okBtn.removeEventListener('click', handleOk);
+    cancelBtn.removeEventListener('click', handleCancel);
+  };
+
+  okBtn.addEventListener('click', handleOk);
+  cancelBtn.addEventListener('click', handleCancel);
+
+  confirmModal.classList.remove('hidden');
+}
+
+async function renderProjectList(refreshCallback) {
+  const projectsList = document.getElementById('projects-list');
+  const projectSection = document.getElementById('project-management-section');
+  if (!projectsList || !projectSection) return;
+
+  if (userCan(state.currentUser, ACTION_LIST_PROJECTS)) {
+    projectSection.style.display = '';
+  } else {
+    projectSection.style.display = 'none';
+    return;
+  }
+
+  // Only users with ACTION_CREATE_PROJECT can add projects
+  const addBtn = document.getElementById('add-project-btn');
+  if (addBtn) {
+    addBtn.style.display = userCan(state.currentUser, ACTION_CREATE_PROJECT) ? '' : 'none';
+  }
+
+  projectsList.innerHTML = '<div class="loader">Loading...</div>';
+
+  try {
+    const projects = await fetchProjects();
+    projectsList.innerHTML = '';
+
+    projects.forEach(project => {
+      const row = document.createElement('div');
+      row.className = 'user-row';
+
+      const isDefault = project.id === 1;
+      const desc = project.description ? escapeHtml(project.description) : '<em>No description</em>';
+      const editBtnHtml = userCan(state.currentUser, ACTION_UPDATE_PROJECT)
+        ? `<button class="btn secondary project-edit-btn" title="Edit Project">Edit</button>`
+        : '';
+
+      row.innerHTML = `
+        <div class="user-info">
+          <span class="user-email">${escapeHtml(project.name)}</span>
+          ${isDefault ? '<span class="user-role-badge admin">default</span>' : ''}
+          <span class="user-name">${desc}</span>
+        </div>
+        <div class="user-meta">
+          ${editBtnHtml}
+        </div>
+      `;
+
+      if (userCan(state.currentUser, ACTION_UPDATE_PROJECT)) {
+        const editBtn = row.querySelector('.project-edit-btn');
+        editBtn?.addEventListener('click', () => openProjectModal(project));
+      }
+
+      projectsList.appendChild(row);
+    });
+
+  } catch (err) {
+    console.error(err);
+    projectsList.innerHTML = '<div class="error">Failed to load projects.</div>';
+  }
 }
 
 // --- User Management ---
@@ -124,7 +362,12 @@ function setupUserModal(refreshCallback) {
   const form = document.getElementById('user-form');
 
   if (addUserBtn) {
-    addUserBtn.addEventListener('click', () => openUserModal(null));
+    if (userCan(state.currentUser, ACTION_CREATE_USER)) {
+      addUserBtn.style.display = '';
+      addUserBtn.addEventListener('click', () => openUserModal(null));
+    } else {
+      addUserBtn.style.display = 'none';
+    }
   }
 
   if (cancelBtn) {
@@ -352,12 +595,13 @@ async function renderUserList(refreshCallback) {
   const userSection = document.getElementById('user-management-section');
   if (!usersList || !userSection) return;
 
-  // Only show user management for admins
-  if (state.currentUser?.role !== 'admin') {
+  // Only show user management for users with ACTION_LIST_USERS
+  if (userCan(state.currentUser, ACTION_LIST_USERS)) {
+    userSection.classList.remove('hidden');
+  } else {
     userSection.classList.add('hidden');
     return;
   }
-  userSection.classList.remove('hidden');
 
   usersList.innerHTML = '<div class="loader">Loading...</div>';
 
@@ -379,6 +623,10 @@ async function renderUserList(refreshCallback) {
         ? `<span class="user-role-badge admin">Admin</span>`
         : '';
 
+      const editBtnHtml = userCan(state.currentUser, ACTION_UPDATE_USER)
+        ? '<button class="btn secondary user-edit-btn" title="Edit User">Edit</button>'
+        : '';
+
       row.innerHTML = `
         <div class="user-info">
           <div class="user-badge">${escapeHtml(getUserInitials(user))}</div>
@@ -387,12 +635,14 @@ async function renderUserList(refreshCallback) {
           ${adminBadge}
         </div>
         <div class="user-meta">
-          <button class="btn secondary user-edit-btn" title="Edit User">Edit</button>
+          ${editBtnHtml}
         </div>
       `;
 
-      const editBtn = row.querySelector('.user-edit-btn');
-      editBtn.addEventListener('click', () => openUserModal(user));
+      if (userCan(state.currentUser, ACTION_UPDATE_USER)) {
+        const editBtn = row.querySelector('.user-edit-btn');
+        editBtn?.addEventListener('click', () => openUserModal(user));
+      }
 
       usersList.appendChild(row);
     });
@@ -453,11 +703,11 @@ export function getUnusedColor(usedColors) {
   const availableColors = colors.filter(c => !usedColors.includes(c));
 
   if (availableColors.length > 0) {
-    return availableColors[Math.floor(Math.random() * availableColors.length)];
+    return availableColors[Math.floor(Math.random() * availableColors.length)]; //NOSONAR
   }
 
   // Fallback: if all colors used, pick random from full list
-  return colors[Math.floor(Math.random() * colors.length)];
+  return colors[Math.floor(Math.random() * colors.length)]; //NOSONAR
 }
 
 // Simple helper to check if color is light or dark (for text contrast)

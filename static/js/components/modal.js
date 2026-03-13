@@ -1,5 +1,5 @@
 import { state, setCurrentIssue } from '../state.js';
-import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers } from '../api.js';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE } from '../permissions.js';
@@ -18,7 +18,6 @@ export function setupModal(refreshApp) {
   // Global checking of state is tricky if we don't have reference to 'currentIssue' variable in app.js
   // We use state.currentIssue.
 
-  document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('done-btn').addEventListener('click', handleDone);
   form.addEventListener('submit', handleIssueSubmit);
@@ -84,10 +83,11 @@ export function setupModal(refreshApp) {
   setupCustomDropdown('label-dropdown', 'label-trigger', 'label-options', 'label-select', 'label-text');
   setupCustomDropdown('priority-dropdown', 'priority-trigger', 'priority-options', 'priority', 'priority-text');
   setupCustomDropdown('assignee-dropdown', 'assignee-trigger', 'assignee-options', 'assignee-select', 'assignee-text');
+  setupCustomDropdown('project-dropdown', 'project-trigger', 'project-options', 'project-select', 'project-text');
 
   // Close dropdowns on outside click
   document.addEventListener('click', (e) => {
-    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
+    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown', 'project-dropdown'].forEach(id => {
       const container = document.getElementById(id);
       if (container && !container.contains(e.target)) {
         const opts = container.querySelector('.custom-select-options');
@@ -184,6 +184,22 @@ function renderModalDropdowns(issue) {
       if (found) assigneeText.textContent = found.first_name + ' ' + found.last_name;
     }
   }).catch(err => console.error('Failed to load users', err));
+
+  // Project Dropdown
+  const projectInput = document.getElementById('project-select');
+  const projectText = document.getElementById('project-text');
+  if (projectInput && projectText) {
+    projectInput.value = issue?.project_id ?? 1;
+    projectText.textContent = issue?.project?.name ?? 'default';
+
+    fetchProjects().then(projects => {
+      renderProjectOptions(projects);
+      if (issue?.project_id) {
+        const found = projects.find(p => p.id === issue.project_id);
+        if (found) projectText.textContent = found.name;
+      }
+    }).catch(err => console.error('Failed to load projects', err));
+  }
 }
 
 function setupEditModal(issue) {
@@ -408,60 +424,57 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
   return true;
 }
 
+function validateIssueForm(title, description) {
+  if (!title) {
+    showNotification('Title is required.', 'error');
+    document.getElementById('title').focus();
+    return false;
+  }
+  if (countCodepoints(title) > 100) {
+    showNotification('Title must not exceed 100 characters.', 'error');
+    document.getElementById('title').focus();
+    return false;
+  }
+  if (countCodepoints(description) > 5000) {
+    showNotification('Description must not exceed 5000 characters.', 'error');
+    return false;
+  }
+  return true;
+}
+
+function getIssueDataFromForm() {
+  const title = document.getElementById('title').value.trim();
+  const description = document.getElementById('description-editor').value || '';
+  const assigneeIdVal = document.getElementById('assignee-select').value;
+  const labelId = document.getElementById('label-select').value;
+  const projectIdVal = document.getElementById('project-select')?.value;
+
+  return {
+    title,
+    description,
+    deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
+    planned_dates: getPlannedDatesFromDOM(),
+    status: document.getElementById('status').value,
+    priority: document.getElementById('priority').value,
+    assignee_id: assigneeIdVal ? Number.parseInt(assigneeIdVal) : null,
+    position: state.currentIssue ? state.currentIssue.position : 0,
+    label: labelId ? { id: Number.parseInt(labelId) } : null,
+    project_id: projectIdVal ? Number.parseInt(projectIdVal) : 1
+  };
+}
+
 async function handleIssueSubmit(e) {
   e.preventDefault();
 
-  // --- Client-side pre-submit validation ---
-  const titleValue = document.getElementById('title').value.trim();
-  if (!titleValue) {
-    showNotification('Title is required.', 'error');
-    document.getElementById('title').focus();
-    return;
-  }
-  if (countCodepoints(titleValue) > 100) {
-    showNotification('Title must not exceed 100 characters.', 'error');
-    document.getElementById('title').focus();
-    return;
-  }
-  const descText = document.getElementById('description-editor').value || '';
-  if (countCodepoints(descText) > 5000) {
-    showNotification('Description must not exceed 5000 characters.', 'error');
-    return;
-  }
-  // --- End validation ---
-
-  const statusInput = document.getElementById('status');
-  const assigneeIdVal = document.getElementById('assignee-select').value;
-
-  const issueData = {
-    title: titleValue,
-    description: descText,
-    deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
-    // For both new and existing issues, read planned dates from the DOM container
-    planned_dates: getPlannedDatesFromDOM(),
-    status: statusInput.value,
-    priority: document.getElementById('priority').value,
-    assignee_id: assigneeIdVal ? Number.parseInt(assigneeIdVal) : null,
-    position: state.currentIssue ? state.currentIssue.position : 0
-  };
-
-  const labelId = document.getElementById('label-select').value;
-  if (labelId) {
-    issueData.label = { id: Number.parseInt(labelId) };
-  } else {
-    issueData.label = null;
-  }
+  const issueData = getIssueDataFromForm();
+  if (!validateIssueForm(issueData.title, issueData.description)) return;
 
   try {
     if (state.currentIssue) {
       issueData.id = state.currentIssue.id;
-      // updateIssue handles 409 conflict internally but throws on other errors
       const result = await updateIssue(issueData, currentEtag);
       if (result.conflict) {
-        // If a conflict (409) occurs, use the common conflict handling logic
         await saveIssueWithConflictCheck(issueData, 'Issue updated');
-      } else {
-        // Success
       }
     } else {
       const newIssue = await createIssue(issueData);
@@ -479,7 +492,7 @@ async function handleDeleteIssue() {
   if (!userCan(state.currentUser, ACTION_DELETE_ISSUE)) return;
   if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
     try {
-      await import('../api.js').then(m => m.deleteIssue(state.currentIssue.id));
+      await deleteIssue(state.currentIssue.id);
       closeModal();
       showNotification('Issue deleted');
     } catch (err) {
@@ -599,7 +612,7 @@ function setupInlineEditing() {
 
         // Fetch fresh copy to ensure frontend model exactly matches backend 
         // sanitization (e.g. stripped HTML tags / null bytes in Title).
-        const { issue: freshIssue } = await import('../api.js').then(m => m.fetchIssueById(state.currentIssue.id));
+        const { issue: freshIssue } = await fetchIssueById(state.currentIssue.id);
         if (freshIssue) {
           state.currentIssue.title = freshIssue.title;
           if (titleInput.value !== freshIssue.title) {
@@ -854,6 +867,23 @@ function setupSidebarImmediateSave() {
         try {
           const saved = await saveIssueWithConflictCheck(updatedIssue, 'Label updated');
           if (saved) state.currentIssue.label = labelVal;
+        } catch (err) {
+          showNotification(err.message, 'error');
+        }
+      }
+    });
+  }
+
+  const projectSelect = document.getElementById('project-select');
+  if (projectSelect) {
+    projectSelect.addEventListener('change', async () => {
+      if (state.currentIssue) {
+        const val = projectSelect.value;
+        const projectId = val ? Number.parseInt(val) : 1;
+        const updatedIssue = { ...state.currentIssue, project_id: projectId };
+        try {
+          const saved = await saveIssueWithConflictCheck(updatedIssue, 'Project updated');
+          if (saved) state.currentIssue.project_id = projectId;
         } catch (err) {
           showNotification(err.message, 'error');
         }
@@ -1205,6 +1235,22 @@ function renderLabelOptions(labels) {
 
     div.addEventListener('click', () => {
       selectOption('label-select', 'label-text', 'label-options', label.id, label.name);
+    });
+    optionsContainer.appendChild(div);
+  });
+}
+
+function renderProjectOptions(projects) {
+  const optionsContainer = document.getElementById('project-options');
+  if (!optionsContainer) return;
+  optionsContainer.innerHTML = '';
+
+  (projects || []).forEach(project => {
+    const div = document.createElement('div');
+    div.className = 'custom-option';
+    div.textContent = project.name;
+    div.addEventListener('click', () => {
+      selectOption('project-select', 'project-text', 'project-options', project.id, project.name);
     });
     optionsContainer.appendChild(div);
   });

@@ -46,10 +46,12 @@ type Issue struct {
 	CreatorID    int           `json:"creator_id"`
 	AssigneeID   *int          `json:"assignee_id"`        // Pointer to allow null (unassigned)
 	UpdaterID    *int          `json:"updated_by"`         // Pointer to allow null (if user deleted)
+	ProjectID    int           `json:"project_id"`         // Every issue belongs to a project
 	Creator      *User         `json:"creator,omitempty"`  // Populated for API responses to avoid N+1 queries
 	Assignee     *User         `json:"assignee,omitempty"` // Populated for API responses to avoid N+1 queries
 	Updater      *User         `json:"updater,omitempty"`  // Populated for API responses to avoid N+1 queries
 	Label        *Label        `json:"label"`              // Pointer to manage nil label
+	Project      *Project      `json:"project,omitempty"` // Populated for API responses
 	Tasks        []Task        `json:"tasks"`
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
@@ -72,6 +74,13 @@ type Label struct {
 	ID    int    `json:"id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
+}
+
+// Project represents a grouping for issues.
+type Project struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 // UserRole represents a user's role in the system.

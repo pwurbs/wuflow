@@ -1,4 +1,4 @@
-import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser, fetchUsers } from './api.js';
+import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects } from './api.js';
 import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
@@ -7,10 +7,7 @@ import { renderArchive, setupArchiveView, resetArchivedLoaded } from './componen
 import { setupSetupView, renderSetupView } from './components/setup.js';
 import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
-import { initLabelFilter, updateLabelFilterOptions } from './components/labelFilter.js';
-import { initPriorityFilter, updatePriorityFilterOptions } from './components/priorityFilter.js';
-import { initUserFilter, updateUserFilterOptions } from './components/userFilter.js';
-import { setupUserMenu } from './components/userMenu.js';
+import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
 
 // DOM Elements
 const navBoard = document.getElementById('nav-board');
@@ -23,6 +20,7 @@ const backlogView = document.getElementById('backlog-view');
 const setupView = document.getElementById('setup-view');
 const sidebar = document.querySelector('.sidebar');
 const filterContainer = document.getElementById('filter-container');
+const projectSelectorContainer = document.getElementById('project-selector-container');
 const searchInput = document.getElementById('search-input');
 
 
@@ -38,7 +36,6 @@ async function init() {
         return;
     }
     setCurrentUser(user);
-
     // Hide Setup nav for non-admin users
     if (user.role !== 'admin') {
         navSetup.classList.add('hidden');
@@ -48,6 +45,7 @@ async function init() {
     initLabelFilter(refreshApp);
     initPriorityFilter(refreshApp);
     initUserFilter(refreshApp);
+    initProjectSelector(refreshApp);
     setupBoardView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
     setupArchiveView(refreshApp, openModal);
@@ -80,6 +78,10 @@ async function refreshApp() {
 
         const users = await fetchUsers();
         updateUserFilterOptions(users);
+
+        // Update project selector
+        const projects = await fetchProjects();
+        updateProjectSelectorOptions(projects);
 
         // Priority filter options are static/local so we might not strictly need to call update here unless we want to ensure sync, 
         // but let's do it to be safe if we add dynamic priorities later or reset logic.
@@ -146,6 +148,7 @@ function switchView(view) {
 
         sidebar.classList.remove('hidden');
         filterContainer.classList.remove('hidden');
+        if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
 
         refreshApp();
     } else if (view === 'archive') {
@@ -161,6 +164,7 @@ function switchView(view) {
 
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
+        if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
 
         refreshApp();
     } else if (view === 'backlog') {
@@ -176,6 +180,7 @@ function switchView(view) {
 
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
+        if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
 
         refreshApp();
     } else if (view === 'setup') {
@@ -191,6 +196,7 @@ function switchView(view) {
 
         sidebar.classList.add('hidden');
         filterContainer.classList.add('hidden');
+        if (projectSelectorContainer) projectSelectorContainer.classList.add('hidden');
 
         renderSetupView(refreshApp);
     }

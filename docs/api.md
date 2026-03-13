@@ -32,6 +32,10 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/labels` | GET | `HandleLabels` | Required | Get all labels |
 | `/labels` | POST | `HandleLabels` | Admin | Create label |
 | `/labels/:id` | DELETE | `HandleLabel` | Admin | Delete label |
+| `/projects` | GET | `HandleProjects` | Required | List all projects |
+| `/projects` | POST | `HandleProjects` | Admin | Create project |
+| `/projects/:id` | PUT | `HandleProject` | Admin | Update project |
+| `/projects/:id` | DELETE | `HandleProject` | Admin | Delete project |
 | `/version` | GET | `Anonymous Func` | Public | Get app version |
 
 **Legend:**
@@ -250,6 +254,61 @@ Creates a new label (Admin only).
 ### Delete Label
 Deletes a label (Admin only).
 - **DELETE** `/labels/:id`
+
+## Projects
+
+### List Projects
+Retrieves all projects. Accessible to all authenticated users.
+- **GET** `/projects`
+- **Response**: Array of project objects
+
+### Create Project
+Creates a new project (Admin only).
+- **POST** `/projects`
+- **Body**:
+  ```json
+  {
+    "name": "Backend",
+    "description": "Optional description"
+  }
+  ```
+- **Notes**:
+  - `name` is required, max 15 characters
+  - `description` is optional, max 100 characters
+- **Response**: Created project object (201 Created)
+- **Errors**:
+  - `400 Bad Request` - Validation failed
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin
+  - `409 Conflict` - Project name already exists
+
+### Update Project
+Updates an existing project (Admin only).
+- **PUT** `/projects/:id`
+- **Body**:
+  ```json
+  {
+    "name": "Renamed Project",
+    "description": "Updated description"
+  }
+  ```
+- **Response**: Updated project object
+- **Errors**:
+  - `400 Bad Request` - Validation failed
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin
+  - `404 Not Found` - Project doesn't exist
+  - `409 Conflict` - Project name already exists
+
+### Delete Project
+Deletes a project (Admin only).
+- **DELETE** `/projects/:id`
+- **Response**: `200 OK` with confirmation message
+- **Errors**:
+  - `400 Bad Request` - Cannot delete the default project (id=1) or project still has assigned issues
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin
+  - `404 Not Found` - Project doesn't exist
 
 ## System
 

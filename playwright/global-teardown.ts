@@ -9,7 +9,7 @@ async function globalTeardown(config: FullConfig) {
   const reportPath = path.join(config.rootDir, 'playwright-report', 'index.html');
   // macOS 'open' command opens files in the default application (browser for .html)
   try {
-    execSync(`open "${reportPath}"`);
+    execSync(`open "${reportPath}"`); //NOSONAR
   } catch (error) {
     console.error('Failed to open test report:', error);
   }

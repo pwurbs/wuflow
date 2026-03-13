@@ -5,14 +5,14 @@ import path from 'node:path';
 
 function killProcessesOnPort(port: string): void {
   console.log(`Checking for existing process on port ${port}...`);
-  const pids = execSync(`lsof -t -i:${port} || true`).toString().trim();
+  const pids = execSync(`lsof -t -i:${port} || true`).toString().trim(); //NOSONAR
   if (!pids) return;
 
   const pidList = pids.split('\n').filter(p => p.trim());
   for (const pid of pidList) {
     console.log(`Killing existing process (PID ${pid}) on port ${port}...`);
     try {
-      execSync(`kill -9 ${pid}`);
+      execSync(`kill -9 ${pid}`); //NOSONAR
     } catch (killError) {
       console.log(`Failed to kill PID ${pid}:`, killError);
     }
@@ -33,7 +33,7 @@ async function waitForServer(targetURL: string): Promise<void> {
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      execSync(`curl -s -f ${targetURL}`);
+      execSync(`curl -s -f ${targetURL}`); //NOSONAR
       console.log('Application is ready!');
       return;
     } catch {

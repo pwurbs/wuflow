@@ -113,6 +113,42 @@ func FuzzIsBlacklistedPassword(f *testing.F) {
 	})
 }
 
+// FuzzValidateProject tests the project validation logic for crashes and field sanitization.
+func FuzzValidateProject(f *testing.F) {
+	f.Add("Backend", "All backend-related issues")
+	f.Add("<script>xss</script>", "")
+	f.Add("", "Some description")
+	f.Add(strings.Repeat("x", MaxProjectNameLen+1), "desc")
+	f.Add("Valid", strings.Repeat("d", MaxProjectDescLen+1))
+
+	// Null bytes in name and description
+	f.Add("\x00\x00ProjectName\x00", "desc\x00with\x00nulls")
+
+	// HTML in description — must be stripped
+	f.Add("Project", "<b>bold</b> description")
+
+	// Partial-tag pattern in name
+	f.Add("<x<b>name</b>", "description")
+
+	f.Fuzz(func(t *testing.T, name, desc string) {
+		p := &Project{Name: name, Description: desc}
+
+		// Should never panic.
+		err := validateProject(p)
+
+		if err == nil {
+			// Invariant: validated name must be clean of all HTML tags.
+			if anyTagRegex.MatchString(p.Name) {
+				t.Errorf("Validated project name still contains tags: %q", p.Name)
+			}
+			// Invariant: validated description must be clean of all HTML tags.
+			if anyTagRegex.MatchString(p.Description) {
+				t.Errorf("Validated project description still contains tags: %q", p.Description)
+			}
+		}
+	})
+}
+
 // FuzzValidateIssue tests the issue validation logic, specifically verifying
 // that plain-text fields (like Title) are correctly cleaned and validated,
 // while Description is only validated for length constraints.

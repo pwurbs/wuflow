@@ -28,6 +28,10 @@ export const ACTION_LIST_USERS      = 'user:list';
 export const ACTION_GET_USER        = 'user:get';
 export const ACTION_CREATE_USER     = 'user:create';
 export const ACTION_UPDATE_USER     = 'user:update';
+export const ACTION_LIST_PROJECTS   = 'project:list';
+export const ACTION_CREATE_PROJECT  = 'project:create';
+export const ACTION_UPDATE_PROJECT  = 'project:update';
+export const ACTION_DELETE_PROJECT  = 'project:delete';
 
 // Allowlist policy — mirrors rolePermissions in backend/permissions.go.
 // To add a new role or action, update both this map and the backend map.
@@ -53,6 +57,11 @@ const rolePermissions = {
     [ACTION_GET_USER]:        [ROLE_ADMIN, ROLE_USER],
     [ACTION_CREATE_USER]:     [ROLE_ADMIN],
     [ACTION_UPDATE_USER]:     [ROLE_ADMIN],
+    // Projects
+    [ACTION_LIST_PROJECTS]:   [ROLE_ADMIN, ROLE_USER],
+    [ACTION_CREATE_PROJECT]:  [ROLE_ADMIN],
+    [ACTION_UPDATE_PROJECT]:  [ROLE_ADMIN],
+    [ACTION_DELETE_PROJECT]:  [ROLE_ADMIN],
 };
 
 /**

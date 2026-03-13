@@ -165,7 +165,7 @@ test.describe('User Management', () => {
 
   test('User Management list displays badges', async ({ page }) => {
     // Already on Setup page from beforeEach
-    await expect(page.locator('.users-list')).toBeVisible();
+    await expect(page.locator('#users-list')).toBeVisible();
 
     // Find the row for the admin email
     const adminRow = page.locator(`.user-row:has-text("${adminEmail}")`);

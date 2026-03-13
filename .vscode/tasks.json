@@ -18,7 +18,7 @@
     {
       "label": "Go Test",
       "type": "shell",
-      "command": "go test -v -coverprofile=coverage.out ./backend/...",
+      "command": "go test -v -coverprofile=backend/test-results/coverage.out ./backend/...",
       "group": "test",
       "presentation": {
         "reveal": "always",
@@ -56,6 +56,17 @@
       "problemMatcher": []
     },
     {
+      "label": "Diff Coverage",
+      "type": "shell",
+      "command": "./scripts/diff_coverage.sh",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Go Build",
       "type": "shell",
       "command": "go build -v -ldflags \"-X main.Version=$(cat VERSION)\" -o bin/wuflow main.go",
@@ -84,7 +95,7 @@
     {
       "label": "Sonar Scanner",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && sonar-scanner -Dsonar.token=${env:SONAR_TOKEN} -Dsonar.projectVersion=$VERSION",
+      "command": "export VERSION=$(cat VERSION) && export BRANCH=$(git branch --show-current) && sonar-scanner -Dsonar.token=${env:SONAR_TOKEN} -Dsonar.projectVersion=$VERSION -Dsonar.branch.name=$BRANCH",
       "options": {
         "shell": {
           "args": [

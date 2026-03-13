@@ -19,6 +19,8 @@ const (
 	MaxPasswordLength     = 128
 	MaxRefreshTokenLength = 512
 	MaxAccessTokenLength  = 4096
+	MaxProjectNameLen     = 15
+	MaxProjectDescLen     = 100
 )
 
 // Validation errors
@@ -46,6 +48,10 @@ var (
 
 	ErrDateInvalid  = errors.New("date must be in YYYY-MM-DD format")
 	ErrTooManyDates = errors.New("too many planned dates (maximum 100)")
+
+	ErrInvalidProjectName = errors.New("project name is required")
+	ErrProjectNameTooLong = errors.New("project name must not exceed 15 characters")
+	ErrProjectDescTooLong = errors.New("project description must not exceed 100 characters")
 )
 
 // Compiled regexes (package-level, compiled once).
@@ -79,6 +85,25 @@ func isValidRole(role UserRole) bool {
 		return true
 	}
 	return false
+}
+
+func validateProject(p *Project) error {
+	p.Name = strings.ReplaceAll(p.Name, "\x00", "")
+	p.Name = strings.TrimSpace(p.Name)
+	p.Name = anyTagRegex.ReplaceAllString(p.Name, "")
+	if p.Name == "" {
+		return ErrInvalidProjectName
+	}
+	if utf8.RuneCountInString(p.Name) > MaxProjectNameLen {
+		return ErrProjectNameTooLong
+	}
+	p.Description = strings.ReplaceAll(p.Description, "\x00", "")
+	p.Description = strings.TrimSpace(p.Description)
+	p.Description = anyTagRegex.ReplaceAllString(p.Description, "")
+	if utf8.RuneCountInString(p.Description) > MaxProjectDescLen {
+		return ErrProjectDescTooLong
+	}
+	return nil
 }
 
 func validateIssue(i *Issue) error {

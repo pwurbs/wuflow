@@ -16,6 +16,7 @@ vi.mock('../api.js', () => ({
   deleteIssue: vi.fn(),
   fetchLabels: vi.fn(),
   fetchUsers: vi.fn(),
+  fetchProjects: vi.fn(),
   fetchIssueById: vi.fn()
 }));
 
@@ -113,6 +114,11 @@ describe('Modal Component', () => {
               <div id="assignee-options" class="custom-select-options hidden"></div>
               <input type="hidden" id="assignee-select">
             </div>
+            <div id="project-dropdown">
+              <div id="project-trigger" class="custom-select-trigger"><span id="project-text"></span></div>
+              <div id="project-options" class="custom-select-options hidden"></div>
+              <input type="hidden" id="project-select" value="1">
+            </div>
 
             <div id="tasks-section">
               <div id="task-form-container">
@@ -163,6 +169,7 @@ describe('Modal Component', () => {
     // Default mock returns
     api.fetchLabels.mockResolvedValue([{ id: 1, name: 'Bug' }, { id: 2, name: 'Feature' }]);
     api.fetchUsers.mockResolvedValue([{ id: 1, first_name: 'Test', last_name: 'User', active: true }]);
+    api.fetchProjects.mockResolvedValue([{ id: 1, name: 'default' }]);
     api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
     state.currentIssue = null;
     state.currentUser = { role: 'admin' };
@@ -1744,5 +1751,83 @@ describe('Modal Component', () => {
 
       expect(utils.showNotification).toHaveBeenCalledWith('Order save failed', 'error');
     });
+  });
+});
+
+describe('Project Selector Coverage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.updateIssue.mockResolvedValue({ issue: {}, etag: '"test-etag"', conflict: false });
+    state.currentIssue = null;
+    setCurrentIssue.mockImplementation((val) => { state.currentIssue = val; });
+    setupModal(vi.fn());
+  });
+
+  it('should update project-text after fetchProjects resolves with a matching project (lines 198-199)', async () => {
+    const issue = { id: 1, title: 'Test', project_id: 2 };
+    api.fetchIssueById.mockResolvedValue({ issue, etag: '"etag"' });
+    api.fetchProjects.mockResolvedValue([
+      { id: 1, name: 'Default' },
+      { id: 2, name: 'My Project' }
+    ]);
+
+    await openModal(issue);
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('project-text').textContent).toBe('My Project');
+  });
+
+  it('should not update project-text when project_id is not found in fetched projects (line 198 branch false)', async () => {
+    const issue = { id: 1, title: 'Test', project_id: 99 };
+    api.fetchIssueById.mockResolvedValue({ issue, etag: '"etag"' });
+    api.fetchProjects.mockResolvedValue([{ id: 1, name: 'Default' }]);
+
+    await openModal(issue);
+    await new Promise(process.nextTick);
+
+    // Initial value set from issue?.project?.name ?? 'default' (no project object)
+    expect(document.getElementById('project-text').textContent).toBe('default');
+  });
+
+  it('should save project update when project-select changes with currentIssue set (lines 880-890)', async () => {
+    state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
+    api.updateIssue.mockResolvedValue({ issue: {}, etag: '"new-etag"', conflict: false });
+
+    const projectSelect = document.getElementById('project-select');
+    projectSelect.value = '2';
+    projectSelect.dispatchEvent(new Event('change'));
+
+    await new Promise(process.nextTick);
+
+    expect(api.updateIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ project_id: 2 }),
+      expect.anything()
+    );
+    expect(state.currentIssue.project_id).toBe(2);
+  });
+
+  it('should show error notification when project save fails (line 888)', async () => {
+    state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
+    api.updateIssue.mockRejectedValue(new Error('Save failed'));
+
+    const projectSelect = document.getElementById('project-select');
+    projectSelect.value = '3';
+    projectSelect.dispatchEvent(new Event('change'));
+
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledWith('Save failed', 'error');
+  });
+
+  it('should not call updateIssue when project-select changes without currentIssue (line 880 branch false)', async () => {
+    state.currentIssue = null;
+
+    const projectSelect = document.getElementById('project-select');
+    projectSelect.value = '2';
+    projectSelect.dispatchEvent(new Event('change'));
+
+    await new Promise(process.nextTick);
+
+    expect(api.updateIssue).not.toHaveBeenCalled();
   });
 });

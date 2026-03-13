@@ -153,9 +153,13 @@ body:not(.is-dragging) .card.is-archived:hover {
   align-items: center;
   justify-content: flex-start;
   /* Explicitly align left */
+  gap: 4px;
+  flex-wrap: wrap;
   margin: 4px 0;
   padding-left: 0;
 }
+
+
 
 
 

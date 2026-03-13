@@ -20,6 +20,21 @@
                         <span id="app-version" class="logo-app-version">v...</span>
                     </div>
                 </h1>
+    <!-- Project Selector — separate box to the left of the filter bar -->
+                <div id="project-selector-container" class="filter-card">
+                    <span class="filter-label">Project</span>
+                    <div id="project-selector-wrapper" class="filter-input-wrapper custom-select-wrapper">
+                        <button id="project-selector-btn" class="custom-select-trigger"
+                            aria-label="Select project">
+                            <span id="project-selector-text">All Projects</span>
+                            <span class="filter-icon-arrow">▼</span>
+                        </button>
+                        <div id="project-selector-options" class="custom-select-options hidden">
+                            <!-- Options injected here -->
+                        </div>
+                    </div>
+                </div>
+
                 <div id="filter-container" class="filter-card">
                     <span class="filter-label">Filter</span>
                     <!-- Label Filter Wrapper -->
@@ -141,6 +156,17 @@
 
             </nav>
             <div id="setup-view" class="hidden">
+                <div class="setup-section" id="project-management-section">
+                    <div class="column-header">
+                        <h2>Project Management</h2>
+                    </div>
+                    <div class="setup-content">
+                        <button id="add-project-btn" class="btn secondary">+ Add Project</button>
+                        <div id="projects-list" class="users-list">
+                            <!-- Projects injected here -->
+                        </div>
+                    </div>
+                </div>
                 <div class="setup-section">
                     <div class="column-header">
                         <h2>Label Management</h2>
@@ -228,6 +254,36 @@
                         <div class="form-actions">
                             <button type="button" id="user-modal-cancel" class="btn secondary">Cancel</button>
                             <button type="submit" id="user-modal-save" class="btn primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <!-- Project Modal -->
+            <div id="project-modal-overlay" class="modal-overlay hidden">
+                <div class="user-modal">
+                    <div class="user-modal-header">
+                        <h2 id="project-modal-title">New Project</h2>
+                    </div>
+                    <form id="project-form" autocomplete="off">
+                        <div class="form-group">
+                            <label for="project-name">Name</label>
+                            <div class="name-input-wrapper">
+                                <input type="text" id="project-name" required placeholder="Project name (max 15 chars)" maxlength="15">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="project-description">Description</label>
+                            <textarea id="project-description" placeholder="Short description (max 100 chars)" maxlength="100" rows="3" class="setup-input" style="width:100%;resize:vertical;"></textarea>
+                        </div>
+                        <div id="project-modal-error" class="form-error hidden" role="alert"></div>
+                        <div class="form-actions" style="justify-content: space-between;">
+                            <div class="left-actions">
+                                <button type="button" id="project-modal-delete" class="btn danger hidden">Delete</button>
+                            </div>
+                            <div class="right-actions">
+                                <button type="button" id="project-modal-cancel" class="btn secondary">Cancel</button>
+                                <button type="submit" id="project-modal-save" class="btn primary">Save</button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -539,6 +595,19 @@
                                     <span class="filter-icon-arrow">▼</span>
                                 </button>
                                 <div class="custom-select-options hidden" id="label-options">
+                                    <!-- Options injected here -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="project-trigger">Project</label>
+                            <div class="custom-select-wrapper" id="project-dropdown">
+                                <input type="hidden" id="project-select" name="project" value="1">
+                                <button type="button" class="custom-select-trigger" id="project-trigger">
+                                    <span id="project-text">default</span>
+                                    <span class="filter-icon-arrow">▼</span>
+                                </button>
+                                <div class="custom-select-options hidden" id="project-options">
                                     <!-- Options injected here -->
                                 </div>
                             </div>

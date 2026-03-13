@@ -30,6 +30,10 @@ const (
 	errMsgFailedLogin         = "Failed login attempt"
 	errMsgInvalidCreds        = "Invalid email or password"
 	errMsgTooManyAttempts     = "Too many login attempts, please try again later"
+	errMsgProjectNotFound     = "Project not found"
+	errMsgInvalidProject      = "Invalid project ID"
+	errMsgDefaultProject      = "Cannot delete or rename the default project"
+	errMsgProjectHasIssues    = "Cannot delete project with assigned issues"
 )
 
 // errAdminCheckDB is a sentinel returned by checkLastAdminProtection when the
@@ -104,6 +108,29 @@ func checkLabel(w http.ResponseWriter, i *Issue, userEmail string) bool {
 	return true
 }
 
+// checkProject verifies ProjectID against the DB.
+func checkProject(w http.ResponseWriter, i *Issue, userEmail string) bool {
+	if i.ProjectID == 0 {
+		// Default to project 1 if not set
+		i.ProjectID = 1
+		return true
+	}
+
+	exists, err := ProjectExists(i.ProjectID)
+	if err != nil {
+		slog.Error("Validate: ProjectExists failed", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return false
+	}
+	if !exists {
+		slog.Warn("Validate: Invalid project ID", "project_id", i.ProjectID, "user_email", userEmail)
+		http.Error(w, errMsgInvalidProject, http.StatusBadRequest)
+		return false
+	}
+
+	return true
+}
+
 // HandleCreateIssue handles POST requests to create a new issue.
 func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
@@ -124,8 +151,8 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 
 		userEmail := GetEmailFromContext(r.Context())
 
-		// Validate AssigneeID and Label against the database
-		if !checkAssignee(w, &i, nil, userEmail) || !checkLabel(w, &i, userEmail) {
+		// Validate AssigneeID, Label and Project against the database
+		if !checkAssignee(w, &i, nil, userEmail) || !checkLabel(w, &i, userEmail) || !checkProject(w, &i, userEmail) {
 			return
 		}
 
@@ -380,8 +407,8 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	i.UpdaterID = &updaterID
 	userEmail := GetEmailFromContext(r.Context())
 
-	// Validate AssigneeID and Label against the database
-	if !checkAssignee(w, &i, current, userEmail) || !checkLabel(w, &i, userEmail) {
+	// Validate AssigneeID, Label and Project against the database
+	if !checkAssignee(w, &i, current, userEmail) || !checkLabel(w, &i, userEmail) || !checkProject(w, &i, userEmail) {
 		return
 	}
 
@@ -1347,4 +1374,173 @@ func decodeAndValidate[T any](w http.ResponseWriter, r *http.Request, v *T, vali
 		return false
 	}
 	return true
+}
+
+// -----------------------------------------------------------------------------
+// Project Handlers
+// -----------------------------------------------------------------------------
+
+// HandleProjects handles GET /api/projects (list) and POST /api/projects (create).
+func HandleProjects(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		if !Can(GetRoleFromContext(r.Context()), ActionListProjects) {
+			denyForbidden(w, r, ActionListProjects)
+			return
+		}
+		handleListProjects(w, r)
+	case http.MethodPost:
+		if !Can(GetRoleFromContext(r.Context()), ActionCreateProject) {
+			denyForbidden(w, r, ActionCreateProject)
+			return
+		}
+		handleCreateProject(w, r)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+func handleListProjects(w http.ResponseWriter, r *http.Request) {
+	projects, err := GetAllProjects()
+	if err != nil {
+		userEmail := GetEmailFromContext(r.Context())
+		slog.Error("ListProjects: database error", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(projects); err != nil {
+		slog.Error("handleListProjects: failed to encode response", "error", err)
+	}
+}
+
+func handleCreateProject(w http.ResponseWriter, r *http.Request) {
+	userEmail := GetEmailFromContext(r.Context())
+
+	var p Project
+	if !decodeAndValidate(w, r, &p, validateProject) {
+		return
+	}
+
+	if err := CreateProject(&p); err != nil {
+		if errors.Is(err, ErrDuplicateProjectName) {
+			slog.Warn("CreateProject: name already exists", "name", p.Name, "user_email", userEmail)
+			http.Error(w, "Project name already exists", http.StatusConflict)
+			return
+		}
+		slog.Error("CreateProject failed", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("Project created", "id", p.ID, "name", p.Name, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(p); err != nil {
+		slog.Error("handleCreateProject: failed to encode response", "error", err, "user_email", userEmail)
+	}
+}
+
+// HandleProject handles PUT /api/projects/{id} (update) and DELETE /api/projects/{id} (delete).
+func HandleProject(w http.ResponseWriter, r *http.Request) {
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/projects/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		slog.Warn("Invalid project ID", "error", err)
+		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		if !Can(GetRoleFromContext(r.Context()), ActionUpdateProject) {
+			denyForbidden(w, r, ActionUpdateProject)
+			return
+		}
+		handleUpdateProject(w, r, id)
+	case http.MethodDelete:
+		if !Can(GetRoleFromContext(r.Context()), ActionDeleteProject) {
+			denyForbidden(w, r, ActionDeleteProject)
+			return
+		}
+		handleDeleteProject(w, r, id)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {
+	userEmail := GetEmailFromContext(r.Context())
+
+	var p Project
+	if !decodeAndValidate(w, r, &p, validateProject) {
+		return
+	}
+
+
+	p.ID = id
+	if err := UpdateProject(&p); err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			slog.Warn("UpdateProject: project not found", "id", id, "user_email", userEmail)
+			http.Error(w, errMsgProjectNotFound, http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrDuplicateProjectName) {
+			slog.Warn("UpdateProject: name already exists", "id", id, "name", p.Name, "user_email", userEmail)
+			http.Error(w, "Project name already exists", http.StatusConflict)
+			return
+		}
+		slog.Error("UpdateProject failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("Project updated", "id", id, "name", p.Name, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(p); err != nil {
+		slog.Error("handleUpdateProject: failed to encode response", "id", id, "error", err, "user_email", userEmail)
+	}
+}
+
+func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
+	userEmail := GetEmailFromContext(r.Context())
+
+	// Prevent deleting the default project
+	if id == 1 {
+		slog.Warn("Attempt to delete default project blocked", "id", id, "user_email", userEmail)
+		http.Error(w, errMsgDefaultProject, http.StatusBadRequest)
+		return
+	}
+
+	// Prevent deleting projects that still have issues
+	count, err := CountIssuesByProject(id)
+	if err != nil {
+		slog.Error("DeleteProject: CountIssuesByProject failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if count > 0 {
+		slog.Warn("Attempt to delete project with assigned issues blocked", "id", id, "count", count, "user_email", userEmail)
+		http.Error(w, errMsgProjectHasIssues, http.StatusBadRequest)
+		return
+	}
+
+	if err := DeleteProject(id); err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			slog.Warn("DeleteProject: project not found", "id", id, "user_email", userEmail)
+			http.Error(w, errMsgProjectNotFound, http.StatusNotFound)
+			return
+		}
+		slog.Error("DeleteProject failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("Project deleted", "id", id, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "Project deleted"}); err != nil {
+		slog.Error("handleDeleteProject: failed to encode response", "id", id, "error", err, "user_email", userEmail)
+	}
 }

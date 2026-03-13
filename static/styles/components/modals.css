@@ -1,4 +1,5 @@
-.modal {
+.modal,
+.modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -11,7 +12,8 @@
   z-index: 1000;
 }
 
-.modal.hidden {
+.modal.hidden,
+.modal-overlay.hidden {
   display: none;
 }
 

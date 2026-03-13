@@ -29,6 +29,9 @@ const (
 	apiLabels            = "/api/labels"
 	apiLabelsBase        = "/api/labels/"
 	apiLabels1           = apiLabelsBase + "1"
+	apiProjects          = "/api/projects"
+	apiProjectsBase      = "/api/projects/"
+	apiProjects1         = apiProjectsBase + "1"
 	invalidJSON          = "invalid json"
 	wrongStatusCode      = "handler returned wrong status code: got %v want %v"
 	toDelete             = "To Delete"
@@ -38,13 +41,15 @@ const (
 	testTaskTitleNew     = "New Task"
 	testAssigneeEmail    = "user@example.com"
 	expectedFalseDBError = "expected false on DB error"
+	expectedResMsg       = "expected %v, got %v"
+	expectedCodeMsg      = "expected code %v, got %v"
 )
 
 func TestHandleActiveIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateIssue(&Issue{Title: "Issue 1", Status: StatusOpen})
+	CreateIssue(&Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1})
 
 	req, err := http.NewRequest("GET", apiIssues, nil)
 	if err != nil {
@@ -76,7 +81,7 @@ func TestHandleCreateIssuePost(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen}
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1}
 	body, _ := json.Marshal(issue)
 
 	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
@@ -110,7 +115,7 @@ func TestHandleCreateIssueInvalidAssignee(t *testing.T) {
 	defer teardownTestDB()
 
 	invalidAssigneeID := 999
-	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, AssigneeID: &invalidAssigneeID}
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, AssigneeID: &invalidAssigneeID}
 	body, _ := json.Marshal(issue)
 
 	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
@@ -132,7 +137,7 @@ func TestHandleCreateIssueInvalidLabel(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, Label: &Label{ID: 999}}
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, Label: &Label{ID: 999}}
 	body, _ := json.Marshal(issue)
 
 	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
@@ -154,7 +159,7 @@ func TestHandleCreateIssueInvalidPosition(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, Position: -1}
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, Position: -1}
 	body, _ := json.Marshal(issue)
 
 	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
@@ -177,7 +182,7 @@ func TestHandleCreateIssueInvalidDeadline(t *testing.T) {
 	defer teardownTestDB()
 
 	invalidDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
-	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, Deadline: &invalidDeadline}
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, Deadline: &invalidDeadline}
 	body, _ := json.Marshal(issue)
 
 	req, err := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
@@ -199,7 +204,7 @@ func TestHandleIssuePut(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Original", Status: StatusOpen}
+	issue := &Issue{Title: "Original", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	issue.Title = "Updated"
@@ -238,7 +243,7 @@ func TestHandleIssueDelete(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: toDelete, Status: StatusOpen}
+	issue := &Issue{Title: toDelete, Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	req, err := http.NewRequest("DELETE", apiIssues1, nil)
@@ -267,7 +272,7 @@ func TestHandleIssueGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Test Issue", Status: StatusOpen, Description: "Test Description"}
+	issue := &Issue{Title: "Test Issue", Status: StatusOpen, ProjectID: 1, Description: "Test Description"}
 	CreateIssue(issue)
 
 	req, err := http.NewRequest("GET", apiIssues1, nil)
@@ -325,7 +330,7 @@ func TestHandleIssuePutConflict(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Original", Status: StatusOpen}
+	issue := &Issue{Title: "Original", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	// Simulate a stale ETag (old timestamp)
@@ -355,7 +360,7 @@ func TestHandleIssuePutWithValidEtag(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Original", Status: StatusOpen}
+	issue := &Issue{Title: "Original", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	// Get the current issue to obtain valid ETag
@@ -396,7 +401,7 @@ func TestHandleCreateTaskPost(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Issue", Status: StatusOpen}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
 	task := &Task{Title: testTaskTitleNew, IssueID: issue.ID}
@@ -429,7 +434,7 @@ func TestHandleTaskPut(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Issue", Status: StatusOpen}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 	task := &Task{IssueID: issue.ID, Title: "Original"}
 	CreateTask(task)
@@ -463,7 +468,7 @@ func TestHandleTaskDelete(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Issue", Status: StatusOpen}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 	task := &Task{IssueID: issue.ID, Title: toDelete}
 	CreateTask(task)
@@ -530,7 +535,7 @@ func TestHandleIssuePutInvalidJSON(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create a dummy issue to avoid 404 before JSON decode
-	CreateIssue(&Issue{Title: "Dummy"})
+	CreateIssue(&Issue{Title: "Dummy", ProjectID: 1})
 
 	req, err := http.NewRequest("PUT", apiIssues1, bytes.NewBufferString(invalidJSON))
 	if err != nil {
@@ -868,7 +873,7 @@ func TestHandlersDBError(t *testing.T) {
 		DB = oldDB
 	}()
 
-	issueBody, _ := json.Marshal(&Issue{Title: "Test", Status: StatusOpen})
+	issueBody, _ := json.Marshal(&Issue{Title: "Test", Status: StatusOpen, ProjectID: 1})
 	taskBody, _ := json.Marshal(&Task{Title: "Test", IssueID: 1})
 	labelBody, _ := json.Marshal(&Label{Name: "Test", Color: "#000000"})
 
@@ -909,7 +914,7 @@ func TestHandleIssueRefOnNonExistentID(t *testing.T) {
 	defer teardownTestDB()
 
 	// 1. PUT non-existent issue
-	issue := &Issue{Title: "Updated Title", Status: StatusOpen}
+	issue := &Issue{Title: "Updated Title", Status: StatusOpen, ProjectID: 1}
 	body, _ := json.Marshal(issue)
 	req, _ := http.NewRequest("PUT", invalidIssuePath, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -939,9 +944,9 @@ func TestHandleCreateIssueInvalidInput(t *testing.T) {
 		name  string
 		issue Issue
 	}{
-		{"EmptyTitle", Issue{Title: "", Status: StatusOpen}},
-		{"InvalidStatus", Issue{Title: "Valid", Status: "InvalidStatus"}},
-		{"InvalidPriority", Issue{Title: "Valid", Status: StatusOpen, Priority: "Critical"}},
+		{"EmptyTitle", Issue{Title: "", Status: StatusOpen, ProjectID: 1}},
+		{"InvalidStatus", Issue{Title: "Valid", Status: "InvalidStatus", ProjectID: 1}},
+		{"InvalidPriority", Issue{Title: "Valid", Status: StatusOpen, Priority: "Critical", ProjectID: 1}},
 	}
 
 	for _, tt := range tests {
@@ -1068,7 +1073,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	defer teardownTestDB()
 
 	// 1. Create an archived issue
-	archivedIssue := &Issue{Title: "Archived", Status: StatusArchive}
+	archivedIssue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(archivedIssue)
 	archivedIssuePath := apiIssuesBase + strconv.Itoa(archivedIssue.ID)
 
@@ -1094,7 +1099,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	}
 
 	// 4. Create another archived issue for task tests
-	archivedIssue2 := &Issue{Title: "Archived with Tasks", Status: StatusArchive}
+	archivedIssue2 := &Issue{Title: "Archived with Tasks", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(archivedIssue2)
 	task := &Task{IssueID: archivedIssue2.ID, Title: "Task"}
 	// Bypass HandleCreateTask to create a task for an archived issue for testing
@@ -1133,7 +1138,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	}
 
 	// 8. Try to bypass by omitting status on a *new* archived issue (blocked)
-	archivedIssue3 := &Issue{Title: "Archived 3", Status: StatusArchive}
+	archivedIssue3 := &Issue{Title: "Archived 3", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(archivedIssue3)
 	archivedIssue3Path := apiIssuesBase + strconv.Itoa(archivedIssue3.ID)
 
@@ -1142,7 +1147,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	rr = httptest.NewRecorder()
 	HandleIssue(rr, req)
 	// 9. Try to delete archived issue (blocked even for admin — business rule in handler)
-	archivedIssue4 := &Issue{Title: "Archived 4", Status: StatusArchive}
+	archivedIssue4 := &Issue{Title: "Archived 4", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(archivedIssue4)
 	archivedDeletePath := apiIssuesBase + strconv.Itoa(archivedIssue4.ID)
 
@@ -1167,7 +1172,7 @@ func TestHandlersDBErrors(t *testing.T) {
 	closedDB.Close()
 	DB = closedDB
 
-	validIssue := `{"title":"Issue","status":"Open"}`
+	validIssue := `{"title":"Issue","status":"Open","project_id":1}`
 	validTask := `{"title":"Task","issue_id":1}`
 	validLabel := `{"name":"Label","color":"#000000"}`
 	validTaskUpdate := `{"title":"Task","done":true}`
@@ -1258,7 +1263,7 @@ func TestCheckIfMatchConflict(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create issue
-	issue := &Issue{Title: "Orignal", Status: StatusOpen}
+	issue := &Issue{Title: "Orignal", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 	originalEtag := `"` + issue.UpdatedAt.UTC().Format(time.RFC3339Nano) + `"`
 
@@ -1295,7 +1300,7 @@ func TestHandlePutIssueReadOnlyArchived(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create archived issue
-	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID)
 
@@ -1321,7 +1326,7 @@ func TestHandleArchiveIssue(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Active", Status: StatusOpen}
+	issue := &Issue{Title: "Active", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + archiveSuffix
 
@@ -1362,7 +1367,7 @@ func TestHandleArchiveIssueAlready(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Already Archived", Status: StatusArchive}
+	issue := &Issue{Title: "Already Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + archiveSuffix
 
@@ -1381,7 +1386,7 @@ func TestHandleUnarchiveIssue(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
 
@@ -1407,7 +1412,7 @@ func TestHandleUnarchiveIssueNotArchived(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Active", Status: StatusOpen}
+	issue := &Issue{Title: "Active", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
 
@@ -1426,7 +1431,7 @@ func TestHandleDeleteIssueArchived(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID)
 
@@ -1476,7 +1481,7 @@ func TestHandlePutTaskArchivedIssue(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue)
 	task := &Task{Title: "Task", IssueID: issue.ID, Done: false}
 	CreateTask(task)
@@ -1503,7 +1508,7 @@ func TestHandleDeleteTaskArchivedIssue(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue)
 	task := &Task{Title: "Task", IssueID: issue.ID, Done: false}
 	CreateTask(task)
@@ -1525,7 +1530,7 @@ func TestHandlePutIssueUnarchive(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create archived issue
-	issue := &Issue{Title: "Archived", Status: StatusArchive}
+	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
 
@@ -1761,7 +1766,7 @@ func TestHandleCreateIssueSetsCreator(t *testing.T) {
 	user := &User{Email: "creator@test.com", FirstName: "C", LastName: "U", Role: RoleUser, Active: true}
 	CreateUser(user)
 
-	issue := &Issue{Title: "My Issue", Status: StatusOpen}
+	issue := &Issue{Title: "My Issue", Status: StatusOpen, ProjectID: 1}
 	body, _ := json.Marshal(issue)
 
 	req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
@@ -1800,7 +1805,7 @@ func TestHandleIssueUpdateAssignee(t *testing.T) {
 	CreateUser(creator)
 	CreateUser(assignee)
 
-	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID, ProjectID: 1}
 	CreateIssue(issue)
 
 	// Request to assign
@@ -1833,7 +1838,7 @@ func TestHandleIssueCreatorReadOnly(t *testing.T) {
 	CreateUser(creator)
 	CreateUser(imposter)
 
-	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID, ProjectID: 1}
 	CreateIssue(issue)
 
 	// Try to change creator
@@ -1892,6 +1897,17 @@ func TestHandlersForbidden(t *testing.T) {
 		{"CreateUser/noRole", "POST", apiUsers, "", HandleUsers},
 		{"GetUser/noRole", "GET", apiUsers1, "", HandleUser},
 		{"UpdateUser/noRole", "PUT", apiUsers1, "", HandleUser},
+
+		// Project actions: admin-only mutations must deny RoleUser
+		{"CreateProject/user", "POST", apiProjects, RoleUser, HandleProjects},
+		{"UpdateProject/user", "PUT", apiProjects1, RoleUser, HandleProject},
+		{"DeleteProject/user", "DELETE", apiProjects1, RoleUser, HandleProject},
+
+		// Project actions: no role must deny everything
+		{"ListProjects/noRole", "GET", apiProjects, "", HandleProjects},
+		{"CreateProject/noRole", "POST", apiProjects, "", HandleProjects},
+		{"UpdateProject/noRole", "PUT", apiProjects1, "", HandleProject},
+		{"DeleteProject/noRole", "DELETE", apiProjects1, "", HandleProject},
 	}
 
 	for _, tt := range tests {
@@ -1930,9 +1946,9 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 	}
 
 	// Create dummy data for tests
-	issue := &Issue{Title: "Issue 1", Status: StatusOpen}
+	issue := &Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
-	archivedIssue := &Issue{Title: "Archived", Status: StatusArchive}
+	archivedIssue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(archivedIssue)
 
 	task := &Task{Title: "Task 1", IssueID: issue.ID}
@@ -1951,7 +1967,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 	_, accessToken, refreshToken, _ := CreateUserSession(admin)
 
 	// Common body payloads
-	issueBody, _ := json.Marshal(&Issue{Title: testIssueTitleNew, Status: StatusOpen})
+	issueBody, _ := json.Marshal(&Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1})
 	taskBody, _ := json.Marshal(&Task{Title: testTaskTitleNew, IssueID: issue.ID})
 	labelBody, _ := json.Marshal(&Label{Name: "New Label", Color: "#FFF"})
 	loginBody, _ := json.Marshal(loginRequest{Email: adminEmail, Password: "password"})
@@ -2290,10 +2306,10 @@ func TestCheckAssignee(t *testing.T) {
 			rr := httptest.NewRecorder()
 			res := checkAssignee(rr, tt.issue, tt.current, testAssigneeEmail)
 			if res != tt.expectedRes {
-				t.Errorf("expected %v, got %v", tt.expectedRes, res)
+				t.Errorf(expectedResMsg, tt.expectedRes, res)
 			}
 			if !tt.expectedRes && rr.Code != tt.expectedCode {
-				t.Errorf("expected code %v, got %v", tt.expectedCode, rr.Code)
+				t.Errorf(expectedCodeMsg, tt.expectedCode, rr.Code)
 			}
 		})
 	}
@@ -2368,10 +2384,10 @@ func TestCheckLabel(t *testing.T) {
 			rr := httptest.NewRecorder()
 			res := checkLabel(rr, tt.issue, testAssigneeEmail)
 			if res != tt.expectedRes {
-				t.Errorf("expected %v, got %v", tt.expectedRes, res)
+				t.Errorf(expectedResMsg, tt.expectedRes, res)
 			}
 			if !tt.expectedRes && rr.Code != tt.expectedCode {
-				t.Errorf("expected code %v, got %v", tt.expectedCode, rr.Code)
+				t.Errorf(expectedCodeMsg, tt.expectedCode, rr.Code)
 			}
 		})
 	}
@@ -2396,3 +2412,344 @@ func TestCheckLabelDBError(t *testing.T) {
 }
 
 func ptrInt(i int) *int { return &i }
+
+func TestCheckProject(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "P1"}
+	if err := CreateProject(p); err != nil {
+		t.Fatalf("Failed to create project: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		issue        *Issue
+		expectedRes  bool
+		expectedCode int
+	}{
+		{
+			name:         "Existent Project",
+			issue:        &Issue{ProjectID: p.ID},
+			expectedRes:  true,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Non-existent Project",
+			issue:        &Issue{ProjectID: 999},
+			expectedRes:  false,
+			expectedCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			res := checkProject(rr, tt.issue, testAssigneeEmail)
+			if res != tt.expectedRes {
+				t.Errorf(expectedResMsg, tt.expectedRes, res)
+			}
+			if !tt.expectedRes && rr.Code != tt.expectedCode {
+				t.Errorf(expectedCodeMsg, tt.expectedCode, rr.Code)
+			}
+		})
+	}
+}
+
+func TestHandleListProjects(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	CreateProject(&Project{Name: "Proj 1"})
+
+	req, _ := http.NewRequest("GET", apiProjects, nil)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(handleListProjects)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf(wrongStatusCode, status, http.StatusOK)
+	}
+
+	var projects []Project
+	json.NewDecoder(rr.Body).Decode(&projects)
+	// Seed 1 (default) + ours
+	if len(projects) != 2 {
+		t.Errorf("expected 2 projects, got %d", len(projects))
+	}
+}
+
+func TestHandleCreateProject(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := Project{Name: "New Proj"}
+	body, _ := json.Marshal(p)
+
+	req, _ := http.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(handleCreateProject)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusCreated {
+		t.Errorf(wrongStatusCode, status, http.StatusCreated)
+	}
+
+	var created Project
+	json.NewDecoder(rr.Body).Decode(&created)
+	if created.Name != "New Proj" {
+		t.Errorf("expected 'New Proj', got '%s'", created.Name)
+	}
+}
+
+func TestHandleProjectUpdate(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "Old"}
+	CreateProject(p)
+
+	p.Name = "New"
+	body, _ := json.Marshal(p)
+
+	path := apiProjectsBase + strconv.Itoa(p.ID)
+	req, _ := http.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleProject)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf(wrongStatusCode, status, http.StatusOK)
+	}
+}
+
+func TestHandleProjectDelete(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: toDelete}
+	CreateProject(p)
+
+	path := apiProjectsBase + strconv.Itoa(p.ID)
+	req, _ := http.NewRequest("DELETE", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleProject)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf(wrongStatusCode, status, http.StatusOK)
+	}
+
+	// Verify it's gone
+	p2, _ := GetProjectByID(p.ID)
+	if p2 != nil {
+		t.Error("expected project to be deleted")
+	}
+}
+
+func TestHandleProjectDeleteDefaultBlocked(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, _ := http.NewRequest("DELETE", apiProjects1, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleProject)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
+	}
+}
+
+func TestHandleProjectDeleteWithIssuesBlocked(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "Has Issues"}
+	CreateProject(p)
+	CreateIssue(&Issue{Title: "I1", ProjectID: p.ID})
+
+	path := apiProjectsBase + strconv.Itoa(p.ID)
+	req, _ := http.NewRequest("DELETE", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleProject)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
+	}
+}
+
+func TestHandleProjectsMethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest("PATCH", apiProjects, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProjects(rr, req)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleProjectMethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest("GET", apiProjects1, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleProjectInvalidID(t *testing.T) {
+	req := httptest.NewRequest("PUT", apiProjectsBase+"abc", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCreateProjectInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("POST", apiProjects, bytes.NewBufferString(invalidJSON))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	handleCreateProject(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCreateProjectValidationFailure(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(Project{Name: ""})
+	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	handleCreateProject(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCreateProjectDuplicateName(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	CreateProject(&Project{Name: "Dupe"})
+
+	body, _ := json.Marshal(Project{Name: "Dupe"})
+	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	handleCreateProject(rr, req)
+	if rr.Code != http.StatusConflict {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
+	}
+}
+
+func TestHandleUpdateProjectInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "Upd"}
+	CreateProject(p)
+
+	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBufferString(invalidJSON))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleUpdateProjectValidationFailure(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "Upd"}
+	CreateProject(p)
+
+	body, _ := json.Marshal(Project{Name: ""})
+	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleUpdateProjectNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(Project{Name: "Ghost"})
+	req := httptest.NewRequest("PUT", apiProjectsBase+"999", bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleUpdateProjectDuplicateName(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	CreateProject(&Project{Name: "Existing"})
+	p := &Project{Name: "ToRename"}
+	CreateProject(p)
+
+	body, _ := json.Marshal(Project{Name: "Existing"})
+	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusConflict {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
+	}
+}
+
+func TestHandleDeleteProjectNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "GoneProject"}
+	CreateProject(p)
+	path := apiProjectsBase + strconv.Itoa(p.ID)
+	DeleteProject(p.ID) // pre-delete so the handler hits ErrProjectNotFound
+
+	req := httptest.NewRequest("DELETE", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}

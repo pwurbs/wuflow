@@ -1,5 +1,5 @@
 {
-    "sonarCloudOrganization": "pwurbs",
-    "projectKey": "wuflow",
+    "sonarCloudOrganization": "pwurbs-oss",
+    "projectKey": "wuflow-oss",
     "region": "EU"
 }

@@ -1,9 +1,11 @@
 .DS_Store
 *.db*
 /bin
-coverage.out
-coverage.html
 .scannerwork
+
+# Test results
+**/coverage.out
+**/coverage.html
 
 # Node modules
 node_modules

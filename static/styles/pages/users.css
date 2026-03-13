@@ -13,6 +13,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 4px 12px;
+  min-height: 32px; /* Set a more compact min-height that matches the user badge + padding */
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 8px;
@@ -72,28 +73,17 @@
   opacity: 0.6;
 }
 
-.user-edit-btn {
+.user-edit-btn,
+.project-edit-btn {
   /* Inherits from .btn.secondary */
   min-width: 60px;
   padding: 4px 12px;
   font-size: 13px;
 }
 
-/* User Modal */
-#user-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-#user-modal-overlay.hidden {
+/* User Modal specific overrides if any, otherwise use .modal-overlay */
+#user-modal-overlay.hidden,
+#project-modal-overlay.hidden {
   display: none;
 }
 

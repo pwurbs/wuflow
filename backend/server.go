@@ -141,6 +141,8 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	http.Handle("/api/labels/", authAPI(http.HandlerFunc(HandleLabel)))
 	http.Handle("/api/users", authAPI(http.HandlerFunc(HandleUsers)))
 	http.Handle("/api/users/", authAPI(http.HandlerFunc(HandleUser)))
+	http.Handle("/api/projects", authAPI(http.HandlerFunc(HandleProjects)))
+	http.Handle("/api/projects/", authAPI(http.HandlerFunc(HandleProject)))
 	http.Handle("/api/version", authAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(headerContentType, contentTypeJSON)
 		json.NewEncoder(w).Encode(map[string]string{"version": version})
