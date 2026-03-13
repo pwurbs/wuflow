@@ -2,6 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setSelectedProject } from '../state.js';
 
+// Provide a localStorage stub for the jsdom environment used by vitest.
+const _localStore = {};
+vi.stubGlobal('localStorage', {
+  getItem: (key) => _localStore[key] ?? null,
+  setItem: (key, value) => { _localStore[key] = String(value); },
+  removeItem: (key) => { delete _localStore[key]; },
+});
+
 vi.mock('../api.js', () => ({
   logout: vi.fn(),
   updateCurrentUser: vi.fn().mockResolvedValue({}),
@@ -207,9 +215,11 @@ describe('sortByPosition', () => {
   });
 });
 
-// ─── filterIssues project pre-filter ──────────────────────────────────────────
+// ─── filterIssues project (server-side) ───────────────────────────────────────
+// Project filtering is handled server-side. filterIssues does not filter by
+// selectedProjectId — all issues in the passed array are returned regardless.
 
-describe('filterIssues project pre-filter', () => {
+describe('filterIssues project (server-side)', () => {
   const projectIssues = [
     createIssue({ id: 10, project: { id: 1 } }),
     createIssue({ id: 11, project: { id: 2 } }),
@@ -221,28 +231,24 @@ describe('filterIssues project pre-filter', () => {
     state.selectedProjectId = null;
   });
 
-  it('should not filter by project when selectedProjectId is null', () => {
+  it('returns all issues regardless of selectedProjectId (filtering is server-side)', () => {
     state.selectedProjectId = null;
     expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
   });
 
-  it('should filter issues to the matching project only', () => {
+  it('does not filter by project when selectedProjectId is set', () => {
     state.selectedProjectId = 1;
-    const result = filterIssues(projectIssues, emptyFilter);
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe(10);
+    expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
   });
 
-  it('should exclude issues without a matching project object', () => {
+  it('does not filter out issues with null project', () => {
     state.selectedProjectId = 2;
-    const result = filterIssues(projectIssues, emptyFilter);
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe(11);
+    expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
   });
 
-  it('should return no issues when project id matches nothing', () => {
+  it('returns all issues even when selectedProjectId matches nothing', () => {
     state.selectedProjectId = 99;
-    expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(0);
+    expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
   });
 });
 
@@ -534,6 +540,7 @@ describe('Project Selector', () => {
   ];
 
   beforeEach(() => {
+    localStorage.removeItem('wuflow_selectedProjectId');
     state.selectedProjectId = null;
     onProjectChange = vi.fn();
     document.body.innerHTML = `
@@ -549,6 +556,7 @@ describe('Project Selector', () => {
 
   afterEach(() => {
     state.selectedProjectId = null;
+    localStorage.removeItem('wuflow_selectedProjectId');
   });
 
   it('auto-selects the first project when none is selected', () => {

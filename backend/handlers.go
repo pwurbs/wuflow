@@ -30,6 +30,7 @@ const (
 	errMsgFailedLogin         = "Failed login attempt"
 	errMsgInvalidCreds        = "Invalid email or password"
 	errMsgTooManyAttempts     = "Too many login attempts, please try again later"
+	errMsgNotFound            = "Resource not found"
 	errMsgProjectNotFound     = "Project not found"
 	errMsgInvalidProject      = "Invalid project ID"
 	errMsgDefaultProject      = "Cannot delete or rename the default project"
@@ -181,51 +182,6 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleActiveIssues handles GET requests to get all active issues.
-func HandleActiveIssues(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "GET":
-		if !Can(GetRoleFromContext(r.Context()), ActionListIssues) {
-			denyForbidden(w, r, ActionListIssues)
-			return
-		}
-		issues, err := GetAllActiveIssues()
-		if err != nil {
-			slog.Error("GetAllActiveIssues failed", "error", err)
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(issues); err != nil {
-			slog.Error("HandleActiveIssues: failed to encode response", "error", err)
-		}
-	default:
-		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
-	}
-}
-
-// HandleArchivedIssues handles GET requests to get all archived issues.
-func HandleArchivedIssues(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "GET":
-		if !Can(GetRoleFromContext(r.Context()), ActionListIssues) {
-			denyForbidden(w, r, ActionListIssues)
-			return
-		}
-		issues, err := GetAllArchivedIssues()
-		if err != nil {
-			slog.Error("GetAllArchivedIssues failed", "error", err)
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set(headerContentType, contentTypeJSON)
-		if err := json.NewEncoder(w).Encode(issues); err != nil {
-			slog.Error("HandleArchivedIssues: failed to encode response", "error", err)
-		}
-	default:
-		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
-	}
-}
 
 // HandleIssue handles GET, PUT, DELETE and sub-action (archive/unarchive) requests for a single issue.
 func HandleIssue(w http.ResponseWriter, r *http.Request) {
@@ -1442,13 +1398,33 @@ func handleCreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleProject handles PUT /api/projects/{id} (update) and DELETE /api/projects/{id} (delete).
+// HandleProject handles all /api/projects/{id} requests, including issue sub-resources:
+//   - PUT    /api/projects/{id}                → update project
+//   - DELETE /api/projects/{id}                → delete project
+//   - GET    /api/projects/{id}/issues/active  → list active issues for project
+//   - GET    /api/projects/{id}/issues/archived → list archived issues for project
 func HandleProject(w http.ResponseWriter, r *http.Request) {
-	idStr := strings.TrimPrefix(r.URL.Path, "/api/projects/")
-	id, err := strconv.Atoi(idStr)
+	// Strip prefix and split the remainder to detect sub-resource paths.
+	rest := strings.TrimPrefix(r.URL.Path, "/api/projects/")
+	parts := strings.SplitN(rest, "/", 2)
+
+	id, err := strconv.Atoi(parts[0])
 	if err != nil {
 		slog.Warn("Invalid project ID", "error", err)
 		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
+		return
+	}
+
+	// Sub-resource routing: /api/projects/{id}/issues/{sub}
+	if len(parts) == 2 {
+		switch parts[1] {
+		case "issues/active":
+			handleProjectActiveIssues(w, r, id)
+		case "issues/archived":
+			handleProjectArchivedIssues(w, r, id)
+		default:
+			http.Error(w, errMsgNotFound, http.StatusNotFound)
+		}
 		return
 	}
 
@@ -1467,6 +1443,78 @@ func HandleProject(w http.ResponseWriter, r *http.Request) {
 		handleDeleteProject(w, r, id)
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+// handleProjectActiveIssues handles GET /api/projects/{id}/issues/active.
+func projectExists(id int) (bool, error) {
+	p, err := GetProjectByID(id)
+	if err != nil {
+		return false, err
+	}
+	return p != nil, nil
+}
+
+func handleProjectActiveIssues(w http.ResponseWriter, r *http.Request, projectID int) {
+	if r.Method != http.MethodGet {
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		return
+	}
+	if !Can(GetRoleFromContext(r.Context()), ActionListIssues) {
+		denyForbidden(w, r, ActionListIssues)
+		return
+	}
+
+	if ok, err := projectExists(projectID); err != nil {
+		slog.Error("handleProjectActiveIssues: projectExists failed", "project_id", projectID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.Error(w, errMsgProjectNotFound, http.StatusNotFound)
+		return
+	}
+
+	issues, err := GetActiveIssuesByProject(projectID)
+	if err != nil {
+		slog.Error("GetActiveIssuesByProject failed", "project_id", projectID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(issues); err != nil {
+		slog.Error("handleProjectActiveIssues: failed to encode response", "error", err)
+	}
+}
+
+// handleProjectArchivedIssues handles GET /api/projects/{id}/issues/archived.
+func handleProjectArchivedIssues(w http.ResponseWriter, r *http.Request, projectID int) {
+	if r.Method != http.MethodGet {
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		return
+	}
+	if !Can(GetRoleFromContext(r.Context()), ActionListIssues) {
+		denyForbidden(w, r, ActionListIssues)
+		return
+	}
+
+	if ok, err := projectExists(projectID); err != nil {
+		slog.Error("handleProjectArchivedIssues: projectExists failed", "project_id", projectID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.Error(w, errMsgProjectNotFound, http.StatusNotFound)
+		return
+	}
+
+	issues, err := GetArchivedIssuesByProject(projectID)
+	if err != nil {
+		slog.Error("GetArchivedIssuesByProject failed", "project_id", projectID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(issues); err != nil {
+		slog.Error("handleProjectArchivedIssues: failed to encode response", "error", err)
 	}
 }
 

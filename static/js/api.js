@@ -62,24 +62,22 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
-export async function fetchActiveIssues() {
+export async function fetchActiveIssuesByProject(projectId) {
   try {
-    const res = await authFetch(`${API_URL}/issues/active`);
+    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/active`);
     const data = await res.json();
     return data || [];
   } catch {
-    // Failed to fetch issues, return empty list to prevent crash
     return [];
   }
 }
 
-export async function fetchArchivedIssues() {
+export async function fetchArchivedIssuesByProject(projectId) {
   try {
-    const res = await authFetch(`${API_URL}/issues/archived`);
+    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/archived`);
     const data = await res.json();
     return data || [];
   } catch {
-    // Failed to fetch archived issues, return empty list to prevent crash
     return [];
   }
 }

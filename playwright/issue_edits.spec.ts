@@ -68,7 +68,7 @@ test.describe('Issue Edit Operations', () => {
     // Wait for the PUT request (save) and GET request (refresh)
     const savePromise = Promise.all([
       page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
     await page.fill('#deadline', deadlineStr);
@@ -107,7 +107,7 @@ test.describe('Issue Edit Operations', () => {
     // Wait for save and refresh
     const savePromise = Promise.all([
       page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
     await page.fill('#deadline', newDeadline);
@@ -147,7 +147,7 @@ test.describe('Issue Edit Operations', () => {
     // Clear the deadline
     const savePromise = Promise.all([
       page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
     await page.fill('#deadline', '');

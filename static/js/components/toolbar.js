@@ -303,6 +303,15 @@ export function initProjectSelector(onProjectChange) {
 
   if (!btn || !optionsDiv) return;
 
+  // Restore last selected project from browser storage
+  const stored = localStorage.getItem('wuflow_selectedProjectId');
+  if (stored !== null) {
+    const id = Number.parseInt(stored, 10);
+    if (!Number.isNaN(id)) {
+      setSelectedProject(id);
+    }
+  }
+
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     optionsDiv.classList.toggle('hidden');
@@ -323,12 +332,15 @@ export function updateProjectSelectorOptions(projects) {
 
   if (state.selectedProjectId === null && projects && projects.length > 0) {
     setSelectedProject(projects[0].id);
+    localStorage.setItem('wuflow_selectedProjectId', String(projects[0].id));
     if (_onProjectChange) _onProjectChange();
   } else if (state.selectedProjectId !== null && projects && !projects.some(p => p.id === state.selectedProjectId)) {
-    if (projects.length > 0) {
-      setSelectedProject(projects[0].id);
+    const fallback = projects.length > 0 ? projects[0].id : null;
+    setSelectedProject(fallback);
+    if (fallback === null) {
+      localStorage.removeItem('wuflow_selectedProjectId');
     } else {
-      setSelectedProject(null);
+      localStorage.setItem('wuflow_selectedProjectId', String(fallback));
     }
     if (_onProjectChange) _onProjectChange();
   }
@@ -341,6 +353,7 @@ export function updateProjectSelectorOptions(projects) {
     option.addEventListener('click', (e) => {
       e.stopPropagation();
       setSelectedProject(project.id);
+      localStorage.setItem('wuflow_selectedProjectId', String(project.id));
       updateProjectButtonLabel(btn, project.name);
       optionsDiv.classList.add('hidden');
       if (_onProjectChange) _onProjectChange();

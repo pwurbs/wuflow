@@ -132,8 +132,6 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 
 	// Authenticated API endpoints
 	http.Handle("/api/issues", authAPI(http.HandlerFunc(HandleCreateIssue)))
-	http.Handle("/api/issues/active", authAPI(http.HandlerFunc(HandleActiveIssues)))
-	http.Handle("/api/issues/archived", authAPI(http.HandlerFunc(HandleArchivedIssues)))
 	http.Handle("/api/issues/", authAPI(http.HandlerFunc(HandleIssue)))
 	http.Handle("/api/tasks", authAPI(http.HandlerFunc(HandleCreateTask)))
 	http.Handle("/api/tasks/", authAPI(http.HandlerFunc(HandleTask)))

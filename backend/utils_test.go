@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"log/slog"
 	"net/http/httptest"
 	"testing"
 )
@@ -116,4 +117,104 @@ func TestGetClientIP(t *testing.T) {
 			}
 		})
 	}
+}
+
+// GetAllActiveIssues is a test helper that fetches all non-archived issues
+// across all projects. Production code uses GetActiveIssuesByProject instead.
+func GetAllActiveIssues() ([]Issue, error) {
+	rows, err := DB.Query(`
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
+		       l.id, l.name, l.color,
+		       c.id, c.email, c.first_name, c.last_name,
+		       a.id, a.email, a.first_name, a.last_name,
+		       u.id, u.email, u.first_name, u.last_name,
+		       p.id, p.name, p.description
+		FROM issues i
+		LEFT JOIN labels l ON i.label_id = l.id
+		LEFT JOIN users c ON i.creator_id = c.id
+		LEFT JOIN users a ON i.assignee_id = a.id
+		LEFT JOIN users u ON i.updated_by = u.id
+		LEFT JOIN projects p ON i.project_id = p.id
+		WHERE i.status != ?
+		ORDER BY i.position ASC`, StatusArchive)
+	if err != nil {
+		slog.Error("Database Error: GetAllActiveIssues", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var issues []Issue
+	for rows.Next() {
+		i, err := scanIssue(rows)
+		if err != nil {
+			slog.Error("Database Error: GetAllActiveIssues Scan", "error", err)
+			return nil, err
+		}
+		issues = append(issues, i)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetAllActiveIssues Rows", "error", err)
+		return nil, err
+	}
+
+	tasksByIssue, err := GetAllTasks()
+	if err != nil {
+		slog.Error("Database Error: GetAllActiveIssues GetAllTasks", "error", err)
+		return nil, err
+	}
+	for idx := range issues {
+		issues[idx].Tasks = tasksByIssue[issues[idx].ID]
+	}
+
+	return issues, nil
+}
+
+// GetAllArchivedIssues is a test helper that fetches all archived issues
+// across all projects. Production code uses GetArchivedIssuesByProject instead.
+func GetAllArchivedIssues() ([]Issue, error) {
+	rows, err := DB.Query(`
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
+		       l.id, l.name, l.color,
+		       c.id, c.email, c.first_name, c.last_name,
+		       a.id, a.email, a.first_name, a.last_name,
+		       u.id, u.email, u.first_name, u.last_name,
+		       p.id, p.name, p.description
+		FROM issues i
+		LEFT JOIN labels l ON i.label_id = l.id
+		LEFT JOIN users c ON i.creator_id = c.id
+		LEFT JOIN users a ON i.assignee_id = a.id
+		LEFT JOIN users u ON i.updated_by = u.id
+		LEFT JOIN projects p ON i.project_id = p.id
+		WHERE i.status = ?
+		ORDER BY i.position ASC`, StatusArchive)
+	if err != nil {
+		slog.Error("Database Error: GetAllArchivedIssues", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var issues []Issue
+	for rows.Next() {
+		i, err := scanIssue(rows)
+		if err != nil {
+			slog.Error("Database Error: GetAllArchivedIssues Scan", "error", err)
+			return nil, err
+		}
+		issues = append(issues, i)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetAllArchivedIssues Rows", "error", err)
+		return nil, err
+	}
+
+	tasksByIssue, err := GetAllTasks()
+	if err != nil {
+		slog.Error("Database Error: GetAllArchivedIssues GetAllTasks", "error", err)
+		return nil, err
+	}
+	for idx := range issues {
+		issues[idx].Tasks = tasksByIssue[issues[idx].ID]
+	}
+
+	return issues, nil
 }

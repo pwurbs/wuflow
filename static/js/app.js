@@ -1,4 +1,4 @@
-import { fetchActiveIssues, fetchLabels, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects } from './api.js';
+import { fetchActiveIssuesByProject, fetchLabels, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects } from './api.js';
 import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
@@ -69,7 +69,7 @@ async function refreshApp() {
         // Reset archived loaded flag so we fetch fresh data on next Archive view
         resetArchivedLoaded();
 
-        const issues = await fetchActiveIssues();
+        const issues = await fetchActiveIssuesByProject(state.selectedProjectId);
         setIssues(issues);
 
         // Refresh Label Filter

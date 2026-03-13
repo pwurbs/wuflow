@@ -194,6 +194,7 @@ func createTables() error {
 		return err
 	}
 
+	// Migration Code, can be removed in a later version (TODO)
 	// Add project_id column to issues if it doesn't exist (migration for existing DBs)
 	// SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we check column existence first.
 	// NOTE: We cannot add a REFERENCES column with a non-NULL default value in SQLite
@@ -299,7 +300,7 @@ func CreateIssue(i *Issue) error {
 		updaterID = i.UpdaterID
 	}
 
-	var plannedDatesJSON interface{}
+	var plannedDatesJSON any
 	if i.PlannedDates != nil {
 		b, err := json.Marshal(i.PlannedDates)
 		if err != nil {
@@ -324,25 +325,25 @@ func CreateIssue(i *Issue) error {
 	return nil
 }
 
-// GetAllActiveIssues retrieves all active (non-archived) issues from the database, including their associated tasks.
-func GetAllActiveIssues() ([]Issue, error) {
+// GetActiveIssuesByProject retrieves all active (non-archived) issues for a specific project.
+func GetActiveIssuesByProject(projectID int) ([]Issue, error) {
 	rows, err := DB.Query(`
-		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
 		       a.id, a.email, a.first_name, a.last_name,
 		       u.id, u.email, u.first_name, u.last_name,
 		       p.id, p.name, p.description
-		FROM issues i 
-		LEFT JOIN labels l ON i.label_id = l.id 
+		FROM issues i
+		LEFT JOIN labels l ON i.label_id = l.id
 		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
 		LEFT JOIN users u ON i.updated_by = u.id
 		LEFT JOIN projects p ON i.project_id = p.id
-		WHERE i.status != ?
-		ORDER BY i.position ASC`, StatusArchive)
+		WHERE i.status != ? AND i.project_id = ?
+		ORDER BY i.position ASC`, StatusArchive, projectID)
 	if err != nil {
-		slog.Error("Database Error: GetAllActiveIssues", "error", err)
+		slog.Error("Database Error: GetActiveIssuesByProject", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -351,20 +352,19 @@ func GetAllActiveIssues() ([]Issue, error) {
 	for rows.Next() {
 		i, err := scanIssue(rows)
 		if err != nil {
-			slog.Error("Database Error: GetAllActiveIssues Scan", "error", err)
+			slog.Error("Database Error: GetActiveIssuesByProject Scan", "error", err)
 			return nil, err
 		}
 		issues = append(issues, i)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetAllActiveIssues Rows", "error", err)
+		slog.Error("Database Error: GetActiveIssuesByProject Rows", "error", err)
 		return nil, err
 	}
 
-	// Batch fetch all tasks and assign to issues
 	tasksByIssue, err := GetAllTasks()
 	if err != nil {
-		slog.Error("Database Error: GetAllActiveIssues GetAllTasks", "error", err)
+		slog.Error("Database Error: GetActiveIssuesByProject GetAllTasks", "error", err)
 		return nil, err
 	}
 	for idx := range issues {
@@ -374,25 +374,25 @@ func GetAllActiveIssues() ([]Issue, error) {
 	return issues, nil
 }
 
-// GetAllArchivedIssues retrieves all archived issues from the database, including their associated tasks.
-func GetAllArchivedIssues() ([]Issue, error) {
+// GetArchivedIssuesByProject retrieves all archived issues for a specific project.
+func GetArchivedIssuesByProject(projectID int) ([]Issue, error) {
 	rows, err := DB.Query(`
-		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
 		       a.id, a.email, a.first_name, a.last_name,
 		       u.id, u.email, u.first_name, u.last_name,
 		       p.id, p.name, p.description
-		FROM issues i 
-		LEFT JOIN labels l ON i.label_id = l.id 
+		FROM issues i
+		LEFT JOIN labels l ON i.label_id = l.id
 		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
 		LEFT JOIN users u ON i.updated_by = u.id
 		LEFT JOIN projects p ON i.project_id = p.id
-		WHERE i.status = ?
-		ORDER BY i.position ASC`, StatusArchive)
+		WHERE i.status = ? AND i.project_id = ?
+		ORDER BY i.position ASC`, StatusArchive, projectID)
 	if err != nil {
-		slog.Error("Database Error: GetArchivedIssues", "error", err)
+		slog.Error("Database Error: GetArchivedIssuesByProject", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -401,20 +401,19 @@ func GetAllArchivedIssues() ([]Issue, error) {
 	for rows.Next() {
 		i, err := scanIssue(rows)
 		if err != nil {
-			slog.Error("Database Error: GetArchivedIssues Scan", "error", err)
+			slog.Error("Database Error: GetArchivedIssuesByProject Scan", "error", err)
 			return nil, err
 		}
 		issues = append(issues, i)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetArchivedIssues Rows", "error", err)
+		slog.Error("Database Error: GetArchivedIssuesByProject Rows", "error", err)
 		return nil, err
 	}
 
-	// Batch fetch all tasks and assign to issues
 	tasksByIssue, err := GetAllTasks()
 	if err != nil {
-		slog.Error("Database Error: GetArchivedIssues GetAllTasks", "error", err)
+		slog.Error("Database Error: GetArchivedIssuesByProject GetAllTasks", "error", err)
 		return nil, err
 	}
 	for idx := range issues {
@@ -579,7 +578,7 @@ func UpdateIssue(i *Issue) error {
 		labelID = &id
 	}
 
-	var plannedDatesJSON interface{}
+	var plannedDatesJSON any
 	if i.PlannedDates != nil {
 		b, err := json.Marshal(i.PlannedDates)
 		if err != nil {

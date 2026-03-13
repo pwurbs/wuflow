@@ -298,17 +298,17 @@ func TestServerRoutes(t *testing.T) {
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name:           "GET /api/issues/active",
+			name:           "GET /api/projects/1/issues/active",
 			method:         "GET",
-			path:           "/api/issues/active",
-			handler:        HandleActiveIssues,
+			path:           "/api/projects/1/issues/active",
+			handler:        HandleProject,
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "GET /api/issues/archived",
+			name:           "GET /api/projects/1/issues/archived",
 			method:         "GET",
-			path:           "/api/issues/archived",
-			handler:        HandleArchivedIssues,
+			path:           "/api/projects/1/issues/archived",
+			handler:        HandleProject,
 			expectedStatus: http.StatusOK,
 		},
 		{

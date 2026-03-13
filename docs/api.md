@@ -18,8 +18,8 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/users` | POST | `HandleUsers` | Admin | Create new user |
 | `/users/:id` | GET | `HandleUser` | Admin | Get user details |
 | `/users/:id` | PUT | `HandleUser` | Admin | Update user |
-| `/issues/active` | GET | `HandleActiveIssues` | Required | Get all active issues |
-| `/issues/archived` | GET | `HandleArchivedIssues` | Required | Get all archived issues |
+| `/projects/:id/issues/active` | GET | `HandleProject` | Required | Get active issues for a project |
+| `/projects/:id/issues/archived` | GET | `HandleProject` | Required | Get archived issues for a project |
 | `/issues` | POST | `HandleCreateIssue` | Required | Create a new issue |
 | `/issues/:id` | GET | `HandleIssue` | Required | Get issue details |
 | `/issues/:id` | PUT | `HandleIssue` | Required | Update issue (non-archived only) |
@@ -144,13 +144,17 @@ Updates an existing user (Admin only).
 
 ## Issues
 
-### Get Active Issues
-Retrieves all active issues (status != 'Archive'). Includes associated tasks.
-- **GET** `/issues/active`
+### Get Active Issues for a Project
+Retrieves all active issues (status != 'Archive') belonging to a specific project. Includes associated tasks.
+- **GET** `/projects/:id/issues/active`
+- **Errors**:
+  - `404 Not Found` - Project doesn't exist
 
-### Get Archived Issues
-Retrieves all archived issues (status == 'Archive'). Includes associated tasks.
-- **GET** `/issues/archived`
+### Get Archived Issues for a Project
+Retrieves all archived issues (status == 'Archive') belonging to a specific project. Includes associated tasks.
+- **GET** `/projects/:id/issues/archived`
+- **Errors**:
+  - `404 Not Found` - Project doesn't exist
 
 ### Create Issue
 Creates a new issue.
@@ -273,7 +277,7 @@ Creates a new project (Admin only).
   }
   ```
 - **Notes**:
-  - `name` is required, max 15 characters
+  - `name` is required, max 15 characters, stored as lowercase
   - `description` is optional, max 100 characters
 - **Response**: Created project object (201 Created)
 - **Errors**:

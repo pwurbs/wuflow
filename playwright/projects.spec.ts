@@ -24,7 +24,7 @@ test.describe('Project Management', () => {
     await expect(page.locator('#project-modal-overlay')).toBeVisible();
     await expect(page.locator('#project-modal-title')).toHaveText('New Project');
 
-    const projectName = `Proj_${Date.now()}`.slice(0, 15);
+    const projectName = `proj_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', projectName);
     await page.fill('#project-description', 'A test project description');
     await page.click('#project-modal-save');
@@ -50,7 +50,7 @@ test.describe('Project Management', () => {
   test('Edit a project name and description', async ({ page }) => {
     // First create a project to edit
     await page.click('#add-project-btn');
-    const originalName = `Edit_${Date.now()}`.slice(0, 15);
+    const originalName = `edit_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', originalName);
     await page.fill('#project-description', 'Original description');
     await page.click('#project-modal-save');
@@ -74,7 +74,7 @@ test.describe('Project Management', () => {
   test('Delete a project', async ({ page }) => {
     // Create a project to delete
     await page.click('#add-project-btn');
-    const name = `Del_${Date.now()}`.slice(0, 15);
+    const name = `del_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', name);
     await page.click('#project-modal-save');
     await expect(page.locator('#project-modal-overlay')).toBeHidden();
@@ -107,7 +107,7 @@ test.describe('Project Management', () => {
   test('Duplicate project name shows an error', async ({ page }) => {
     // Create first project
     await page.click('#add-project-btn');
-    const name = `Dup_${Date.now()}`.slice(0, 15);
+    const name = `dup_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', name);
     await page.click('#project-modal-save');
     await expect(page.locator('#project-modal-overlay')).toBeHidden();
@@ -160,7 +160,7 @@ test.describe('Project Selector', () => {
     // Create a project
     await navigateTo(page, 'setup');
     await page.click('#add-project-btn');
-    const name = `Sel_${Date.now()}`.slice(0, 15);
+    const name = `sel_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', name);
     await page.click('#project-modal-save');
     await expect(page.locator('#project-modal-overlay')).toBeHidden();
@@ -182,7 +182,7 @@ test.describe('Project Selector', () => {
     // Create a second project to switch to
     await navigateTo(page, 'setup');
     await page.click('#add-project-btn');
-    const name = `Switch_${Date.now()}`.slice(0, 12);
+    const name = `switch_${Date.now()}`.slice(0, 12);
     await page.fill('#project-name', name);
     await page.click('#project-modal-save');
     await expect(page.locator('#project-modal-overlay')).toBeHidden();
@@ -235,7 +235,7 @@ test.describe('Issues with Projects', () => {
     // Create a second project
     await navigateTo(page, 'setup');
     await page.click('#add-project-btn');
-    const projectName = `Isol_${Date.now()}`.slice(0, 15);
+    const projectName = `isol_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', projectName);
     await page.click('#project-modal-save');
     await expect(page.locator('#project-modal-overlay')).toBeHidden();

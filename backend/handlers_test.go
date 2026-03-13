@@ -29,9 +29,11 @@ const (
 	apiLabels            = "/api/labels"
 	apiLabelsBase        = "/api/labels/"
 	apiLabels1           = apiLabelsBase + "1"
-	apiProjects          = "/api/projects"
-	apiProjectsBase      = "/api/projects/"
-	apiProjects1         = apiProjectsBase + "1"
+	apiProjects               = "/api/projects"
+	apiProjectsBase           = "/api/projects/"
+	apiProjects1              = apiProjectsBase + "1"
+	apiProjects1IssuesActive   = apiProjectsBase + "1/issues/active"
+	apiProjects1IssuesArchived = apiProjectsBase + "1/issues/archived"
 	invalidJSON          = "invalid json"
 	wrongStatusCode      = "handler returned wrong status code: got %v want %v"
 	toDelete             = "To Delete"
@@ -51,14 +53,14 @@ func TestHandleActiveIssuesGet(t *testing.T) {
 
 	CreateIssue(&Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1})
 
-	req, err := http.NewRequest("GET", apiIssues, nil)
+	req, err := http.NewRequest("GET", apiProjects1IssuesActive, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleActiveIssues)
+	handler := http.HandlerFunc(HandleProject)
 
 	handler.ServeHTTP(rr, req)
 
@@ -630,13 +632,14 @@ func TestHandleTaskPutInvalidJSON(t *testing.T) {
 }
 
 func TestHandleActiveIssuesMethodNotAllowed(t *testing.T) {
-	req, err := http.NewRequest("DELETE", apiIssues, nil)
+	req, err := http.NewRequest("DELETE", apiProjects1IssuesActive, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleActiveIssues)
+	handler := http.HandlerFunc(HandleProject)
 
 	handler.ServeHTTP(rr, req)
 
@@ -884,7 +887,7 @@ func TestHandlersDBError(t *testing.T) {
 		body    []byte
 		handler http.HandlerFunc
 	}{
-		{"HandleActiveIssues_GET", "GET", apiIssues, nil, HandleActiveIssues},
+		{"HandleActiveIssues_GET", "GET", apiProjects1IssuesActive, nil, HandleProject},
 		{"HandleActiveIssues_POST", "POST", apiIssues, issueBody, HandleCreateIssue},
 		{"HandleIssue_PUT", "PUT", apiIssues1, issueBody, HandleIssue},
 		{"HandleIssue_DELETE", "DELETE", apiIssues1, nil, HandleIssue},
@@ -1184,9 +1187,9 @@ func TestHandlersDBErrors(t *testing.T) {
 		body    string
 		handler http.HandlerFunc
 	}{
-		{"HandleActiveIssues", "GET", apiIssues, "", HandleActiveIssues},
+		{"HandleActiveIssues", "GET", apiProjects1IssuesActive, "", HandleProject},
 		{"HandleCreateIssue", "POST", apiIssues, validIssue, HandleCreateIssue},
-		{"HandleArchivedIssues", "GET", "/api/archive/issues", "", HandleArchivedIssues},
+		{"HandleArchivedIssues", "GET", apiProjects1IssuesArchived, "", HandleProject},
 		{"HandleIssue_GET", "GET", apiIssues1, "", HandleIssue},
 		{"HandleIssue_PUT", "PUT", apiIssues1, validIssue, HandleIssue},
 		{"HandleIssue_DELETE", "DELETE", apiIssues1, "", HandleIssue},
@@ -1879,8 +1882,8 @@ func TestHandlersForbidden(t *testing.T) {
 		{"UpdateUser/user", "PUT", apiUsers1, RoleUser, HandleUser},
 
 		// All role-gated actions: no role must be denied
-		{"ListIssues/noRole", "GET", apiIssues, "", HandleActiveIssues},
-		{"ListArchivedIssues/noRole", "GET", "/api/archive/issues", "", HandleArchivedIssues},
+		{"ListIssues/noRole", "GET", apiProjects1IssuesActive, "", HandleProject},
+		{"ListArchivedIssues/noRole", "GET", apiProjects1IssuesArchived, "", HandleProject},
 		{"GetIssue/noRole", "GET", apiIssues1, "", HandleIssue},
 		{"UpdateIssue/noRole", "PUT", apiIssues1, "", HandleIssue},
 		{"DeleteIssue/noRole", "DELETE", apiIssues1, "", HandleIssue},
@@ -1999,8 +2002,8 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 		{
 			name:    "HandleActiveIssues",
 			method:  "GET",
-			url:     apiIssues,
-			handler: HandleActiveIssues,
+			url:     apiProjects1IssuesActive,
+			handler: HandleProject,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2008,8 +2011,8 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 		{
 			name:    "HandleArchivedIssues",
 			method:  "GET",
-			url:     "/api/issues/archive",
-			handler: HandleArchivedIssues,
+			url:     apiProjects1IssuesArchived,
+			handler: HandleProject,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2498,8 +2501,8 @@ func TestHandleCreateProject(t *testing.T) {
 
 	var created Project
 	json.NewDecoder(rr.Body).Decode(&created)
-	if created.Name != "New Proj" {
-		t.Errorf("expected 'New Proj', got '%s'", created.Name)
+	if created.Name != "new proj" {
+		t.Errorf("expected 'new proj', got '%s'", created.Name)
 	}
 }
 
@@ -2654,7 +2657,7 @@ func TestHandleCreateProjectDuplicateName(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateProject(&Project{Name: "Dupe"})
+	CreateProject(&Project{Name: "dupe"})
 
 	body, _ := json.Marshal(Project{Name: "Dupe"})
 	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
@@ -2720,8 +2723,8 @@ func TestHandleUpdateProjectDuplicateName(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateProject(&Project{Name: "Existing"})
-	p := &Project{Name: "ToRename"}
+	CreateProject(&Project{Name: "existing"})
+	p := &Project{Name: "torename"}
 	CreateProject(p)
 
 	body, _ := json.Marshal(Project{Name: "Existing"})
@@ -2751,5 +2754,131 @@ func TestHandleDeleteProjectNotFound(t *testing.T) {
 	HandleProject(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+// ── Project-scoped issue endpoint tests ─────────────────────────────────────
+
+func TestHandleProjectActiveIssuesGet(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	CreateIssue(&Issue{Title: "Active Issue", Status: StatusOpen, ProjectID: 1})
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var issues []Issue
+	if err := json.NewDecoder(rr.Body).Decode(&issues); err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 {
+		t.Errorf("expected 1 issue, got %d", len(issues))
+	}
+}
+
+func TestHandleProjectArchivedIssuesGet(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	i := &Issue{Title: "Archived Issue", Status: StatusArchive, ProjectID: 1}
+	CreateIssue(i)
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesArchived, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var issues []Issue
+	if err := json.NewDecoder(rr.Body).Decode(&issues); err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 {
+		t.Errorf("expected 1 archived issue, got %d", len(issues))
+	}
+}
+
+func TestHandleProjectIssuesInvalidID(t *testing.T) {
+	req := httptest.NewRequest("GET", "/api/projects/abc/issues/active", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleProjectIssuesNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("GET", "/api/projects/999/issues/active", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleProjectIssuesActiveMethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest("POST", apiProjects1IssuesActive, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleProjectIssuesForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, ""))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestProjectNameCaseNormalisation(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Creating "Default" should be stored as "default" (id=1 seeded at startup)
+	p := Project{Name: "MyProject"}
+	body, _ := json.Marshal(p)
+	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	handleCreateProject(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rr.Code)
+	}
+	var created Project
+	json.NewDecoder(rr.Body).Decode(&created)
+	if created.Name != "myproject" {
+		t.Errorf("expected name 'myproject', got '%s'", created.Name)
+	}
+
+	// Creating "MYPROJECT" (same in lowercase) should return 409
+	body2, _ := json.Marshal(Project{Name: "MYPROJECT"})
+	req2 := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body2))
+	req2 = req2.WithContext(context.WithValue(req2.Context(), contextKeyEmail, testAssigneeEmail))
+	rr2 := httptest.NewRecorder()
+	handleCreateProject(rr2, req2)
+	if rr2.Code != http.StatusConflict {
+		t.Errorf("expected 409 for duplicate name, got %d", rr2.Code)
 	}
 }

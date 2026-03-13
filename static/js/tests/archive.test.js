@@ -16,7 +16,7 @@ vi.mock('../state.js', () => ({
 vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({}),
   archiveIssue: vi.fn().mockResolvedValue({}),
-  fetchArchivedIssues: vi.fn().mockResolvedValue([])
+  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([])
 }));
 
 const { mockCreateCardElement } = vi.hoisted(() => {

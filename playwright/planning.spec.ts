@@ -414,7 +414,7 @@ test.describe('Planning Panel', () => {
 
     const savePromise1 = Promise.all([
       page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
     await page.fill('#deadline', dateStr1);
     await savePromise1;
@@ -426,7 +426,7 @@ test.describe('Planning Panel', () => {
 
     const savePromise2 = Promise.all([
       page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
     await page.fill('#planned-date-picker', dateStr2, { force: true });
     await savePromise2;

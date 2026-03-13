@@ -59,7 +59,7 @@ test.describe('Concurrent Editing', () => {
     // Wait for PUT and GET responses (normal flow)
     const savePromise = Promise.all([
       page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/api/issues') && resp.request().method() === 'GET')
+      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
     // Change priority

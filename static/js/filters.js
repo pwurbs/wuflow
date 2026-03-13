@@ -1,14 +1,13 @@
-import { state } from './state.js';
-
 /**
  * Filter logic extracted from board.js and backlog.js
  * Pure functions with no DOM dependencies for easy unit testing
  */
 
 /**
- * Filter issues based on label, priority, and search criteria
+ * Filter issues based on label, priority, assignee, and search criteria.
+ * Project filtering is handled server-side; this function does not filter by project.
  * @param {Array} issues - Array of issue objects
- * @param {Object} filter - Filter criteria { label, priority, search }
+ * @param {Object} filter - Filter criteria { labelId, priority, assigneeId, search }
  * @returns {Array} Filtered issues
  */
 export function filterIssues(issues, filter) {
@@ -17,11 +16,6 @@ export function filterIssues(issues, filter) {
   }
 
   let result = issues;
-
-  // Project pre-filter: applied before label/priority/search filters
-  if (state.selectedProjectId !== null && state.selectedProjectId !== undefined) {
-    result = result.filter(issue => issue.project && issue.project.id === state.selectedProjectId);
-  }
 
   // Label filter
   if (filter.labelId !== null && filter.labelId !== undefined) {

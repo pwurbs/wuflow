@@ -1,5 +1,5 @@
 import { state, isFilterActive } from '../state.js';
-import { fetchArchivedIssues } from '../api.js';
+import { fetchArchivedIssuesByProject } from '../api.js';
 import { createCardElement } from './card.js';
 import { getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
@@ -20,7 +20,7 @@ export async function renderArchive(refreshApp, openModal) {
 
   // Lazy-load archived issues if not already loaded
   if (!archivedLoaded) {
-    const archivedIssues = await fetchArchivedIssues();
+    const archivedIssues = await fetchArchivedIssuesByProject(state.selectedProjectId);
     // Merge into state, avoiding duplicates
     const existingIds = new Set(state.issues.map(i => i.id));
     for (const issue of archivedIssues) {

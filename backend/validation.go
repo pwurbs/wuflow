@@ -91,6 +91,7 @@ func validateProject(p *Project) error {
 	p.Name = strings.ReplaceAll(p.Name, "\x00", "")
 	p.Name = strings.TrimSpace(p.Name)
 	p.Name = anyTagRegex.ReplaceAllString(p.Name, "")
+	p.Name = strings.ToLower(p.Name)
 	if p.Name == "" {
 		return ErrInvalidProjectName
 	}
