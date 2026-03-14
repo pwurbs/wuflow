@@ -1,4 +1,4 @@
-import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject } from '../api.js';
+import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout } from '../api.js';
 import { showNotification, showConfirm, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
 import { state } from '../state.js';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
@@ -498,6 +498,12 @@ async function handleUserSubmit(refreshCallback) {
 
     if (isEditing) {
       await updateUser(editingUserId, userData);
+      const isSelf = editingUserId === state.currentUser?.id;
+      const sessionInvalidated = userData.password || userData.role !== state.currentUser?.role;
+      if (isSelf && sessionInvalidated) {
+        logout();
+        return;
+      }
     } else {
       await createUser(userData);
     }
