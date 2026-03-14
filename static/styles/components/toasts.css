@@ -13,10 +13,10 @@
   opacity: 1;
 }
 
-/* App-level notification — fixed at top-center of viewport */
+/* App-level notification — fixed at bottom-center of viewport */
 #notification-toast {
   position: fixed;
-  top: 20px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
