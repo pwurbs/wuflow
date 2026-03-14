@@ -9,21 +9,25 @@ wuFlow applies a **Hybrid Authentication** model using HTTPOnly cookies.
 
 ## User Roles and Authorization
 
-| Action | Admin | User |
-| :--- | :---: | :---: |
-| View issues & tasks | ✓ | ✓ |
-| Create / edit issues | ✓ | ✓ |
-| Create / edit / delete tasks | ✓ | ✓ |
-| **Archive** an issue | ✓ | — |
-| **Unarchive** an issue | ✓ | — |
-| **Delete** an issue | ✓ | — |
-| View labels & users | ✓ | ✓ |
-| Create / delete labels | ✓ | — |
-| Create / edit / deactivate users | ✓ | — |
+Three roles are available, ordered from least to most privileged:
 
-> **Notes**: 
+| Action | User | Admin | Sysadmin |
+| :--- | :---: | :---: | :---: |
+| View issues & tasks | ✓ | ✓ | ✓ |
+| Create / edit issues | ✓ | ✓ | ✓ |
+| Create / edit / delete tasks | ✓ | ✓ | ✓ |
+| View labels & users & projects | ✓ | ✓ | ✓ |
+| **Archive** an issue | — | ✓ | ✓ |
+| **Unarchive** an issue | — | ✓ | ✓ |
+| **Delete** an issue | — | ✓ | ✓ |
+| Create / delete labels | — | — | ✓ |
+| Create / edit / deactivate users | — | — | ✓ |
+| Create / edit / delete projects | — | — | ✓ |
+
+> **Notes**:
 - The `/api/auth/me` endpoint (Get Current User / Update Self) is available to **all authenticated users** regardless of role. Any user can view and update their own profile (e.g. change password).
-- Non-admin users do not see the Setup navigation item.
+- Only **sysadmin** users see the Setup navigation item (user management, labels, projects).
+- The **sysadmin** role is a super-admin: it has all permissions of both Admin and User.
 
 ### Authorization Concept
 
@@ -33,9 +37,9 @@ Each handler evaluates `Can()` at the **method-dispatch level**, before any data
 
 The frontend mirrors this policy in `static/js/permissions.js` via `userCan(user, action)`. UI elements (archive/delete buttons, drag-drop targets) are hidden or blocked on the client side, while the backend remains the authoritative enforcement point.
 
-## Initial Admin
+## Initial Sysadmin
 
-On first startup (when the users table is empty), wuFlow creates the initial admin account based on the following configuration:
+On first startup (when the users table is empty), wuFlow creates the initial sysadmin account based on the following configuration:
 
 ```bash
 WF_INITIAL_ADMIN_EMAIL=admin@example.com WF_INITIAL_ADMIN_PASSWORD=YourSecurePass123! ./wuflow
@@ -46,7 +50,9 @@ WF_INITIAL_ADMIN_EMAIL=admin@example.com WF_INITIAL_ADMIN_PASSWORD=YourSecurePas
 | **Email** | `WF_INITIAL_ADMIN_EMAIL` | `--initial-admin-email` | `admin@local` | Optional argument to overwrite the default, must be a valid email address |
 | **Password** | `WF_INITIAL_ADMIN_PASSWORD` | `--initial-admin-password` | *(Required)* | Mandatory argument for the first startup, must meet password policy (see below) |
 
-email address and password of the initially created admin user can be changed after login in setup page.
+The email address and password of the initially created sysadmin user can be changed after login in the Setup page.
+
+> **Migration note**: Existing installations that have user id=1 with role `admin` are automatically upgraded to `sysadmin` on first startup after the update.
 
 ## Authentication Flow
 
@@ -192,7 +198,7 @@ The key should be a long, random string (32+ characters recommended).
 
 ## User Lifecycle
 
-- Admins can create, edit, activate, and deactivate users via the Setup view.
+- Sysadmins can create, edit, activate, and deactivate users via the Setup view.
 - **Inactive users** cannot log in. 
 - **Session Revocation**: The following actions trigger immediate revocation of **all** user sessions (Family Revocation):
   - Deactivating a user

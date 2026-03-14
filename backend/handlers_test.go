@@ -747,7 +747,7 @@ func TestHandleLabelsPost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabels)
@@ -772,7 +772,7 @@ func TestHandleLabelsPostInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabels)
@@ -810,7 +810,7 @@ func TestHandleLabelDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabel)
@@ -904,7 +904,7 @@ func TestHandlersDBError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name+"_Error", func(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(tt.body))
-			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 			rr := httptest.NewRecorder()
 			tt.handler(rr, req)
 			if rr.Code != http.StatusInternalServerError {
@@ -996,7 +996,7 @@ func TestHandleLabelInvalidInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.label)
 			req, _ := http.NewRequest("POST", apiLabels, bytes.NewBuffer(body))
-			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 			rr := httptest.NewRecorder()
 			handle := http.HandlerFunc(HandleLabels)
 			handle.ServeHTTP(rr, req)
@@ -1062,7 +1062,7 @@ func TestHandleDeleteLabelWithNonExistentID(t *testing.T) {
 
 	// DELETE non-existent label
 	req, _ := http.NewRequest("DELETE", "/api/labels/999", nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(HandleLabel)
 	handler.ServeHTTP(rr, req)
@@ -1217,7 +1217,7 @@ func TestHandlersDBErrors(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}
-			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 			rr := httptest.NewRecorder()
 			tt.handler.ServeHTTP(rr, req)
@@ -1452,17 +1452,17 @@ func TestHandleDeleteIssueArchived(t *testing.T) {
 	}
 }
 
-func TestHandleUpdateUserLastAdminProtection(t *testing.T) {
+func TestHandleUpdateUserLastSysAdminProtection(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	// Create single admin
+	// Create single sysadmin
 	hash, _ := HashPassword(testPassword)
-	user := &User{Email: "admin@local", Role: RoleAdmin, Active: true, PasswordHash: hash}
+	user := &User{Email: "admin@local", Role: RoleSysAdmin, Active: true, PasswordHash: hash}
 	CreateUser(user)
 	path := apiUsersBase + strconv.Itoa(user.ID)
 
-	// Try to demote
+	// Try to demote the only sysadmin
 	updateBody := map[string]interface{}{
 		"email":      "admin@local",
 		"first_name": "Admin",
@@ -1472,13 +1472,13 @@ func TestHandleUpdateUserLastAdminProtection(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateBody)
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	rr := httptest.NewRecorder()
 
 	HandleUser(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Errorf("Expected 400 Bad Request for last admin demotion, got %d", rr.Code)
+		t.Errorf("Expected 400 Bad Request for last sysadmin demotion, got %d", rr.Code)
 	}
 }
 
@@ -1581,7 +1581,7 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	}
 	body, _ := json.Marshal(updateBody)
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	rr := httptest.NewRecorder()
 
 	HandleUser(rr, req)
@@ -1874,14 +1874,22 @@ func TestHandlersForbidden(t *testing.T) {
 		role    UserRole // empty = no role in context
 		handler http.HandlerFunc
 	}{
-		// Admin-only actions: RoleUser must be denied
+		// Admin+Sysadmin actions: RoleUser must be denied
 		{"DeleteIssue/user", "DELETE", apiIssues1, RoleUser, HandleIssue},
 		{"ArchiveIssue/user", "POST", apiIssues1Archive, RoleUser, HandleIssue},
 		{"UnarchiveIssue/user", "POST", apiIssues1Unarchive, RoleUser, HandleIssue},
+
+		// Sysadmin-only actions: RoleUser must be denied
 		{"CreateLabel/user", "POST", apiLabels, RoleUser, HandleLabels},
 		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, HandleLabel},
 		{"CreateUser/user", "POST", apiUsers, RoleUser, HandleUsers},
 		{"UpdateUser/user", "PUT", apiUsers1, RoleUser, HandleUser},
+
+		// Sysadmin-only actions: RoleAdmin must also be denied
+		{"CreateLabel/admin", "POST", apiLabels, RoleAdmin, HandleLabels},
+		{"DeleteLabel/admin", "DELETE", apiLabels1, RoleAdmin, HandleLabel},
+		{"CreateUser/admin", "POST", apiUsers, RoleAdmin, HandleUsers},
+		{"UpdateUser/admin", "PUT", apiUsers1, RoleAdmin, HandleUser},
 
 		// All role-gated actions: no role must be denied
 		{"ListIssues/noRole", "GET", apiProjects1IssuesActive, "", HandleProject},
@@ -1903,10 +1911,15 @@ func TestHandlersForbidden(t *testing.T) {
 		{"GetUser/noRole", "GET", apiUsers1, "", HandleUser},
 		{"UpdateUser/noRole", "PUT", apiUsers1, "", HandleUser},
 
-		// Project actions: admin-only mutations must deny RoleUser
+		// Sysadmin-only project mutations: RoleUser must be denied
 		{"CreateProject/user", "POST", apiProjects, RoleUser, HandleProjects},
 		{"UpdateProject/user", "PUT", apiProjects1, RoleUser, HandleProject},
 		{"DeleteProject/user", "DELETE", apiProjects1, RoleUser, HandleProject},
+
+		// Sysadmin-only project mutations: RoleAdmin must also be denied
+		{"CreateProject/admin", "POST", apiProjects, RoleAdmin, HandleProjects},
+		{"UpdateProject/admin", "PUT", apiProjects1, RoleAdmin, HandleProject},
+		{"DeleteProject/admin", "DELETE", apiProjects1, RoleAdmin, HandleProject},
 
 		// Project actions: no role must deny everything
 		{"ListProjects/noRole", "GET", apiProjects, "", HandleProjects},
@@ -1947,7 +1960,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 	// Helper to create admin context
 	adminCtx := func(bg context.Context) context.Context {
 		// We need a user in DB for context lookups often
-		return context.WithValue(bg, contextKeyRole, RoleAdmin)
+		return context.WithValue(bg, contextKeyRole, RoleSysAdmin)
 	}
 
 	// Create dummy data for tests
@@ -2520,7 +2533,7 @@ func TestHandleProjectUpdate(t *testing.T) {
 
 	path := apiProjectsBase + strconv.Itoa(p.ID)
 	req, _ := http.NewRequest("PUT", path, bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
@@ -2541,7 +2554,7 @@ func TestHandleProjectDelete(t *testing.T) {
 
 	path := apiProjectsBase + strconv.Itoa(p.ID)
 	req, _ := http.NewRequest("DELETE", path, nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
@@ -2564,7 +2577,7 @@ func TestHandleProjectDeleteDefaultBlocked(t *testing.T) {
 	defer teardownTestDB()
 
 	req, _ := http.NewRequest("DELETE", apiProjects1, nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
@@ -2586,7 +2599,7 @@ func TestHandleProjectDeleteWithIssuesBlocked(t *testing.T) {
 
 	path := apiProjectsBase + strconv.Itoa(p.ID)
 	req, _ := http.NewRequest("DELETE", path, nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
@@ -2679,7 +2692,7 @@ func TestHandleUpdateProjectInvalidJSON(t *testing.T) {
 	CreateProject(p)
 
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBufferString(invalidJSON))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)
@@ -2697,7 +2710,7 @@ func TestHandleUpdateProjectValidationFailure(t *testing.T) {
 
 	body, _ := json.Marshal(Project{Name: ""})
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)
@@ -2712,7 +2725,7 @@ func TestHandleUpdateProjectNotFound(t *testing.T) {
 
 	body, _ := json.Marshal(Project{Name: "Ghost"})
 	req := httptest.NewRequest("PUT", apiProjectsBase+"999", bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)
@@ -2731,7 +2744,7 @@ func TestHandleUpdateProjectDuplicateName(t *testing.T) {
 
 	body, _ := json.Marshal(Project{Name: "Existing"})
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)
@@ -2750,7 +2763,7 @@ func TestHandleDeleteProjectNotFound(t *testing.T) {
 	DeleteProject(p.ID) // pre-delete so the handler hits ErrProjectNotFound
 
 	req := httptest.NewRequest("DELETE", path, nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)
@@ -2898,7 +2911,7 @@ func TestHandleProjectsPostDispatch(t *testing.T) {
 
 	body, _ := json.Marshal(Project{Name: "Dispatched"})
 	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProjects(rr, req)
@@ -3078,7 +3091,7 @@ func TestHandleUpdateProjectDBError(t *testing.T) {
 
 	body, _ := json.Marshal(Project{Name: "NewName"})
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)
@@ -3099,7 +3112,7 @@ func TestHandleUpdateProjectEncodeError(t *testing.T) {
 
 	body, _ := json.Marshal(Project{Name: "EncodeErrUpd2"})
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	handleUpdateProject(&failWriter{ResponseWriter: httptest.NewRecorder()}, req, p.ID)
 }
@@ -3119,7 +3132,7 @@ func TestHandleDeleteProjectCountDBError(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)
@@ -3145,7 +3158,7 @@ func TestHandleDeleteProjectGenericDBError(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	HandleProject(rr, req)

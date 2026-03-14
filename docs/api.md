@@ -14,10 +14,10 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/auth/logout` | POST | `HandleLogout` | Public | Clear auth cookies |
 | `/auth/refresh` | POST | `HandleRefresh` | Refresh Token | Refresh access token |
 | `/auth/me` | GET | `HandleCurrentUser` | Required | Get current user |
-| `/users` | GET | `HandleUsers` | Admin | List all users |
-| `/users` | POST | `HandleUsers` | Admin | Create new user |
-| `/users/:id` | GET | `HandleUser` | Admin | Get user details |
-| `/users/:id` | PUT | `HandleUser` | Admin | Update user |
+| `/users` | GET | `HandleUsers` | Required | List all users |
+| `/users` | POST | `HandleUsers` | Sysadmin | Create new user |
+| `/users/:id` | GET | `HandleUser` | Required | Get user details |
+| `/users/:id` | PUT | `HandleUser` | Sysadmin | Update user |
 | `/projects/:id/issues/active` | GET | `HandleProject` | Required | Get active issues for a project |
 | `/projects/:id/issues/archived` | GET | `HandleProject` | Required | Get archived issues for a project |
 | `/issues` | POST | `HandleCreateIssue` | Required | Create a new issue |
@@ -30,18 +30,19 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/tasks/:id` | PUT | `HandleTask` | Required | Update task |
 | `/tasks/:id` | DELETE | `HandleTask` | Required | Delete task |
 | `/labels` | GET | `HandleLabels` | Required | Get all labels |
-| `/labels` | POST | `HandleLabels` | Admin | Create label |
-| `/labels/:id` | DELETE | `HandleLabel` | Admin | Delete label |
+| `/labels` | POST | `HandleLabels` | Sysadmin | Create label |
+| `/labels/:id` | DELETE | `HandleLabel` | Sysadmin | Delete label |
 | `/projects` | GET | `HandleProjects` | Required | List all projects |
-| `/projects` | POST | `HandleProjects` | Admin | Create project |
-| `/projects/:id` | PUT | `HandleProject` | Admin | Update project |
-| `/projects/:id` | DELETE | `HandleProject` | Admin | Delete project |
+| `/projects` | POST | `HandleProjects` | Sysadmin | Create project |
+| `/projects/:id` | PUT | `HandleProject` | Sysadmin | Update project |
+| `/projects/:id` | DELETE | `HandleProject` | Sysadmin | Delete project |
 | `/version` | GET | `Anonymous Func` | Public | Get app version |
 
 **Legend:**
 - **Public**: No authentication required
 - **Required**: Valid access token required (any authenticated user)
-- **Admin**: Valid access token required with admin role
+- **Admin**: Valid access token required with admin or sysadmin role
+- **Sysadmin**: Valid access token required with sysadmin role
 - **Refresh Token**: Valid refresh token required (for token renewal)
 
 ## Authentication & Users
@@ -57,7 +58,7 @@ Authenticates a user and sets HTTPOnly cookies for access and refresh tokens.
   }
   ```
 - **Response**: User object with role and active status
-- **Errors**: 
+- **Errors**:
   - `401 Unauthorized` - Invalid credentials or inactive account
 
 ### Logout
@@ -80,15 +81,14 @@ Retrieves the authenticated user's details.
   - `401 Unauthorized` - Not authenticated
 
 ### List Users
-Retrieves all users (Admin only).
+Retrieves all users. Accessible to all authenticated users.
 - **GET** `/users`
 - **Response**: Array of user objects
 - **Errors**:
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin
 
 ### Create User
-Creates a new user (Admin only).
+Creates a new user (Sysadmin only).
 - **POST** `/users`
 - **Body**:
   ```json
@@ -106,19 +106,18 @@ Creates a new user (Admin only).
   - `400 Bad Request` - Validation failed (password policy, invalid email, etc.)
   - `409 Conflict` - Email already exists
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin
+  - `403 Forbidden` - Not a sysadmin
 
 ### Get User
-Retrieves a specific user by ID (Admin only).
+Retrieves a specific user by ID. Accessible to all authenticated users.
 - **GET** `/users/:id`
 - **Response**: User object
 - **Errors**:
   - `404 Not Found` - User doesn't exist
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin
 
 ### Update User
-Updates an existing user (Admin only).
+Updates an existing user (Sysadmin only).
 - **PUT** `/users/:id`
 - **Body**:
   ```json
@@ -131,16 +130,16 @@ Updates an existing user (Admin only).
     "active": false
   }
   ```
-- **Notes**: 
+- **Notes**:
   - Password is optional; leave empty to keep current password
-  - Cannot deactivate or demote the last active admin
+  - Cannot deactivate or demote the last active sysadmin
 - **Response**: Updated user object
 - **Errors**:
-  - `400 Bad Request` - Validation failed or trying to deactivate last admin
+  - `400 Bad Request` - Validation failed or trying to deactivate last sysadmin
   - `404 Not Found` - User doesn't exist
   - `409 Conflict` - Email already in use
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin
+  - `403 Forbidden` - Not a sysadmin
 
 ## Issues
 
@@ -184,29 +183,29 @@ Updates an existing issue.
   - Supports optimistic locking via `If-Match` / `ETag` headers
 
 ### Delete Issue
-Deletes an issue and its associated tasks (Admin only).
+Deletes an issue and its associated tasks (Admin or Sysadmin).
 - **DELETE** `/issues/:id`
 - **Errors**:
-  - `403 Forbidden` - Not an admin, or issue is archived
+  - `403 Forbidden` - Not an admin or sysadmin, or issue is archived
 
 ### Archive Issue
-Moves an issue to the Archive status (Admin only).
+Moves an issue to the Archive status (Admin or Sysadmin).
 - **POST** `/issues/:id/archive`
 - **Body**: None
 - **Response**: Updated issue object
 - **Errors**:
   - `400 Bad Request` - Issue is already archived
-  - `403 Forbidden` - Not an admin
+  - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Issue doesn't exist
 
 ### Unarchive Issue
-Moves an archived issue back to Done status (Admin only).
+Moves an archived issue back to Done status (Admin or Sysadmin).
 - **POST** `/issues/:id/unarchive`
 - **Body**: None
 - **Response**: Updated issue object
 - **Errors**:
   - `400 Bad Request` - Issue is not archived
-  - `403 Forbidden` - Not an admin
+  - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Issue doesn't exist
 
 ## Tasks
@@ -245,7 +244,7 @@ Retrieves all available labels. Accessible to all authenticated users.
 - **GET** `/labels`
 
 ### Create Label
-Creates a new label (Admin only).
+Creates a new label (Sysadmin only).
 - **POST** `/labels`
 - **Body**:
   ```json
@@ -256,7 +255,7 @@ Creates a new label (Admin only).
   ```
 
 ### Delete Label
-Deletes a label (Admin only).
+Deletes a label (Sysadmin only).
 - **DELETE** `/labels/:id`
 
 ## Projects
@@ -267,7 +266,7 @@ Retrieves all projects. Accessible to all authenticated users.
 - **Response**: Array of project objects
 
 ### Create Project
-Creates a new project (Admin only).
+Creates a new project (Sysadmin only).
 - **POST** `/projects`
 - **Body**:
   ```json
@@ -283,11 +282,11 @@ Creates a new project (Admin only).
 - **Errors**:
   - `400 Bad Request` - Validation failed
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin
+  - `403 Forbidden` - Not a sysadmin
   - `409 Conflict` - Project name already exists
 
 ### Update Project
-Updates an existing project (Admin only).
+Updates an existing project (Sysadmin only).
 - **PUT** `/projects/:id`
 - **Body**:
   ```json
@@ -300,18 +299,18 @@ Updates an existing project (Admin only).
 - **Errors**:
   - `400 Bad Request` - Validation failed
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin
+  - `403 Forbidden` - Not a sysadmin
   - `404 Not Found` - Project doesn't exist
   - `409 Conflict` - Project name already exists
 
 ### Delete Project
-Deletes a project (Admin only).
+Deletes a project (Sysadmin only).
 - **DELETE** `/projects/:id`
 - **Response**: `200 OK` with confirmation message
 - **Errors**:
   - `400 Bad Request` - Cannot delete the default project (id=1) or project still has assigned issues
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin
+  - `403 Forbidden` - Not a sysadmin
   - `404 Not Found` - Project doesn't exist
 
 ## System

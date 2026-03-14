@@ -39,7 +39,7 @@ var (
 	ErrEmailTooLong    = errors.New("email must not exceed 254 characters")
 	ErrInvalidName     = errors.New("first name and last name are required")
 	ErrUserNameTooLong = errors.New("first and last name must not exceed 50 characters")
-	ErrInvalidRole     = errors.New("role must be 'admin' or 'user'")
+	ErrInvalidRole     = errors.New("role must be 'admin', 'user', or 'sysadmin'")
 
 	ErrPasswordTooShort  = errors.New("password must be at least 12 characters")
 	ErrPasswordTooLong   = errors.New("password must not exceed 128 characters")
@@ -81,7 +81,7 @@ func isValidPriority(priority IssuePriority) bool {
 
 func isValidRole(role UserRole) bool {
 	switch role {
-	case RoleAdmin, RoleUser:
+	case RoleSysAdmin, RoleAdmin, RoleUser:
 		return true
 	}
 	return false

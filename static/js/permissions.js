@@ -7,6 +7,7 @@
  */
 
 // Role constants — must match backend/models.go
+export const ROLE_SYSADMIN = 'sysadmin';
 export const ROLE_ADMIN = 'admin';
 export const ROLE_USER = 'user';
 
@@ -35,33 +36,38 @@ export const ACTION_DELETE_PROJECT  = 'project:delete';
 
 // Allowlist policy — mirrors rolePermissions in backend/permissions.go.
 // To add a new role or action, update both this map and the backend map.
+//
+// Role hierarchy:
+//   ROLE_SYSADMIN: full system administration (users, projects, labels) + all ROLE_ADMIN actions
+//   ROLE_ADMIN:    issue power operations (delete, archive, unarchive) + all ROLE_USER actions
+//   ROLE_USER:     standard read/create/update access
 const rolePermissions = {
     // Issues
-    [ACTION_LIST_ISSUES]:     [ROLE_ADMIN, ROLE_USER],
-    [ACTION_GET_ISSUE]:       [ROLE_ADMIN, ROLE_USER],
-    [ACTION_CREATE_ISSUE]:    [ROLE_ADMIN, ROLE_USER],
-    [ACTION_UPDATE_ISSUE]:    [ROLE_ADMIN, ROLE_USER],
-    [ACTION_DELETE_ISSUE]:    [ROLE_ADMIN],
-    [ACTION_ARCHIVE_ISSUE]:   [ROLE_ADMIN],
-    [ACTION_UNARCHIVE_ISSUE]: [ROLE_ADMIN],
+    [ACTION_LIST_ISSUES]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_GET_ISSUE]:       [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_CREATE_ISSUE]:    [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_UPDATE_ISSUE]:    [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_DELETE_ISSUE]:    [ROLE_SYSADMIN, ROLE_ADMIN],
+    [ACTION_ARCHIVE_ISSUE]:   [ROLE_SYSADMIN, ROLE_ADMIN],
+    [ACTION_UNARCHIVE_ISSUE]: [ROLE_SYSADMIN, ROLE_ADMIN],
     // Tasks
-    [ACTION_CREATE_TASK]:     [ROLE_ADMIN, ROLE_USER],
-    [ACTION_UPDATE_TASK]:     [ROLE_ADMIN, ROLE_USER],
-    [ACTION_DELETE_TASK]:     [ROLE_ADMIN, ROLE_USER],
+    [ACTION_CREATE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_UPDATE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_DELETE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     // Labels
-    [ACTION_LIST_LABELS]:     [ROLE_ADMIN, ROLE_USER],
-    [ACTION_CREATE_LABEL]:    [ROLE_ADMIN],
-    [ACTION_DELETE_LABEL]:    [ROLE_ADMIN],
+    [ACTION_LIST_LABELS]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_CREATE_LABEL]:    [ROLE_SYSADMIN],
+    [ACTION_DELETE_LABEL]:    [ROLE_SYSADMIN],
     // Users
-    [ACTION_LIST_USERS]:      [ROLE_ADMIN, ROLE_USER],
-    [ACTION_GET_USER]:        [ROLE_ADMIN, ROLE_USER],
-    [ACTION_CREATE_USER]:     [ROLE_ADMIN],
-    [ACTION_UPDATE_USER]:     [ROLE_ADMIN],
+    [ACTION_LIST_USERS]:      [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_GET_USER]:        [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_CREATE_USER]:     [ROLE_SYSADMIN],
+    [ACTION_UPDATE_USER]:     [ROLE_SYSADMIN],
     // Projects
-    [ACTION_LIST_PROJECTS]:   [ROLE_ADMIN, ROLE_USER],
-    [ACTION_CREATE_PROJECT]:  [ROLE_ADMIN],
-    [ACTION_UPDATE_PROJECT]:  [ROLE_ADMIN],
-    [ACTION_DELETE_PROJECT]:  [ROLE_ADMIN],
+    [ACTION_LIST_PROJECTS]:   [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_CREATE_PROJECT]:  [ROLE_SYSADMIN],
+    [ACTION_UPDATE_PROJECT]:  [ROLE_SYSADMIN],
+    [ACTION_DELETE_PROJECT]:  [ROLE_SYSADMIN],
 };
 
 /**

@@ -37,8 +37,8 @@ async function init() {
         return;
     }
     setCurrentUser(user);
-    // Hide Setup nav for non-admin users
-    if (user.role !== 'admin') {
+    // Hide Setup nav for non-sysadmin users
+    if (user.role !== 'sysadmin') {
         navSetup.classList.add('hidden');
     }
 

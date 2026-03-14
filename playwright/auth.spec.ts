@@ -27,15 +27,17 @@ test.describe('Authentication Security', () => {
   });
 
   test('Initial Admin Config: Verified correct admin user was created', async ({ request }) => {
-    // 1. Try to fetch the user by email utilizing the login endpoint to check existence
-    // We expect a 200 OK with cookies since the user should exist and have this password
-    const response = await request.post('/api/auth/login', {
+    // 1. Login and verify 200 OK
+    const loginResponse = await request.post('/api/auth/login', {
       headers: { 'Content-Type': 'application/json' },
       data: { email: adminEmail, password: adminPassword }
     });
+    expect(loginResponse.status()).toBe(200);
 
-    // Expect: 200 OK because the user exists and the password is correct
-    expect(response.status()).toBe(200);
+    // 2. Re-login to get a session cookie, then verify the first user has sysadmin role
+    const meResponse = await request.get('/api/auth/me');
+    const user = await meResponse.json();
+    expect(user.role).toBe('sysadmin');
   });
 
   test('Concurrent Sessions: Login on two devices (contexts) should verify both are active', async ({ browser }) => {
@@ -263,6 +265,55 @@ test.describe('Authentication Security', () => {
       expect(h['permissions-policy']).toBe('geolocation=(), camera=(), microphone=()');
       expect(h['x-xss-protection']).toBe('0');
     }
+  });
+
+  test('Role-based nav: sysadmin sees Setup, admin role does not', async ({ page }) => {
+    // 1. Login as sysadmin — Setup nav must be visible
+    await page.goto('/login');
+    await page.fill('#login-email', adminEmail);
+    await page.fill('#login-password', adminPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('#nav-setup')).toBeVisible();
+
+    // 2. Create a plain admin-role user via API (sysadmin session is active)
+    const adminUserEmail = `nav_admin_${Date.now()}@example.com`;
+    const adminUserPassword = `${crypto.randomBytes(16).toString('hex')}U1!`;
+    const createResp = await page.request.post('/api/users', {
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        email: adminUserEmail,
+        first_name: 'Nav',
+        last_name: 'Admin',
+        password: adminUserPassword,
+        role: 'admin',
+        active: true,
+      }
+    });
+    expect(createResp.status()).toBe(201);
+    const createdUser = await createResp.json();
+
+    // 3. Log out sysadmin
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+
+    // 4. Log in as the plain admin user — Setup nav must be hidden
+    await page.fill('#login-email', adminUserEmail);
+    await page.fill('#login-password', adminUserPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+    await expect(page.locator('#nav-setup')).toBeHidden();
+
+    // 5. Cleanup: log back in as sysadmin and deactivate the temp user
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await page.fill('#login-email', adminEmail);
+    await page.fill('#login-password', adminPassword);
+    await page.click('#login-btn');
+    await page.request.put(`/api/users/${createdUser.id}`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { ...createdUser, active: false }
+    });
   });
 
   test('Login timing equalization: Unknown email returns 401, not a server error', async ({ request }) => {

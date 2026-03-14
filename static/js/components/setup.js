@@ -426,7 +426,7 @@ function openUserModal(user) {
 
     // Set role dropdown value
     roleInput.value = user.role;
-    roleText.textContent = user.role === 'admin' ? 'Admin' : 'User';
+    roleText.textContent = { sysadmin: 'Sysadmin', admin: 'Admin', user: 'User' }[user.role] ?? 'User';
 
     // ... existing code ...
 
@@ -636,9 +636,8 @@ async function renderUserList(refreshCallback) {
       const row = document.createElement('div');
       row.className = user.active ? 'user-row' : 'user-row user-inactive';
 
-      const adminBadge = user.role === 'admin'
-        ? `<span class="user-role-badge admin">Admin</span>`
-        : '';
+      const roleBadgeMap = { sysadmin: '<span class="user-role-badge sysadmin">Sysadmin</span>', admin: '<span class="user-role-badge admin">Admin</span>' };
+      const adminBadge = roleBadgeMap[user.role] ?? '';
 
       const editBtnHtml = userCan(state.currentUser, ACTION_UPDATE_USER)
         ? '<button class="btn secondary user-edit-btn" title="Edit User">Edit</button>'

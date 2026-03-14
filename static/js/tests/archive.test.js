@@ -55,12 +55,14 @@ vi.mock('../utils.js', () => ({
 describe('Archive Component', () => {
   beforeEach(() => {
     document.body.innerHTML = `
-        <div id="archive-list"></div>
-        <div id="archive-done-list"></div>
+        <div id="archive-done-section">
+            <div id="archive-done-list"></div>
+        </div>
         <span id="archive-count"></span>
         <span id="done-count-archive"></span>
-        <div id="archive-archive-section"></div>
-        <div id="archive-done-section"></div>
+        <div id="archive-archive-section">
+            <div id="archive-list"></div>
+        </div>
     `;
     vi.clearAllMocks();
     mockCreateCardElement.mockClear();
@@ -126,9 +128,10 @@ describe('Archive Component', () => {
       // Simulate dragover moving the card to the list
       list.appendChild(card);
 
-      Object.defineProperty(list, 'offsetParent', {
-        get() { return document.body; }
-      });
+      const section = document.getElementById('archive-archive-section');
+      for (const el of [list, section]) {
+        Object.defineProperty(el, 'offsetParent', { get() { return document.body; } });
+      }
       const event = new Event('drop', { bubbles: true, cancelable: true });
       list.dispatchEvent(event);
 

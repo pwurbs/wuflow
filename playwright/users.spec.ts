@@ -33,7 +33,7 @@ test.describe('User Management', () => {
     await page.click('#nav-setup');
   });
 
-  test('Admin can create, edit, and manage users', async ({ page }) => {
+  test('Sysadmin can create, edit, and manage users', async ({ page }) => {
     // 1. Create User
     await page.click('#add-user-btn');
     const timestamp = Date.now();
@@ -50,13 +50,15 @@ test.describe('User Management', () => {
     const userRow = page.locator(`.user-row:has-text("${testEmail}")`);
     await expect(userRow).toBeVisible();
 
-    // 2. Edit User (Promote to Admin)
+    // 2. Edit User (Promote to Admin — not Sysadmin)
     await userRow.locator('.user-edit-btn').click();
     await page.click('#user-role-trigger');
     await page.click('.custom-option[data-value="admin"]');
     await page.click('#user-modal-save');
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
-    await expect(userRow).toContainText('Admin');
+    // Admin badge (not Sysadmin badge) is shown
+    await expect(userRow.locator('.user-role-badge.admin')).toBeVisible();
+    await expect(userRow.locator('.user-role-badge.sysadmin')).toBeHidden();
 
     // 3. Deactivate User
     await userRow.locator('.user-edit-btn').click();
@@ -79,12 +81,12 @@ test.describe('User Management', () => {
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
   });
 
-  test('Admin cannot deactivate the last active administrator', async ({ page }) => {
-    // We expect the configured admin to be the only active admin here if other tests cleaned up.
-    const adminRows = page.locator(`.user-row:has-text("${adminEmail}")`);
-    await expect(adminRows).toBeVisible();
+  test('Sysadmin cannot deactivate the last active sysadmin', async ({ page }) => {
+    // We expect the configured sysadmin to be the only active sysadmin here.
+    const sysadminRow = page.locator(`.user-row:has-text("${adminEmail}")`);
+    await expect(sysadminRow).toBeVisible();
 
-    await adminRows.locator('.user-edit-btn').click();
+    await sysadminRow.locator('.user-edit-btn').click();
     await expect(page.locator('#user-modal-overlay')).toBeVisible();
 
     // Attempt Deactivate
@@ -94,7 +96,7 @@ test.describe('User Management', () => {
     // Check for error
     const errorDisplay = page.locator('#user-modal-error');
     await expect(errorDisplay).toBeVisible();
-    await expect(errorDisplay).toContainText('last active administrator');
+    await expect(errorDisplay).toContainText('last active system administrator');
 
     await page.click('#user-modal-cancel');
   });
@@ -143,10 +145,53 @@ test.describe('User Management', () => {
     await expect(page.locator('#nav-setup')).toBeHidden();
 
     // 5. Cleanup - Logout
-    // 5. Cleanup - Logout
     await page.click('#user-menu-btn');
     await expect(page.locator('#user-menu-dropdown')).toBeVisible();
     await page.click('#user-menu-logout');
+  });
+
+  test('Admin role user cannot access Setup page', async ({ page }) => {
+    // 1. Create an Admin-role user (not sysadmin)
+    await page.click('#add-user-btn');
+    const adminUserEmail = `admin_role_${Date.now()}@example.com`;
+    const adminUserPassword = generatePassword();
+
+    await page.fill('#user-email', adminUserEmail);
+    await page.fill('#user-first-name', 'Admin');
+    await page.fill('#user-last-name', 'Role');
+    await page.fill('#user-password', adminUserPassword);
+    await page.click('#user-role-trigger');
+    await page.click('.custom-option[data-value="admin"]');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    // 2. Log out
+    await page.click('#user-menu-btn');
+    await expect(page.locator('#user-menu-dropdown')).toBeVisible();
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+
+    // 3. Log in as Admin-role user
+    await page.fill('#login-email', adminUserEmail);
+    await page.fill('#login-password', adminUserPassword);
+    await page.click('#login-btn');
+
+    // 4. Verify Setup Nav is hidden (admin role does NOT see Setup)
+    await expect(page.locator('.board')).toBeVisible();
+    await expect(page.locator('#nav-setup')).toBeHidden();
+
+    // 5. Cleanup - Logout, then log back in as sysadmin to deactivate
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('Initial sysadmin has Sysadmin role badge', async ({ page }) => {
+    // Already on Setup page from beforeEach
+    const adminRow = page.locator(`.user-row:has-text("${adminEmail}")`);
+    await expect(adminRow).toBeVisible();
+    await expect(adminRow.locator('.user-role-badge.sysadmin')).toBeVisible();
+    await expect(adminRow.locator('.user-role-badge.sysadmin')).toContainText('Sysadmin');
   });
 
   test('Header User Menu displays badge and email correctly', async ({ page }) => {

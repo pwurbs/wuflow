@@ -37,8 +37,8 @@ const (
 	errMsgProjectHasIssues    = "Cannot delete project with assigned issues"
 )
 
-// errAdminCheckDB is a sentinel returned by checkLastAdminProtection when the
-// admin-count query fails. It lets callers distinguish a server-side DB error
+// errAdminCheckDB is a sentinel returned by checkLastSysAdminProtection when the
+// sysadmin-count query fails. It lets callers distinguish a server-side DB error
 // (→ 500) from a business-logic validation error (→ 400) without leaking the
 // internal error detail to the client.
 var errAdminCheckDB = errors.New("internal admin count check failed")
@@ -1232,7 +1232,7 @@ func validateAndPrepareUserUpdate(existing *User, req createUserRequest, userEma
 	existing.FirstName = strings.TrimSpace(req.FirstName)
 	existing.LastName = strings.TrimSpace(req.LastName)
 
-	if err := checkLastAdminProtection(existing, req.Role, req.Active); err != nil {
+	if err := checkLastSysAdminProtection(existing, req.Role, req.Active); err != nil {
 		if !errors.Is(err, errAdminCheckDB) {
 			slog.Warn("UpdateUser: last admin protection triggered", "error", err, "admin_email", userEmail)
 		}
@@ -1262,17 +1262,17 @@ func validateAndPrepareUserUpdate(existing *User, req createUserRequest, userEma
 	return revokeSessions, nil
 }
 
-func checkLastAdminProtection(existing *User, newRole UserRole, newActive bool) error {
-	// Prevent deactivating or demoting the last active administrator
-	if existing.Role == RoleAdmin && existing.Active {
-		if newRole != RoleAdmin || !newActive {
-			adminCount, err := CountActiveAdmins()
+func checkLastSysAdminProtection(existing *User, newRole UserRole, newActive bool) error {
+	// Prevent deactivating or demoting the last active system administrator
+	if existing.Role == RoleSysAdmin && existing.Active {
+		if newRole != RoleSysAdmin || !newActive {
+			sysAdminCount, err := CountActiveSysAdmins()
 			if err != nil {
-				slog.Error("checkLastAdminProtection: failed to count active admins", "error", err)
+				slog.Error("checkLastSysAdminProtection: failed to count active sysadmins", "error", err)
 				return errAdminCheckDB
 			}
-			if adminCount <= 1 {
-				return fmt.Errorf("Cannot deactivate or demote the last active administrator")
+			if sysAdminCount <= 1 {
+				return fmt.Errorf("Cannot deactivate or demote the last active system administrator")
 			}
 		}
 	}

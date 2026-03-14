@@ -46,7 +46,7 @@ export async function renderArchive(refreshApp, openModal) {
 
   // Archive list: Sorted by UpdatedAt (desc), Grouped by Month
   const archivedIssuesRaw = filterByStatus(filteredIssues, 'Archive');
-  const archivedIssues = archivedIssuesRaw.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  const archivedIssues = archivedIssuesRaw.toSorted((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
   // Done list: Keep existing behavior (position sorted)
   const doneIssues = sortByPosition(filterByStatus(filteredIssues, 'Done'));
@@ -144,11 +144,13 @@ export function setupArchiveView(refreshApp, openModal) {
     refreshApp: refreshAppCallback,
     onValidate: validateArchiveDrop,
     performReorder: false,
-    onDrop: async (issue, status) => {
-      if (!issue || (issue.status === 'Archive' && status === 'Archive')) {
-        return;
-      }
-      await performDropUpdate();
+    onDrop: async () => {
+      // Archiving is handled exclusively by the section drop handler
+      // (archive-archive-section), which fires as this event bubbles up.
+      // Calling performDropUpdate() here would cause a race: the done-list
+      // still holds the dragged card (due to performReorder: false), so
+      // getListUpdates sees a stale position and fires updateIssue() on an
+      // issue that the section handler is archiving concurrently → 403.
     }
   });
 

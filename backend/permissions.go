@@ -40,37 +40,42 @@ const (
 // rolePermissions is the single source of truth for the permission policy.
 // It uses an allowlist model: a role must be explicitly listed to be granted an action.
 // To add a new role, add it to the relevant actions here — no handler code changes needed.
+//
+// Role hierarchy:
+//   - RoleSysAdmin: full system administration (users, projects, labels) + all RoleAdmin actions
+//   - RoleAdmin:    issue power operations (delete, archive, unarchive) + all RoleUser actions
+//   - RoleUser:     standard read/create/update access
 var rolePermissions = map[Action][]UserRole{
 	// Issues
-	ActionListIssues:     {RoleAdmin, RoleUser},
-	ActionGetIssue:       {RoleAdmin, RoleUser},
-	ActionCreateIssue:    {RoleAdmin, RoleUser},
-	ActionUpdateIssue:    {RoleAdmin, RoleUser},
-	ActionDeleteIssue:    {RoleAdmin},
-	ActionArchiveIssue:   {RoleAdmin},
-	ActionUnarchiveIssue: {RoleAdmin},
+	ActionListIssues:     {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionGetIssue:       {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionCreateIssue:    {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionUpdateIssue:    {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionDeleteIssue:    {RoleSysAdmin, RoleAdmin},
+	ActionArchiveIssue:   {RoleSysAdmin, RoleAdmin},
+	ActionUnarchiveIssue: {RoleSysAdmin, RoleAdmin},
 
 	// Tasks
-	ActionCreateTask: {RoleAdmin, RoleUser},
-	ActionUpdateTask: {RoleAdmin, RoleUser},
-	ActionDeleteTask: {RoleAdmin, RoleUser},
+	ActionCreateTask: {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionUpdateTask: {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionDeleteTask: {RoleSysAdmin, RoleAdmin, RoleUser},
 
 	// Labels
-	ActionListLabels:  {RoleAdmin, RoleUser},
-	ActionCreateLabel: {RoleAdmin},
-	ActionDeleteLabel: {RoleAdmin},
+	ActionListLabels:  {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionCreateLabel: {RoleSysAdmin},
+	ActionDeleteLabel: {RoleSysAdmin},
 
 	// Users
-	ActionListUsers:  {RoleAdmin, RoleUser},
-	ActionGetUser:    {RoleAdmin, RoleUser},
-	ActionCreateUser: {RoleAdmin},
-	ActionUpdateUser: {RoleAdmin},
+	ActionListUsers:  {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionGetUser:    {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionCreateUser: {RoleSysAdmin},
+	ActionUpdateUser: {RoleSysAdmin},
 
 	// Projects
-	ActionListProjects:  {RoleAdmin, RoleUser},
-	ActionCreateProject: {RoleAdmin},
-	ActionUpdateProject: {RoleAdmin},
-	ActionDeleteProject: {RoleAdmin},
+	ActionListProjects:  {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionCreateProject: {RoleSysAdmin},
+	ActionUpdateProject: {RoleSysAdmin},
+	ActionDeleteProject: {RoleSysAdmin},
 }
 
 // Can reports whether a user with the given role is permitted to perform action.

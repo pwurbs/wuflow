@@ -213,6 +213,17 @@ func createTables() error {
 		slog.Info("Migrated issues table: added project_id column")
 	}
 
+	// Migration: promote the first user (id=1) from admin to sysadmin. Remove in later version (TODO)
+	// The sysadmin role was introduced to separate system administration (users, projects,
+	// labels) from issue-level admin operations. Existing installations have user id=1 as
+	// the initial admin; we upgrade them automatically so they retain full access.
+	if result, err := DB.Exec(`UPDATE users SET role = 'sysadmin' WHERE id = 1 AND role = 'admin'`); err != nil {
+		slog.Error("Failed to migrate initial admin to sysadmin", "error", err)
+		return err
+	} else if n, _ := result.RowsAffected(); n > 0 {
+		slog.Info("Migrated initial admin user to sysadmin role", "user_id", 1)
+	}
+
 	return nil
 }
 
@@ -1227,12 +1238,12 @@ func CountUsers() (int, error) {
 	return count, nil
 }
 
-// CountActiveAdmins returns the number of active users with admin role.
-func CountActiveAdmins() (int, error) {
+// CountActiveSysAdmins returns the number of active users with sysadmin role.
+func CountActiveSysAdmins() (int, error) {
 	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = ? AND active = 1", RoleAdmin).Scan(&count)
+	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = ? AND active = 1", RoleSysAdmin).Scan(&count)
 	if err != nil {
-		slog.Error("Database Error: CountActiveAdmins", "error", err)
+		slog.Error("Database Error: CountActiveSysAdmins", "error", err)
 		return 0, err
 	}
 	return count, nil

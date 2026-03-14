@@ -2,12 +2,12 @@
 
 ## First Login & Initial Setup
 
-When you start the application for the very first time, the system automatically creates an initial administrator account. 
+When you start the application for the very first time, the system automatically creates an initial sysadmin account.
 - **Email**: `admin@local` as default or use the one you defined in the `WF_INITIAL_ADMIN_EMAIL` (if using Docker) or `-initial-admin-email` argument when starting the app.
 - **Password**: The password you defined in the `WF_INITIAL_ADMIN_PASSWORD` (if using Docker) or `-initial-admin-password` argument when starting the app.
 
 Once you are logged in, it's recommended to navigate to the **Setup View** to adapt the initial user, e.g. setting a new password or to create additional users.
-Only users having the admin role are allowed to access the setup view.
+Only users having the sysadmin role are allowed to access the setup view.
 
 ## The Interface
 
@@ -34,7 +34,7 @@ The scheme is borrowed from the way how Jira handles issues, but simplified and 
 - The Backlog view allows to organize the backlog (see below) and to **move selected issues from the Backlog to the current board** by changing the status from OPEN to TODO. 
 - On the Board, **only issues with status TODO, PENDING, WORKING and DONE are shown**. Drag the issues from left to right according to the progress of work.
 - There will be a time, when too many issues are piling up in the DONE column. Then it's time to archive them. This is done in the **Archive view** (see below), where you can drag selected issues from the DONE to the ARCHIVE area. Issues can also be archived in the issue details view.
-- When an issue is **archived**, it's still there but **can't be edited anymore**. Users owning the Admin role can Unarchive issues in special cases.
+- When an issue is **archived**, it's still there but **can't be edited anymore**. Users owning the Admin or Sysadmin role can Unarchive issues in special cases.
 
 ### Creating Issues
 Click the **New Issue** button (plus sign) in the main menu to create a new issue. Each issue contains:
@@ -60,7 +60,7 @@ Click on an issue card to view and adapt details. In addition to title and descr
 In the bottom right corner there is information when and by whom the issue was created and lastly updated. The user is indicated using the users badge. These fields are automatically filled and can't be edited.
 
 The Issue details view is closed by clicking the DONE button at the bottom of the view. In case of unsaved description changes, you will be asked if you want to save them before closing the view. All other fields are saved automatically.
-Additionally, users owning the Admin role can archive or delete the issue by clicking the Archive or Delete button at the bottom of the view.
+Additionally, users owning the Admin or Sysadmin role can archive or delete the issue by clicking the Archive or Delete button at the bottom of the view.
 
 ### Tasks
 We decided against treating (sub)tasks as separate issues like it's done in Jira. We think, that actual (sub)tasks belong fixed to an issue and are just a checklist of things to do. This helps to break issues down into smaller, checkable items.
@@ -132,13 +132,13 @@ On the Backlog view, you can:
 Once an issue is completed (DONE status) and no longer needed on the board, you can archive it. This hides the issue from the active views while keeping it stored for future reference. Archived issues are not deleted; they can be reviewed, searched, or even restored to the board at any time.
 The Archive View is similar to the Backlog View, but the other way round: Issue to be archived are moved from top (DONE area) to bottom (ARCHIVE area). By this, the issue vanishes from the board and is instead visible in the Archive area, sorted and grouped per month of archiving.
 Archiving a bunch of DONE issues could be done along with a kind of a review process in the team or celebrating the completion of a project or milestone. 
-Archived issues are read-only. Users owning the admin role are entitled to **restore** archived issues to the board. This is done by clicking the "Restore" button in the Issue details view.
+Archived issues are read-only. Users owning the Admin or Sysadmin role are entitled to **restore** archived issues to the board. This is done by clicking the "Restore" button in the Issue details view.
 
 ## The Setup View
 
 <img src="screenshots/setup.png" alt="Initial Setup" width="900">
 
-The Setup View is only available for users with admin role and allows to configure **projects**, **labels** and **users**.
+The Setup View is only available for users with sysadmin role and allows to configure **projects**, **labels** and **users**.
 
 ### Projects
 Projects group issues into separate workstreams or areas of responsibility. Each issue belongs to exactly one project. A **default project** (id=1) is always present and cannot be deleted.
@@ -152,23 +152,23 @@ Create labels which can be used in issues to categorize and color-code them. The
 ### Users
 Users can be created, adapted or deactivated here. 
 - When you **create a new user**, enter the properties, assign a role, set an initial password and click "Save". Then the user can log in using Email and password and should then be requested to set an own password. 
-- To **adapt an existing user**, click on the user in the list, adapt what you want, and click "Save". Here, an admin can re-define a new password for a user, when e.g. a user has forgotten their password.
+- To **adapt an existing user**, click on the user in the list, adapt what you want, and click "Save". Here, a sysadmin can re-define a new password for a user, when e.g. a user has forgotten their password.
 - To **deactivate a user**, click on the user in the list and click "Deactivate". This is useful when a user is no longer active in the team or organization. Deactivated users can't log in and are not visible in the user list to be assigned for issues. Deletion of users is currently not supported.
 
 ## User Roles
-When a new user is created a role is assigned. This can either be the "Admin" role or the "User" role. The following table shows the permissions for each role. 
+When a new user is created a role is assigned. Three roles are available, ordered from least to most privileged:
 It is a conscious decision, that every user can see all issues and tasks to support transparency and easy collaboration. Maybe we add a feature to create "private" issues in the future.
 
-| Action | Admin | User |
-| :--- | :---: | :---: |
-| View issues & tasks | ✓ | ✓ |
-| Create / edit issues | ✓ | ✓ |
-| Create / edit / delete tasks | ✓ | ✓ |
-| **Archive** an issue | ✓ | — |
-| **Unarchive** an issue | ✓ | — |
-| **Delete** an issue | ✓ | — |
-| View labels & users | ✓ | ✓ |
-| Create / delete labels | ✓ | — |
-| Create / edit / deactivate users | ✓ | — |
-| View projects | ✓ | ✓ |
-| Create / update / delete projects | ✓ | — |
+| Action | User | Admin | Sysadmin |
+| :--- | :---: | :---: | :---: |
+| View issues & tasks | ✓ | ✓ | ✓ |
+| Create / edit issues | ✓ | ✓ | ✓ |
+| Create / edit / delete tasks | ✓ | ✓ | ✓ |
+| View labels, users & projects | ✓ | ✓ | ✓ |
+| **Archive** an issue | — | ✓ | ✓ |
+| **Unarchive** an issue | — | ✓ | ✓ |
+| **Delete** an issue | — | ✓ | ✓ |
+| Create / delete labels | — | — | ✓ |
+| Create / edit / deactivate users | — | — | ✓ |
+| Create / update / delete projects | — | — | ✓ |
+| Access Setup view | — | — | ✓ |

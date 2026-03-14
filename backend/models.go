@@ -87,7 +87,10 @@ type Project struct {
 type UserRole string
 
 const (
-	// RoleAdmin grants full access including user management.
+	// RoleSysAdmin grants full system administration access: user, project, and label management,
+	// plus all permissions held by RoleAdmin and RoleUser.
+	RoleSysAdmin UserRole = "sysadmin"
+	// RoleAdmin grants elevated access including issue delete, archive, and unarchive.
 	RoleAdmin UserRole = "admin"
 	// RoleUser grants standard access to the application.
 	RoleUser UserRole = "user"

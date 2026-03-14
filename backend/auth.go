@@ -318,7 +318,7 @@ func EnsureInitialAdmin(initialAdminEmail, initialAdminPassword string) error {
 		Email:     initialAdminEmail,
 		FirstName: "Admin",
 		LastName:  "User",
-		Role:      RoleAdmin,
+		Role:      RoleSysAdmin,
 		Active:    true,
 	}
 

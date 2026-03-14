@@ -148,7 +148,8 @@
             "type": "string",
             "enum": [
               "user",
-              "admin"
+              "admin",
+              "sysadmin"
             ]
           },
           "active": {
@@ -176,7 +177,8 @@
             "type": "string",
             "enum": [
               "user",
-              "admin"
+              "admin",
+              "sysadmin"
             ]
           },
           "active": {
@@ -452,6 +454,8 @@
       },
       "post": {
         "summary": "Create new user",
+        "description": "Requires sysadmin role.",
+        "x-required-role": "sysadmin",
         "tags": [
           "Users"
         ],
@@ -531,6 +535,8 @@
       },
       "put": {
         "summary": "Update user",
+        "description": "Requires sysadmin role.",
+        "x-required-role": "sysadmin",
         "tags": [
           "Users"
         ],
@@ -668,6 +674,8 @@
       },
       "delete": {
         "summary": "Delete issue",
+        "description": "Requires admin or sysadmin role.",
+        "x-required-role": "admin",
         "tags": [
           "Issues"
         ],
@@ -694,6 +702,8 @@
       ],
       "post": {
         "summary": "Archive an issue",
+        "description": "Requires admin or sysadmin role.",
+        "x-required-role": "admin",
         "tags": [
           "Issues"
         ],
@@ -733,6 +743,8 @@
       ],
       "post": {
         "summary": "Unarchive an issue",
+        "description": "Requires admin or sysadmin role.",
+        "x-required-role": "admin",
         "tags": [
           "Issues"
         ],
@@ -864,6 +876,8 @@
       },
       "post": {
         "summary": "Create label",
+        "description": "Requires sysadmin role.",
+        "x-required-role": "sysadmin",
         "tags": [
           "Labels"
         ],
@@ -904,6 +918,8 @@
       ],
       "delete": {
         "summary": "Delete label",
+        "description": "Requires sysadmin role.",
+        "x-required-role": "sysadmin",
         "tags": [
           "Labels"
         ],
@@ -941,6 +957,8 @@
       },
       "post": {
         "summary": "Create project",
+        "description": "Requires sysadmin role.",
+        "x-required-role": "sysadmin",
         "tags": [
           "Projects"
         ],
@@ -993,6 +1011,8 @@
       ],
       "put": {
         "summary": "Update project",
+        "description": "Requires sysadmin role.",
+        "x-required-role": "sysadmin",
         "tags": [
           "Projects"
         ],
@@ -1036,6 +1056,8 @@
       },
       "delete": {
         "summary": "Delete project",
+        "description": "Requires sysadmin role.",
+        "x-required-role": "sysadmin",
         "tags": [
           "Projects"
         ],

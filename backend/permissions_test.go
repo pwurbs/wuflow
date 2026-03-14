@@ -4,13 +4,39 @@ import (
 	"testing"
 )
 
+const actionUnknown Action = "nonexistent:action"
+
 func TestCan(t *testing.T) {
 	tests := []struct {
 		role    UserRole
 		action  Action
 		allowed bool
 	}{
-		// Admin is granted all actions
+		// SysAdmin is granted all actions (super-admin)
+		{RoleSysAdmin, ActionListIssues, true},
+		{RoleSysAdmin, ActionGetIssue, true},
+		{RoleSysAdmin, ActionCreateIssue, true},
+		{RoleSysAdmin, ActionUpdateIssue, true},
+		{RoleSysAdmin, ActionDeleteIssue, true},
+		{RoleSysAdmin, ActionArchiveIssue, true},
+		{RoleSysAdmin, ActionUnarchiveIssue, true},
+		{RoleSysAdmin, ActionCreateTask, true},
+		{RoleSysAdmin, ActionUpdateTask, true},
+		{RoleSysAdmin, ActionDeleteTask, true},
+		{RoleSysAdmin, ActionListLabels, true},
+		{RoleSysAdmin, ActionCreateLabel, true},
+		{RoleSysAdmin, ActionDeleteLabel, true},
+		{RoleSysAdmin, ActionListUsers, true},
+		{RoleSysAdmin, ActionGetUser, true},
+		{RoleSysAdmin, ActionCreateUser, true},
+		{RoleSysAdmin, ActionUpdateUser, true},
+		{RoleSysAdmin, ActionListProjects, true},
+		{RoleSysAdmin, ActionCreateProject, true},
+		{RoleSysAdmin, ActionUpdateProject, true},
+		{RoleSysAdmin, ActionDeleteProject, true},
+
+		// Admin is granted issue power operations and all standard actions,
+		// but NOT system management (labels/users/projects write)
 		{RoleAdmin, ActionListIssues, true},
 		{RoleAdmin, ActionGetIssue, true},
 		{RoleAdmin, ActionCreateIssue, true},
@@ -22,16 +48,18 @@ func TestCan(t *testing.T) {
 		{RoleAdmin, ActionUpdateTask, true},
 		{RoleAdmin, ActionDeleteTask, true},
 		{RoleAdmin, ActionListLabels, true},
-		{RoleAdmin, ActionCreateLabel, true},
-		{RoleAdmin, ActionDeleteLabel, true},
 		{RoleAdmin, ActionListUsers, true},
 		{RoleAdmin, ActionGetUser, true},
-		{RoleAdmin, ActionCreateUser, true},
-		{RoleAdmin, ActionUpdateUser, true},
 		{RoleAdmin, ActionListProjects, true},
-		{RoleAdmin, ActionCreateProject, true},
-		{RoleAdmin, ActionUpdateProject, true},
-		{RoleAdmin, ActionDeleteProject, true},
+
+		// Admin is denied sysadmin-only actions
+		{RoleAdmin, ActionCreateLabel, false},
+		{RoleAdmin, ActionDeleteLabel, false},
+		{RoleAdmin, ActionCreateUser, false},
+		{RoleAdmin, ActionUpdateUser, false},
+		{RoleAdmin, ActionCreateProject, false},
+		{RoleAdmin, ActionUpdateProject, false},
+		{RoleAdmin, ActionDeleteProject, false},
 
 		// User is granted all non-destructive actions
 		{RoleUser, ActionListIssues, true},
@@ -46,7 +74,7 @@ func TestCan(t *testing.T) {
 		{RoleUser, ActionGetUser, true},
 		{RoleUser, ActionListProjects, true},
 
-		// User is denied all admin-only actions
+		// User is denied all elevated actions
 		{RoleUser, ActionDeleteIssue, false},
 		{RoleUser, ActionArchiveIssue, false},
 		{RoleUser, ActionUnarchiveIssue, false},
@@ -63,8 +91,9 @@ func TestCan(t *testing.T) {
 		{UserRole(""), ActionDeleteIssue, false},
 
 		// Unknown action is always denied (safe default)
-		{RoleAdmin, Action("nonexistent:action"), false},
-		{RoleUser, Action("nonexistent:action"), false},
+		{RoleSysAdmin, actionUnknown, false},
+		{RoleAdmin, actionUnknown, false},
+		{RoleUser, actionUnknown, false},
 	}
 
 	for _, tc := range tests {

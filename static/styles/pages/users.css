@@ -67,6 +67,15 @@
   margin-left: 8px;
 }
 
+.user-role-badge.sysadmin {
+  background-color: #0e4f6e;
+  /* Solid cyan-900 for high contrast */
+  color: #e0f2fe;
+  border: 1px solid #0284c7;
+  /* Solid border */
+  margin-left: 8px;
+}
+
 .user-row.user-inactive .user-email,
 .user-row.user-inactive .user-name {
   text-decoration: line-through;

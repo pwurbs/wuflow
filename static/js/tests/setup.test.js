@@ -80,6 +80,7 @@ describe('setup.js component', () => {
             <div id="user-role-options" class="hidden">
               <div class="custom-option" data-value="user">User</div>
               <div class="custom-option" data-value="admin">Admin</div>
+              <div class="custom-option" data-value="sysadmin">Sysadmin</div>
             </div>
           </div>
           <div id="user-active-options" class="hidden"></div>
@@ -186,22 +187,23 @@ describe('setup.js component', () => {
   });
 
   describe('User Management Rendering', () => {
-    it('should hide user management section for non-admins', async () => {
-      // Non-admins do not have ACTION_LIST_USERS permission
+    it('should hide user management section for non-sysadmins', async () => {
+      // simulate userCan returning false for ACTION_LIST_USERS (non-sysadmin context)
       state.currentUser = { role: 'user' };
       permissions.userCan.mockImplementation((user, action) => {
-        return !(action === permissions.ACTION_LIST_USERS && user.role !== 'admin');
+        return !(action === permissions.ACTION_LIST_USERS && user.role !== 'sysadmin');
       });
       await renderSetupView();
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(true);
     });
 
-    it('should show and render user list for admins', async () => {
-      state.currentUser = { role: 'admin' };
+    it('should show and render user list for sysadmins', async () => {
+      state.currentUser = { role: 'sysadmin' };
       permissions.userCan.mockReturnValue(true);
       const users = [
-        { id: 1, email: 'admin@test.com', first_name: 'Ad', last_name: 'Min', role: 'admin', active: true },
-        { id: 2, email: 'user@test.com', first_name: 'Us', last_name: 'Er', role: 'user', active: true }
+        { id: 1, email: 'sysadmin@test.com', first_name: 'Sys', last_name: 'Admin', role: 'sysadmin', active: true },
+        { id: 2, email: 'admin@test.com', first_name: 'Ad', last_name: 'Min', role: 'admin', active: true },
+        { id: 3, email: 'user@test.com', first_name: 'Us', last_name: 'Er', role: 'user', active: true }
       ];
       api.fetchUsers.mockResolvedValue(users);
 
@@ -209,9 +211,12 @@ describe('setup.js component', () => {
 
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(false);
       const rows = document.querySelectorAll('.user-row');
-      expect(rows.length).toBe(2);
+      expect(rows.length).toBe(3);
+      // Users are sorted by email: admin < sysadmin < user
       expect(rows[0].textContent).toContain('admin@test.com');
       expect(rows[0].textContent).toContain('Admin');
+      expect(rows[1].textContent).toContain('sysadmin@test.com');
+      expect(rows[1].textContent).toContain('Sysadmin');
     });
 
     it('should escape user initials to prevent XSS', async () => {
@@ -492,6 +497,7 @@ describe('Additional Coverage', () => {
               <div id="user-role-options" class="hidden">
                 <div class="custom-option" data-value="user">User</div>
                 <div class="custom-option" data-value="admin">Admin</div>
+                <div class="custom-option" data-value="sysadmin">Sysadmin</div>
               </div>
             </div>
             <div id="user-active-options" class="hidden"></div>
@@ -647,6 +653,7 @@ const PROJECT_DOM = `
         <div id="user-role-options" class="hidden">
           <div class="custom-option" data-value="user">User</div>
           <div class="custom-option" data-value="admin">Admin</div>
+          <div class="custom-option" data-value="sysadmin">Sysadmin</div>
         </div>
       </div>
       <div id="user-active-options" class="hidden"></div>

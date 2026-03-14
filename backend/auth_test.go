@@ -29,7 +29,7 @@ const (
 	testEmailThree          = "a@b.com"
 	testUserEmail           = "user@test.com"
 	expectedEmail           = "expected email %s, got %s"
-	expectedRole            = "expected role admin, got %s"
+	expectedRole            = "expected role sysadmin, got %s"
 	sqliteMemoryDSN         = ":memory:"
 	adminEmailLocal         = "admin@local"
 	errGetUserByEmailFailed = "GetUserByEmail failed: %v"
@@ -332,7 +332,7 @@ func TestEnsureInitialAdmin(t *testing.T) {
 	if user == nil {
 		t.Fatal("expected admin user to be created")
 	}
-	if user.Role != RoleAdmin {
+	if user.Role != RoleSysAdmin {
 		t.Errorf(expectedRole, user.Role)
 	}
 	if !user.Active {
@@ -361,7 +361,7 @@ func TestEnsureInitialAdminCustomEmail(t *testing.T) {
 	if user.Email != customEmail {
 		t.Errorf("expected email %s, got %s", customEmail, user.Email)
 	}
-	if user.Role != RoleAdmin {
+	if user.Role != RoleSysAdmin {
 		t.Errorf(expectedRole, user.Role)
 	}
 }
@@ -802,7 +802,7 @@ func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
 	// Create a fresh request with correct path for HandleUser parsing
 	req := httptest.NewRequest("PUT", targetURL, bytes.NewBuffer(body))
 	// Add Admin Context
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 
 	HandleUser(rr, req.WithContext(ctx))
 
@@ -921,18 +921,18 @@ func TestCountUsers(t *testing.T) {
 	}
 }
 
-func TestCountActiveAdmins(t *testing.T) {
+func TestCountActiveSysAdmins(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: "admin1@test.com", FirstName: "A", LastName: "U", PasswordHash: hash, Role: RoleAdmin, Active: true})
-	CreateUser(&User{Email: "admin2@test.com", FirstName: "B", LastName: "U", PasswordHash: hash, Role: RoleAdmin, Active: false})
+	CreateUser(&User{Email: "sysadmin1@test.com", FirstName: "A", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
+	CreateUser(&User{Email: "sysadmin2@test.com", FirstName: "B", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: false})
 	CreateUser(&User{Email: testUserEmail, FirstName: "C", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
 
-	count, _ := CountActiveAdmins()
+	count, _ := CountActiveSysAdmins()
 	if count != 1 {
-		t.Errorf("expected 1 active admin, got %d", count)
+		t.Errorf("expected 1 active sysadmin, got %d", count)
 	}
 }
 
@@ -982,7 +982,7 @@ func TestUserDBErrors(t *testing.T) {
 		{"GetUserByID", func() error { _, err := GetUserByID(1); return err }},
 		{"GetAllUsers", func() error { _, err := GetAllUsers(); return err }},
 		{"CountUsers", func() error { _, err := CountUsers(); return err }},
-		{"CountActiveAdmins", func() error { _, err := CountActiveAdmins(); return err }},
+		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(); return err }},
 	}
 
 	for _, tt := range tests {
@@ -1035,7 +1035,7 @@ func TestHandleUsersCreateSuccess(t *testing.T) {
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusCreated {
@@ -1062,7 +1062,7 @@ func TestHandleUsersCreateDuplicateEmail(t *testing.T) {
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusConflict {
@@ -1074,7 +1074,7 @@ func TestHandleUsersCreateInvalidJSON(t *testing.T) {
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBufferString(invalidJSON))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
@@ -1095,7 +1095,7 @@ func TestHandleUsersCreateMissingPassword(t *testing.T) {
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
@@ -1116,7 +1116,7 @@ func TestHandleUsersCreateWeakPassword(t *testing.T) {
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
@@ -1137,7 +1137,7 @@ func TestHandleUsersCreateInvalidEmail(t *testing.T) {
 	req := httptest.NewRequest("POST", apiUsers, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUsers(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
@@ -1219,7 +1219,7 @@ func TestHandleUserPutSuccess(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiUsersBase+strconv.Itoa(user.ID), bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusOK {
@@ -1247,7 +1247,7 @@ func TestHandleUserPutNotFound(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiUsersBase+"999", bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusNotFound {
@@ -1265,7 +1265,7 @@ func TestHandleUserPutInvalidJSON(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBufferString(invalidJSON))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
@@ -1273,14 +1273,14 @@ func TestHandleUserPutInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleUserPutLastAdminProtection(t *testing.T) {
+func TestHandleUserPutLastSysAdminProtection(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Admin", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(&User{Email: testEmail, FirstName: "Admin", LastName: "User", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
 
-	// Try to demote the only admin
+	// Try to demote the only sysadmin
 	body, _ := json.Marshal(map[string]interface{}{
 		"email":      testEmail,
 		"first_name": "Admin",
@@ -1292,7 +1292,7 @@ func TestHandleUserPutLastAdminProtection(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBuffer(body))
 	rr := httptest.NewRecorder()
 
-	ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 	HandleUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
@@ -1430,7 +1430,7 @@ func TestAuthHandlersDBError(t *testing.T) {
 		req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBuffer(body))
 		rr := httptest.NewRecorder()
 
-		ctx := context.WithValue(req.Context(), contextKeyRole, RoleAdmin)
+		ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 		HandleUser(rr, req.WithContext(ctx))
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)

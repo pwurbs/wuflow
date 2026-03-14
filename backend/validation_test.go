@@ -301,6 +301,13 @@ func TestValidateUserInvalidRole(t *testing.T) {
 	}
 }
 
+func TestValidateUserSysAdminRole(t *testing.T) {
+	u := &User{Email: testSimpleEmail, FirstName: "A", LastName: "B", Role: RoleSysAdmin}
+	if err := validateUser(u); err != nil {
+		t.Errorf("expected no error for sysadmin role, got %v", err)
+	}
+}
+
 func TestValidateUserNamesStripHTML(t *testing.T) {
 	u := &User{
 		Email:     testSimpleEmail,
