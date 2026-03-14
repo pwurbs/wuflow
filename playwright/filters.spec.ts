@@ -156,7 +156,7 @@ test.describe('Filtering and Search', () => {
     await expect(page.locator('.board-card:has-text("' + title2 + '")')).toBeHidden();
 
     // Clear filter
-    await page.click('#user-filter-btn .filter-icon-clear');
+    await page.click('#user-filter-btn .toolbar-icon-clear');
 
     await expect(page.locator('.board-card:has-text("' + title1 + '")')).toBeVisible();
     await expect(page.locator('.board-card:has-text("' + title2 + '")')).toBeVisible();

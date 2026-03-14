@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
-import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setSelectedProject } from '../state.js';
+import { state } from '../state.js';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
 const _localStore = {};
@@ -281,7 +281,7 @@ describe('Label Filter', () => {
     updateLabelFilterOptions([]);
     const btn = document.getElementById('label-filter-btn');
     expect(btn.textContent).toContain('Label');
-    expect(btn.querySelector('.filter-icon-arrow')).not.toBeNull();
+    expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
   });
 
@@ -290,7 +290,7 @@ describe('Label Filter', () => {
     updateLabelFilterOptions([{ id: 1, name: 'Bug', color: '#f00' }]);
     const btn = document.getElementById('label-filter-btn');
     expect(btn.textContent).toContain('Label: Bug');
-    expect(btn.querySelector('.filter-icon-clear')).not.toBeNull();
+    expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(true);
   });
 
@@ -311,7 +311,7 @@ describe('Label Filter', () => {
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.labelId = 1;
     updateLabelFilterOptions([{ id: 1, name: 'Bug', color: '#f00' }]);
-    document.querySelector('#label-filter-btn .filter-icon-clear').click();
+    document.querySelector('#label-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.labelId).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
@@ -377,7 +377,7 @@ describe('Priority Filter', () => {
   it('shows arrow icon and "Priority" text when no filter is active', () => {
     const btn = document.getElementById('priority-filter-btn');
     expect(btn.textContent).toContain('Priority');
-    expect(btn.querySelector('.filter-icon-arrow')).not.toBeNull();
+    expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
   });
 
@@ -386,14 +386,14 @@ describe('Priority Filter', () => {
     updatePriorityFilterOptions();
     const btn = document.getElementById('priority-filter-btn');
     expect(btn.textContent).toContain('Priority: High');
-    expect(btn.querySelector('.filter-icon-clear')).not.toBeNull();
+    expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(true);
   });
 
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.priority = 'High';
     updatePriorityFilterOptions();
-    document.querySelector('#priority-filter-btn .filter-icon-clear').click();
+    document.querySelector('#priority-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.priority).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
@@ -468,7 +468,7 @@ describe('User Filter', () => {
     updateUserFilterOptions([]);
     const btn = document.getElementById('user-filter-btn');
     expect(btn.textContent).toContain('User');
-    expect(btn.querySelector('.filter-icon-arrow')).not.toBeNull();
+    expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
   });
 
@@ -495,13 +495,13 @@ describe('User Filter', () => {
     updateUserFilterOptions([]);
     const btn = document.getElementById('user-filter-btn');
     expect(btn.classList.contains('has-selection')).toBe(true);
-    expect(btn.querySelector('.filter-icon-clear')).not.toBeNull();
+    expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
   });
 
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.assigneeId = 'me';
     updateUserFilterOptions([]);
-    document.querySelector('#user-filter-btn .filter-icon-clear').click();
+    document.querySelector('#user-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.assigneeId).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
@@ -631,9 +631,20 @@ describe('Project Selector', () => {
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
   });
+
+  it('restores selected project from localStorage on init', () => {
+    localStorage.setItem('wuflow_selectedProjectId', '2');
+    state.selectedProjectId = null;
+    initProjectSelector(vi.fn());
+    expect(state.selectedProjectId).toBe(2);
+  });
 });
 
 // ─── User Menu (toolbar) ───────────────────────────────────────────────────────
+
+const TEST_PW_VALID = 'T3st-P@ssw0rd!';
+const TEST_PW_WEAK  = 'weak';
+const TEST_PW_BAD   = 'bad';
 
 describe('User Menu', () => {
   const mockUser = { email: 'alice@example.com', role: 'admin', first_name: 'Alice', last_name: 'Smith' };
@@ -716,5 +727,59 @@ describe('User Menu', () => {
     document.getElementById('user-menu-password').click();
     expect(errorDisplay.textContent).toBe('');
     expect(errorDisplay.classList.contains('hidden')).toBe(true);
+  });
+
+  it('submits password form successfully, hides modal and schedules logout', async () => {
+    vi.useFakeTimers();
+    const { logout } = await import('../api.js');
+    const { showNotification } = await import('../utils.js');
+    logout.mockClear();
+    showNotification.mockClear();
+
+    setupUserMenu(mockUser);
+    document.getElementById('new-password').value = TEST_PW_VALID;
+    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+
+    await Promise.resolve(); // flush microtasks so the async handler completes
+
+    expect(showNotification).toHaveBeenCalledWith('Password updated successfully. Logging out...');
+    expect(document.getElementById('password-modal').classList.contains('hidden')).toBe(true);
+
+    vi.runAllTimers(); // advance past the 1500 ms timeout
+    expect(logout).toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it('shows inline error when password validation fails', async () => {
+    const { validatePasswordPolicy } = await import('../components/setup.js');
+    validatePasswordPolicy.mockReturnValueOnce('Password is too weak');
+
+    setupUserMenu(mockUser);
+    document.getElementById('new-password').value = TEST_PW_WEAK;
+    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+
+    await Promise.resolve();
+
+    const errorDisplay = document.getElementById('password-modal-error');
+    expect(errorDisplay.textContent).toBe('Password is too weak');
+    expect(errorDisplay.classList.contains('hidden')).toBe(false);
+  });
+
+  it('falls back to showNotification when error display element is absent', async () => {
+    const { validatePasswordPolicy } = await import('../components/setup.js');
+    const { showNotification } = await import('../utils.js');
+    validatePasswordPolicy.mockReturnValueOnce('Some policy error');
+    showNotification.mockClear();
+
+    setupUserMenu(mockUser);
+    document.getElementById('password-modal-error').remove();
+
+    document.getElementById('new-password').value = TEST_PW_BAD;
+    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+
+    await Promise.resolve();
+
+    expect(showNotification).toHaveBeenCalledWith('Some policy error', 'error');
   });
 });

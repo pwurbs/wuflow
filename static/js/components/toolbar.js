@@ -57,7 +57,7 @@ export function updateLabelFilterOptions(labels) {
     labelFilterBtn.appendChild(textSpan);
 
     const clearIcon = document.createElement('span');
-    clearIcon.className = 'filter-icon-clear';
+    clearIcon.className = 'toolbar-icon-clear';
     clearIcon.innerHTML = '&times;';
     clearIcon.title = 'Clear filter';
 
@@ -75,7 +75,7 @@ export function updateLabelFilterOptions(labels) {
     labelFilterBtn.appendChild(textSpan);
 
     const arrowIcon = document.createElement('span');
-    arrowIcon.className = 'filter-icon-arrow';
+    arrowIcon.className = 'toolbar-icon-arrow';
     arrowIcon.innerHTML = '▼';
 
     labelFilterBtn.appendChild(arrowIcon);
@@ -149,7 +149,7 @@ export function updatePriorityFilterOptions() {
     priorityFilterBtn.appendChild(textSpan);
 
     const clearIcon = document.createElement('span');
-    clearIcon.className = 'filter-icon-clear';
+    clearIcon.className = 'toolbar-icon-clear';
     clearIcon.innerHTML = '&times;';
     clearIcon.title = 'Clear filter';
 
@@ -168,7 +168,7 @@ export function updatePriorityFilterOptions() {
     priorityFilterBtn.appendChild(textSpan);
 
     const arrowIcon = document.createElement('span');
-    arrowIcon.className = 'filter-icon-arrow';
+    arrowIcon.className = 'toolbar-icon-arrow';
     arrowIcon.innerHTML = '▼';
 
     priorityFilterBtn.appendChild(arrowIcon);
@@ -253,7 +253,7 @@ export function updateUserFilterOptions(users) {
     userFilterBtn.appendChild(textSpan);
 
     const clearIcon = document.createElement('span');
-    clearIcon.className = 'filter-icon-clear';
+    clearIcon.className = 'toolbar-icon-clear';
     clearIcon.innerHTML = '&times;';
     clearIcon.title = 'Clear filter';
 
@@ -271,7 +271,7 @@ export function updateUserFilterOptions(users) {
     userFilterBtn.appendChild(textSpan);
 
     const arrowIcon = document.createElement('span');
-    arrowIcon.className = 'filter-icon-arrow';
+    arrowIcon.className = 'toolbar-icon-arrow';
     arrowIcon.innerHTML = '▼';
 
     userFilterBtn.appendChild(arrowIcon);

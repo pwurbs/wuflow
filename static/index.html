@@ -20,14 +20,17 @@
                         <span id="app-version" class="logo-app-version">v...</span>
                     </div>
                 </h1>
-    <!-- Project Selector — separate box to the left of the filter bar -->
-                <div id="project-selector-container" class="filter-card">
-                    <span class="filter-label">Project</span>
-                    <div id="project-selector-wrapper" class="filter-input-wrapper custom-select-wrapper">
+            </div>
+
+            <div class="toolbar">
+                <!-- Project Selector -->
+                <div id="project-selector-container" class="toolbar-section">
+                    <span class="toolbar-label">Project</span>
+                    <div id="project-selector-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
                         <button id="project-selector-btn" class="custom-select-trigger"
                             aria-label="Select project">
                             <span id="project-selector-text">All Projects</span>
-                            <span class="filter-icon-arrow">▼</span>
+                            <span class="toolbar-icon-arrow">▼</span>
                         </button>
                         <div id="project-selector-options" class="custom-select-options hidden">
                             <!-- Options injected here -->
@@ -35,10 +38,13 @@
                     </div>
                 </div>
 
-                <div id="filter-container" class="filter-card">
-                    <span class="filter-label">Filter</span>
+                <div class="toolbar-divider"></div>
+
+                <!-- Filter -->
+                <div id="filter-container" class="toolbar-section">
+                    <span class="toolbar-label">Filter</span>
                     <!-- Label Filter Wrapper -->
-                    <div id="label-filter-wrapper" class="filter-input-wrapper custom-select-wrapper">
+                    <div id="label-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
                         <button id="label-filter-btn" class="custom-select-trigger"
                             aria-label="Filter by label">Label</button>
                         <div id="label-filter-options" class="custom-select-options hidden">
@@ -47,7 +53,7 @@
                     </div>
 
                     <!-- Priority Filter Wrapper -->
-                    <div id="priority-filter-wrapper" class="filter-input-wrapper custom-select-wrapper">
+                    <div id="priority-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
                         <button id="priority-filter-btn" class="custom-select-trigger"
                             aria-label="Filter by priority">Priority</button>
                         <div id="priority-filter-options" class="custom-select-options hidden">
@@ -56,7 +62,7 @@
                     </div>
 
                     <!-- User Filter Wrapper -->
-                    <div id="user-filter-wrapper" class="filter-input-wrapper custom-select-wrapper">
+                    <div id="user-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
                         <button id="user-filter-btn" class="custom-select-trigger"
                             aria-label="Filter by user">User</button>
                         <div id="user-filter-options" class="custom-select-options hidden">
@@ -65,21 +71,17 @@
                     </div>
 
                     <!-- Search Input -->
-                    <div id="search-filter-wrapper" class="filter-input-wrapper">
+                    <div id="search-filter-wrapper" class="toolbar-input-wrapper">
                         <input type="text" id="search-input" placeholder="Search..." class="search-input"
                             maxlength="50">
                     </div>
                 </div>
-            </div>
 
-            <!-- Notification area — occupies the free space between filters and user menu -->
-            <div class="header-center">
-                <div id="notification-toast" class="notification-toast hidden"></div>
-            </div>
+                <div class="toolbar-divider"></div>
 
-            <div class="header-right">
-                <div class="user-menu-container filter-card">
-                    <span class="filter-label">User</span>
+                <!-- User Menu -->
+                <div class="user-menu-container toolbar-section">
+                    <span class="toolbar-label">User</span>
                     <button id="user-menu-btn" class="user-menu-btn">
                         <span id="current-user-email"></span>
                         <span class="dropdown-arrow">▼</span>
@@ -90,6 +92,7 @@
                     </div>
                 </div>
             </div>
+
         </header>
 
         <div class="main-content">
@@ -237,7 +240,7 @@
                                     <input type="hidden" id="user-role" name="role" value="user">
                                     <button type="button" class="custom-select-trigger" id="user-role-trigger">
                                         <span id="user-role-text">User</span>
-                                        <span class="filter-icon-arrow">▼</span>
+                                        <span class="toolbar-icon-arrow">▼</span>
                                     </button>
                                     <div class="custom-select-options hidden" id="user-role-options">
                                         <div class="custom-option" data-value="user">User</div>
@@ -268,12 +271,12 @@
                         <div class="form-group">
                             <label for="project-name">Name</label>
                             <div class="name-input-wrapper">
-                                <input type="text" id="project-name" required placeholder="Project name (max 15 chars)" maxlength="15">
+                                <input type="text" id="project-name" required placeholder="Project name" maxlength="15">
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="project-description">Description</label>
-                            <textarea id="project-description" placeholder="Short description (max 100 chars)" maxlength="100" rows="3" class="setup-input" style="width:100%;resize:vertical;"></textarea>
+                            <textarea id="project-description" placeholder="Short description" maxlength="100" rows="3" class="setup-input" style="width:100%;resize:vertical;"></textarea>
                         </div>
                         <div id="project-modal-error" class="form-error hidden" role="alert"></div>
                         <div class="form-actions" style="justify-content: space-between;">
@@ -536,7 +539,7 @@
                                 <input type="hidden" id="status" name="status">
                                 <button type="button" class="custom-select-trigger" id="status-trigger">
                                     <span id="status-text">Select Status</span>
-                                    <span class="filter-icon-arrow">▼</span>
+                                    <span class="toolbar-icon-arrow">▼</span>
                                 </button>
                                 <div class="custom-select-options hidden" id="status-options">
                                     <!-- Options injected here -->
@@ -566,7 +569,7 @@
                                 <input type="hidden" id="assignee-select" name="assignee">
                                 <button type="button" class="custom-select-trigger" id="assignee-trigger">
                                     <span id="assignee-text">Unassigned</span>
-                                    <span class="filter-icon-arrow">▼</span>
+                                    <span class="toolbar-icon-arrow">▼</span>
                                 </button>
                                 <div class="custom-select-options hidden" id="assignee-options">
                                     <!-- Options injected here -->
@@ -579,7 +582,7 @@
                                 <input type="hidden" id="priority" name="priority">
                                 <button type="button" class="custom-select-trigger" id="priority-trigger">
                                     <span id="priority-text">Normal</span>
-                                    <span class="filter-icon-arrow">▼</span>
+                                    <span class="toolbar-icon-arrow">▼</span>
                                 </button>
                                 <div class="custom-select-options hidden" id="priority-options">
                                     <!-- Options injected here -->
@@ -592,7 +595,7 @@
                                 <input type="hidden" id="label-select" name="label">
                                 <button type="button" class="custom-select-trigger" id="label-trigger">
                                     <span id="label-text">No Label</span>
-                                    <span class="filter-icon-arrow">▼</span>
+                                    <span class="toolbar-icon-arrow">▼</span>
                                 </button>
                                 <div class="custom-select-options hidden" id="label-options">
                                     <!-- Options injected here -->
@@ -605,7 +608,7 @@
                                 <input type="hidden" id="project-select" name="project" value="1">
                                 <button type="button" class="custom-select-trigger" id="project-trigger">
                                     <span id="project-text">default</span>
-                                    <span class="filter-icon-arrow">▼</span>
+                                    <span class="toolbar-icon-arrow">▼</span>
                                 </button>
                                 <div class="custom-select-options hidden" id="project-options">
                                     <!-- Options injected here -->
@@ -683,6 +686,7 @@
         </div>
     </div>
 
+    <div id="notification-toast" class="notification-toast hidden"></div>
     <script type="module" src="js/app.js"></script>
 </body>
 

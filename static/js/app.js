@@ -21,6 +21,7 @@ const setupView = document.getElementById('setup-view');
 const sidebar = document.querySelector('.sidebar');
 const filterContainer = document.getElementById('filter-container');
 const projectSelectorContainer = document.getElementById('project-selector-container');
+const toolbar = document.querySelector('.toolbar');
 const searchInput = document.getElementById('search-input');
 
 
@@ -149,6 +150,7 @@ function switchView(view) {
         sidebar.classList.remove('hidden');
         filterContainer.classList.remove('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
+        toolbar.classList.remove('toolbar--setup');
 
         refreshApp();
     } else if (view === 'archive') {
@@ -165,6 +167,7 @@ function switchView(view) {
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
+        toolbar.classList.remove('toolbar--setup');
 
         refreshApp();
     } else if (view === 'backlog') {
@@ -181,6 +184,7 @@ function switchView(view) {
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
+        toolbar.classList.remove('toolbar--setup');
 
         refreshApp();
     } else if (view === 'setup') {
@@ -197,6 +201,7 @@ function switchView(view) {
         sidebar.classList.add('hidden');
         filterContainer.classList.add('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.add('hidden');
+        toolbar.classList.add('toolbar--setup');
 
         renderSetupView(refreshApp);
     }

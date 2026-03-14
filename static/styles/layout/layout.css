@@ -15,24 +15,18 @@
 
 header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
   position: relative;
+  gap: 20px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 100px;
+  flex-shrink: 0;
 }
 
-.header-center {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
 
 /* Header Controls */
 .header-controls {

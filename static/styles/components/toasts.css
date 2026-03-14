@@ -13,8 +13,12 @@
   opacity: 1;
 }
 
-/* App-level notification — centered by .header-center flexbox */
+/* App-level notification — fixed at top-center of viewport */
 #notification-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   white-space: nowrap;
 }
 

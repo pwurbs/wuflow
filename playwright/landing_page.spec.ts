@@ -42,7 +42,7 @@ test.describe('Landing Page', () => {
 
   test('filter controls are visible', async ({ page }) => {
     // Filter label
-    await expect(page.locator('.filter-card:has-text("Filter") .filter-label')).toBeVisible();
+    await expect(page.locator('#filter-container .toolbar-label')).toBeVisible();
 
     // Label filter button
     await expect(page.locator('#label-filter-btn')).toBeVisible();

@@ -1,26 +1,49 @@
-/* Label Filter Styling */
-.filter-card {
+/* Toolbar */
+.toolbar {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 24px;
   background-color: var(--column-bg);
   border: 1px solid var(--card-border);
   border-radius: 8px;
-  padding: 8px 16px;
+  padding: 0 4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  min-width: 400px;
   position: relative;
-  /* Double width */
 }
 
-.filter-label {
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 16px;
+  position: relative;
+}
+
+.toolbar-divider {
+  flex: 1;
+  align-self: stretch;
+  position: relative;
+  background: none;
+}
+
+.toolbar-divider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--card-border);
+}
+
+.toolbar-label {
   font-size: 16px;
   font-weight: 600;
   color: var(--accent-blue);
   text-transform: uppercase;
 }
 
-.filter-input-wrapper {
+.toolbar-input-wrapper {
   position: relative;
   display: flex;
   /* Ensures it shrinks to content */
@@ -68,12 +91,12 @@
   background-color: rgb(14, 18, 30);
 }
 
-.filter-icon-arrow {
+.toolbar-icon-arrow {
   font-size: 10px;
   opacity: 0.7;
 }
 
-.filter-icon-clear {
+.toolbar-icon-clear {
   font-size: 16px;
   font-weight: bold;
   color: var(--muted-text);
@@ -85,7 +108,7 @@
   /* Hit area */
 }
 
-.filter-icon-clear:hover {
+.toolbar-icon-clear:hover {
   color: var(--accent-red, #ef4444);
   /* Use red or primary */
 }
@@ -169,4 +192,19 @@
 #user-filter-wrapper,
 #search-filter-wrapper {
   margin-left: 10px;
+}
+
+/* Filter section stays natural width; dividers carry the flexible space */
+#filter-container.toolbar-section {
+  justify-content: center;
+}
+
+/* Setup view: hide dividers and right-align the user menu */
+.toolbar--setup .toolbar-divider {
+  display: none;
+}
+
+.toolbar--setup {
+  flex: 0 0 auto;
+  margin-left: auto;
 }

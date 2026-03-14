@@ -42,7 +42,9 @@ const (
 	testIssueTitleNew    = "New Issue"
 	testTaskTitleNew     = "New Task"
 	testAssigneeEmail    = "user@example.com"
-	expectedFalseDBError = "expected false on DB error"
+	expectedFalseDBError  = "expected false on DB error"
+	dropIssuesTable       = "DROP TABLE issues"
+	dropProjectsTable     = "DROP TABLE projects"
 	expectedResMsg       = "expected %v, got %v"
 	expectedCodeMsg      = "expected code %v, got %v"
 )
@@ -2850,6 +2852,321 @@ func TestHandleProjectIssuesForbidden(t *testing.T) {
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
 	}
+}
+
+// ── line 367: checkProject failure path in handlePutIssue ────────────────────
+
+func TestHandleUpdateIssueInvalidProject(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(issue)
+
+	updated := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 999}
+	body, _ := json.Marshal(updated)
+
+	req := httptest.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleIssue(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+// ── lines 1347, 1353: HandleProjects dispatcher success paths ────────────────
+
+func TestHandleProjectsGetDispatch(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("GET", apiProjects, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProjects(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleProjectsPostDispatch(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(Project{Name: "Dispatched"})
+	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProjects(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusCreated)
+	}
+}
+
+// ── lines 1361-1366: handleListProjects DB error ─────────────────────────────
+
+func TestHandleListProjectsDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	oldDB := DB
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+	DB = closedDB
+	defer func() { DB = oldDB }()
+
+	req := httptest.NewRequest("GET", apiProjects, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	handleListProjects(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── lines 1369-1371: handleListProjects json encode error ────────────────────
+
+func TestHandleListProjectsEncodeError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("GET", apiProjects, nil)
+	handleListProjects(&failWriter{ResponseWriter: httptest.NewRecorder()}, req)
+	// no panic is the assertion; error branch executes the slog.Error
+}
+
+// ── lines 1388-1390: handleCreateProject generic DB error ────────────────────
+
+func TestHandleCreateProjectDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	oldDB := DB
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+	DB = closedDB
+	defer func() { DB = oldDB }()
+
+	body, _ := json.Marshal(Project{Name: "Fail"})
+	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	handleCreateProject(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── lines 1396-1398: handleCreateProject json encode error ───────────────────
+
+func TestHandleCreateProjectEncodeError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(Project{Name: "EncodeErr"})
+	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	handleCreateProject(&failWriter{ResponseWriter: httptest.NewRecorder()}, req)
+}
+
+// ── lines 1425-1426: HandleProject unknown sub-resource ──────────────────────
+
+func TestHandleProjectUnknownSubResource(t *testing.T) {
+	req := httptest.NewRequest("GET", apiProjectsBase+"1/unknown", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+// ── lines 1478-1482: handleProjectActiveIssues DB error from GetActiveIssuesByProject
+
+func TestHandleProjectActiveIssuesDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Drop issues table so projectExists (queries projects) succeeds
+	// but GetActiveIssuesByProject (queries issues) fails.
+	if _, err := DB.Exec(dropIssuesTable); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── lines 1491-1494: handleProjectArchivedIssues method not allowed ──────────
+
+func TestHandleProjectArchivedIssuesMethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest("POST", apiProjects1IssuesArchived, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+// ── lines 1504-1507: handleProjectArchivedIssues project not found ───────────
+
+func TestHandleProjectArchivedIssuesNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("GET", "/api/projects/999/issues/archived", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+// ── lines 1510-1514: handleProjectArchivedIssues DB error from GetArchivedIssuesByProject
+
+func TestHandleProjectArchivedIssuesDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Drop issues table so projectExists succeeds but GetArchivedIssuesByProject fails.
+	if _, err := DB.Exec(dropIssuesTable); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesArchived, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── lines 1542-1544: handleUpdateProject generic DB error ────────────────────
+
+func TestHandleUpdateProjectDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "ToCorrupt"}
+	CreateProject(p)
+
+	// Drop projects table so UpdateProject fails with a generic DB error
+	// (not ErrProjectNotFound or ErrDuplicateProjectName).
+	if _, err := DB.Exec(dropProjectsTable); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(Project{Name: "NewName"})
+	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── lines 1549-1551: handleUpdateProject json encode error ───────────────────
+
+func TestHandleUpdateProjectEncodeError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "EncodeErrUpd"}
+	CreateProject(p)
+
+	body, _ := json.Marshal(Project{Name: "EncodeErrUpd2"})
+	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	handleUpdateProject(&failWriter{ResponseWriter: httptest.NewRecorder()}, req, p.ID)
+}
+
+// ── lines 1566-1570: handleDeleteProject CountIssuesByProject DB error ───────
+
+func TestHandleDeleteProjectCountDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "CountFail"}
+	CreateProject(p)
+
+	// Drop issues table so CountIssuesByProject fails.
+	if _, err := DB.Exec(dropIssuesTable); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── lines 1583-1585: handleDeleteProject generic DeleteProject DB error ───────
+
+func TestHandleDeleteProjectGenericDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "DeleteFail"}
+	CreateProject(p)
+
+	// Drop projects table so DeleteProject fails with a generic error.
+	// CountIssuesByProject still works because it queries the issues table.
+	if _, err := DB.Exec(dropProjectsTable); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── lines 1591-1593: handleDeleteProject json encode error ───────────────────
+
+func TestHandleDeleteProjectEncodeError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p := &Project{Name: "EncodeErrDel"}
+	CreateProject(p)
+
+	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	handleDeleteProject(&failWriter{ResponseWriter: httptest.NewRecorder()}, req, p.ID)
 }
 
 func TestProjectNameCaseNormalisation(t *testing.T) {

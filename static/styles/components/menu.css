@@ -86,8 +86,7 @@
 }
 
 /* User Menu */
-.user-menu-container.filter-card {
-  min-width: auto;
+.user-menu-container.toolbar-section {
   gap: 12px;
 }
 

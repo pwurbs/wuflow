@@ -149,6 +149,11 @@ function setupProjectModal(refreshCallback) {
   const form = document.getElementById('project-form');
   const projectDeleteBtn = document.getElementById('project-modal-delete');
 
+  const nameInput = document.getElementById('project-name');
+  const descInput = document.getElementById('project-description');
+  if (nameInput) initCharCounter(nameInput, 15);
+  if (descInput) initCharCounter(descInput, 100);
+
   if (addProjectBtn) {
     addProjectBtn.addEventListener('click', () => openProjectModal(null));
   }
