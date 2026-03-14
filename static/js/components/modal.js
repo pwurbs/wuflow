@@ -189,15 +189,15 @@ function renderModalDropdowns(issue) {
   const projectInput = document.getElementById('project-select');
   const projectText = document.getElementById('project-text');
   if (projectInput && projectText) {
-    projectInput.value = issue?.project_id ?? 1;
+    const storedProjectId = issue ? null : localStorage.getItem('wuflow_selectedProjectId');
+    projectInput.value = issue?.project_id ?? (storedProjectId ? Number.parseInt(storedProjectId) : 1);
     projectText.textContent = issue?.project?.name ?? 'default';
 
     fetchProjects().then(projects => {
       renderProjectOptions(projects);
-      if (issue?.project_id) {
-        const found = projects.find(p => p.id === issue.project_id);
-        if (found) projectText.textContent = found.name;
-      }
+      const currentId = Number.parseInt(projectInput.value);
+      const found = projects.find(p => p.id === currentId);
+      if (found) projectText.textContent = found.name;
     }).catch(err => console.error('Failed to load projects', err));
   }
 }
@@ -879,9 +879,10 @@ function setupSidebarImmediateSave() {
   const projectSelect = document.getElementById('project-select');
   if (projectSelect) {
     projectSelect.addEventListener('change', async () => {
+      const val = projectSelect.value;
+      const projectId = val ? Number.parseInt(val) : 1;
+      localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       if (state.currentIssue) {
-        const val = projectSelect.value;
-        const projectId = val ? Number.parseInt(val) : 1;
         const updatedIssue = { ...state.currentIssue, project_id: projectId };
         try {
           const saved = await saveIssueWithConflictCheck(updatedIssue, 'Project updated');

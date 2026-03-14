@@ -5,6 +5,14 @@ import { state, setCurrentIssue } from '../state.js';
 import * as utils from '../utils.js';
 import * as tasks from '../components/tasks.js';
 
+// Provide a localStorage stub for the jsdom environment used by vitest.
+const _localStore = {};
+vi.stubGlobal('localStorage', {
+  getItem: (key) => _localStore[key] ?? null,
+  setItem: (key, value) => { _localStore[key] = String(value); },
+  removeItem: (key) => { delete _localStore[key]; },
+});
+
 // Mock dependencies
 vi.mock('../api.js', () => ({
   createIssue: vi.fn(),
