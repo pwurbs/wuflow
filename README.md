@@ -6,10 +6,10 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/pwurbs/wuflow)](https://github.com/pwurbs/wuflow) 
 [![Go Report Card](https://goreportcard.com/badge/github.com/pwurbs/wuflow)](https://goreportcard.com/report/github.com/pwurbs/wuflow) <br>
 [![Container Image](https://img.shields.io/badge/ghcr.io-image-blue?logo=docker)](https://github.com/pwurbs/wuflow/pkgs/container/wuflow) <br>
-![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=alert_status&token=70554a588df3511feeedd61292f37aa8a1785d11) 
-![Coverage](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=coverage&token=70554a588df3511feeedd61292f37aa8a1785d11) 
-![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=vulnerabilities&token=70554a588df3511feeedd61292f37aa8a1785d11) 
-![Bugs](https://sonarcloud.io/api/project_badges/measure?project=wuflow&metric=bugs&token=70554a588df3511feeedd61292f37aa8a1785d11)
+![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=alert_status) 
+![Coverage](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=coverage) 
+![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=vulnerabilities) 
+![Bugs](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=bugs)
 
 <img src="static/logo.png" alt="wuFlow Logo" width="100">
 
@@ -129,13 +129,14 @@ For deeper technical insights, architecture overviews, and detailed functional d
 We plan to add the following features in the future:
 - Dependencies between Issues
 - Links between issues
+- Configurable columns
 - User assignment to projects
 - Postgres support
 - Horizontal scalability
 - OIDC support
 - Add comments in issues
 - EPICs
-- Releases (maybe basis for executing simple SCRUM)
+- Releases
 - Configurable column names
 - More roles
 - File Upload
@@ -143,7 +144,7 @@ We plan to add the following features in the future:
 - Prometheus metrics
 - Light/Dark mode, configurable by user
 - Private Issues
-- ???
+- ...
 
 ## Feedback
 If you have any feedback, want to report bugs or make a feature request, please open an issue on [GitHub](https://github.com/pwurbs/wuflow/issues).
