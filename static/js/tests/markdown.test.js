@@ -122,6 +122,13 @@ describe('renderMarkdown', () => {
       withAttrHookTrigger('href', { href: true }, '  javascript:alert(1)');
       expect(renderMarkdown('[x](  javascript:alert(1))', true).strippedHTML).toBe(true);
     });
+
+    it('stays false for the start attribute on ol (regression: "1. - 2. April" nested list)', () => {
+      // marked renders "1. - 2. April" as <ol><li><ul><li><ol start="2">...</ol></li></ul></li></ol>.
+      // The start="2" attribute must not trigger the strippedHTML warning.
+      withAttrHookTrigger('start', { start: true });
+      expect(renderMarkdown('1. - 2. April', true).strippedHTML).toBe(false);
+    });
   });
 });
 

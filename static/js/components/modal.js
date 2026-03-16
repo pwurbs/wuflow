@@ -1274,18 +1274,18 @@ function renderAssigneeOptions(users) {
   });
   optionsContainer.appendChild(unassignedDiv);
 
-  // "Me" Option
+  // "Assign to me" Option
   if (state.currentUser) {
     const meDiv = document.createElement('div');
     meDiv.className = 'custom-option';
-    meDiv.textContent = `Me (${state.currentUser.first_name} ${state.currentUser.last_name})`;
+    meDiv.textContent = 'Assign to me';
     meDiv.addEventListener('click', () => {
       selectOption('assignee-select', 'assignee-text', 'assignee-options', state.currentUser.id, `${state.currentUser.first_name} ${state.currentUser.last_name}`);
     });
     optionsContainer.appendChild(meDiv);
   }
 
-  users.filter(u => u.active).forEach(user => {
+  users.filter(u => u.active && u.id !== state.currentUser?.id).forEach(user => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = `${user.first_name} ${user.last_name}`;

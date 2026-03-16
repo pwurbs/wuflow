@@ -1239,7 +1239,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       // Mock renderTasks to render a task item in editing state
-      tasks.renderTasks.mockImplementation((taskList, container) => {
+      tasks.renderTasks.mockImplementation((_taskList, container) => {
         container.innerHTML = `
           <li class="task-item editing" data-id="101">
             <input class="task-title-input" data-original-title="Task 1" value="Changed Task">
@@ -1657,7 +1657,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       const assigneeOptions = document.getElementById('assignee-options');
-      const meOption = [...assigneeOptions.querySelectorAll('.custom-option')].find(o => o.textContent.includes('Me'));
+      const meOption = [...assigneeOptions.querySelectorAll('.custom-option')].find(o => o.textContent === 'Assign to me');
 
       expect(meOption).toBeDefined();
       meOption.click();

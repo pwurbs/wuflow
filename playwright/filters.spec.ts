@@ -138,7 +138,7 @@ test.describe('Filtering and Search', () => {
 
     // Assign title1 to Admin User
     await openIssueByTitle(page, title1);
-    await selectAssignee(page, 'Me (Admin User)');
+    await selectAssignee(page, 'Assign to me');
     await page.click('#done-btn');
 
     // Both should be visible initially

@@ -8,6 +8,8 @@
 - Fixed a race condition during archiving
 - Force logout on changing own user in setup
 - Avoid autofill in edit user password field
+- Fixed a bug in description sanitization
+- Improved user list in Edit issue modal
 
 # 1.0.0
 

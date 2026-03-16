@@ -29,7 +29,7 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 | Bold (`**`)           | `<b>`, `<strong>`  | **Allowed**         |
 | Italic (`*`)          | `<i>`, `<em>`      | **Allowed**         |
 | Strikethrough (`~~`)  | `<s>`, `<del>`     | **Allowed**         |
-| Lists (`-`, `1.`)     | `<ul>`, `<ol>`, `<li>` | **Allowed** |
+| Lists (`-`, `1.`)     | `<ul>`, `<ol>`, `<li>` | **Allowed** (Attribute on `<ol>`: `start`) |
 | Paragraphs / Linebreaks | `<p>`, `<br>`     | **Allowed**         |
 | Links (`[text](url)`) | `<a>`              | **Allowed** (Attributes: `href`, `title`, `target`, `rel`) |
 | Code (`inline`, block)| `<code>`, `<pre>`  | **Allowed**         |

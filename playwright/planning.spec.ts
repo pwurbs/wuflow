@@ -702,7 +702,7 @@ test.describe('Planning Panel', () => {
     const updatePromise = page.waitForResponse(response =>
       response.url().includes('/api/issues/') && response.request().method() === 'PUT'
     );
-    await selectAssignee(page, 'Me (Admin User)');
+    await selectAssignee(page, 'Assign to me');
     await updatePromise;
 
     await page.click('#done-btn');

@@ -9,7 +9,7 @@ marked.use({ gfm: true, breaks: true });
 // javascript: and data: URIs are stripped by DOMPurify by default.
 const PURIFY_CONFIG = {
   ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'strong', 'i', 'em', 'u', 's', 'del', 'ul', 'ol', 'li', 'p', 'br', 'a', 'code', 'pre'],
-  ALLOWED_ATTR: ['href', 'title', 'target', 'rel'],
+  ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'start'],
   FORCE_BODY: true,
 };
 
