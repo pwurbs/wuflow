@@ -1,4 +1,9 @@
 
+# 1.1.1
+
+- Completely suppressed DONE issues in the Planning panel
+- Fixed wrong time zone when create session
+
 # 1.1.0
 
 - Added projects feature

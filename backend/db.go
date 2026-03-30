@@ -1265,6 +1265,7 @@ func CreateSession(s *Session) error {
 	if s.CreatedAt.IsZero() {
 		s.CreatedAt = time.Now().UTC()
 	}
+	s.ExpiresAt = s.ExpiresAt.UTC()
 
 	res, err := stmt.Exec(s.UserID, s.TokenHash, s.ExpiresAt, s.CreatedAt)
 	if err != nil {

@@ -76,10 +76,11 @@ export function renderPlanningPanel(refreshApp, openModal) {
 
   // Past
   const hasPastIssues = filteredIssues.some(issue => {
+    if (issue.status === 'Done' || issue.status === 'Archive') return false;
     if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
     return issue.planned_dates.some(dateStr => {
-      // Normalize strictly to avoid timezone issues? 
-      // planned_dates are YYYY-MM-DD. existing Date(str) works in UTC usually or Local? 
+      // Normalize strictly to avoid timezone issues?
+      // planned_dates are YYYY-MM-DD. existing Date(str) works in UTC usually or Local?
       // safely:
       return new Date(dateStr) < today;
     });
@@ -103,6 +104,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
   futureCutoff.setDate(today.getDate() + 10);
 
   const hasFutureIssues = filteredIssues.some(issue => {
+    if (issue.status === 'Done' || issue.status === 'Archive') return false;
     if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
     return issue.planned_dates.some(dateStr => {
       const planned = new Date(dateStr);
@@ -120,6 +122,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
   const addedFutureIssues = new Set();
 
   filteredIssues.forEach(issue => {
+    if (issue.status === 'Done' || issue.status === 'Archive') return;
     if (issue.planned_dates && issue.planned_dates.length > 0) {
       issue.planned_dates.forEach(dateStr => {
         const planned = new Date(dateStr);

@@ -7,6 +7,7 @@ echo "Converting Go coverage to Cobertura format..."
 go run github.com/boumenot/gocover-cobertura@latest < backend/test-results/coverage.out > backend/test-results/coverage.xml
 
 echo "Running diff-cover..."
+mkdir -p test-results
 diff-cover static/js/coverage/cobertura-coverage.xml backend/test-results/coverage.xml --compare-branch=main --format html:test-results/code-coverage.html
 
 echo "Opening coverage report..."

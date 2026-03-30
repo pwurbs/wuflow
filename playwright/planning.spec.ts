@@ -713,4 +713,32 @@ test.describe('Planning Panel', () => {
     await expect(badge).toHaveText('AU');
   });
 
+  test('done issue is removed from planning sidebar', async ({ page }) => {
+    const today = new Date();
+    const dateStr = formatDate(today);
+
+    await createIssue(page, {
+      title: 'Done Removal Test',
+      status: 'Todo',
+      plannedDate: dateStr,
+    });
+
+    // Verify the planned item appears in the sidebar
+    const dayContainer = page.locator(`#day-${dateStr}`);
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Done Removal Test' })).toBeVisible();
+
+    // Drag the issue card to the Done column on the Kanban board
+    const issueCard = page.locator('#col-todo .board-card:has-text("Done Removal Test")');
+    const doneColumn = page.locator('#col-done');
+    await issueCard.dragTo(doneColumn);
+
+    // Wait for the PUT request that persists the status change
+    await page.waitForResponse(
+      response => response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+    );
+
+    // The planning sidebar should no longer show the completed item
+    await expect(dayContainer.locator('.planning-item', { hasText: 'Done Removal Test' })).toBeHidden();
+  });
+
 });
