@@ -899,71 +899,103 @@ function setupEditorToolbar() {
   const editor = document.getElementById('description-editor');
   const preview = document.getElementById('description-preview');
 
-  editor.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = editor.selectionStart;
-      const end = editor.selectionEnd;
-      const value = editor.value;
+  function handleEnterKey(e) {
+    const start = editor.selectionStart;
+    const value = editor.value;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    const currentLine = value.substring(lineStart, start);
 
-      // If no text is selected, and Shift is NOT pressed, just insert two spaces.
-      if (start === end && !e.shiftKey) {
-        editor.value = value.substring(0, start) + '  ' + value.substring(end);
-        editor.selectionStart = editor.selectionEnd = start + 2;
-        editor.dispatchEvent(new Event('input'));
-        return;
-      }
+    const bulletMatch = currentLine.match(/^(\s*)([-*+]) (.*)$/);
+    const numberedMatch = currentLine.match(/^(\s*)(\d+)\. (.*)$/);
+    if (!bulletMatch && !numberedMatch) return;
 
-      // Multi-line or Shift+Tab logic
-      let adjustedEnd = end;
-      if (end > start && value[end - 1] === '\n') {
-        adjustedEnd = end - 1;
-      }
+    e.preventDefault();
+    const [, indent, marker, content] = bulletMatch ?? numberedMatch;
+    const isBullet = !!bulletMatch;
 
-      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-      let lineEnd = value.indexOf('\n', adjustedEnd);
-      if (lineEnd === -1) lineEnd = value.length;
-
-      const beforeStr = value.substring(0, lineStart);
-      const lines = value.substring(lineStart, lineEnd).split('\n');
-      const afterStr = value.substring(lineEnd);
-
-      let startOffset = 0;
-      let endOffset = 0;
-
-      const newLines = lines.map((line, idx) => {
-        let newLine = line;
-        let diff = 0;
-
-        if (e.shiftKey) {
-          if (newLine.startsWith('  ')) {
-            newLine = newLine.substring(2);
-            diff = -2;
-          } else if (newLine.startsWith(' ') || newLine.startsWith('\t')) {
-            newLine = newLine.substring(1);
-            diff = -1;
-          }
-        } else {
-          newLine = '  ' + newLine;
-          diff = 2;
-        }
-
-        if (idx === 0) startOffset += diff;
-        endOffset += diff;
-
-        return newLine;
-      });
-
-      editor.value = beforeStr + newLines.join('\n') + afterStr;
-
-      const newStart = Math.max(lineStart, start + startOffset);
-      const newEnd = Math.max(lineStart, end + endOffset);
-
-      editor.selectionStart = newStart;
-      editor.selectionEnd = start === end ? newStart : newEnd;
-
-      editor.dispatchEvent(new Event('input'));
+    if (content === '') {
+      // Empty list item: remove marker, stop list
+      editor.value = value.substring(0, lineStart) + value.substring(start);
+      editor.selectionStart = editor.selectionEnd = lineStart;
+    } else {
+      // Continue list
+      const nextPrefix = isBullet
+        ? `\n${indent}${marker} `
+        : `\n${indent}${Number.parseInt(marker, 10) + 1}. `;
+      editor.value = value.substring(0, start) + nextPrefix + value.substring(start);
+      editor.selectionStart = editor.selectionEnd = start + nextPrefix.length;
     }
+    editor.dispatchEvent(new Event('input'));
+  }
+
+  function handleTabKey(e) {
+    e.preventDefault();
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const value = editor.value;
+
+    // If no text is selected, and Shift is NOT pressed, just insert two spaces.
+    if (start === end && !e.shiftKey) {
+      editor.value = value.substring(0, start) + '  ' + value.substring(end);
+      editor.selectionStart = editor.selectionEnd = start + 2;
+      editor.dispatchEvent(new Event('input'));
+      return;
+    }
+
+    // Multi-line or Shift+Tab logic
+    let adjustedEnd = end;
+    if (end > start && value[end - 1] === '\n') {
+      adjustedEnd = end - 1;
+    }
+
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    let lineEnd = value.indexOf('\n', adjustedEnd);
+    if (lineEnd === -1) lineEnd = value.length;
+
+    const beforeStr = value.substring(0, lineStart);
+    const lines = value.substring(lineStart, lineEnd).split('\n');
+    const afterStr = value.substring(lineEnd);
+
+    let startOffset = 0;
+    let endOffset = 0;
+
+    const newLines = lines.map((line, idx) => {
+      let newLine = line;
+      let diff = 0;
+
+      if (e.shiftKey) {
+        if (newLine.startsWith('  ')) {
+          newLine = newLine.substring(2);
+          diff = -2;
+        } else if (newLine.startsWith(' ') || newLine.startsWith('\t')) {
+          newLine = newLine.substring(1);
+          diff = -1;
+        }
+      } else {
+        newLine = '  ' + newLine;
+        diff = 2;
+      }
+
+      if (idx === 0) startOffset += diff;
+      endOffset += diff;
+
+      return newLine;
+    });
+
+    editor.value = beforeStr + newLines.join('\n') + afterStr;
+
+    const newStart = Math.max(lineStart, start + startOffset);
+    const newEnd = Math.max(lineStart, end + endOffset);
+
+    editor.selectionStart = newStart;
+    editor.selectionEnd = start === end ? newStart : newEnd;
+
+    editor.dispatchEvent(new Event('input'));
+  }
+
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) handleEnterKey(e);
+    if (e.key === 'Tab') handleTabKey(e);
   });
 
   function insertMarkdown(before, after = '') {

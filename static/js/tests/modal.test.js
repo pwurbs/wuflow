@@ -1439,6 +1439,119 @@ describe('Modal Component', () => {
       dispatchInputSpy.mockRestore();
     });
 
+    it('should auto-continue bullet lists on Enter', () => {
+      openModal(null);
+      const editor = document.getElementById('description-editor');
+      const dispatchInputSpy = vi.spyOn(editor, 'dispatchEvent');
+
+      // Basic bullet with '-'
+      editor.value = '- first item';
+      editor.selectionStart = editor.selectionEnd = 12;
+      let event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      vi.spyOn(event, 'preventDefault');
+      editor.dispatchEvent(event);
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(editor.value).toBe('- first item\n- ');
+      expect(editor.selectionStart).toBe(15);
+      expect(dispatchInputSpy).toHaveBeenCalledWith(expect.objectContaining({ type: 'input' }));
+
+      // Bullet with '*'
+      editor.value = '* second item';
+      editor.selectionStart = editor.selectionEnd = 13;
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      editor.dispatchEvent(event);
+      expect(editor.value).toBe('* second item\n* ');
+
+      // Bullet with '+'
+      editor.value = '+ third item';
+      editor.selectionStart = editor.selectionEnd = 12;
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      editor.dispatchEvent(event);
+      expect(editor.value).toBe('+ third item\n+ ');
+
+      // Indented bullet preserves indent
+      editor.value = '  - indented';
+      editor.selectionStart = editor.selectionEnd = 12;
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      editor.dispatchEvent(event);
+      expect(editor.value).toBe('  - indented\n  - ');
+
+      dispatchInputSpy.mockRestore();
+    });
+
+    it('should auto-continue numbered lists on Enter', () => {
+      openModal(null);
+      const editor = document.getElementById('description-editor');
+
+      // Basic numbered list
+      editor.value = '1. first item';
+      editor.selectionStart = editor.selectionEnd = 13;
+      let event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      vi.spyOn(event, 'preventDefault');
+      editor.dispatchEvent(event);
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(editor.value).toBe('1. first item\n2. ');
+      expect(editor.selectionStart).toBe(17);
+
+      // Increments from arbitrary number
+      editor.value = '5. fifth item';
+      editor.selectionStart = editor.selectionEnd = 13;
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      editor.dispatchEvent(event);
+      expect(editor.value).toBe('5. fifth item\n6. ');
+
+      // Indented numbered list preserves indent
+      editor.value = '  3. indented';
+      editor.selectionStart = editor.selectionEnd = 13;
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      editor.dispatchEvent(event);
+      expect(editor.value).toBe('  3. indented\n  4. ');
+    });
+
+    it('should exit list on Enter when list item is empty', () => {
+      openModal(null);
+      const editor = document.getElementById('description-editor');
+
+      // Empty bullet item: removes marker
+      editor.value = '- ';
+      editor.selectionStart = editor.selectionEnd = 2;
+      let event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      vi.spyOn(event, 'preventDefault');
+      editor.dispatchEvent(event);
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(editor.value).toBe('');
+      expect(editor.selectionStart).toBe(0);
+
+      // Empty numbered item: removes marker
+      editor.value = '1. ';
+      editor.selectionStart = editor.selectionEnd = 3;
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      editor.dispatchEvent(event);
+      expect(editor.value).toBe('');
+      expect(editor.selectionStart).toBe(0);
+    });
+
+    it('should not interfere with Enter on plain text or with modifier keys', () => {
+      openModal(null);
+      const editor = document.getElementById('description-editor');
+
+      // Plain text line: Enter should not be intercepted
+      editor.value = 'just some text';
+      editor.selectionStart = editor.selectionEnd = 14;
+      let event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      vi.spyOn(event, 'preventDefault');
+      editor.dispatchEvent(event);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+
+      // Shift+Enter on a list line: not intercepted
+      editor.value = '- item';
+      editor.selectionStart = editor.selectionEnd = 6;
+      event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true });
+      vi.spyOn(event, 'preventDefault');
+      editor.dispatchEvent(event);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+
     it('should handle dropdown option clicks', async () => {
       const issue = { id: 1, label: null, priority: 'Normal' };
       await openModalWithMock(issue);
