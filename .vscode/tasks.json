@@ -136,7 +136,7 @@
     {
       "label": "Build & Scan Image",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && container build --no-cache --build-arg VERSION=$VERSION -t wuflow . && container image tag wuflow:latest wuflow:$VERSION && sh scripts/trivy_scan.sh",
+      "command": "export VERSION=$(cat VERSION) && container build --no-cache --build-arg VERSION=$VERSION -t wuflow:$VERSION . && sh scripts/trivy_scan.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",

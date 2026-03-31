@@ -2,9 +2,10 @@
 ## 1.1.1
 
 - Completely suppressed DONE issues in the Planning panel
-- Fixed wrong time zone when create session
-- Updated marked dependency 17.0.4 --> 17.0.5
 - Auto-increment numbered list when editing description
+- Fixed wrong time zone when create session
+- Bumped marked dependency
+- Bumped Go package dependencies go-sqlite3 and crypto
 
 ## 1.1.0
 
