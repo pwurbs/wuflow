@@ -98,7 +98,8 @@ Deadlines can be assigned to issues and/or tasks. But **planned dates can only b
 - **Issue or Task deadlines** are shown in the planning item card. In case of multiple deadlines per issue (issue deadline and task deadline or multiple task deadlines), then only the **earliest deadline** is shown.
 - When a task or issue **deadline is overdue** or if the **planned date is later than the due date**, then the deadline is **red-colored**.
 - **Planned items in the past** are shown in a dedicated box "Past Planning". You should **delete these entries or move them to another day**.
-- Issues **planned more than 10 days in the future** are collected in a box "Future Planning" at the bottom of the Planning Sidebar. 
+- Issues with status **Done** remain visible in the planning sidebar but are shown **faded with a strikethrough title**, so you can still see what was accomplished without the entry cluttering your active plan. Use the red cross to remove them once you no longer need them.
+- Issues **planned more than 10 days in the future** are collected in a box "Future Planning" at the bottom of the Planning Sidebar.
 - There is a **mutual highlighting** when hovering over a planning item or an issue on the board.
 
 If there are many users active on the board, the entries in the planning sidebar could be overwhelming. In that case, you can filter the planning sidebar to show only your issues. When you select your name in the filter box, then only your issues are considered and you can see your personal plan for the coming days and weeks. 
