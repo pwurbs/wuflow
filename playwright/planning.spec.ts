@@ -713,22 +713,24 @@ test.describe('Planning Panel', () => {
     await expect(badge).toHaveText('AU');
   });
 
-  test('done issue is removed from planning sidebar', async ({ page }) => {
+  test('done issue shows as completed in planning sidebar', async ({ page }) => {
     const today = new Date();
     const dateStr = formatDate(today);
 
     await createIssue(page, {
-      title: 'Done Removal Test',
+      title: 'Done Completion Test',
       status: 'Todo',
       plannedDate: dateStr,
     });
 
-    // Verify the planned item appears in the sidebar
+    // Verify the planned item appears without done styling
     const dayContainer = page.locator(`#day-${dateStr}`);
-    await expect(dayContainer.locator('.planning-item', { hasText: 'Done Removal Test' })).toBeVisible();
+    const planningItem = dayContainer.locator('.planning-item', { hasText: 'Done Completion Test' });
+    await expect(planningItem).toBeVisible();
+    await expect(planningItem).not.toHaveClass(/done/);
 
     // Drag the issue card to the Done column on the Kanban board
-    const issueCard = page.locator('#col-todo .board-card:has-text("Done Removal Test")');
+    const issueCard = page.locator('#col-todo .board-card:has-text("Done Completion Test")');
     const doneColumn = page.locator('#col-done');
     await issueCard.dragTo(doneColumn);
 
@@ -737,8 +739,9 @@ test.describe('Planning Panel', () => {
       response => response.url().includes('/api/issues/') && response.request().method() === 'PUT'
     );
 
-    // The planning sidebar should no longer show the completed item
-    await expect(dayContainer.locator('.planning-item', { hasText: 'Done Removal Test' })).toBeHidden();
+    // The planning item should still be visible but styled as done (faded + strikethrough)
+    await expect(planningItem).toBeVisible();
+    await expect(planningItem).toHaveClass(/done/);
   });
 
 });

@@ -1,7 +1,7 @@
 
 ## 1.1.1
 
-- Completely suppressed DONE issues in the Planning panel
+- Introduced a visual "done" style" for any planned DONE issue in the planning panel
 - Auto-increment numbered list when editing description
 - Fixed wrong time zone when create session
 - Bumped marked dependency
