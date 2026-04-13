@@ -1,5 +1,5 @@
 {
-  "name": "wuflow-frontend-tests",
+  "name": "wuflow-frontend",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,7 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
-    "dompurify": "^3.3.1",
-    "marked": "^17.0.3"
+    "dompurify": "^3.3.3",
+    "marked": "^18.0.0"
   }
 }
