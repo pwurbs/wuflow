@@ -74,7 +74,7 @@ The app is currently only tested to run in the Chrome browser.
 ## Dependencies
 As a contrast to the other tools, the supply chain is radically minimal. The production runtime ships:
 - Go binary with embedded assets
-- A few Go modules
+- A few Go packages
 - 2 vendored JS files: dompurify and marked — vendored directly into the code, not loaded at runtime
 
 Maintaining such a minimal dependency count is extraordinary for a full-stack application in 2026. While this lean approach is currently unconventional, I believe it represents a rising trend enabled by AI-assisted development. By leveraging AI to build logic rather than importing heavy third-party libraries, this project explores a new development paradigm. This 'make-over-buy' strategy is a deliberate security choice, designed to eliminate the risks inherent in modern, over-bloated dependency trees. Supply chain attacks (Log4j, polyfill.io or the XZ Utils backdoors) or unintended security flaws (like React2Shell) have proven that every dependency is a potential liability. Let’s see how successful this strategy proves to be. 

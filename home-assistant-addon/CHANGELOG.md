@@ -5,7 +5,7 @@
 - Auto-increment numbered list when editing description
 - Fixed wrong time zone when create session
 - Bumped marked dependency
-- Bumped Go package dependencies go-sqlite3 and crypto
+- Bumped Go and Go package dependencies go-sqlite3 and crypto
 - Bumped Debian base image
 - Improved container image tag management
 - Improved Readme
