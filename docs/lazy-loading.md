@@ -2,9 +2,9 @@
 
 To optimize performance and reduce server load, not all issues are loaded at once.
 
-Issues are split into two API endpoints:
-1.  **`/api/issues/active`**: Fetches all issues *except* those with status 'Archive'.
-2.  **`/api/issues/archived`**: Fetches only issues with status 'Archive'.
+Issues are split into two project-scoped API endpoints:
+1.  **`/api/projects/{projectId}/issues/active`**: Fetches all issues for the selected project *except* those with status 'Archive'.
+2.  **`/api/projects/{projectId}/issues/archived`**: Fetches only issues with status 'Archive' for the selected project.
 
 The application initializes by fetching **only active issues**. Archived issues are loaded lazily:
 

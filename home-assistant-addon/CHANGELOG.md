@@ -8,6 +8,7 @@
 - Bumped Go package dependencies go-sqlite3 and crypto
 - Bumped Debian base image
 - Improved container image tag management
+- Improved Readme
 
 ## 1.1.0
 

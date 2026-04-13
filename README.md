@@ -13,26 +13,47 @@
 
 <img src="static/logo.png" alt="wuFlow Logo" width="100">
 
-## General
+## Why another Agile board?
+For me, Jira was the gateway to Agile methodology. I rely on Kanban everywhere—from professional DevOps teams to organizing my family life. But when Atlassian discontinued server licenses and forced a move to the cloud, I had to find an alternative. Jira had already become too expensive and morphed into a bloated "Moloch": complex to configure, burdened by long startup times, and plagued by frequent security updates for features we didn't even use.
+
+I spent some time exhaustively testing self-hosted alternatives, hoping to find a replacement. Find the full tool comparison results here: <br>
+[Beyond Jira: Reclaiming Agile Sovereignty with Open Source](https://medium.com/@pwurbs/beyond-jira-reclaiming-agile-sovereignty-with-open-source-14556d709c65).
+
+ **My conclusion? None of them fully met my criteria.** Even the most highly recommended open-source tools suffered from deal-breaking flaws:
+
+- **Missing Agile Core:** Most tools position themselves as Trello substitutes, not Jira replacements. They entirely lack release management (versions/milestones), SCRUM support, and robust backlog management.
+- **Security Blind Spots:** Rampant dependency bloat unnecessarily increases the supply chain attack surface. I consistently found missing HTTP security headers (XSS risks), weak token management, and unmaintained packages.
+- **No Daily Planning:** No tool successfully combined a classic Kanban workflow with flexible, side-by-side daily time management.
+
+**The Solution: Make it!**
+
+I realized the perfect balance between the structural depth of Jira and the simplicity of a modern board didn't exist. That’s why I started **wuflow**.
+
+wuflow is an attempt to marry a clean, modern UI with the strict requirements of a sovereign, self-hosted agile engine. It is currently in its early stages, built strictly around a security-first and lean philosophy. It isn't a "Jira-killer" for everyone, but it is a definitive step toward true IT sovereignty.
+
+Building wuflow is also a personal experiment to see how far AI-assisted development can go when building a tool from scratch while intentionally keeping the supply chain attack surface as small as possible. Ultimately, I just love making good things that work. There is a deep satisfaction in having full control over the concepts, code, and prioritization to build something that provides genuine value.
+
+## The Result
 wuFlow is a simple, modern, and lightweight issue tracking and planning application. It is designed to combine the immediate visual overview of a classic Kanban board with structural planning capabilities to help you organize tasks effectively without unnecessary complexity.
 This tool wants to help you to organize, balance and track the work in a team to achieve a better **flow** of work by a transparent visualization. This is one of the main intentions of a [Kanban board](https://en.wikipedia.org/wiki/Kanban_board).
 The usage is not limited to software development teams, it can be used by any person, group or even families that wants to organize and track their work.
 
 <img src="docs/screenshots/board.png" alt="wuFlow Board" >
 
-We developed this app having the following goals in mind:
+We developed this tool having the following goals in mind:
 - Create a **modern and lightweight** issue tracking solution focused on the mostly used core functions to ensure a good **flow** of work.
 - Can be used **without expensive subscriptions** or being forced into the cloud.
+- **Cover the core functions of legacy issue management tools** like Jira.
 - **Avoid the complexity of existing solutions** like Jira for more stability, higher security, easy configuration and lower costs. 
 - Bridge the gap between **structured Kanban management** and **daily planning**.
 - Provide **full topic/task transparency** to a team, group or family.
 - Don't rely on **heavy frameworks** or libraries which require dedicated skills and knowledge.
 - Ensure **"Security by Design"** through strict headers, CSRF/XSS prevention, and rigorous testing.
-- Slim and **modern software architecture** using Go and Vanilla JavaScript.
-- Rely only on **few dependencies** to significantly reduce the **Supply Chain Attack surface**.
+- Slim and **modern software architecture** using only Go and Vanilla JavaScript.
+- Rely only on **few dependencies** to significantly reduce the **supply chain attack surface**.
 - **No tracking, telemetry or any other "calling home"** functions.
 - Easy to deploy and use.
-- Open Source.
+- 100% Open Source.
 
 ## Features
 - **Intuitive Planning & Kanban**: Combine flexible daily planning with a classic Kanban board view to easily organize your workflow side-by-side.
@@ -46,8 +67,17 @@ We developed this app having the following goals in mind:
 - **Backlog Management**: Use the backlog view to plan and prioritize your work.
 - **Issue Archiving**: Keep your active board clean by archiving completed issues for later reference.
 - **No dependencies** on external services or libs during runtime. Allows for air-gapped deployments.
+- More features to cover core functions for agile teams are coming, e.g. Release Management.
 
 The app is currently only tested to run in the Chrome browser.
+
+## Dependencies
+As a contrast to the other tools, the supply chain is radically minimal. The production runtime ships:
+- Go binary with embedded assets
+- A few Go modules
+- 2 vendored JS files: dompurify and marked — vendored directly into the code, not loaded at runtime
+
+Maintaining such a minimal dependency count is extraordinary for a full-stack application in 2026. While this lean approach is currently unconventional, I believe it represents a rising trend enabled by AI-assisted development. By leveraging AI to build logic rather than importing heavy third-party libraries, this project explores a new development paradigm. This 'make-over-buy' strategy is a deliberate security choice, designed to eliminate the risks inherent in modern, over-bloated dependency trees. Supply chain attacks (Log4j, polyfill.io or the XZ Utils backdoors) or unintended security flaws (like React2Shell) have proven that every dependency is a potential liability. Let’s see how successful this strategy proves to be. 
 
 ## Configuration
 Configuration is done by either Envvar or command line argument using the following priority (highest to lowest):
@@ -130,19 +160,17 @@ We plan to add the following features in the future:
 - Dependencies between Issues
 - Links between issues
 - Configurable columns
+- Releases
 - User assignment to projects
 - Postgres support
 - Horizontal scalability
 - OIDC support
 - Add comments in issues
-- EPICs
-- Releases
-- Configurable column names
 - More roles
 - File Upload
 - Helm Chart
 - Prometheus metrics
-- Light/Dark mode, configurable by user
+- Light mode
 - Private Issues
 - ...
 
