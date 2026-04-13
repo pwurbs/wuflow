@@ -4,7 +4,7 @@
 - Introduced a visual "done" style" for any planned DONE issue in the planning panel
 - Auto-increment numbered list when editing description
 - Fixed wrong time zone when create session
-- Bumped marked dependency
+- Bumped marked dependency, major upgrade to 18.0.0
 - Bumped Go and Go package dependencies go-sqlite3 and crypto
 - Bumped Debian base image
 - Improved container image tag management
