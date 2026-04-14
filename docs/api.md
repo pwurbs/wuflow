@@ -1,4 +1,4 @@
-# wuFlow API Documentation
+# API Documentation
 
 Base URL: `/api`
 

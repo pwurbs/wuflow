@@ -166,9 +166,9 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | Create / edit issues | ✓ | ✓ | ✓ |
 | Create / edit / delete tasks | ✓ | ✓ | ✓ |
 | View labels, users & projects | ✓ | ✓ | ✓ |
-| **Archive** an issue | — | ✓ | ✓ |
-| **Unarchive** an issue | — | ✓ | ✓ |
-| **Delete** an issue | — | ✓ | ✓ |
+| Archive an issue | — | ✓ | ✓ |
+| Unarchive an issue | — | ✓ | ✓ |
+| Delete an issue | — | ✓ | ✓ |
 | Create / delete labels | — | — | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |

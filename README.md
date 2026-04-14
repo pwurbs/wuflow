@@ -112,6 +112,8 @@ The recommended and easiest way to deploy wuFlow is using the pre-built containe
 This is a minimal command to start the app initially for testing purposes in foreground mode. You should adapt it to your needs.
 The version must be adapted to the latest release. There is no "latest" tag.
 
+**Currently, the public image is only built for linux/arm64**
+
 ```bash
 docker run -it \
   -p 8080:8080 \

@@ -16,13 +16,14 @@ Three roles are available, ordered from least to most privileged:
 | View issues & tasks | ✓ | ✓ | ✓ |
 | Create / edit issues | ✓ | ✓ | ✓ |
 | Create / edit / delete tasks | ✓ | ✓ | ✓ |
-| View labels & users & projects | ✓ | ✓ | ✓ |
-| **Archive** an issue | — | ✓ | ✓ |
-| **Unarchive** an issue | — | ✓ | ✓ |
-| **Delete** an issue | — | ✓ | ✓ |
+| View labels, users & projects | ✓ | ✓ | ✓ |
+| Archive an issue | — | ✓ | ✓ |
+| Unarchive an issue | — | ✓ | ✓ |
+| Delete an issue | — | ✓ | ✓ |
 | Create / delete labels | — | — | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
-| Create / edit / delete projects | — | — | ✓ |
+| Create / update / delete projects | — | — | ✓ |
+| Access Setup view | — | — | ✓ |
 
 > **Notes**:
 - The `/api/auth/me` endpoint (Get Current User / Update Self) is available to **all authenticated users** regardless of role. Any user can view and update their own profile (e.g. change password).
