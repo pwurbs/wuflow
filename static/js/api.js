@@ -82,6 +82,16 @@ export async function fetchArchivedIssuesByProject(projectId) {
   }
 }
 
+export async function fetchOpenIssuesByProject(projectId) {
+  try {
+    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/open`);
+    const data = await res.json();
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Fetch a single issue by ID. Returns { issue, etag } or { issue: null } if not found.
  */

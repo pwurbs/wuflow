@@ -1,4 +1,5 @@
 import { state, isFilterActive } from '../state.js';
+import { fetchOpenIssuesByProject } from '../api.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
@@ -6,10 +7,28 @@ import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
+let openLoaded = false;
 
-export function renderBacklog(refreshApp, openModal) {
+export function resetOpenLoaded() {
+  openLoaded = false;
+}
+
+export async function renderBacklog(refreshApp, openModal) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+
+  // Lazy-load open issues if not already loaded
+  if (!openLoaded) {
+    const openIssues = await fetchOpenIssuesByProject(state.selectedProjectId);
+    // Merge into state, avoiding duplicates
+    const existingIds = new Set(state.issues.map(i => i.id));
+    for (const issue of openIssues) {
+      if (!existingIds.has(issue.id)) {
+        state.issues.push(issue);
+      }
+    }
+    openLoaded = true;
+  }
 
   const backlogList = document.getElementById('backlog-list');
   const moveToTodoList = document.getElementById('move-to-todo-list');

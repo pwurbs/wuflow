@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderBacklog, setupBacklogView } from '../components/backlog.js'; // Adjust path as needed based on where test file is located
+import { renderBacklog, setupBacklogView, resetOpenLoaded } from '../components/backlog.js'; // Adjust path as needed based on where test file is located
 import * as state from '../state.js';
 import * as card from '../components/card.js';
 import * as api from '../api.js';
@@ -15,7 +15,8 @@ vi.mock('../state.js', () => ({
 }));
 
 vi.mock('../api.js', () => ({
-  updateIssue: vi.fn().mockResolvedValue({})
+  updateIssue: vi.fn().mockResolvedValue({}),
+  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([])
 }));
 
 const { mockCreateCardElement } = vi.hoisted(() => {
@@ -63,10 +64,11 @@ describe('Backlog Component', () => {
     `;
     vi.clearAllMocks();
     mockCreateCardElement.mockClear();
+    resetOpenLoaded(); // Reset lazy-load state between tests
   });
 
   describe('renderBacklog', () => {
-    it('should render cards with move callbacks', () => {
+    it('should render cards with move callbacks', async () => {
       const issues = [
         { id: 1, title: 'Item 1', status: 'Open', position: 0 },
         { id: 2, title: 'Item 2', status: 'Open', position: 1 },
@@ -78,7 +80,7 @@ describe('Backlog Component', () => {
       const refreshApp = vi.fn();
       const openModal = vi.fn();
 
-      renderBacklog(refreshApp, openModal);
+      await renderBacklog(refreshApp, openModal);
 
       const backlogList = document.getElementById('backlog-list');
       expect(backlogList.children.length).toBe(2);
@@ -101,10 +103,10 @@ describe('Backlog Component', () => {
         { id: 2, title: 'Item 2', status: 'Open', position: 1 },
         { id: 3, title: 'Item 3', status: 'Open', position: 2 }
       ];
-      state.state.issues = structuredClone(issues); // Deep copy 
+      state.state.issues = structuredClone(issues); // Deep copy
 
       const refreshApp = vi.fn();
-      renderBacklog(refreshApp, vi.fn());
+      await renderBacklog(refreshApp, vi.fn());
 
       const backlogList = document.getElementById('backlog-list');
       const card3 = backlogList.children[2]; // Item 3
@@ -131,7 +133,7 @@ describe('Backlog Component', () => {
       ];
       state.state.issues = structuredClone(issues);
 
-      renderBacklog(vi.fn(), vi.fn());
+      await renderBacklog(vi.fn(), vi.fn());
       const card1 = document.getElementById('backlog-list').children[0];
 
       const onMoveTop = card1._callbacks.onMoveTop;
@@ -149,7 +151,7 @@ describe('Backlog Component', () => {
       state.state.issues = structuredClone(issues);
 
       const refreshApp = vi.fn();
-      renderBacklog(refreshApp, vi.fn());
+      await renderBacklog(refreshApp, vi.fn());
 
       const backlogList = document.getElementById('backlog-list');
       const card1 = backlogList.children[0]; // Item 1
@@ -164,6 +166,26 @@ describe('Backlog Component', () => {
       expect(refreshApp).toHaveBeenCalled();
     });
 
+    it('should deduplicate open issues already present in state', async () => {
+      // Simulate an issue that is already in state (e.g. loaded as "To do" earlier)
+      // but is also returned by fetchOpenIssuesByProject (shouldn't happen normally,
+      // but the merge guard must not create duplicates regardless).
+      state.state.issues = [
+        { id: 1, title: 'Already There', status: 'Open', position: 0 }
+      ];
+
+      api.fetchOpenIssuesByProject.mockResolvedValueOnce([
+        { id: 1, title: 'Already There', status: 'Open', position: 0 }, // duplicate
+        { id: 2, title: 'New Open', status: 'Open', position: 1 }       // new
+      ]);
+
+      await renderBacklog(vi.fn(), vi.fn());
+
+      // id=1 must not be added again; id=2 must be merged in
+      expect(state.state.issues.length).toBe(2);
+      expect(state.state.issues.find(i => i.id === 2)).toBeDefined();
+    });
+
     it('handleMoveBottom should do nothing if already at bottom', async () => {
       const issues = [
         { id: 1, title: 'Item 1', status: 'Open', position: 0 },
@@ -171,7 +193,7 @@ describe('Backlog Component', () => {
       ];
       state.state.issues = structuredClone(issues);
 
-      renderBacklog(vi.fn(), vi.fn());
+      await renderBacklog(vi.fn(), vi.fn());
       const card2 = document.getElementById('backlog-list').children[1];
 
       const onMoveBottom = card2._callbacks.onMoveBottom;

@@ -1401,8 +1401,9 @@ func handleCreateProject(w http.ResponseWriter, r *http.Request) {
 // HandleProject handles all /api/projects/{id} requests, including issue sub-resources:
 //   - PUT    /api/projects/{id}                → update project
 //   - DELETE /api/projects/{id}                → delete project
-//   - GET    /api/projects/{id}/issues/active  → list active issues for project
+//   - GET    /api/projects/{id}/issues/active  → list active issues for project (excludes Open and Archive)
 //   - GET    /api/projects/{id}/issues/archived → list archived issues for project
+//   - GET    /api/projects/{id}/issues/open    → list open (backlog) issues for project
 func HandleProject(w http.ResponseWriter, r *http.Request) {
 	// Strip prefix and split the remainder to detect sub-resource paths.
 	rest := strings.TrimPrefix(r.URL.Path, "/api/projects/")
@@ -1422,6 +1423,8 @@ func HandleProject(w http.ResponseWriter, r *http.Request) {
 			handleProjectActiveIssues(w, r, id)
 		case "issues/archived":
 			handleProjectArchivedIssues(w, r, id)
+		case "issues/open":
+			handleProjectOpenIssues(w, r, id)
 		default:
 			http.Error(w, errMsgNotFound, http.StatusNotFound)
 		}
@@ -1455,7 +1458,9 @@ func projectExists(id int) (bool, error) {
 	return p != nil, nil
 }
 
-func handleProjectActiveIssues(w http.ResponseWriter, r *http.Request, projectID int) {
+// handleProjectIssues is the shared handler for all project-scoped issue endpoints.
+// fetch is the DB function that retrieves the relevant issues for the given projectID.
+func handleProjectIssues(w http.ResponseWriter, r *http.Request, projectID int, name string, fetch func(int) ([]Issue, error)) {
 	if r.Method != http.MethodGet {
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 		return
@@ -1466,7 +1471,7 @@ func handleProjectActiveIssues(w http.ResponseWriter, r *http.Request, projectID
 	}
 
 	if ok, err := projectExists(projectID); err != nil {
-		slog.Error("handleProjectActiveIssues: projectExists failed", "project_id", projectID, "error", err)
+		slog.Error(name+": projectExists failed", "project_id", projectID, "error", err)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	} else if !ok {
@@ -1474,48 +1479,30 @@ func handleProjectActiveIssues(w http.ResponseWriter, r *http.Request, projectID
 		return
 	}
 
-	issues, err := GetActiveIssuesByProject(projectID)
+	issues, err := fetch(projectID)
 	if err != nil {
-		slog.Error("GetActiveIssuesByProject failed", "project_id", projectID, "error", err)
+		slog.Error(name+" failed", "project_id", projectID, "error", err)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(issues); err != nil {
-		slog.Error("handleProjectActiveIssues: failed to encode response", "error", err)
+		slog.Error(name+": failed to encode response", "error", err)
 	}
+}
+
+func handleProjectActiveIssues(w http.ResponseWriter, r *http.Request, projectID int) {
+	handleProjectIssues(w, r, projectID, "handleProjectActiveIssues", GetActiveIssuesByProject)
 }
 
 // handleProjectArchivedIssues handles GET /api/projects/{id}/issues/archived.
 func handleProjectArchivedIssues(w http.ResponseWriter, r *http.Request, projectID int) {
-	if r.Method != http.MethodGet {
-		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
-		return
-	}
-	if !Can(GetRoleFromContext(r.Context()), ActionListIssues) {
-		denyForbidden(w, r, ActionListIssues)
-		return
-	}
+	handleProjectIssues(w, r, projectID, "handleProjectArchivedIssues", GetArchivedIssuesByProject)
+}
 
-	if ok, err := projectExists(projectID); err != nil {
-		slog.Error("handleProjectArchivedIssues: projectExists failed", "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	} else if !ok {
-		http.Error(w, errMsgProjectNotFound, http.StatusNotFound)
-		return
-	}
-
-	issues, err := GetArchivedIssuesByProject(projectID)
-	if err != nil {
-		slog.Error("GetArchivedIssuesByProject failed", "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(headerContentType, contentTypeJSON)
-	if err := json.NewEncoder(w).Encode(issues); err != nil {
-		slog.Error("handleProjectArchivedIssues: failed to encode response", "error", err)
-	}
+// handleProjectOpenIssues handles GET /api/projects/{id}/issues/open.
+func handleProjectOpenIssues(w http.ResponseWriter, r *http.Request, projectID int) {
+	handleProjectIssues(w, r, projectID, "handleProjectOpenIssues", GetOpenIssuesByProject)
 }
 
 func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {

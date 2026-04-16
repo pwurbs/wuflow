@@ -18,7 +18,8 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/users` | POST | `HandleUsers` | Sysadmin | Create new user |
 | `/users/:id` | GET | `HandleUser` | Required | Get user details |
 | `/users/:id` | PUT | `HandleUser` | Sysadmin | Update user |
-| `/projects/:id/issues/active` | GET | `HandleProject` | Required | Get active issues for a project |
+| `/projects/:id/issues/active` | GET | `HandleProject` | Required | Get active issues for a project (Todo, Pending, Working, Done) |
+| `/projects/:id/issues/open` | GET | `HandleProject` | Required | Get open (backlog) issues for a project |
 | `/projects/:id/issues/archived` | GET | `HandleProject` | Required | Get archived issues for a project |
 | `/issues` | POST | `HandleCreateIssue` | Required | Create a new issue |
 | `/issues/:id` | GET | `HandleIssue` | Required | Get issue details |
@@ -144,13 +145,19 @@ Updates an existing user (Sysadmin only).
 ## Issues
 
 ### Get Active Issues for a Project
-Retrieves all active issues (status != 'Archive') belonging to a specific project. Includes associated tasks.
+Retrieves issues with status *Todo, Pending, Working, or Done* for a specific project. Excludes *Open* and *Archive* statuses. Includes associated tasks.
 - **GET** `/projects/:id/issues/active`
 - **Errors**:
   - `404 Not Found` - Project doesn't exist
 
+### Get Open Issues for a Project
+Retrieves issues with status *Open* (backlog items) for a specific project. Loaded lazily when the Backlog view is first opened. Includes associated tasks.
+- **GET** `/projects/:id/issues/open`
+- **Errors**:
+  - `404 Not Found` - Project doesn't exist
+
 ### Get Archived Issues for a Project
-Retrieves all archived issues (status == 'Archive') belonging to a specific project. Includes associated tasks.
+Retrieves issues with status *Archive* for a specific project. Loaded lazily when the Archive view is first opened. Includes associated tasks.
 - **GET** `/projects/:id/issues/archived`
 - **Errors**:
   - `404 Not Found` - Project doesn't exist

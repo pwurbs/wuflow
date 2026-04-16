@@ -34,6 +34,7 @@ const (
 	apiProjects1              = apiProjectsBase + "1"
 	apiProjects1IssuesActive   = apiProjectsBase + "1/issues/active"
 	apiProjects1IssuesArchived = apiProjectsBase + "1/issues/archived"
+	apiProjects1IssuesOpen     = apiProjectsBase + "1/issues/open"
 	invalidJSON          = "invalid json"
 	wrongStatusCode      = "handler returned wrong status code: got %v want %v"
 	toDelete             = "To Delete"
@@ -53,7 +54,7 @@ func TestHandleActiveIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateIssue(&Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(&Issue{Title: "Issue 1", Status: StatusTodo, ProjectID: 1})
 
 	req, err := http.NewRequest("GET", apiProjects1IssuesActive, nil)
 	if err != nil {
@@ -2778,7 +2779,7 @@ func TestHandleProjectActiveIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateIssue(&Issue{Title: "Active Issue", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(&Issue{Title: "Active Issue", Status: StatusTodo, ProjectID: 1})
 
 	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -3071,6 +3072,157 @@ func TestHandleProjectArchivedIssuesDBError(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── handleProjectOpenIssues tests ────────────────────────────────────────────
+
+func TestHandleProjectOpenIssuesSuccess(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	project := &Project{Name: "Test Project"}
+	CreateProject(project)
+	open := &Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: project.ID}
+	active := &Issue{Title: "Todo Issue", Status: StatusTodo, ProjectID: project.ID}
+	CreateIssue(open)
+	CreateIssue(active)
+
+	req := httptest.NewRequest("GET", apiProjectsBase+strconv.Itoa(project.ID)+"/issues/open", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var issues []Issue
+	if err := json.NewDecoder(rr.Body).Decode(&issues); err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 {
+		t.Errorf("expected 1 open issue, got %d", len(issues))
+	}
+	if issues[0].Status != StatusOpen {
+		t.Errorf("expected status Open, got %s", issues[0].Status)
+	}
+}
+
+func TestHandleProjectOpenIssuesMethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest("POST", apiProjects1IssuesOpen, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleProjectOpenIssuesForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, ""))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestHandleProjectOpenIssuesNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req := httptest.NewRequest("GET", "/api/projects/999/issues/open", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleProjectOpenIssuesDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if _, err := DB.Exec(dropIssuesTable); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleProjectOpenIssuesProjectExistsDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Drop projects table so projectExists fails with a DB error.
+	if _, err := DB.Exec(dropProjectsTable); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleProjectOpenIssuesTasksDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Create an open issue so the query returns rows, then drop the tasks table
+	// so GetAllTasks fails inside GetOpenIssuesByProject.
+	CreateIssue(&Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: 1})
+	if _, err := DB.Exec("DROP TABLE tasks"); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	HandleProject(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// ── TestGetActiveIssuesByProject excludes Open status ────────────────────────
+
+func TestGetActiveIssuesByProjectExcludesOpen(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	project := &Project{Name: "Test Project"}
+	CreateProject(project)
+	openIssue := &Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: project.ID}
+	todoIssue := &Issue{Title: "Todo Issue", Status: StatusTodo, ProjectID: project.ID}
+	CreateIssue(openIssue)
+	CreateIssue(todoIssue)
+
+	issues, err := GetActiveIssuesByProject(project.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, i := range issues {
+		if i.Status == StatusOpen {
+			t.Errorf("GetActiveIssuesByProject returned an Open issue (id=%d)", i.ID)
+		}
+	}
+	if len(issues) != 1 {
+		t.Errorf("expected 1 active issue, got %d", len(issues))
 	}
 }
 

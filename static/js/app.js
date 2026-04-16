@@ -2,7 +2,7 @@ import { fetchActiveIssuesByProject, fetchLabels, fetchVersion, fetchCurrentUser
 import { renderMarkdown } from './markdown.js';
 import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
-import { renderBacklog, setupBacklogView } from './components/backlog.js';
+import { renderBacklog, setupBacklogView, resetOpenLoaded } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
 import { renderArchive, setupArchiveView, resetArchivedLoaded } from './components/archive.js';
 import { setupSetupView, renderSetupView } from './components/setup.js';
@@ -72,8 +72,9 @@ async function init() {
 
 async function refreshApp() {
     try {
-        // Reset archived loaded flag so we fetch fresh data on next Archive view
+        // Reset lazy-load flags so we fetch fresh data on next view switch
         resetArchivedLoaded();
+        resetOpenLoaded();
 
         const issues = await fetchActiveIssuesByProject(state.selectedProjectId);
         setIssues(issues);
@@ -95,7 +96,7 @@ async function refreshApp() {
 
         renderBoard(refreshApp, openModal);
         if (!backlogView.classList.contains('hidden')) {
-            renderBacklog(refreshApp, openModal);
+            await renderBacklog(refreshApp, openModal);
         }
         if (!archiveView.classList.contains('hidden')) {
             await renderArchive(refreshApp, openModal);

@@ -42,6 +42,7 @@ var ErrDuplicateProjectName = errors.New("project name already exists")
 
 // errUniqueConstraintFailed is the SQLite error text for UNIQUE constraint violations.
 const errUniqueConstraintFailed = "UNIQUE constraint failed"
+const dbErrPrefix = "Database Error: "
 
 // InitDB initializes the database connection and creates tables if they don't exist.
 func InitDB(dataSourceName string) error {
@@ -336,9 +337,8 @@ func CreateIssue(i *Issue) error {
 	return nil
 }
 
-// GetActiveIssuesByProject retrieves all active (non-archived) issues for a specific project.
-func GetActiveIssuesByProject(projectID int) ([]Issue, error) {
-	rows, err := DB.Query(`
+// issueSelectBase is the shared SELECT + JOIN used by all project-scoped issue queries.
+const issueSelectBase = `
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
@@ -350,11 +350,19 @@ func GetActiveIssuesByProject(projectID int) ([]Issue, error) {
 		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
 		LEFT JOIN users u ON i.updated_by = u.id
-		LEFT JOIN projects p ON i.project_id = p.id
-		WHERE i.status != ? AND i.project_id = ?
-		ORDER BY i.position ASC`, StatusArchive, projectID)
+		LEFT JOIN projects p ON i.project_id = p.id`
+
+const (
+	queryActiveIssues   = issueSelectBase + ` WHERE i.status NOT IN (?, ?) AND i.project_id = ? ORDER BY i.position ASC`
+	queryArchivedIssues = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
+	queryOpenIssues     = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
+)
+
+// queryIssuesByProject executes query, scans the results, and attaches tasks.
+func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, error) {
+	rows, err := DB.Query(query, args...)
 	if err != nil {
-		slog.Error("Database Error: GetActiveIssuesByProject", "error", err)
+		slog.Error(dbErrPrefix+caller, "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -363,19 +371,19 @@ func GetActiveIssuesByProject(projectID int) ([]Issue, error) {
 	for rows.Next() {
 		i, err := scanIssue(rows)
 		if err != nil {
-			slog.Error("Database Error: GetActiveIssuesByProject Scan", "error", err)
+			slog.Error(dbErrPrefix+caller+" Scan", "error", err)
 			return nil, err
 		}
 		issues = append(issues, i)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetActiveIssuesByProject Rows", "error", err)
+		slog.Error(dbErrPrefix+caller+" Rows", "error", err)
 		return nil, err
 	}
 
 	tasksByIssue, err := GetAllTasks()
 	if err != nil {
-		slog.Error("Database Error: GetActiveIssuesByProject GetAllTasks", "error", err)
+		slog.Error(dbErrPrefix+caller+" GetAllTasks", "error", err)
 		return nil, err
 	}
 	for idx := range issues {
@@ -385,53 +393,19 @@ func GetActiveIssuesByProject(projectID int) ([]Issue, error) {
 	return issues, nil
 }
 
+// GetActiveIssuesByProject retrieves issues in the active workflow statuses for a project (excludes Open and Archive).
+func GetActiveIssuesByProject(projectID int) ([]Issue, error) {
+	return queryIssuesByProject("GetActiveIssuesByProject", queryActiveIssues, StatusArchive, StatusOpen, projectID)
+}
+
 // GetArchivedIssuesByProject retrieves all archived issues for a specific project.
 func GetArchivedIssuesByProject(projectID int) ([]Issue, error) {
-	rows, err := DB.Query(`
-		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
-		       l.id, l.name, l.color,
-		       c.id, c.email, c.first_name, c.last_name,
-		       a.id, a.email, a.first_name, a.last_name,
-		       u.id, u.email, u.first_name, u.last_name,
-		       p.id, p.name, p.description
-		FROM issues i
-		LEFT JOIN labels l ON i.label_id = l.id
-		LEFT JOIN users c ON i.creator_id = c.id
-		LEFT JOIN users a ON i.assignee_id = a.id
-		LEFT JOIN users u ON i.updated_by = u.id
-		LEFT JOIN projects p ON i.project_id = p.id
-		WHERE i.status = ? AND i.project_id = ?
-		ORDER BY i.position ASC`, StatusArchive, projectID)
-	if err != nil {
-		slog.Error("Database Error: GetArchivedIssuesByProject", "error", err)
-		return nil, err
-	}
-	defer rows.Close()
+	return queryIssuesByProject("GetArchivedIssuesByProject", queryArchivedIssues, StatusArchive, projectID)
+}
 
-	var issues []Issue
-	for rows.Next() {
-		i, err := scanIssue(rows)
-		if err != nil {
-			slog.Error("Database Error: GetArchivedIssuesByProject Scan", "error", err)
-			return nil, err
-		}
-		issues = append(issues, i)
-	}
-	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetArchivedIssuesByProject Rows", "error", err)
-		return nil, err
-	}
-
-	tasksByIssue, err := GetAllTasks()
-	if err != nil {
-		slog.Error("Database Error: GetArchivedIssuesByProject GetAllTasks", "error", err)
-		return nil, err
-	}
-	for idx := range issues {
-		issues[idx].Tasks = tasksByIssue[issues[idx].ID]
-	}
-
-	return issues, nil
+// GetOpenIssuesByProject retrieves all open (status = Open) issues for a specific project.
+func GetOpenIssuesByProject(projectID int) ([]Issue, error) {
+	return queryIssuesByProject("GetOpenIssuesByProject", queryOpenIssues, StatusOpen, projectID)
 }
 
 // GetIssueByID retrieves a single issue by ID, including its associated tasks.
