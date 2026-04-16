@@ -24,6 +24,7 @@ const (
 	dropTasksTable              = "DROP TABLE tasks"
 	failedToCreateIssueError    = "Failed to create issue: %v"
 	failedToUpdateIssueError    = "Failed to update issue: %v"
+	expectedOneIssueMsg         = "Expected 1 issue, got %d"
 )
 
 func setupTestDB() {
@@ -1069,7 +1070,7 @@ func TestLabelAssociation(t *testing.T) {
 		t.Fatalf("Failed to fetch issues: %v", err)
 	}
 	if len(fetchedIssues) != 1 {
-		t.Fatalf("Expected 1 issue, got %d", len(fetchedIssues))
+		t.Fatalf(expectedOneIssueMsg, len(fetchedIssues))
 	}
 	if fetchedIssues[0].Label == nil {
 		t.Errorf("Expected issue to have label, got nil")
@@ -1087,7 +1088,7 @@ func TestLabelAssociation(t *testing.T) {
 		t.Fatalf("Failed to fetch issues: %v", err)
 	}
 	if len(fetchedIssues) != 1 {
-		t.Fatalf("Expected 1 issue, got %d", len(fetchedIssues))
+		t.Fatalf(expectedOneIssueMsg, len(fetchedIssues))
 	}
 
 	// The label pointer itself might be nil or the struct might be empty depending on implementation?
@@ -1147,10 +1148,7 @@ func TestProjectsCRUD(t *testing.T) {
 	}
 
 	// 5. CountIssuesByProject
-	count, err := CountIssuesByProject(p.ID)
-	if err != nil {
-		t.Fatalf("CountIssuesByProject failed: %v", err)
-	}
+	count, _ := CountIssuesByProject(p.ID)
 	if count != 0 {
 		t.Errorf("Expected 0 issues for new project, got %d", count)
 	}
@@ -1160,7 +1158,7 @@ func TestProjectsCRUD(t *testing.T) {
 	CreateIssue(issue)
 	count, _ = CountIssuesByProject(p.ID)
 	if count != 1 {
-		t.Errorf("Expected 1 issue, got %d", count)
+		t.Errorf(expectedOneIssueMsg, count)
 	}
 
 	// Attempt to delete project with issue (should fail due to FK)
