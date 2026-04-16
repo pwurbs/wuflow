@@ -1,6 +1,7 @@
 
 # 1.2.0
 
+- Fixed buggy filter for "My Issues"
 - Further improved layzy loading by adding another API endpoint for only OPEN issues and adapted backlog rendering
 - Implemented caching renderMarkdown output to eliminate DOMPurify cold-start delay
 - Accelerated Playwright tests by scheduling over 5 parallel instances

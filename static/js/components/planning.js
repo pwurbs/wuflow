@@ -54,7 +54,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
   // Add Unscheduled section FIRST (at top) for issues with deadline (or subtask deadline) but no planned date
   // Now: Issue is unscheduled if planned_dates is empty or null
 
-  const filteredIssues = filterIssues(state.issues, state.filter);
+  const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
 
   const unscheduledIssues = filteredIssues
     .filter(issue => {

@@ -8,9 +8,10 @@
  * Project filtering is handled server-side; this function does not filter by project.
  * @param {Array} issues - Array of issue objects
  * @param {Object} filter - Filter criteria { labelId, priority, assigneeId, search }
+ * @param {number|null} [currentUserId] - ID of the current user, required when filter.assigneeId === 'me'
  * @returns {Array} Filtered issues
  */
-export function filterIssues(issues, filter) {
+export function filterIssues(issues, filter, currentUserId) {
   if (!issues || !Array.isArray(issues)) {
     return [];
   }
@@ -35,7 +36,7 @@ export function filterIssues(issues, filter) {
   if (filter.assigneeId !== null && filter.assigneeId !== undefined) {
     result = result.filter(issue => {
       if (filter.assigneeId === 'me') {
-        return issue.assignee_id === state.currentUser?.id;
+        return currentUserId != null && issue.assignee_id === currentUserId;
       } else if (filter.assigneeId === '' || filter.assigneeId === 'unassigned') {
         return issue.assignee_id === null;
       } else {

@@ -109,6 +109,18 @@ describe('filterIssues', () => {
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1); // Fix Typo
     });
+
+    it('should filter by "me" using currentUserId', () => {
+      const filter = { labelId: null, priority: null, assigneeId: 'me', search: '' };
+      const result = filterIssues(mockIssues, filter, 1);
+      expect(result).toHaveLength(2); // Login Bug and API Integration (assignee_id: 1)
+    });
+
+    it('should return no issues when "me" filter is used and currentUserId is null', () => {
+      const filter = { labelId: null, priority: null, assigneeId: 'me', search: '' };
+      const result = filterIssues(mockIssues, filter, null);
+      expect(result).toHaveLength(0);
+    });
   });
 
   describe('priority filter', () => {

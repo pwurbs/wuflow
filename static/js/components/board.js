@@ -36,7 +36,7 @@ export function renderBoard(refreshApp, openModal) {
   });
 
   // Filter and sort issues using extracted pure functions
-  const filteredIssues = filterIssues(nonBacklogIssues, state.filter);
+  const filteredIssues = filterIssues(nonBacklogIssues, state.filter, state.currentUser?.id);
   const sortedIssues = sortByPosition(filteredIssues);
 
   sortedIssues.forEach(issue => {

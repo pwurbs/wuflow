@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, navigateTo, selectAssignee, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, navigateTo, selectAssignee, selectStatus, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Filtering and Search', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -160,6 +160,80 @@ test.describe('Filtering and Search', () => {
 
     await expect(page.locator('.board-card:has-text("' + title1 + '")')).toBeVisible();
     await expect(page.locator('.board-card:has-text("' + title2 + '")')).toBeVisible();
+  });
+
+  test('filter issues by "My Issues" on board, backlog and archive', async ({ page }) => {
+    const myIssue = 'My Issue ' + Date.now();
+    const otherIssue = 'Other Issue ' + Date.now();
+
+    // Create two issues in the board column and assign one to the current user
+    await createIssue(page, { title: myIssue, status: 'Todo' });
+    await createIssue(page, { title: otherIssue, status: 'Todo' });
+
+    await openIssueByTitle(page, myIssue);
+    await selectAssignee(page, 'Assign to me');
+    await page.click('#done-btn');
+
+    // ── Board view ──────────────────────────────────────────────────────────
+    await expect(page.locator(`.board-card:has-text("${myIssue}")`)).toBeVisible();
+    await expect(page.locator(`.board-card:has-text("${otherIssue}")`)).toBeVisible();
+
+    await page.click('#user-filter-btn');
+    await page.click('#user-filter-options .custom-option:has-text("My Issues")');
+
+    await expect(page.locator('#user-filter-btn')).toContainText('My Issues');
+    await expect(page.locator(`.board-card:has-text("${myIssue}")`)).toBeVisible();
+    await expect(page.locator(`.board-card:has-text("${otherIssue}")`)).toBeHidden();
+
+    await page.click('#user-filter-btn .toolbar-icon-clear');
+
+    // ── Backlog view ────────────────────────────────────────────────────────
+    // Move both issues to Open status so they appear in the backlog
+    await openIssueByTitle(page, myIssue);
+    await selectStatus(page, 'Open');
+    await page.click('#done-btn');
+
+    await openIssueByTitle(page, otherIssue);
+    await selectStatus(page, 'Open');
+    await page.click('#done-btn');
+
+    await navigateTo(page, 'backlog');
+
+    await expect(page.locator(`#backlog-list .card:has-text("${myIssue}")`)).toBeVisible();
+    await expect(page.locator(`#backlog-list .card:has-text("${otherIssue}")`)).toBeVisible();
+
+    await page.click('#user-filter-btn');
+    await page.click('#user-filter-options .custom-option:has-text("My Issues")');
+
+    await expect(page.locator(`#backlog-list .card:has-text("${myIssue}")`)).toBeVisible();
+    await expect(page.locator(`#backlog-list .card:has-text("${otherIssue}")`)).toBeHidden();
+
+    await page.click('#user-filter-btn .toolbar-icon-clear');
+
+    // ── Archive view ────────────────────────────────────────────────────────
+    // Archive both issues directly from the backlog
+    await page.click(`#backlog-list .card:has-text("${myIssue}")`);
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
+
+    await page.click(`#backlog-list .card:has-text("${otherIssue}")`);
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
+
+    await navigateTo(page, 'archive');
+
+    await expect(page.locator(`#archive-list .card:has-text("${myIssue}")`)).toBeVisible();
+    await expect(page.locator(`#archive-list .card:has-text("${otherIssue}")`)).toBeVisible();
+
+    await page.click('#user-filter-btn');
+    await page.click('#user-filter-options .custom-option:has-text("My Issues")');
+
+    await expect(page.locator(`#archive-list .card:has-text("${myIssue}")`)).toBeVisible();
+    await expect(page.locator(`#archive-list .card:has-text("${otherIssue}")`)).toBeHidden();
+
+    await page.click('#user-filter-btn .toolbar-icon-clear');
   });
 });
 

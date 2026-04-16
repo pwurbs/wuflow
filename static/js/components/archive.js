@@ -42,7 +42,7 @@ export async function renderArchive(refreshApp, openModal) {
 
   // Filter and sort issues
   // Filter and sort issues
-  const filteredIssues = filterIssues(state.issues, state.filter);
+  const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
 
   // Archive list: Sorted by UpdatedAt (desc), Grouped by Month
   const archivedIssuesRaw = filterByStatus(filteredIssues, 'Archive');

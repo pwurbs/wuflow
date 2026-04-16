@@ -40,7 +40,7 @@ export async function renderBacklog(refreshApp, openModal) {
   moveToTodoList.innerHTML = '';
 
   // Filter and sort issues using extracted pure functions
-  const filteredIssues = filterIssues(state.issues, state.filter);
+  const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
   const openIssues = sortByPosition(filterByStatus(filteredIssues, 'Open'));
   const todoIssues = sortByPosition(filterByStatus(filteredIssues, 'Todo'));
 
