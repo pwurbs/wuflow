@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, login, selectAssignee, openIssueByTitle } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, selectAssignee, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Board Functionality', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('board displays all four columns', async ({ page }) => {

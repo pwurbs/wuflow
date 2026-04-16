@@ -1,6 +1,4 @@
 import { Page, expect } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
 
 /**
  * Helper functions for wuFlow Playwright tests
@@ -152,27 +150,3 @@ export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'setup'
   await page.click(`#nav-${view}`);
 }
 
-/**
- * Logs in as the initial admin user.
- * Reads password from test-data/admin.json
- */
-export async function login(page: Page): Promise<void> {
-  const configPath = path.join(__dirname, '..', 'test-data', 'admin.json');
-  let adminPassword = '';
-  let adminEmail = 'admin@local';
-
-  if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    adminPassword = config.password;
-    adminEmail = config.email || adminEmail;
-  } else {
-    throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
-  }
-
-  await page.goto('/login');
-  await page.fill('#login-email', adminEmail);
-  await page.fill('#login-password', adminPassword);
-  await page.click('#login-btn');
-  // Wait for board or nav to confirm login
-  await expect(page.locator('#nav-board')).toBeVisible();
-}

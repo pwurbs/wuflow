@@ -1,4 +1,8 @@
 
+## 1.2.0
+
+- Accelerated Playwright tests by scheduling over 5 parallel instances
+
 ## 1.1.1
 
 - Introduced a visual "done" style" for any planned DONE issue in the planning panel

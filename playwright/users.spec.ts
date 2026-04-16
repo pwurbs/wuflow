@@ -1,6 +1,4 @@
-import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
+import { test, expect } from './fixtures';
 import crypto from 'node:crypto';
 
 // Helper to generate random pass
@@ -12,21 +10,13 @@ test.describe('User Management', () => {
 
   let adminEmail = 'admin@local';
 
-  test.beforeEach(async ({ page }) => {
-    const configPath = path.join(__dirname, 'test-data', 'admin.json');
-    let adminPassword = '';
-
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      adminPassword = config.password;
-      adminEmail = config.email || adminEmail;
-    } else {
-      throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
-    }
-
+  // Admin credentials previously read from test-data/admin.json; now supplied by the
+  // workerServer fixture in fixtures.ts, which spawns a dedicated server per worker.
+  test.beforeEach(async ({ page, workerServer }) => {
+    adminEmail = workerServer.adminEmail;
     await page.goto('/login');
     await page.fill('#login-email', adminEmail);
-    await page.fill('#login-password', adminPassword);
+    await page.fill('#login-password', workerServer.adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-setup')).toBeVisible();
 

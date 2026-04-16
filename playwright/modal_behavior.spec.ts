@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, login, openIssueByTitle } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Issue Edit Modal Behavior', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('should autosave title on blur (clicking outside modified title)', async ({ page }) => {

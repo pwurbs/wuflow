@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, login, selectStatus, selectAssignee, openIssueByTitle } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, selectStatus, selectAssignee, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Issue CRUD Operations', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('create a new issue', async ({ page }) => {

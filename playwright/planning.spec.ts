@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, login, selectAssignee } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, selectAssignee } from './helpers/test-utils';
 
 test.describe('Planning Panel', () => {
   // Helper to format date as YYYY-MM-DD for input and ID matching
@@ -10,8 +10,8 @@ test.describe('Planning Panel', () => {
     return `${year}-${month}-${day}`;
   };
 
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
     // Planning panel is now always visible on board view
     await expect(page.locator('#planning-panel')).toBeVisible();
   });

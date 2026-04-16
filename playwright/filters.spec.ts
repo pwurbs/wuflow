@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, login, navigateTo, selectAssignee, openIssueByTitle } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, navigateTo, selectAssignee, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Filtering and Search', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('search filters issues by text', async ({ page }) => {
@@ -171,8 +171,8 @@ test.describe('Planning Panel Filtering', () => {
     return `${year}-${month}-${day}`;
   };
 
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
     // Make sure planning panel is visible
     await expect(page.locator('#planning-panel')).toBeVisible();
   });

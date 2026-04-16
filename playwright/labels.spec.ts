@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, navigateTo, login } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, navigateTo } from './helpers/test-utils';
 
 test.describe('Label Management', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('navigate to Setup view', async ({ page }) => {

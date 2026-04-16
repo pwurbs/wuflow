@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -14,16 +14,11 @@ let adminPassword = '';
 
 test.describe('Authentication Security', () => {
 
-  test.beforeAll(() => {
-    // Load admin config from global setup
-    const configPath = path.join(__dirname, 'test-data', 'admin.json');
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      adminEmail = config.email || adminEmail;
-      adminPassword = config.password;
-    } else {
-      throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
-    }
+  // Admin credentials previously read from test-data/admin.json; now supplied by the
+  // workerServer fixture in fixtures.ts, which spawns a dedicated server per worker.
+  test.beforeAll(async ({ workerServer }) => {
+    adminEmail = workerServer.adminEmail;
+    adminPassword = workerServer.adminPassword;
   });
 
   test('Initial Admin Config: Verified correct admin user was created', async ({ request }) => {
@@ -170,7 +165,7 @@ test.describe('Authentication Security', () => {
     await page.goto('/');
 
     // Expect: Stay on Dashboard (Not Redirected)
-    await expect(page).toHaveURL('http://localhost:8081/'); // or check path '/' if base url set
+    await expect(page).toHaveURL(/\/$/); // just verify root path, not hardcoded port
     await expect(page.locator('#nav-setup')).toBeVisible();
 
     // Verify new access token was set
@@ -412,21 +407,25 @@ test.describe('Authentication Security', () => {
 // the other concurrent/subsequent tests that use IPv6 loopback!
 test.describe('Authentication Rate Limiting', () => {
 
-  test.use({ baseURL: 'http://127.0.0.1:8081' });
+  // Use 127.0.0.1 (IPv4) explicitly for all requests in this block.
+  // The rest of the test suite uses localhost which resolves to [::1] (IPv6).
+  // By targeting 127.0.0.1 we exhaust the IPv4 rate limit bucket without
+  // affecting the IPv6 bucket used by all other tests.
 
-  test('IP+Email limit returns 401, IP limit returns 429', async ({ request }) => {
+  test('IP+Email limit returns 401, IP limit returns 429', async ({ request, workerServer }) => {
+    const loginURL = `http://127.0.0.1:${workerServer.port}/api/auth/login`;
 
     // 1. Exhaust the IP+Email limit for victim@example.com
     // The limit is 10 failures per 15 mins.
     for (let i = 0; i < 10; i++) {
-      const res = await request.post('/api/auth/login', {
+      const res = await request.post(loginURL, {
         data: { email: 'victim@example.com', password: generatePassword() }
       });
       expect(res.status()).toBe(401);
     }
 
     // 11th attempt for the SAME email should still be block by IP+Email limit (401)
-    const resBlockedEmail = await request.post('/api/auth/login', {
+    const resBlockedEmail = await request.post(loginURL, {
       data: { email: 'victim@example.com', password: generatePassword() }
     });
     expect(resBlockedEmail.status()).toBe(401);
@@ -435,7 +434,7 @@ test.describe('Authentication Rate Limiting', () => {
     // Let's use a DIFFERENT email to safely reach the IP limit without hitting
     // the IP+Email limit for the second victim until the very end.
     for (let i = 0; i < 10; i++) {
-      const res = await request.post('/api/auth/login', {
+      const res = await request.post(loginURL, {
         data: { email: 'secondvictim@example.com', password: generatePassword() }
       });
       expect(res.status()).toBe(401);
@@ -443,7 +442,7 @@ test.describe('Authentication Rate Limiting', () => {
 
     // At this point, the IP (127.0.0.1) has exactly 20 failures.
     // The very next request from this IP (21st) should hit the pure IP limit and return 429.
-    const resBlockedIP = await request.post('/api/auth/login', {
+    const resBlockedIP = await request.post(loginURL, {
       data: { email: adminEmail, password: generatePassword() }
     });
 
@@ -453,7 +452,8 @@ test.describe('Authentication Rate Limiting', () => {
     expect(responseText).toContain('Too many login attempts');
   });
 
-  test('X-Forwarded-For header is trusted for rate limiting', async ({ request }) => {
+  test('X-Forwarded-For header is trusted for rate limiting', async ({ request, workerServer }) => {
+    const loginURL = `http://127.0.0.1:${workerServer.port}/api/auth/login`;
     // We use different IPs in X-Forwarded-For to bypass IP-based rate limiting
     // The limit is 20 failures per IP.
 
@@ -462,7 +462,7 @@ test.describe('Authentication Rate Limiting', () => {
 
     // 1. Fail 20 times with spoofedIP1
     for (let i = 0; i < 20; i++) {
-      const res = await request.post('/api/auth/login', {
+      const res = await request.post(loginURL, {
         headers: { 'X-Forwarded-For': spoofedIP1 },
         data: { email: `fake-${i}@example.com`, password: generatePassword() }
       });
@@ -470,26 +470,26 @@ test.describe('Authentication Rate Limiting', () => {
     }
 
     // 21st attempt with spoofedIP1 should be blocked (429)
-    const blockedRes1 = await request.post('/api/auth/login', {
+    const blockedRes1 = await request.post(loginURL, {
       headers: { 'X-Forwarded-For': spoofedIP1 },
       data: { email: 'another@example.com', password: generatePassword() }
     });
     expect(blockedRes1.status()).toBe(429);
 
     // 2. Attempt with spoofedIP2 should still be allowed (401)
-    const allowedRes2 = await request.post('/api/auth/login', {
+    const allowedRes2 = await request.post(loginURL, {
       headers: { 'X-Forwarded-For': spoofedIP2 },
       data: { email: 'yet-another@example.com', password: generatePassword() }
     });
     expect(allowedRes2.status()).toBe(401);
   });
 
-  test('Invalid IP in X-Forwarded-For falls back to RemoteAddr', async ({ request }) => {
-    // We use an invalid IP in X-Forwarded-For. 
+  test('Invalid IP in X-Forwarded-For falls back to RemoteAddr', async ({ request, workerServer }) => {
+    // We use an invalid IP in X-Forwarded-For.
     // The server should log a warning and use the actual remote addr (127.0.0.1).
     const invalidIP = 'not-an-ip';
 
-    const res = await request.post('/api/auth/login', {
+    const res = await request.post(`http://127.0.0.1:${workerServer.port}/api/auth/login`, {
       headers: { 'X-Forwarded-For': invalidIP },
       data: { email: 'fake@example.com', password: generatePassword() }
     });
@@ -498,7 +498,8 @@ test.describe('Authentication Rate Limiting', () => {
     expect(res.status()).not.toBe(500);
 
     // Check backend log for the warning
-    const logPath = path.join(__dirname, 'test-data', 'backend.log');
+    const workerIndex = workerServer.port - 8090;
+    const logPath = path.join(__dirname, 'test-data', `worker-${workerIndex}`, 'backend.log');
     if (fs.existsSync(logPath)) {
       const logs = fs.readFileSync(logPath, 'utf8');
       expect(logs).toContain('GetClientIP: invalid IP in header, falling back to RemoteAddr');

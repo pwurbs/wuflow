@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, openIssueByTitle, navigateTo, login } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, openIssueByTitle, navigateTo } from './helpers/test-utils';
 
 test.describe('Edge Cases and Validation', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('cancel issue deletion', async ({ page }) => {

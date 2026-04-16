@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, openIssueByTitle, selectPriority, login } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, openIssueByTitle, selectPriority } from './helpers/test-utils';
 
 test.describe('Concurrent Editing', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('conflict dialog shown when another user edits the issue', async ({ page }) => {

@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { createIssue, openIssueByTitle, selectPriority, login } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { createIssue, openIssueByTitle, selectPriority } from './helpers/test-utils';
 
 test.describe('Issue Edit Operations', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('edit issue description', async ({ page }) => {
@@ -158,8 +158,8 @@ test.describe('Issue Edit Operations', () => {
     await page.click('#done-btn');
     await expect(page.locator('#issue-modal')).toBeHidden();
 
-    // Verify it's removed from unscheduled section
-    await expect(page.locator('#unscheduled-section')).not.toContainText('Remove Deadline Issue');
+    // Verify it's removed from unscheduled section (the section itself may be hidden when empty)
+    await expect(page.locator('#unscheduled-section').filter({ hasText: 'Remove Deadline Issue' })).toHaveCount(0);
   });
 
   // Note: Label editing tests removed as the UI doesn't support changing labels

@@ -1,5 +1,5 @@
-import { test, expect, Page } from '@playwright/test';
-import { login, createIssue, openIssueByTitle, navigateTo, selectStatus } from './helpers/test-utils';
+import { test, expect, Page } from './fixtures';
+import { createIssue, openIssueByTitle, navigateTo, selectStatus } from './helpers/test-utils';
 
 /**
  * Tests for:
@@ -61,8 +61,8 @@ async function fillDescriptionAndPreview(page: Page, title: string, description:
 // ─── Validation limits — Issue ───────────────────────────────────────────────
 
 test.describe('Validation limits – Issue', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('title exceeding 100 characters is rejected', async ({ page }) => {
@@ -102,8 +102,8 @@ test.describe('Validation limits – Issue', () => {
 // ─── Validation limits — Task ────────────────────────────────────────────────
 
 test.describe('Validation limits – Task', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('task title exceeding 100 characters is rejected', async ({ page }) => {
@@ -129,8 +129,8 @@ test.describe('Validation limits – Task', () => {
 // ─── Validation limits — Label ────────────────────────────────────────────────
 
 test.describe('Validation limits – Label', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
     await navigateTo(page, 'setup');
   });
 
@@ -149,8 +149,8 @@ test.describe('Validation limits – Label', () => {
 // ─── Validation limits — User ─────────────────────────────────────────────────
 
 test.describe('Validation limits – User', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
     await navigateTo(page, 'setup');
     await page.click('#add-user-btn');
     await expect(page.locator('#user-modal-overlay')).toBeVisible();
@@ -215,8 +215,8 @@ test.describe('Validation limits – User', () => {
 // ─── Markdown Description Rendering ──────────────────────────────────────────
 
 test.describe('Markdown description rendering', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('GFM formatting renders correctly in preview and after save', async ({ page }) => {
@@ -297,8 +297,8 @@ test.describe('Markdown description rendering', () => {
 // ─── XSS & Sanitization ──────────────────────────────────────────────────────
 
 test.describe('XSS and Sanitization', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   // ── Description ────────────────────────────────────────────────────────────

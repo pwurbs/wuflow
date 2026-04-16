@@ -1,129 +1,38 @@
-import { execSync, spawn } from 'node:child_process';
+// Runs once before any worker starts.
+// Previously this file also spawned the Go backend and wrote test-data/admin.json.
+// Server startup has moved to the workerServer fixture in fixtures.ts so that each
+// of the 5 workers gets its own isolated server instance (ports 8090–8094).
+// This file now only cleans up stale processes and leftover test-data directories
+// from previous runs.
+
 import { type FullConfig } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { killProcessesOnPort } from './helpers/server-utils';
 
-function killProcessesOnPort(port: string): void {
-  console.log(`Checking for existing process on port ${port}...`);
-  const pids = execSync(`lsof -t -i:${port} || true`).toString().trim(); //NOSONAR
-  if (!pids) return;
-
-  const pidList = pids.split('\n').filter(p => p.trim());
-  for (const pid of pidList) {
-    console.log(`Killing existing process (PID ${pid}) on port ${port}...`);
-    try {
-      execSync(`kill -9 ${pid}`); //NOSONAR
-    } catch (killError) {
-      console.log(`Failed to kill PID ${pid}:`, killError);
-    }
-  }
-}
-
-function cleanupDatabase(dbDir: string): void {
-  if (fs.existsSync(dbDir)) {
-    console.log(`Cleaning up database directory at ${dbDir}...`);
-    fs.rmSync(dbDir, { recursive: true, force: true });
-  }
-}
-
-async function waitForServer(targetURL: string): Promise<void> {
-  console.log(`Waiting for application at ${targetURL}...`);
-  const maxRetries = 30;
-  const delayMs = 1000;
-
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      execSync(`curl -s -f ${targetURL}`); //NOSONAR
-      console.log('Application is ready!');
-      return;
-    } catch {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-      if (i % 5 === 0) console.log(`Waiting... (${i}/${maxRetries})`);
-    }
-  }
-  throw new Error('Application failed to start within 30 seconds');
-}
+const BASE_PORT = 8090;
+const WORKER_COUNT = 5;
 
 async function globalSetup(config: FullConfig) {
   if (process.env.SKIP_SETUP) {
-    console.log('Global Setup: Skipping (SKIP_SETUP env var is set). Assumes manual server start.');
+    console.log('Global Setup: Skipping (SKIP_SETUP env var is set).');
     return;
   }
 
-  console.log('Global Setup: Starting local Go server...');
+  console.log('Global Setup: Cleaning up stale processes and test data...');
 
-  const port = '8081';
-  const { baseURL } = config.projects[0].use;
-  const targetURL = baseURL || `http://localhost:${port}`;
+  const cwd = config.rootDir;
+  const baseDataDir = path.join(cwd, 'test-data');
 
-  const cwd = process.cwd();
-  const isPlaywrightDir = path.basename(cwd) === 'playwright';
+  for (let i = 0; i < WORKER_COUNT; i++) {
+    const port = BASE_PORT + i;
+    try { killProcessesOnPort(port); } catch { /* ignore */ }
 
-  const dbDir = isPlaywrightDir
-    ? path.join(cwd, 'test-data')
-    : path.join(cwd, 'playwright', 'test-data');
-  const dbPath = path.join(dbDir, 'wuflow.db');
-  const logPath = path.join(dbDir, 'backend.log');
-
-  // 1. Cleanup
-  try {
-    killProcessesOnPort(port);
-    cleanupDatabase(dbDir);
-  } catch (e) {
-    console.log('Cleanup error (ignored):', e);
+    const workerDir = path.join(baseDataDir, `worker-${i}`);
+    fs.rmSync(workerDir, { recursive: true, force: true });
   }
 
-  // 2. Start Go server
-  try {
-    console.log(`Starting Go server on port ${port} with db ${dbPath}...`);
-
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
-    }
-
-    const logFile = fs.openSync(logPath, 'w');
-
-    const projectRoot = isPlaywrightDir ? path.join(cwd, '..') : cwd;
-    const versionPath = path.join(projectRoot, 'VERSION');
-    let version = 'dev';
-    try {
-      if (fs.existsSync(versionPath)) {
-        version = fs.readFileSync(versionPath, 'utf-8').trim();
-      }
-    } catch (e) {
-      console.log('Failed to read VERSION file, using default "dev":', e);
-    }
-
-    console.log(`Using application version: ${version}`);
-    console.log(`Redirecting backend logs to: ${logPath}`);
-
-    const crypto = await import('node:crypto');
-    const adminPassword = `${crypto.randomBytes(16).toString('hex')}A1!`;
-    // Generate a fixed-per-run secret key so the server exercises the configured-secret
-    // code path (InitSecretKey with secret != ""). This ensures dummyPasswordHash is
-    // always initialised via the configured branch and tokenMACKey is stable for the run.
-    const secretKey = crypto.randomBytes(32).toString('hex');
-    const adminConfigPath = path.join(dbDir, 'admin.json');
-    const adminEmail = 'superadmin@test.local';
-
-    fs.writeFileSync(adminConfigPath, JSON.stringify({ email: adminEmail, password: adminPassword, secretKey }));
-    console.log(`Generated initial admin email, password and secret key, saved to ${adminConfigPath}`);
-
-    const server = spawn('go', ['run', `-ldflags=-X main.Version=${version}`, '.', `-port=${port}`, `-dbpath=${dbPath}`, `-initial-admin-email=${adminEmail}`, `-initial-admin-password=${adminPassword}`, `-secret-key=${secretKey}`, `-api-rate-limit=false`, `-remote-ip-header=X-Forwarded-For`], {
-      detached: true,
-      stdio: ['ignore', logFile, logFile],
-      cwd: projectRoot
-    });
-
-    server.unref();
-
-    // 3. Wait for readiness
-    await waitForServer(targetURL);
-
-  } catch (error) {
-    console.error('Error in global setup:', error);
-    throw error;
-  }
+  console.log('Global Setup: Done.');
 }
 
 export default globalSetup;

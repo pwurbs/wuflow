@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import crypto from 'node:crypto';
 import {
-  login, createIssue, openIssueByTitle, navigateTo,
+  createIssue, openIssueByTitle, navigateTo,
   selectPriority, waitForToast,
 } from './helpers/test-utils';
 
@@ -18,8 +18,8 @@ function generatePassword(): string {
  */
 
 test.describe('Notifications', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   // ─── Issue notifications ──────────────────────────────────────────────────

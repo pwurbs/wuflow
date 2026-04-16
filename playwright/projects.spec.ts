@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
-import { navigateTo, login, createIssue } from './helpers/test-utils';
+import { test, expect } from './fixtures';
+import { navigateTo, createIssue } from './helpers/test-utils';
 
 test.describe('Project Management', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
     await navigateTo(page, 'setup');
   });
 
@@ -131,8 +131,8 @@ test.describe('Project Management', () => {
 });
 
 test.describe('Project Selector', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('Project selector is visible on the board', async ({ page }) => {
@@ -203,8 +203,8 @@ test.describe('Project Selector', () => {
 });
 
 test.describe('Issues with Projects', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page);
+  test.beforeEach(async ({ page, login }) => {
+    await login();
   });
 
   test('New issue modal has a project dropdown', async ({ page }) => {

@@ -1,6 +1,4 @@
-import { test, expect } from '@playwright/test';
-import fs from 'node:fs';
-import path from 'node:path';
+import { test, expect } from './fixtures';
 import crypto from 'node:crypto';
 import { createIssue } from './helpers/test-utils';
 
@@ -15,15 +13,11 @@ test.describe('Role Based Authorization', () => {
   let standardUserPassword = '';
   let adminEmail = 'admin@local';
 
-  test.beforeAll(() => {
-    const configPath = path.join(__dirname, 'test-data', 'admin.json');
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      adminPassword = config.password;
-      adminEmail = config.email || adminEmail;
-    } else {
-      throw new Error(`Admin config not found at ${configPath}. Run global-setup first.`);
-    }
+  // Admin credentials previously read from test-data/admin.json; now supplied by the
+  // workerServer fixture in fixtures.ts, which spawns a dedicated server per worker.
+  test.beforeAll(async ({ workerServer }) => {
+    adminPassword = workerServer.adminPassword;
+    adminEmail = workerServer.adminEmail;
   });
 
   // Setup: Create a standard user for testing

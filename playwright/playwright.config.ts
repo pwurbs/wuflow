@@ -1,24 +1,20 @@
+// Previously: workers: 1, fullyParallel: false, baseURL hardcoded to localhost:8081.
+// Each worker now gets its own Go server and SQLite database via the workerServer
+// fixture in fixtures.ts. baseURL is therefore set dynamically there, not here.
+
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: '.',
   globalSetup: './global-setup',
   globalTeardown: './global-teardown',
-  /* Run tests sequentially to avoid database state conflicts */
-  fullyParallel: false,
-  /* Single worker to ensure sequential execution with shared database */
-  workers: 1,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
+  fullyParallel: true,
+  workers: 5,
   reporter: [['html', { open: 'never' }]],
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:8081',
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
 
-  /* Configure projects for major browsers - Chromium only for faster development testing */
   projects: [
     {
       name: 'chromium',
