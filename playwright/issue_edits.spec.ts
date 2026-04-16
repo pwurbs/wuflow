@@ -33,6 +33,29 @@ test.describe('Issue Edit Operations', () => {
     await expect(page.locator('#description-preview')).toContainText(newDescription);
   });
 
+  test('reopening same issue shows correct markdown description both times', async ({ page }) => {
+    // Verifies that the renderMarkdown cache returns correct data on cache hits:
+    // first open populates the cache, second open must serve the same rendered HTML.
+    const title = `Reopen-Cache-${Date.now()}`;
+    const markdown = '**bold** and *italic*';
+
+    await createIssue(page, { title, status: 'Todo', description: markdown });
+
+    // First open — cache miss, DOMPurify runs
+    await openIssueByTitle(page, title);
+    const preview = page.locator('#description-preview');
+    await expect(preview.locator('strong')).toHaveText('bold');
+    await expect(preview.locator('em')).toHaveText('italic');
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    // Second open — cache hit, must render identically
+    await openIssueByTitle(page, title);
+    await expect(preview.locator('strong')).toHaveText('bold');
+    await expect(preview.locator('em')).toHaveText('italic');
+    await page.click('#done-btn');
+  });
+
   test('change issue priority', async ({ page }) => {
     // Create an issue with normal priority (default)
     await createIssue(page, { title: 'Priority Change Issue', status: 'Todo' });

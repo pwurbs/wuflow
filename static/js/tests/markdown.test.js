@@ -19,7 +19,7 @@ vi.mock('../vendor/dompurify.esm.js', () => ({
   },
 }));
 
-const { renderMarkdown, stripMarkdown } = await import('../markdown.js');
+const { renderMarkdown, stripMarkdown, clearMarkdownCache } = await import('../markdown.js');
 
 // Helpers: configure addHook to capture the callback, then make sanitize
 // invoke it with controlled data — mirrors how real DOMPurify calls hooks.
@@ -47,6 +47,7 @@ function withAttrHookTrigger(attrName, allowedAttributes, attrValue = '') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearMarkdownCache();
   marked.parse.mockImplementation((md) => `<p>${md}</p>`);
   DOMPurify.sanitize.mockImplementation((html) => html);
   DOMPurify.addHook.mockImplementation(() => {});
@@ -128,6 +129,48 @@ describe('renderMarkdown', () => {
       // The start="2" attribute must not trigger the strippedHTML warning.
       withAttrHookTrigger('start', { start: true });
       expect(renderMarkdown('1. - 2. April', true).strippedHTML).toBe(false);
+    });
+  });
+
+  describe('caching', () => {
+    it('returns the same result on second call without invoking DOMPurify again', () => {
+      renderMarkdown('cached input');
+      expect(DOMPurify.sanitize).toHaveBeenCalledTimes(1);
+
+      renderMarkdown('cached input');
+      // DOMPurify must not be called a second time for the same input
+      expect(DOMPurify.sanitize).toHaveBeenCalledTimes(1);
+    });
+
+    it('cached result matches the original rendered output', () => {
+      const first = renderMarkdown('hello', true);
+      const second = renderMarkdown('hello', true);
+      expect(second).toEqual(first);
+    });
+
+    it('different inputs are cached independently', () => {
+      DOMPurify.sanitize
+        .mockImplementationOnce(() => '<p>first</p>')
+        .mockImplementationOnce(() => '<p>second</p>');
+
+      const a = renderMarkdown('input-a');
+      const b = renderMarkdown('input-b');
+      expect(a).toBe('<p>first</p>');
+      expect(b).toBe('<p>second</p>');
+
+      // Both are served from cache on repeat calls
+      expect(renderMarkdown('input-a')).toBe('<p>first</p>');
+      expect(renderMarkdown('input-b')).toBe('<p>second</p>');
+      expect(DOMPurify.sanitize).toHaveBeenCalledTimes(2);
+    });
+
+    it('clearMarkdownCache forces a fresh DOMPurify call', () => {
+      renderMarkdown('to-clear');
+      expect(DOMPurify.sanitize).toHaveBeenCalledTimes(1);
+
+      clearMarkdownCache();
+      renderMarkdown('to-clear');
+      expect(DOMPurify.sanitize).toHaveBeenCalledTimes(2);
     });
   });
 });

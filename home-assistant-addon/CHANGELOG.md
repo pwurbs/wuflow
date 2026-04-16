@@ -1,6 +1,7 @@
 
 ## 1.2.0
 
+- Implemented caching renderMarkdown output to eliminate DOMPurify cold-start delay
 - Accelerated Playwright tests by scheduling over 5 parallel instances
 
 ## 1.1.1

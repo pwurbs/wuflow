@@ -1,4 +1,5 @@
 import { fetchActiveIssuesByProject, fetchLabels, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects } from './api.js';
+import { renderMarkdown } from './markdown.js';
 import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView } from './components/backlog.js';
@@ -63,6 +64,10 @@ async function init() {
     });
 
     await refreshApp();
+
+    // Pre-warm marked + DOMPurify so the first modal open is fast.
+    // Deferred via setTimeout so the initial page paint is not delayed.
+    setTimeout(() => renderMarkdown('a'), 0);
 }
 
 async function refreshApp() {
@@ -89,8 +94,9 @@ async function refreshApp() {
         updatePriorityFilterOptions();
 
         renderBoard(refreshApp, openModal);
-        renderBacklog(refreshApp, openModal);
-
+        if (!backlogView.classList.contains('hidden')) {
+            renderBacklog(refreshApp, openModal);
+        }
         if (!archiveView.classList.contains('hidden')) {
             await renderArchive(refreshApp, openModal);
         }

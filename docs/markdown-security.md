@@ -36,6 +36,18 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 
 ---
 
+## Render Cache
+
+`renderMarkdown` in `markdown.js` caches its output in a module-level `Map` keyed by the raw Markdown string. On a cache hit the function returns the previously sanitized HTML directly, bypassing `marked` and DOMPurify entirely.
+
+**Why this is safe**: DOMPurify is deterministic — the same input with the same `PURIFY_CONFIG` always produces the same sanitized output. Serving a cached result is therefore equivalent to re-running sanitization. The cache is purely in-memory and resets on every page load; it is never persisted to `localStorage`, cookies, or any other storage.
+
+**Cache invalidation**: The cache key is the raw Markdown string itself. When a description is edited and saved, the next modal open fetches fresh data from the server. If the text changed, the new string is a new cache key and DOMPurify runs fresh. If the text is identical to a previous value, the cached (already-sanitized) HTML is returned — which is correct, as the output would be unchanged.
+
+**Performance rationale**: The first call to `DOMPurify.sanitize` in a browser session incurs a cold-start cost from the JavaScript engine's JIT compiler and the browser's `DOMParser`. Caching eliminates this cost on every subsequent open of an issue whose description has already been rendered.
+
+---
+
 ## Testing Scenarios
 
 Copy and paste the sections below into an Issue/Task description field to visually verify that rendering and security policies are applied correctly.
