@@ -137,6 +137,8 @@ Archived issues are read-only. Users owning the Admin or Sysadmin role are entit
 
 ## The Project Settings View
 
+<img src="screenshots/project-settings.png" alt="Project Settings" width="500">
+
 The Project Settings View is available for users with Admin or Sysadmin role. It allows managing **labels** for the currently selected project. Switch between projects using the project selector at the top of the view to manage labels per project.
 
 ### Labels
@@ -144,7 +146,7 @@ Labels are scoped to a project. Create labels which can be used in issues to cat
 
 ## The System Settings View
 
-<img src="screenshots/setup.png" alt="Initial Setup" width="900">
+<img src="screenshots/system-settings.png" alt="System Settings" width="800">
 
 The System Settings View is only available for users with Sysadmin role and allows to configure **projects** and **users**.
 
@@ -173,7 +175,6 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | Archive an issue | — | ✓ | ✓ |
 | Unarchive an issue | — | ✓ | ✓ |
 | Delete an issue | — | ✓ | ✓ |
-| Access Project Settings view | — | ✓ | ✓ |
 | Create / delete labels | — | ✓ | ✓ |
 | Access Project Settings view | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
