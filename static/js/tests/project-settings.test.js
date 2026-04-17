@@ -228,7 +228,7 @@ describe('project-settings.js component', () => {
     it('returns early without error when container is not set up', async () => {
       document.body.innerHTML = '';
       await renderProjectSettingsView();
-      // no error thrown — verified by test passing
+      expect(document.querySelector('.delete-label-btn')).toBeNull();
     });
   });
 });

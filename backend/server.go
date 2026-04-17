@@ -141,7 +141,7 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	http.Handle("/api/projects/", authAPI(http.HandlerFunc(HandleProject)))
 	http.Handle("/api/version", authAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(headerContentType, contentTypeJSON)
-		json.NewEncoder(w).Encode(map[string]string{"version": version})
+		_ = json.NewEncoder(w).Encode(map[string]string{"version": version})
 	})))
 
 	// Static files — require auth, redirect to login if not authenticated

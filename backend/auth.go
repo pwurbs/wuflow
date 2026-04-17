@@ -390,14 +390,18 @@ func CreateUserSession(user *User) (*Session, string, string, error) {
 	// 3. Generate Refresh Token
 	refreshToken, tokenHash, err := GenerateRefreshToken(session.ID)
 	if err != nil {
-		DeleteSession(session.ID) // Cleanup
+		if derr := DeleteSession(session.ID); derr != nil {
+			slog.Warn("failed to cleanup session after refresh token error", "session_id", session.ID, "err", derr)
+		}
 		return nil, "", "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
 	// 4. Update session with the real hash
 	session.TokenHash = tokenHash
 	if err := UpdateSession(session); err != nil {
-		DeleteSession(session.ID) // cleanup orphaned session with empty token hash
+		if derr := DeleteSession(session.ID); derr != nil {
+			slog.Warn("failed to cleanup orphaned session after hash update error", "session_id", session.ID, "err", derr)
+		}
 		return nil, "", "", fmt.Errorf("failed to update session hash: %w", err)
 	}
 
@@ -412,6 +416,12 @@ func RevokeSession(sessionID int) error {
 // RevokeUserSessions revokes all sessions for a user (e.g., on password change or deactivation).
 func RevokeUserSessions(userID int) error {
 	return DeleteSessionsByUserID(userID)
+}
+
+func deleteSessionSafe(sessionID int, msg string) {
+	if err := DeleteSession(sessionID); err != nil {
+		slog.Warn(msg, "session_id", sessionID, "err", err)
+	}
 }
 
 // RefreshSession validates a refresh token, performs rotation, and returns new tokens.
@@ -434,14 +444,16 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 
 	// 3. Check Expiry
 	if time.Now().After(session.ExpiresAt) {
-		DeleteSession(sessionID)
+		deleteSessionSafe(sessionID, "failed to delete expired session")
 		return nil, "", "", fmt.Errorf("session expired user_id=%d session_id=%d", session.UserID, sessionID)
 	}
 
 	// 4. Verify Hash (Reuse Detection)
 	expected := computeTokenMAC([]byte(secret))
 	if !hmac.Equal([]byte(expected), []byte(session.TokenHash)) {
-		RevokeUserSessions(session.UserID)
+		if err := RevokeUserSessions(session.UserID); err != nil {
+			slog.Warn("failed to revoke sessions after HMAC mismatch", "user_id", session.UserID, "err", err)
+		}
 		return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_id=%d, revoking all sessions (possible token reuse or server restart without WF_SECRET_KEY)", session.UserID, sessionID)
 	}
 
@@ -451,7 +463,7 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 		return nil, "", "", fmt.Errorf("user lookup failed user_id=%d session_id=%d: %w", session.UserID, sessionID, err)
 	}
 	if user == nil || !user.Active {
-		DeleteSession(sessionID)
+		deleteSessionSafe(sessionID, "failed to delete session for inactive user")
 		return nil, "", "", fmt.Errorf("user inactive or not found user_id=%d session_id=%d", session.UserID, sessionID)
 	}
 
