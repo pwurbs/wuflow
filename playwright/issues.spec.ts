@@ -174,4 +174,37 @@ test.describe('Issue CRUD Operations', () => {
 
     await page.click('#done-btn');
   });
+
+  test('position-only drag does not update last-changed timestamp', async ({ page }) => {
+    const titleA = `Shift Target ${Date.now()}`;
+    const titleB = `Drag Card ${Date.now() + 1}`;
+
+    await createIssue(page, { title: titleA, status: 'Todo' });
+    await createIssue(page, { title: titleB, status: 'Todo' });
+
+    // Record titleA's last-changed display before any drag
+    await openIssueByTitle(page, titleA);
+    const updatedAtDisplay = page.locator('#updated-at-display');
+    await expect(updatedAtDisplay).not.toBeEmpty();
+    const updatedAtBefore = await updatedAtDisplay.textContent();
+    await page.click('#done-btn');
+
+    // Drag titleB onto titleA, shifting titleA's position within the same column
+    const cardA = page.locator(`#col-todo .board-card:has-text("${titleA}")`);
+    const cardB = page.locator(`#col-todo .board-card:has-text("${titleB}")`);
+    const putPromises: Promise<void>[] = [];
+    page.on('response', r => {
+      if (r.url().includes('/api/issues/') && r.request().method() === 'PUT') {
+        putPromises.push(r.finished().then(() => {}));
+      }
+    });
+    await cardB.dragTo(cardA);
+    await Promise.all(putPromises);
+
+    // Reopen titleA — last-changed must be unchanged since only position shifted
+    await openIssueByTitle(page, titleA);
+    const updatedAtAfter = await page.locator('#updated-at-display').textContent();
+    expect(updatedAtAfter).toBe(updatedAtBefore);
+    await page.click('#done-btn');
+  });
 });

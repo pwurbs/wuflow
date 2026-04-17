@@ -582,6 +582,25 @@ func UpdateIssue(i *Issue) error {
 	return nil
 }
 
+// UpdateIssuePosition updates only the position of an issue without modifying
+// updated_at or updated_by — used when a drag reorder shifts cards cosmetically.
+func UpdateIssuePosition(id, position int) error {
+	res, err := DB.Exec("UPDATE issues SET position = ? WHERE id = ?", position, id)
+	if err != nil {
+		slog.Error("Database Error: UpdateIssuePosition", "error", err)
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: UpdateIssuePosition RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrIssueNotFound
+	}
+	return nil
+}
+
 // DeleteIssue removes an issue from the database by its ID.
 func DeleteIssue(id int) error {
 	res, err := DB.Exec("DELETE FROM issues WHERE id = ?", id)

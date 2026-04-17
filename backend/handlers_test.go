@@ -1708,6 +1708,129 @@ func TestHandleUpdateSelfUserNotFound(t *testing.T) {
 	}
 }
 
+func TestIssueContentHash(t *testing.T) {
+	deadline := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+	assigneeID := 7
+	issue := &Issue{
+		Title:        "Title",
+		Description:  "Desc",
+		Status:       StatusOpen,
+		Priority:     PriorityNormal,
+		Label:        &Label{ID: 42},
+		AssigneeID:   &assigneeID,
+		Deadline:     &deadline,
+		PlannedDates: []string{"2025-01-01"},
+		ProjectID:    1,
+	}
+
+	h := issueContentHash(issue)
+
+	// Deterministic
+	if issueContentHash(issue) != h {
+		t.Error("hash should be deterministic")
+	}
+	// Label change → different hash (covers label != nil branch)
+	i2 := *issue
+	i2.Label = &Label{ID: 99}
+	if issueContentHash(&i2) == h {
+		t.Error("expected different hash when label changes")
+	}
+	// Deadline removal → different hash (covers deadline != nil branch)
+	i3 := *issue
+	i3.Deadline = nil
+	if issueContentHash(&i3) == h {
+		t.Error("expected different hash when deadline is removed")
+	}
+	// Position change → same hash (position is excluded by design)
+	i4 := *issue
+	i4.Position = issue.Position + 10
+	if issueContentHash(&i4) != h {
+		t.Error("expected same hash when only position changes")
+	}
+}
+
+func TestPersistIssueUpdatePositionOnlyNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Non-existent ID → UpdateIssuePosition returns ErrIssueNotFound
+	current := &Issue{ID: 9999, Title: "Test", Status: StatusOpen, ProjectID: 1}
+	modified := *current
+	modified.Position = current.Position + 1
+
+	rr := httptest.NewRecorder()
+	if persistIssueUpdate(rr, &modified, current, "test@example.com") {
+		t.Error("expected false for not-found position update")
+	}
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestPersistIssueUpdatePositionOnlyDBError(t *testing.T) {
+	setupTestDB()
+	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(issue)
+
+	oldDB := DB
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+	DB = closedDB
+	defer func() { DB = oldDB }()
+
+	modified := *issue
+	modified.Position = issue.Position + 1
+
+	rr := httptest.NewRecorder()
+	if persistIssueUpdate(rr, &modified, issue, "test@example.com") {
+		t.Error(expectedFalseDBError)
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestPersistIssueUpdateContentNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Non-existent ID → UpdateIssue returns ErrIssueNotFound
+	current := &Issue{ID: 9999, Title: "Test", Status: StatusOpen, ProjectID: 1}
+	modified := *current
+	modified.Title = "Changed"
+
+	rr := httptest.NewRecorder()
+	if persistIssueUpdate(rr, &modified, current, "test@example.com") {
+		t.Error("expected false for not-found content update")
+	}
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestPersistIssueUpdateContentDBError(t *testing.T) {
+	setupTestDB()
+	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(issue)
+
+	oldDB := DB
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+	DB = closedDB
+	defer func() { DB = oldDB }()
+
+	modified := *issue
+	modified.Title = "Changed"
+
+	rr := httptest.NewRecorder()
+	if persistIssueUpdate(rr, &modified, issue, "test@example.com") {
+		t.Error(expectedFalseDBError)
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
 func TestHandleUpdateSelfInvalidJSON(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()

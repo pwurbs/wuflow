@@ -183,7 +183,6 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 // HandleIssue handles GET, PUT, DELETE and sub-action (archive/unarchive) requests for a single issue.
 func HandleIssue(w http.ResponseWriter, r *http.Request) {
 	pathSuffix := strings.TrimPrefix(r.URL.Path, "/api/issues/")
@@ -330,6 +329,56 @@ func handleUnarchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
 	respondWithUpdatedIssue(w, id, "Issue unarchived", userEmail)
 }
 
+// issueContentHash serializes all meaningful issue fields into a comparable string.
+// Position and audit fields (updated_at, updated_by) are excluded by design.
+func issueContentHash(i *Issue) string {
+	var labelID int
+	if i.Label != nil {
+		labelID = i.Label.ID
+	}
+	var assigneeID int
+	if i.AssigneeID != nil {
+		assigneeID = *i.AssigneeID
+	}
+	var deadline string
+	if i.Deadline != nil {
+		deadline = i.Deadline.UTC().Format(time.RFC3339)
+	}
+	return fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d\x00%d\x00%s\x00%v\x00%d",
+		i.Title, i.Description, i.Status, i.Priority,
+		labelID, assigneeID, deadline, i.PlannedDates, i.ProjectID)
+}
+
+// persistIssueUpdate routes to UpdateIssuePosition (no timestamp recorded) when only position
+// changed, or UpdateIssue (full update with timestamp) when content changed.
+// Returns false if an error response was already sent.
+func persistIssueUpdate(w http.ResponseWriter, i *Issue, current *Issue, userEmail string) bool {
+	if issueContentHash(i) == issueContentHash(current) {
+		if i.Position != current.Position {
+			if err := UpdateIssuePosition(i.ID, i.Position); err != nil {
+				if err == ErrIssueNotFound {
+					http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+					return false
+				}
+				slog.Error("UpdateIssuePosition failed", "id", i.ID, "error", err, "user_email", userEmail)
+				http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+				return false
+			}
+		}
+		return true
+	}
+	if err := UpdateIssue(i); err != nil {
+		if err == ErrIssueNotFound {
+			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+			return false
+		}
+		slog.Error("UpdateIssue failed", "id", i.ID, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return false
+	}
+	return true
+}
+
 // handlePutIssue updates an existing non-archived issue, checking for conflicts via the If-Match header.
 func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	current, err := GetIssueByID(id)
@@ -384,17 +433,9 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	}
 
 	i.ID = id
-	if err := UpdateIssue(&i); err != nil {
-		if err == ErrIssueNotFound {
-			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
-			return
-		}
-		slog.Error("UpdateIssue failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+	if !persistIssueUpdate(w, &i, current, userEmail) {
 		return
 	}
-	// Return new ETag after update
-	// Return new ETag after update
 	respondWithUpdatedIssue(w, id, "Issue updated", userEmail)
 }
 
@@ -1510,7 +1551,6 @@ func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {
 	if !decodeAndValidate(w, r, &p, validateProject) {
 		return
 	}
-
 
 	p.ID = id
 	if err := UpdateProject(&p); err != nil {
