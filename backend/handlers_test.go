@@ -768,6 +768,28 @@ func TestHandleProjectPost(t *testing.T) {
 	}
 }
 
+func TestHandleProjectPostAdmin(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	label := &Label{Name: "AdminLabel", Color: "#123456"}
+	body, _ := json.Marshal(label)
+
+	req, err := http.NewRequest("POST", apiLabels, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(HandleProject)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusCreated {
+		t.Errorf(wrongStatusCode, status, http.StatusCreated)
+	}
+}
+
 func TestHandleProjectPostInvalidJSON(t *testing.T) {
 	req, err := http.NewRequest("POST", apiLabels, bytes.NewBufferString(invalidJSON))
 	if err != nil {
@@ -1880,7 +1902,7 @@ func TestHandlersForbidden(t *testing.T) {
 		{"ArchiveIssue/user", "POST", apiIssues1Archive, RoleUser, HandleIssue},
 		{"UnarchiveIssue/user", "POST", apiIssues1Unarchive, RoleUser, HandleIssue},
 
-		// Sysadmin-only actions: RoleUser must be denied
+		// Admin-only actions: RoleUser must be denied
 		{"CreateLabel/user", "POST", apiLabels, RoleUser, HandleProject},
 		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, HandleProject},
 		{"CreateUser/user", "POST", apiUsers, RoleUser, HandleUsers},

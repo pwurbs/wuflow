@@ -969,7 +969,7 @@
           "Labels"
         ],
         "responses": {
-          "200": {
+          "204": {
             "description": "Label deleted"
           },
           "401": {

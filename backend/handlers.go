@@ -30,6 +30,7 @@ const (
 	errMsgFailedLogin         = "Failed login attempt"
 	errMsgInvalidCreds        = "Invalid email or password"
 	errMsgTooManyAttempts     = "Too many login attempts, please try again later"
+	errMsgLabelNotFound       = "Label not found"
 	errMsgNotFound            = "Resource not found"
 	errMsgProjectNotFound     = "Project not found"
 	errMsgInvalidProject      = "Invalid project ID"
@@ -681,7 +682,7 @@ func handleDeleteProjectLabel(w http.ResponseWriter, r *http.Request, projectID,
 	userEmail := GetEmailFromContext(r.Context())
 	if err := DeleteLabel(labelID, projectID); err != nil {
 		if err == ErrLabelNotFound {
-			http.Error(w, "Label not found", http.StatusNotFound)
+			http.Error(w, errMsgLabelNotFound, http.StatusNotFound)
 			return
 		}
 		slog.Error("DeleteLabel failed", "label_id", labelID, "project_id", projectID, "error", err)
