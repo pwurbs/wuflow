@@ -1,5 +1,4 @@
 import { escapeHtml } from '../utils.js';
-import { stripMarkdown } from '../markdown.js';
 import { setDraggedCard, setDraggedCardOrigin } from '../drag.js';
 
 export function createCardElement(issue, isBoard = false, callbacks = {}) {
@@ -22,19 +21,7 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
   if (isBoard) {
     card.innerHTML = getBoardCardHTML(issue, openTasks);
   } else {
-    const showMoveControls = callbacks.onMoveTop && callbacks.onMoveBottom;
-    card.innerHTML = getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls);
-
-    if (showMoveControls) {
-      card.querySelector('.move-up').addEventListener('click', (e) => {
-        e.stopPropagation();
-        callbacks.onMoveTop();
-      });
-      card.querySelector('.move-down').addEventListener('click', (e) => {
-        e.stopPropagation();
-        callbacks.onMoveBottom();
-      });
-    }
+    card.innerHTML = getBacklogCardHTML(issue, openTasks, totalTasks);
   }
 
   // Event Listeners
@@ -117,42 +104,41 @@ function getBoardCardHTML(issue, openTasks) {
         `;
 }
 
-function getBacklogCardHTML(issue, openTasks, totalTasks, showMoveControls) {
+function getBacklogCardHTML(issue, openTasks, totalTasks) {
   const labelColor = issue.label && /^#[0-9A-Fa-f]{6}$/.test(issue.label.color) ? issue.label.color : '#808080';
+
+  const taskTooltipHTML = openTasks > 0 ? `
+    <div class="board-task-tooltip">
+        <ul>
+            ${issue.tasks.filter(t => !t.done).map(t => `
+                <li>
+                    <span class="tooltip-icon">☐</span>
+                    <span class="tooltip-title">${escapeHtml(t.title)}</span>
+                    ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                </li>
+            `).join('')}
+        </ul>
+    </div>` : '';
+
   return `
-            ${showMoveControls ? `
-            <div class="card-move-controls">
-                <div class="move-up" title="Move to Top">↑↑</div>
-                <div class="move-down" title="Move to Bottom">↓↓</div>
-            </div>
-            ` : ''}
-            <div class="card-main-content">
-                <div class="card-header-row" style="display: flex; justify-content: space-between; align-items: flex-start;">
-                  <div class="card-title" style="display: flex; align-items: center;">
-                    <span class="card-id" style="margin-right: 8px;">Issue #${issue.id}</span>
-                    ${getAssigneeBadgeHTML(issue, 'margin-right: 8px;')}
-                    <span>${escapeHtml(issue.title)}</span>
-                  </div>
-                </div>
-                <div class="card-description">${escapeHtml(stripMarkdown(issue.description || ''))}</div>
-            </div>
-            ${'' /* Task list hidden for backlog view to match Open issues layout */}
-            ${(() => {
-      const hasDeadline = !!issue.deadline;
-      const showProgress = totalTasks > 0;
-
-      if (!hasDeadline && !showProgress) return '';
-
-      return `<div class="card-meta">
-                    ${hasDeadline ? `<span>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language)}</span>` : '<span></span>'}
-                    ${showProgress ? `<div class="board-task-info">
-                        <span class="board-task-icon">☐</span>
-                        <span>${openTasks}</span>
-                    </div>` : ''}
-                </div>`;
-    })()}
-      ${issue.label ? `<div class="backlog-card-label" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</div>` : ''}
-        `;
+    <div class="backlog-card-left">
+        <span class="card-id">Issue #${issue.id}</span>
+        ${issue.assignee ? getAssigneeBadgeHTML(issue) : '<span class="backlog-badge-placeholder"></span>'}
+        <span class="backlog-card-title">${escapeHtml(issue.title)}</span>
+    </div>
+    <div class="backlog-card-spacer"></div>
+    <div class="backlog-card-right">
+        ${issue.label ? `<span class="label-chip" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
+        ${issue.deadline ? `<span class="backlog-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
+        ${totalTasks > 0 ? `
+        <div class="board-task-info">
+            <span class="board-task-icon">☐</span>
+            <span>${openTasks}</span>
+            ${taskTooltipHTML}
+        </div>
+        ` : ''}
+    </div>
+  `;
 }
 
 function getAssigneeBadgeHTML(issue, extraStyle = '') {

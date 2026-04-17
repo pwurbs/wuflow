@@ -74,15 +74,3 @@ export function renderMarkdown(md, returnObject = false) {
 
   return returnObject ? result : html;
 }
-
-/**
- * Strip Markdown syntax to produce a plain-text snippet (used for card previews).
- * @param {string} md
- * @returns {string}
- */
-export function stripMarkdown(md) {
-  if (!md) return '';
-  const tmp = document.createElement('div');
-  tmp.innerHTML = renderMarkdown(md);
-  return (tmp.textContent || '').replaceAll(/\s+/g, ' ').trim();
-}

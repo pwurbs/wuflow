@@ -19,7 +19,7 @@ vi.mock('../vendor/dompurify.esm.js', () => ({
   },
 }));
 
-const { renderMarkdown, stripMarkdown, clearMarkdownCache } = await import('../markdown.js');
+const { renderMarkdown, clearMarkdownCache } = await import('../markdown.js');
 
 // Helpers: configure addHook to capture the callback, then make sanitize
 // invoke it with controlled data — mirrors how real DOMPurify calls hooks.
@@ -175,22 +175,3 @@ describe('renderMarkdown', () => {
   });
 });
 
-describe('stripMarkdown', () => {
-  it('returns empty string for null', () => {
-    expect(stripMarkdown(null)).toBe('');
-  });
-
-  it('returns empty string for empty string', () => {
-    expect(stripMarkdown('')).toBe('');
-  });
-
-  it('returns plain text from rendered Markdown', () => {
-    // marked.parse mock returns <p>hello</p>; textContent → 'hello'
-    expect(stripMarkdown('hello')).toBe('hello');
-  });
-
-  it('collapses multiple whitespace into a single space', () => {
-    // marked.parse wraps in <p>...</p>; multiple spaces in textContent get collapsed
-    expect(stripMarkdown('foo   bar')).toBe('foo bar');
-  });
-});

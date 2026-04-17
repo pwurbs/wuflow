@@ -56,9 +56,9 @@
 .backlog-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px 20px 8px;
-  min-height: 80px;
+  gap: 4px;
+  padding: 16px 12px;
+  min-height: 48px;
   border-radius: 8px;
   background-color: transparent;
   border: 1px dashed transparent;
@@ -70,53 +70,85 @@
   border-color: var(--accent-blue);
 }
 
-
 .backlog-list .card {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 4px 12px;
-}
-
-.backlog-list .card-title {
+  align-items: center;
+  justify-content: flex-start;
+  padding: 6px 12px;
   margin-bottom: 0;
-  font-weight: 500;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  border-radius: 4px;
+  border: 1px solid var(--card-border);
 }
 
-.backlog-list .card-description {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-  color: var(--muted-text);
-  margin-top: 4px;
-  line-height: 1.4;
-  min-height: calc(1.4 * 13px);
-}
-
-.backlog-list .task-progress {
+/* Single-row left group: id + badge + title */
+.backlog-card-left {
   display: flex;
-}
-
-.backlog-list .card-main-content {
-  flex: 1;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  margin-right: 16px;
+  overflow: hidden;
 }
 
-.backlog-list .card-meta {
-  margin-top: 0;
-  gap: 16px;
+.backlog-card-left .card-id {
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.backlog-card-left .user-badge,
+.backlog-badge-placeholder {
+  width: 22px;
+  flex-shrink: 0;
+}
+
+.backlog-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--header-text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Flexible spacer between left and right groups */
+.backlog-card-spacer {
+  flex: 1;
+  min-width: 12px;
+}
+
+/* Single-row right group: label + deadline + subtasks */
+.backlog-card-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.backlog-card-deadline {
+  font-size: 12px;
+  color: var(--muted-text);
+}
+
+/* Subtask tooltip opens above the row */
+.backlog-list .board-task-tooltip {
+  top: auto;
+  bottom: 28px;
+  right: 0;
+}
+
+/* Subtask icon/count: match compact row size */
+.backlog-list .board-task-icon {
+  font-size: 14px;
+}
+
+.backlog-list .board-task-info {
+  font-size: 12px;
+  align-items: center;
+}
+
+.backlog-list .board-task-info > span:not(.board-task-icon) {
   position: relative;
-  top: -2px;
+  top: 1px;
 }
 
 /* Archive Month Headers */

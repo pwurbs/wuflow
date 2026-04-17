@@ -1,6 +1,9 @@
 
 ## 1.2.0
 
+- Redesigned Backlog and Archive cards: compact single-line layout with aligned columns
+- Removed move-to-top/bottom arrows from Backlog cards (to be later replaced by a context menu)
+- Improved deployment guidelines for reverse proxy configuration to clarify security implications
 - Removed database migration code from v1.1.0 (see migration note)
 - Labels can now be defined per project (see migration note)
 - Fixed buggy filter for "My Issues"
