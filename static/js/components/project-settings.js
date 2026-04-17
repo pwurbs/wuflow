@@ -89,7 +89,7 @@ export async function renderProjectSettingsView() {
           if (!userCan(state.currentUser, ACTION_DELETE_LABEL)) return;
           const confirmed = await showConfirm(
             'Delete Label',
-            `Are you sure you want to delete the label "${label.name}"? This action cannot be undone.`
+            `Are you sure you want to delete the label "${label.name}"? It will be removed from issues, if assigned. This action cannot be undone.`
           );
           if (confirmed) {
             try {
