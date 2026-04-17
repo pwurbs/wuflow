@@ -1,6 +1,7 @@
 
 ## 1.2.0
 
+- Removed database migration code from v1.1.0 (see migration note)
 - Labels can now be defined per project (see migration note)
 - Fixed buggy filter for "My Issues"
 - Further improved layzy loading by adding another API endpoint for only OPEN issues and adapted backlog rendering

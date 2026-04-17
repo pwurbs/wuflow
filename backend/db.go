@@ -212,36 +212,6 @@ func createTables() error {
 		return err
 	}
 
-	// Migration Code, can be removed in a later version (TODO)
-	// Add project_id column to issues if it doesn't exist (migration for existing DBs)
-	// SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we check column existence first.
-	// NOTE: We cannot add a REFERENCES column with a non-NULL default value in SQLite
-	// when foreign keys are enabled. For existing databases, we add the column without
-	// the DB-enforced foreign key constraint to avoid the migration error.
-	var colCount int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('issues') WHERE name='project_id'`).Scan(&colCount); err != nil {
-		slog.Error("Failed to check for project_id column", "error", err)
-		return err
-	}
-	if colCount == 0 {
-		if _, err := DB.Exec(`ALTER TABLE issues ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
-			slog.Error("Failed to add project_id column to issues", "error", err)
-			return err
-		}
-		slog.Info("Migrated issues table: added project_id column")
-	}
-
-	// Migration: promote the first user (id=1) from admin to sysadmin. Remove in later version (TODO)
-	// The sysadmin role was introduced to separate system administration (users, projects,
-	// labels) from issue-level admin operations. Existing installations have user id=1 as
-	// the initial admin; we upgrade them automatically so they retain full access.
-	if result, err := DB.Exec(`UPDATE users SET role = 'sysadmin' WHERE id = 1 AND role = 'admin'`); err != nil {
-		slog.Error("Failed to migrate initial admin to sysadmin", "error", err)
-		return err
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		slog.Info("Migrated initial admin user to sysadmin role", "user_id", 1)
-	}
-
 	return nil
 }
 
