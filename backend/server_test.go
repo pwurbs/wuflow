@@ -319,10 +319,10 @@ func TestServerRoutes(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "GET /api/labels",
+			name:           "GET /api/projects/1/labels",
 			method:         "GET",
-			path:           "/api/labels",
-			handler:        HandleLabels,
+			path:           "/api/projects/1/labels",
+			handler:        HandleProject,
 			expectedStatus: http.StatusOK,
 		},
 	}

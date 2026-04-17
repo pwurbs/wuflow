@@ -21,9 +21,9 @@ vi.mock('../utils.js', () => ({
   debounce: vi.fn((fn) => fn),
 }));
 
-vi.mock('../components/setup.js', () => ({
-  setupSetupView: vi.fn(),
-  renderSetupView: vi.fn(),
+vi.mock('../components/system-settings.js', () => ({
+  setupSystemSettingsView: vi.fn(),
+  renderSystemSettingsView: vi.fn(),
   validatePasswordPolicy: vi.fn(() => null),
 }));
 
@@ -764,7 +764,7 @@ describe('User Menu', () => {
   });
 
   it('shows inline error when password validation fails', async () => {
-    const { validatePasswordPolicy } = await import('../components/setup.js');
+    const { validatePasswordPolicy } = await import('../components/system-settings.js');
     validatePasswordPolicy.mockReturnValueOnce('Password is too weak');
 
     setupUserMenu(mockUser);
@@ -779,7 +779,7 @@ describe('User Menu', () => {
   });
 
   it('falls back to showNotification when error display element is absent', async () => {
-    const { validatePasswordPolicy } = await import('../components/setup.js');
+    const { validatePasswordPolicy } = await import('../components/system-settings.js');
     const { showNotification } = await import('../utils.js');
     validatePasswordPolicy.mockReturnValueOnce('Some policy error');
     showNotification.mockClear();

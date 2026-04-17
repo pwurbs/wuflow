@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setupSetupView, renderSetupView, validatePasswordPolicy, isBlacklistedPassword, isLight, getUnusedColor } from '../components/setup.js';
+import { setupSystemSettingsView, renderSystemSettingsView, validatePasswordPolicy, isBlacklistedPassword, isLight } from '../components/system-settings.js';
+import { getUnusedColor } from '../utils.js';
 import * as api from '../api.js';
 import * as utils from '../utils.js';
 import * as permissions from '../permissions.js';
@@ -12,9 +13,6 @@ function generateRandomPassword() {
 
 // Mock dependencies
 vi.mock('../api.js', () => ({
-  fetchLabels: vi.fn(),
-  createLabel: vi.fn(),
-  deleteLabel: vi.fn(),
   fetchUsers: vi.fn(),
   createUser: vi.fn(),
   updateUser: vi.fn(),
@@ -30,7 +28,17 @@ vi.mock('../utils.js', () => ({
   getUserInitials: vi.fn().mockReturnValue('AD'),
   escapeHtml: vi.fn((str) => str),
   initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
-  countCodepoints: vi.fn(s => [...s].length)
+  countCodepoints: vi.fn(s => [...s].length),
+  getUnusedColor: (usedColors) => {
+    const palette = [
+      '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
+      '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
+      '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
+      '#FF7043', '#8D6E63', '#78909C'
+    ];
+    const unused = palette.filter(c => !usedColors.includes(c));
+    return unused.length > 0 ? unused[0] : palette[0];
+  }
 }));
 
 vi.mock('../permissions.js', async (importOriginal) => {
@@ -47,12 +55,12 @@ vi.mock('../state.js', () => ({
   }
 }));
 
-describe('setup.js component', () => {
+describe('system-settings.js component', () => {
   beforeEach(() => {
     // Setup DOM
     document.body.innerHTML = `
-      <div id="setup-view">
-        <div class="setup-section">
+      <div id="system-settings-view">
+        <div class="settings-section">
           <input type="text" id="new-label-input">
           <button id="add-label-btn"></button>
           <div id="labels-list"></div>
@@ -94,106 +102,23 @@ describe('setup.js component', () => {
 
     vi.clearAllMocks();
     // Default mock returns
-    api.fetchLabels.mockResolvedValue([]);
     api.fetchUsers.mockResolvedValue([]);
     permissions.userCan.mockReturnValue(true);
     // Suppress console.error in tests
     vi.spyOn(console, 'error').mockImplementation(() => { });
   });
 
-  describe('Label Management', () => {
-    it('should initialize and attach listeners', () => {
-      const refreshCallback = vi.fn();
-      setupSetupView(refreshCallback);
-
-      const addBtn = document.getElementById('add-label-btn');
-      expect(addBtn).toBeTruthy();
-    });
-
-    it('should handle adding a new label', async () => {
-      const refreshCallback = vi.fn();
-      setupSetupView(refreshCallback);
-
-      const input = document.getElementById('new-label-input');
-      const addBtn = document.getElementById('add-label-btn');
-
-      input.value = 'New Label';
-      api.fetchLabels.mockResolvedValue([]);
-      api.createLabel.mockResolvedValue({ id: 1, name: 'New Label', color: '#EF5350' });
-
-      addBtn.click();
-
-      await new Promise(process.nextTick);
-
-      expect(api.createLabel).toHaveBeenCalledWith(expect.objectContaining({
-        name: 'New Label',
-        color: expect.stringMatching(/^#/)
-      }));
-      expect(input.value).toBe('');
-      expect(utils.showNotification).toHaveBeenCalledWith('Label created', 'success');
-    });
-
-    it('should handle label deletion', async () => {
-      const refreshCallback = vi.fn();
-      api.fetchLabels.mockResolvedValue([{ id: 1, name: 'To Delete', color: '#FF0000' }]);
-      utils.showConfirm.mockResolvedValue(true);
-
-      await renderSetupView(refreshCallback);
-
-      const deleteBtn = document.querySelector('.delete-label-btn');
-      deleteBtn.click();
-
-      await new Promise(process.nextTick);
-
-      expect(utils.showConfirm).toHaveBeenCalled();
-      expect(api.deleteLabel).toHaveBeenCalledWith(1);
-      expect(utils.showNotification).toHaveBeenCalledWith('Label deleted', 'success');
-    });
-
-    it('should handle Enter key for adding a label', async () => {
-      setupSetupView();
-      const input = document.getElementById('new-label-input');
-      input.value = 'Enter Label';
-      api.createLabel.mockResolvedValue({ id: 2 });
-
-      const event = new KeyboardEvent('keypress', { key: 'Enter' });
-      input.dispatchEvent(event);
-
-      await new Promise(process.nextTick);
-      expect(api.createLabel).toHaveBeenCalled();
-    });
-
-    it('should show error if label creation fails', async () => {
-      setupSetupView();
-      const input = document.getElementById('new-label-input');
-      input.value = 'Fail Label';
-      api.createLabel.mockRejectedValue(new Error('Failed'));
-
-      document.getElementById('add-label-btn').click();
-      await new Promise(process.nextTick);
-
-      expect(utils.showNotification).toHaveBeenCalledWith('Failed to create label', 'error');
-    });
-
-    it('should show error if label name is too long', async () => {
-      setupSetupView();
-      const input = document.getElementById('new-label-input');
-      input.value = 'a'.repeat(16); // Max 15
-      document.getElementById('add-label-btn').click();
-
-      expect(api.createLabel).not.toHaveBeenCalled();
-      expect(utils.showNotification).toHaveBeenCalledWith('Label name must not exceed 15 characters.', 'error');
-    });
-  });
-
   describe('User Management Rendering', () => {
+    beforeEach(() => {
+      setupSystemSettingsView();
+    });
     it('should hide user management section for non-sysadmins', async () => {
       // simulate userCan returning false for ACTION_LIST_USERS (non-sysadmin context)
       state.currentUser = { role: 'user' };
       permissions.userCan.mockImplementation((user, action) => {
         return !(action === permissions.ACTION_LIST_USERS && user.role !== 'sysadmin');
       });
-      await renderSetupView();
+      await renderSystemSettingsView();
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(true);
     });
 
@@ -207,7 +132,7 @@ describe('setup.js component', () => {
       ];
       api.fetchUsers.mockResolvedValue(users);
 
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(false);
       const rows = document.querySelectorAll('.user-row');
@@ -231,7 +156,7 @@ describe('setup.js component', () => {
       // The original mock is escapeHtml: vi.fn((str) => str)
       // We want to verify it's called with the initials.
 
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       expect(utils.getUserInitials).toHaveBeenCalled();
       expect(utils.escapeHtml).toHaveBeenCalledWith('<S');
@@ -243,7 +168,7 @@ describe('setup.js component', () => {
 
   describe('User Modal', () => {
     it('should open modal for new user', () => {
-      setupSetupView();
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
 
       expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
@@ -256,7 +181,7 @@ describe('setup.js component', () => {
       const user = { id: 1, email: 'edit@test.com', first_name: 'E', last_name: 'D', role: 'user', active: true };
       api.fetchUsers.mockResolvedValue([user]);
 
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       const editBtn = document.querySelector('.user-edit-btn');
       editBtn.click();
@@ -268,7 +193,7 @@ describe('setup.js component', () => {
     });
 
     it('should handle user form submission (create)', async () => {
-      setupSetupView();
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
 
       document.getElementById('user-email').value = 'new@test.com';
@@ -297,8 +222,8 @@ describe('setup.js component', () => {
       state.currentUser = { role: 'admin' };
       const user = { id: 1, email: 'edit@test.com', role: 'user', active: true };
       api.fetchUsers.mockResolvedValue([user]);
-      setupSetupView();
-      await renderSetupView();
+      setupSystemSettingsView();
+      await renderSystemSettingsView();
       document.querySelector('.user-edit-btn').click();
 
       document.getElementById('user-first-name').value = 'Updated';
@@ -315,7 +240,7 @@ describe('setup.js component', () => {
     });
 
     it('should show error for missing password on new user', async () => {
-      setupSetupView();
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       document.getElementById('user-email').value = 'valid@email.com';
       document.getElementById('user-first-name').value = 'Test';
@@ -330,7 +255,7 @@ describe('setup.js component', () => {
     });
 
     it('should show error for invalid email format', async () => {
-      setupSetupView();
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       document.getElementById('user-email').value = 'invalid-email';
 
@@ -342,7 +267,7 @@ describe('setup.js component', () => {
     });
 
     it('should show error for long names', async () => {
-      setupSetupView();
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       document.getElementById('user-email').value = 'valid@test.com';
       document.getElementById('user-first-name').value = 'a'.repeat(51); // Max 50
@@ -355,7 +280,7 @@ describe('setup.js component', () => {
     });
 
     it('should NOT close on overlay click', () => {
-      setupSetupView();
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       const overlay = document.getElementById('user-modal-overlay');
       overlay.click();
@@ -365,7 +290,7 @@ describe('setup.js component', () => {
 
   describe('Dropdowns and Support', () => {
     it('should toggle dropdown and close others', () => {
-      setupSetupView();
+      setupSystemSettingsView();
       const trigger = document.getElementById('user-role-trigger');
       const options = document.getElementById('user-role-options');
       const otherOptions = document.getElementById('user-active-options');
@@ -380,7 +305,7 @@ describe('setup.js component', () => {
     });
 
     it('should select option from dropdown', () => {
-      setupSetupView();
+      setupSystemSettingsView();
       document.getElementById('user-role-trigger').click();
       const adminOption = document.querySelector('.custom-option[data-value="admin"]');
       adminOption.click();
@@ -444,33 +369,12 @@ describe('Password Policy', () => {
 });
 
 describe('Additional Coverage', () => {
-  describe('Label Management Error Paths', () => {
-    it('should handle label fetch failure', async () => {
-      api.fetchLabels.mockRejectedValue(new Error('Fetch failed'));
-      await renderSetupView();
-      expect(document.getElementById('labels-list').innerHTML).toContain('Failed to load labels');
-    });
-
-    it('should handle label delete failure', async () => {
-      const refreshCallback = vi.fn();
-      api.fetchLabels.mockResolvedValue([{ id: 1, name: 'To Delete', color: '#FF0000' }]);
-      utils.showConfirm.mockResolvedValue(true);
-      api.deleteLabel.mockRejectedValue(new Error('Delete failed'));
-
-      await renderSetupView(refreshCallback);
-      const deleteBtn = document.querySelector('.delete-label-btn');
-      deleteBtn.click();
-
-      await new Promise(process.nextTick);
-      expect(utils.showNotification).toHaveBeenCalledWith('Failed to delete label', 'error');
-    });
-  });
   describe('User Management Validation & Errors', () => {
     beforeEach(async () => {
       // Re-initialize DOM specifically for these tests to guarantee elements exist
       document.body.innerHTML = `
-        <div id="setup-view">
-          <div class="setup-section">
+        <div id="system-settings-view">
+          <div class="settings-section">
             <input type="text" id="new-label-input">
             <button id="add-label-btn"></button>
             <div id="labels-list"></div>
@@ -509,14 +413,14 @@ describe('Additional Coverage', () => {
         </div>
       `;
       state.currentUser = { role: 'admin' };
-      setupSetupView();
-      await renderSetupView();
+      setupSystemSettingsView();
+      await renderSystemSettingsView();
       document.getElementById('add-user-btn').click();
     });
 
     it('should handle user fetch failure', async () => {
       api.fetchUsers.mockRejectedValue(new Error('Fetch failed'));
-      await renderSetupView();
+      await renderSystemSettingsView();
       expect(document.getElementById('users-list').innerHTML).toContain('Failed to load users');
     });
 
@@ -601,8 +505,8 @@ describe('Additional Coverage', () => {
 });
 
 const PROJECT_DOM = `
-  <div id="setup-view">
-    <div class="setup-section">
+  <div id="system-settings-view">
+    <div class="settings-section">
       <input type="text" id="new-label-input">
       <button id="add-label-btn"></button>
       <div id="labels-list"></div>
@@ -670,13 +574,12 @@ describe('Project Management', () => {
     document.body.innerHTML = PROJECT_DOM;
     state.currentUser = { role: 'admin' };
     vi.clearAllMocks();
-    api.fetchLabels.mockResolvedValue([]);
     api.fetchUsers.mockResolvedValue([]);
     api.fetchProjects.mockResolvedValue([]);
     permissions.userCan.mockReturnValue(true);
     vi.spyOn(console, 'error').mockImplementation(() => { });
 
-    setupSetupView();
+    setupSystemSettingsView();
   });
 
   describe('setupProjectModal', () => {
@@ -699,7 +602,7 @@ describe('Project Management', () => {
     it('should populate form when opening for an existing project', async () => {
       const project = { id: 2, name: 'My Project', description: 'desc' };
       api.fetchProjects.mockResolvedValue([project]);
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       const editBtn = document.querySelector('.project-edit-btn');
       editBtn.click();
@@ -713,7 +616,7 @@ describe('Project Management', () => {
     it('should hide delete button for the default project (id 1)', async () => {
       const project = { id: 1, name: 'default', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       document.querySelector('.project-edit-btn').click();
 
@@ -723,7 +626,7 @@ describe('Project Management', () => {
     it('should show delete button for non-default project with permission', async () => {
       const project = { id: 2, name: 'Other', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       document.querySelector('.project-edit-btn').click();
 
@@ -778,7 +681,7 @@ describe('Project Management', () => {
       const project = { id: 2, name: 'Existing', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
       api.updateProject.mockResolvedValue({});
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       document.querySelector('.project-edit-btn').click();
       document.getElementById('project-name').value = 'Updated';
@@ -807,7 +710,7 @@ describe('Project Management', () => {
       const project = { id: 2, name: 'To Delete', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
       api.deleteProject.mockResolvedValue({});
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       document.querySelector('.project-edit-btn').click();
 
@@ -828,7 +731,7 @@ describe('Project Management', () => {
     it('should hide confirm modal on cancel without deleting', async () => {
       const project = { id: 3, name: 'Keep Me', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       document.querySelector('.project-edit-btn').click();
       document.getElementById('project-modal-delete').click();
@@ -843,7 +746,7 @@ describe('Project Management', () => {
       const project = { id: 4, name: 'Fail Delete', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
       api.deleteProject.mockRejectedValue(new Error('Delete failed'));
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       document.querySelector('.project-edit-btn').click();
       document.getElementById('project-modal-delete').click();
@@ -860,7 +763,7 @@ describe('Project Management', () => {
       permissions.userCan.mockImplementation((user, action) => {
         return action !== permissions.ACTION_LIST_PROJECTS;
       });
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       expect(document.getElementById('project-management-section').style.display).toBe('none');
     });
@@ -871,7 +774,7 @@ describe('Project Management', () => {
         { id: 2, name: 'Alpha', description: 'Alpha project' }
       ];
       api.fetchProjects.mockResolvedValue(projects);
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       const rows = document.querySelectorAll('#projects-list .user-row');
       expect(rows.length).toBe(2);
@@ -881,7 +784,7 @@ describe('Project Management', () => {
 
     it('should show "default" badge for project with id 1', async () => {
       api.fetchProjects.mockResolvedValue([{ id: 1, name: 'default', description: '' }]);
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       const row = document.querySelector('#projects-list .user-row');
       expect(row.textContent).toContain('default');
@@ -890,7 +793,7 @@ describe('Project Management', () => {
 
     it('should show error message when fetchProjects fails', async () => {
       api.fetchProjects.mockRejectedValue(new Error('Fetch failed'));
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       expect(document.getElementById('projects-list').innerHTML).toContain('Failed to load projects');
     });
@@ -900,7 +803,7 @@ describe('Project Management', () => {
         return action !== permissions.ACTION_CREATE_PROJECT;
       });
       api.fetchProjects.mockResolvedValue([]);
-      await renderSetupView();
+      await renderSystemSettingsView();
 
       expect(document.getElementById('add-project-btn').style.display).toBe('none');
     });

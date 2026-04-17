@@ -135,8 +135,6 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	http.Handle("/api/issues/", authAPI(http.HandlerFunc(HandleIssue)))
 	http.Handle("/api/tasks", authAPI(http.HandlerFunc(HandleCreateTask)))
 	http.Handle("/api/tasks/", authAPI(http.HandlerFunc(HandleTask)))
-	http.Handle("/api/labels", authAPI(http.HandlerFunc(HandleLabels)))
-	http.Handle("/api/labels/", authAPI(http.HandlerFunc(HandleLabel)))
 	http.Handle("/api/users", authAPI(http.HandlerFunc(HandleUsers)))
 	http.Handle("/api/users/", authAPI(http.HandlerFunc(HandleUser)))
 	http.Handle("/api/projects", authAPI(http.HandlerFunc(HandleProjects)))

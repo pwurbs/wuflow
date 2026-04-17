@@ -111,10 +111,16 @@
             "type": "integer"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 15
           },
           "color": {
-            "type": "string"
+            "type": "string",
+            "description": "Hex color code, e.g. #ff0000"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "ID of the project this label belongs to"
           }
         }
       },
@@ -852,15 +858,26 @@
         }
       }
     },
-    "/labels": {
+    "/projects/{id}/labels": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "get": {
-        "summary": "Get all labels",
+        "summary": "List labels for a project",
         "tags": [
           "Labels"
         ],
         "responses": {
           "200": {
-            "description": "List of labels",
+            "description": "List of labels for the project",
             "content": {
               "application/json": {
                 "schema": {
@@ -871,13 +888,19 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project not found"
           }
         }
       },
       "post": {
-        "summary": "Create label",
-        "description": "Requires sysadmin role.",
-        "x-required-role": "sysadmin",
+        "summary": "Create label for a project",
+        "description": "Requires admin or sysadmin role.",
+        "x-required-role": "admin",
         "tags": [
           "Labels"
         ],
@@ -901,31 +924,62 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Project not found"
           }
         }
       }
     },
-    "/labels/{id}": {
+    "/projects/{id}/labels/{labelId}": {
       "parameters": [
         {
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "labelId",
+          "in": "path",
+          "required": true,
+          "description": "Label ID",
           "schema": {
             "type": "integer"
           }
         }
       ],
       "delete": {
-        "summary": "Delete label",
-        "description": "Requires sysadmin role.",
-        "x-required-role": "sysadmin",
+        "summary": "Delete label from a project",
+        "description": "Requires admin or sysadmin role.",
+        "x-required-role": "admin",
         "tags": [
           "Labels"
         ],
         "responses": {
-          "204": {
+          "200": {
             "description": "Label deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Project or label not found"
           }
         }
       }

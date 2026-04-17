@@ -20,14 +20,16 @@ Three roles are available, ordered from least to most privileged:
 | Archive an issue | — | ✓ | ✓ |
 | Unarchive an issue | — | ✓ | ✓ |
 | Delete an issue | — | ✓ | ✓ |
-| Create / delete labels | — | — | ✓ |
+| Create / delete labels | — | ✓ | ✓ |
+| Access Project Settings view | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |
-| Access Setup view | — | — | ✓ |
+| Access System Settings view | — | — | ✓ |
 
 > **Notes**:
 - The `/api/auth/me` endpoint (Get Current User / Update Self) is available to **all authenticated users** regardless of role. Any user can view and update their own profile (e.g. change password).
-- Only **sysadmin** users see the Setup navigation item (user management, labels, projects).
+- **Admin and sysadmin** users see the Project Settings navigation item (label management, scoped per project).
+- Only **sysadmin** users see the System Settings navigation item (user management, projects).
 - The **sysadmin** role is a super-admin: it has all permissions of both Admin and User.
 
 ### Authorization Concept
@@ -51,7 +53,7 @@ WF_INITIAL_ADMIN_EMAIL=admin@example.com WF_INITIAL_ADMIN_PASSWORD=YourSecurePas
 | **Email** | `WF_INITIAL_ADMIN_EMAIL` | `--initial-admin-email` | `admin@local` | Optional argument to overwrite the default, must be a valid email address |
 | **Password** | `WF_INITIAL_ADMIN_PASSWORD` | `--initial-admin-password` | *(Required)* | Mandatory argument for the first startup, must meet password policy (see below) |
 
-The email address and password of the initially created sysadmin user can be changed after login in the Setup page.
+The email address and password of the initially created sysadmin user can be changed after login in the System Settings page.
 
 > **Migration note**: Existing installations that have user id=1 with role `admin` are automatically upgraded to `sysadmin` on first startup after the update.
 
@@ -199,7 +201,7 @@ The key should be a long, random string (32+ characters recommended).
 
 ## User Lifecycle
 
-- Sysadmins can create, edit, activate, and deactivate users via the Setup view.
+- Sysadmins can create, edit, activate, and deactivate users via the System Settings view.
 - **Inactive users** cannot log in. 
 - **Session Revocation**: The following actions trigger immediate revocation of **all** user sessions (Family Revocation):
   - Deactivating a user

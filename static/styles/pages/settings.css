@@ -1,6 +1,6 @@
-/* setup.css - Styles for the Setup page */
+/* settings.css - Styles for the System Settings and Project Settings pages */
 
-#setup-view {
+#system-settings-view {
     flex: 1;
     background-color: transparent;
     border: none;
@@ -11,7 +11,7 @@
     margin-bottom: 20px;
 }
 
-.setup-section {
+.settings-section {
     background-color: var(--column-bg);
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -21,13 +21,13 @@
     max-width: 800px;
 }
 
-.setup-section .column-header {
+.settings-section .column-header {
     border-bottom: 1px solid var(--card-border);
     margin-bottom: 16px;
     background-color: var(--column-bg);
 }
 
-.setup-content {
+.settings-content {
     padding: 0 24px;
 }
 
@@ -43,7 +43,7 @@
     position: relative;
 }
 
-.label-input-wrapper .setup-input {
+.label-input-wrapper .settings-input {
     width: 100%;
 }
 
@@ -55,7 +55,7 @@
     margin: 0;
 }
 
-.setup-input {
+.settings-input {
     flex: 1;
     padding: 8px;
     border: 1px solid var(--card-border);
@@ -67,7 +67,7 @@
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.setup-input:focus {
+.settings-input:focus {
     border-color: var(--primary-color);
     box-shadow: none;
     outline: none;
@@ -111,7 +111,7 @@
     /* Let text flow naturally */
     white-space: nowrap;
     overflow: visible;
-    /* Chips usually expand, unless constrained by parent? Setup view is wide. */
+    /* Chips usually expand, unless constrained by parent? Settings views are wide. */
     text-overflow: clip;
     /* If we want max-width we can add it, but user asked for flexible. */
 }

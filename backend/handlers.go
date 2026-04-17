@@ -88,20 +88,20 @@ func checkAssignee(w http.ResponseWriter, i *Issue, current *Issue, userEmail st
 	return true
 }
 
-// checkLabel verifies Label against the DB
+// checkLabel verifies Label exists and belongs to the issue's project.
 func checkLabel(w http.ResponseWriter, i *Issue, userEmail string) bool {
 	if i.Label == nil {
 		return true
 	}
 
-	exists, err := LabelExists(i.Label.ID)
+	exists, err := LabelExistsInProject(i.Label.ID, i.ProjectID)
 	if err != nil {
-		slog.Error("Validate: LabelExists failed", "error", err, "user_email", userEmail)
+		slog.Error("Validate: LabelExistsInProject failed", "error", err, "user_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return false
 	}
 	if !exists {
-		slog.Warn("Validate: Invalid label ID", "label_id", i.Label.ID, "user_email", userEmail)
+		slog.Warn("Validate: Label not found or wrong project", "label_id", i.Label.ID, "project_id", i.ProjectID, "user_email", userEmail)
 		http.Error(w, errMsgInvalidLabel, http.StatusBadRequest)
 		return false
 	}
@@ -623,89 +623,73 @@ func handleDeleteTask(w http.ResponseWriter, id int) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// HandleLabels handles GET and POST requests for labels.
-func HandleLabels(w http.ResponseWriter, r *http.Request) {
+// handleProjectLabels routes GET and POST for /api/projects/{id}/labels.
+func handleProjectLabels(w http.ResponseWriter, r *http.Request, projectID int) {
 	switch r.Method {
-	case "GET":
+	case http.MethodGet:
 		if !Can(GetRoleFromContext(r.Context()), ActionListLabels) {
 			denyForbidden(w, r, ActionListLabels)
 			return
 		}
-		handleListLabels(w, r)
-	case "POST":
+		labels, err := GetLabelsByProject(projectID)
+		if err != nil {
+			slog.Error("GetLabelsByProject failed", "project_id", projectID, "error", err)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set(headerContentType, contentTypeJSON)
+		if err := json.NewEncoder(w).Encode(labels); err != nil {
+			slog.Error("handleProjectLabels: failed to encode response", "error", err)
+		}
+	case http.MethodPost:
 		if !Can(GetRoleFromContext(r.Context()), ActionCreateLabel) {
 			denyForbidden(w, r, ActionCreateLabel)
 			return
 		}
-		handleCreateLabel(w, r)
-	default:
-		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
-	}
-}
-
-func handleListLabels(w http.ResponseWriter, r *http.Request) {
-	labels, err := GetAllLabels()
-	if err != nil {
-		slog.Error("GetAllLabels failed", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(headerContentType, contentTypeJSON)
-	if err := json.NewEncoder(w).Encode(labels); err != nil {
-		userEmail := GetEmailFromContext(r.Context()) // Fix unused parameter 'r'
-		slog.Error("HandleLabels: failed to encode response", "error", err, "user_email", userEmail)
-	}
-}
-
-func handleCreateLabel(w http.ResponseWriter, r *http.Request) {
-	var l Label
-	if !decodeAndValidate(w, r, &l, validateLabel) {
-		return
-	}
-
-	userEmail := GetEmailFromContext(r.Context())
-	if err := CreateLabel(&l); err != nil {
-		slog.Error("CreateLabel failed", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	slog.Info("Label created", "id", l.ID, "user_email", userEmail)
-	w.Header().Set(headerContentType, contentTypeJSON)
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(l); err != nil {
-		slog.Error("CreateLabel: failed to encode response", "error", err, "user_email", userEmail)
-	}
-}
-
-// HandleLabel handles DELETE requests for a single label.
-func HandleLabel(w http.ResponseWriter, r *http.Request) {
-	idStr := strings.TrimPrefix(r.URL.Path, "/api/labels/")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		slog.Warn("Invalid label ID", "error", err)
-		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
-		return
-	}
-
-	switch r.Method {
-	case "DELETE":
-		if !Can(GetRoleFromContext(r.Context()), ActionDeleteLabel) {
-			denyForbidden(w, r, ActionDeleteLabel)
+		var l Label
+		if !decodeAndValidate(w, r, &l, validateLabel) {
 			return
 		}
-		if err := DeleteLabel(id); err != nil {
-			if err == ErrLabelNotFound {
-				http.Error(w, "Label not found", http.StatusNotFound)
-				return
-			}
-			slog.Error("DeleteLabel failed", "id", id, "error", err)
+		l.ProjectID = projectID
+		userEmail := GetEmailFromContext(r.Context())
+		if err := CreateLabel(&l); err != nil {
+			slog.Error("CreateLabel failed", "project_id", projectID, "error", err, "user_email", userEmail)
 			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		slog.Info("Label created", "id", l.ID, "project_id", projectID, "user_email", userEmail)
+		w.Header().Set(headerContentType, contentTypeJSON)
+		w.WriteHeader(http.StatusCreated)
+		if err := json.NewEncoder(w).Encode(l); err != nil {
+			slog.Error("handleProjectLabels: failed to encode create response", "error", err)
+		}
 	default:
 		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
 	}
+}
+
+// handleDeleteProjectLabel handles DELETE /api/projects/{id}/labels/{labelId}.
+func handleDeleteProjectLabel(w http.ResponseWriter, r *http.Request, projectID, labelID int) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		return
+	}
+	if !Can(GetRoleFromContext(r.Context()), ActionDeleteLabel) {
+		denyForbidden(w, r, ActionDeleteLabel)
+		return
+	}
+	userEmail := GetEmailFromContext(r.Context())
+	if err := DeleteLabel(labelID, projectID); err != nil {
+		if err == ErrLabelNotFound {
+			http.Error(w, "Label not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("DeleteLabel failed", "label_id", labelID, "project_id", projectID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	slog.Info("Label deleted", "label_id", labelID, "project_id", projectID, "user_email", userEmail)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // -----------------------------------------------------------------------------
@@ -1404,6 +1388,9 @@ func handleCreateProject(w http.ResponseWriter, r *http.Request) {
 //   - GET    /api/projects/{id}/issues/active  → list active issues for project (excludes Open and Archive)
 //   - GET    /api/projects/{id}/issues/archived → list archived issues for project
 //   - GET    /api/projects/{id}/issues/open    → list open (backlog) issues for project
+//   - GET    /api/projects/{id}/labels         → list labels for project
+//   - POST   /api/projects/{id}/labels         → create label for project
+//   - DELETE /api/projects/{id}/labels/{lid}   → delete label from project
 func HandleProject(w http.ResponseWriter, r *http.Request) {
 	// Strip prefix and split the remainder to detect sub-resource paths.
 	rest := strings.TrimPrefix(r.URL.Path, "/api/projects/")
@@ -1416,15 +1403,25 @@ func HandleProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sub-resource routing: /api/projects/{id}/issues/{sub}
+	// Sub-resource routing: /api/projects/{id}/issues/{sub} and /api/projects/{id}/labels[/{labelId}]
 	if len(parts) == 2 {
-		switch parts[1] {
-		case "issues/active":
+		switch {
+		case parts[1] == "issues/active":
 			handleProjectActiveIssues(w, r, id)
-		case "issues/archived":
+		case parts[1] == "issues/archived":
 			handleProjectArchivedIssues(w, r, id)
-		case "issues/open":
+		case parts[1] == "issues/open":
 			handleProjectOpenIssues(w, r, id)
+		case parts[1] == "labels":
+			handleProjectLabels(w, r, id)
+		case strings.HasPrefix(parts[1], "labels/"):
+			labelIDStr := strings.TrimPrefix(parts[1], "labels/")
+			labelID, err := strconv.Atoi(labelIDStr)
+			if err != nil {
+				http.Error(w, errMsgInvalidID, http.StatusBadRequest)
+				return
+			}
+			handleDeleteProjectLabel(w, r, id, labelID)
 		default:
 			http.Error(w, errMsgNotFound, http.StatusNotFound)
 		}

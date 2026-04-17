@@ -1,6 +1,7 @@
 
 ## 1.2.0
 
+- Labels can now be defined per project (see migration note)
 - Fixed buggy filter for "My Issues"
 - Further improved layzy loading by adding another API endpoint for only OPEN issues and adapted backlog rendering
 - Implemented caching renderMarkdown output to eliminate DOMPurify cold-start delay

@@ -85,6 +85,24 @@
   flex: 1;
 }
 
+.menu-separator {
+  align-self: stretch;
+  height: 1px;
+  position: relative;
+  background: none;
+  flex-shrink: 0;
+}
+
+.menu-separator::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--card-border);
+}
+
 /* User Menu */
 .user-menu-container.toolbar-section {
   gap: 12px;

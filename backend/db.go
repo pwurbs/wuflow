@@ -152,11 +152,28 @@ func createTables() error {
 	CREATE TABLE IF NOT EXISTS labels (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
-		color TEXT NOT NULL
+		color TEXT NOT NULL,
+		project_id INTEGER NOT NULL DEFAULT 1
 	);`
 	if _, err := DB.Exec(createLabelsTable); err != nil {
 		slog.Error("Failed to create labels table", "error", err)
 		return err
+	}
+
+	// Migration Code, can be removed in a later version (TODO)
+	// Add project_id column to labels if it doesn't exist (migration for existing DBs)
+	// SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we check column existence first.
+	var labelColCount int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&labelColCount); err != nil {
+		slog.Error("Failed to check for project_id column in labels", "error", err)
+		return err
+	}
+	if labelColCount == 0 {
+		if _, err := DB.Exec(`ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
+			slog.Error("Failed to add project_id column to labels", "error", err)
+			return err
+		}
+		slog.Info("Migrated labels table: added project_id column (existing labels assigned to project 1)")
 	}
 
 	createUsersTable := `
@@ -250,12 +267,12 @@ func UserExists(id int) (bool, error) {
 	return count > 0, nil
 }
 
-// LabelExists checks if a label exists.
-func LabelExists(id int) (bool, error) {
+// LabelExistsInProject checks if a label exists and belongs to the given project.
+func LabelExistsInProject(labelID, projectID int) (bool, error) {
 	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM labels WHERE id = ?", id).Scan(&count)
+	err := DB.QueryRow("SELECT COUNT(*) FROM labels WHERE id = ? AND project_id = ?", labelID, projectID).Scan(&count)
 	if err != nil {
-		slog.Error("Database Error: LabelExists", "id", id, "error", err)
+		slog.Error("Database Error: LabelExistsInProject", "label_id", labelID, "project_id", projectID, "error", err)
 		return false, err
 	}
 	return count > 0, nil
@@ -786,14 +803,14 @@ func DeleteTask(id int) error {
 
 // CreateLabel inserts a new label into the database.
 func CreateLabel(l *Label) error {
-	stmt, err := DB.Prepare("INSERT INTO labels(name, color) VALUES(?, ?)")
+	stmt, err := DB.Prepare("INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)")
 	if err != nil {
 		slog.Error("Database Error: CreateLabel Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
 
-	res, err := stmt.Exec(l.Name, l.Color)
+	res, err := stmt.Exec(l.Name, l.Color, l.ProjectID)
 	if err != nil {
 		slog.Error("Database Error: CreateLabel Exec", "error", err)
 		return err
@@ -808,34 +825,34 @@ func CreateLabel(l *Label) error {
 	return nil
 }
 
-// GetAllLabels retrieves all labels from the database.
-func GetAllLabels() ([]Label, error) {
-	rows, err := DB.Query("SELECT id, name, color FROM labels ORDER BY name ASC")
+// GetLabelsByProject retrieves all labels belonging to a specific project.
+func GetLabelsByProject(projectID int) ([]Label, error) {
+	rows, err := DB.Query("SELECT id, name, color, project_id FROM labels WHERE project_id = ? ORDER BY name ASC", projectID)
 	if err != nil {
-		slog.Error("Database Error: GetAllLabels", "error", err)
+		slog.Error("Database Error: GetLabelsByProject", "project_id", projectID, "error", err)
 		return nil, err
 	}
 	defer rows.Close()
 
-	labels := []Label{} // Initialize as empty slice to ensure JSON [] instead of null
+	labels := []Label{}
 	for rows.Next() {
 		var l Label
-		if err := rows.Scan(&l.ID, &l.Name, &l.Color); err != nil {
-			slog.Error("Database Error: GetAllLabels Scan", "error", err)
+		if err := rows.Scan(&l.ID, &l.Name, &l.Color, &l.ProjectID); err != nil {
+			slog.Error("Database Error: GetLabelsByProject Scan", "error", err)
 			return nil, err
 		}
 		labels = append(labels, l)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetAllLabels Rows", "error", err)
+		slog.Error("Database Error: GetLabelsByProject Rows", "error", err)
 		return nil, err
 	}
 	return labels, nil
 }
 
-// DeleteLabel removes a label from the database by its ID.
-func DeleteLabel(id int) error {
-	res, err := DB.Exec("DELETE FROM labels WHERE id = ?", id)
+// DeleteLabel removes a label from the database, verifying it belongs to the given project.
+func DeleteLabel(labelID, projectID int) error {
+	res, err := DB.Exec("DELETE FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
 	if err != nil {
 		slog.Error("Database Error: DeleteLabel", "error", err)
 		return err

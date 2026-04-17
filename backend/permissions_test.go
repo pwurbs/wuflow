@@ -35,8 +35,8 @@ func TestCan(t *testing.T) {
 		{RoleSysAdmin, ActionUpdateProject, true},
 		{RoleSysAdmin, ActionDeleteProject, true},
 
-		// Admin is granted issue power operations and all standard actions,
-		// but NOT system management (labels/users/projects write)
+		// Admin is granted issue power operations, label management, and all standard actions,
+		// but NOT system management (users/projects write)
 		{RoleAdmin, ActionListIssues, true},
 		{RoleAdmin, ActionGetIssue, true},
 		{RoleAdmin, ActionCreateIssue, true},
@@ -48,13 +48,13 @@ func TestCan(t *testing.T) {
 		{RoleAdmin, ActionUpdateTask, true},
 		{RoleAdmin, ActionDeleteTask, true},
 		{RoleAdmin, ActionListLabels, true},
+		{RoleAdmin, ActionCreateLabel, true},
+		{RoleAdmin, ActionDeleteLabel, true},
 		{RoleAdmin, ActionListUsers, true},
 		{RoleAdmin, ActionGetUser, true},
 		{RoleAdmin, ActionListProjects, true},
 
 		// Admin is denied sysadmin-only actions
-		{RoleAdmin, ActionCreateLabel, false},
-		{RoleAdmin, ActionDeleteLabel, false},
 		{RoleAdmin, ActionCreateUser, false},
 		{RoleAdmin, ActionUpdateUser, false},
 		{RoleAdmin, ActionCreateProject, false},

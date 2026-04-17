@@ -1,5 +1,5 @@
 import { state, setCurrentIssue } from '../state.js';
-import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabels, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
@@ -163,7 +163,8 @@ function renderModalDropdowns(issue) {
   labelInput.value = issue?.label?.id ?? '';
   labelText.textContent = issue?.label?.name ?? 'No Label';
 
-  fetchLabels().then(labels => {
+  const labelProjectId = issue?.project_id ?? (state.selectedProjectId ?? 1);
+  fetchLabelsByProject(labelProjectId).then(labels => {
     renderLabelOptions(labels);
     if (issue?.label) {
       const found = labels.find(l => l.id === issue.label.id);
@@ -883,10 +884,13 @@ function setupSidebarImmediateSave() {
       const projectId = val ? Number.parseInt(val) : 1;
       localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       if (state.currentIssue) {
-        const updatedIssue = { ...state.currentIssue, project_id: projectId };
+        const updatedIssue = { ...state.currentIssue, project_id: projectId, label: null };
         try {
           const saved = await saveIssueWithConflictCheck(updatedIssue, 'Project updated');
-          if (saved) state.currentIssue.project_id = projectId;
+          if (saved) {
+            state.currentIssue.project_id = projectId;
+            state.currentIssue.label = null;
+          }
         } catch (err) {
           showNotification(err.message, 'error');
         }
@@ -1288,6 +1292,11 @@ function renderProjectOptions(projects) {
     div.textContent = project.name;
     div.addEventListener('click', () => {
       selectOption('project-select', 'project-text', 'project-options', project.id, project.name);
+      fetchLabelsByProject(project.id).then(labels => {
+        renderLabelOptions(labels);
+        document.getElementById('label-select').value = '';
+        document.getElementById('label-text').textContent = 'No Label';
+      }).catch(err => console.error('Failed to reload labels for project', err));
     });
     optionsContainer.appendChild(div);
   });

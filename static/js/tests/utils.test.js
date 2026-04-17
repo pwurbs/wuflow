@@ -4,6 +4,7 @@ import {
   countCodepoints, canArchive,
   showNotification, showConfirm,
   updateDateInputStyle, initCharCounter,
+  getUnusedColor,
 } from '../utils.js';
 
 describe('escapeHtml', () => {
@@ -575,5 +576,31 @@ describe('initCharCounter', () => {
     input.dispatchEvent(new Event('input'));
     expect([...input.value].length).toBe(2);
     expect(input.value).toBe('😀😀');
+  });
+});
+
+const FULL_PALETTE = [
+  '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
+  '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
+  '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
+  '#FF7043', '#8D6E63', '#78909C'
+];
+
+describe('getUnusedColor', () => {
+  it('returns a color not in the used list when unused colors exist', () => {
+    const used = FULL_PALETTE.slice(0, 10);
+    const result = getUnusedColor(used);
+    expect(FULL_PALETTE).toContain(result);
+    expect(used).not.toContain(result);
+  });
+
+  it('returns a color from the full palette when all colors are already used', () => {
+    const result = getUnusedColor([...FULL_PALETTE]);
+    expect(FULL_PALETTE).toContain(result);
+  });
+
+  it('returns a color from the full palette when usedColors is empty', () => {
+    const result = getUnusedColor([]);
+    expect(FULL_PALETTE).toContain(result);
   });
 });

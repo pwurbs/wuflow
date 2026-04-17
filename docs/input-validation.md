@@ -56,5 +56,5 @@ When creating links via the editor toolbar or during sanitization:
 
 ## Error Handling
 - Frontend catches API errors and displays them in structured toast notifications.
-- Setup view errors use the main application toast.
-- Modal errors use a dedicated toast within the modal context (except for Setup/Label/User management which uses main toast).
+- System Settings view errors use the main application toast.
+- Modal errors use a dedicated toast within the modal context (except for Project Settings/Label/User management which uses main toast).

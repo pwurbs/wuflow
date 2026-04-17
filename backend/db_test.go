@@ -357,9 +357,9 @@ func TestDBErrors(t *testing.T) {
 		{"CreateTask", func() error { return CreateTask(&Task{IssueID: 1, Title: "T"}) }},
 		{"UpdateTask", func() error { return UpdateTask(&Task{ID: 1, Title: "T"}) }},
 		{"DeleteTask", func() error { return DeleteTask(1) }},
-		{"GetAllLabels", func() error { _, err := GetAllLabels(); return err }},
-		{"CreateLabel", func() error { return CreateLabel(&Label{Name: "L"}) }},
-		{"DeleteLabel", func() error { return DeleteLabel(1) }},
+		{"GetLabelsByProject", func() error { _, err := GetLabelsByProject(1); return err }},
+		{"CreateLabel", func() error { return CreateLabel(&Label{Name: "L", ProjectID: 1}) }},
+		{"DeleteLabel", func() error { return DeleteLabel(1, 1) }},
 		{"GetIssueByID", func() error { _, err := GetIssueByID(1); return err }},
 		{"GetTaskByID", func() error { _, err := GetTaskByID(1); return err }},
 		{"GetAllArchivedIssues", func() error { _, err := GetAllArchivedIssues(); return err }},
@@ -455,19 +455,19 @@ func scanErrorGetTasksByIssueID(t *testing.T) error {
 }
 
 func scanErrorGetAllLabels(t *testing.T) error {
-	if _, err := DB.Exec("INSERT INTO labels(name, color) VALUES(?, ?)", "L", "#000"); err != nil {
+	if _, err := DB.Exec("INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)", "L", "#000", 1); err != nil {
 		return err
 	}
 	if _, err := DB.Exec("DROP TABLE labels"); err != nil {
 		return err
 	}
-	if _, err := DB.Exec("CREATE TABLE labels (id TEXT, name TEXT, color TEXT)"); err != nil {
+	if _, err := DB.Exec("CREATE TABLE labels (id TEXT, name TEXT, color TEXT, project_id INTEGER)"); err != nil {
 		return err
 	}
-	if _, err := DB.Exec("INSERT INTO labels(id, name, color) VALUES(?, ?, ?)", notAnInt, "L", "#000"); err != nil {
+	if _, err := DB.Exec("INSERT INTO labels(id, name, color, project_id) VALUES(?, ?, ?, ?)", notAnInt, "L", "#000", 1); err != nil {
 		return err
 	}
-	if _, err := GetAllLabels(); err == nil {
+	if _, err := GetLabelsByProject(1); err == nil {
 		t.Error(expectedScanError)
 	}
 	return nil
@@ -642,7 +642,7 @@ func TestDBNotFoundErrors(t *testing.T) {
 	})
 
 	t.Run("DeleteLabel_NotFound", func(t *testing.T) {
-		if DeleteLabel(999) == nil {
+		if DeleteLabel(999, 1) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -1007,7 +1007,7 @@ func TestLabelsCRUD(t *testing.T) {
 	defer teardownTestDB()
 
 	// 1. Test CreateLabel
-	l := &Label{Name: "Bug", Color: "#ff0000"}
+	l := &Label{Name: "Bug", Color: "#ff0000", ProjectID: 1}
 	err := CreateLabel(l)
 	if err != nil {
 		t.Fatalf("Failed to create label: %v", err)
@@ -1016,8 +1016,8 @@ func TestLabelsCRUD(t *testing.T) {
 		t.Errorf("Expected Label ID to be set, got 0")
 	}
 
-	// 2. Test GetLabels
-	labels, err := GetAllLabels()
+	// 2. Test GetLabelsByProject
+	labels, err := GetLabelsByProject(1)
 	if err != nil {
 		t.Fatalf("Failed to get labels: %v", err)
 	}
@@ -1029,12 +1029,12 @@ func TestLabelsCRUD(t *testing.T) {
 	}
 
 	// 3. Test DeleteLabel
-	err = DeleteLabel(l.ID)
+	err = DeleteLabel(l.ID, 1)
 	if err != nil {
 		t.Fatalf("Failed to delete label: %v", err)
 	}
 
-	labels, err = GetAllLabels()
+	labels, err = GetLabelsByProject(1)
 	if err != nil {
 		t.Fatalf("Failed to get labels after delete: %v", err)
 	}
@@ -1048,7 +1048,7 @@ func TestLabelAssociation(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create Label
-	lbl := &Label{Name: "Feature", Color: "#00ff00"}
+	lbl := &Label{Name: "Feature", Color: "#00ff00", ProjectID: 1}
 	if err := CreateLabel(lbl); err != nil {
 		t.Fatalf("Failed to create label: %v", err)
 	}
@@ -1079,7 +1079,7 @@ func TestLabelAssociation(t *testing.T) {
 	}
 
 	// Delete Label and verify ON DELETE SET NULL
-	if err := DeleteLabel(lbl.ID); err != nil {
+	if err := DeleteLabel(lbl.ID, 1); err != nil {
 		t.Fatalf("Failed to delete label: %v", err)
 	}
 

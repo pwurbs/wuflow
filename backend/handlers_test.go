@@ -26,8 +26,8 @@ const (
 	apiTasks             = "/api/tasks"
 	apiTasksBase         = "/api/tasks/"
 	apiTasks1            = apiTasksBase + "1"
-	apiLabels            = "/api/labels"
-	apiLabelsBase        = "/api/labels/"
+	apiLabels            = "/api/projects/1/labels"
+	apiLabelsBase        = "/api/projects/1/labels/"
 	apiLabels1           = apiLabelsBase + "1"
 	apiProjects               = "/api/projects"
 	apiProjectsBase           = "/api/projects/"
@@ -709,8 +709,8 @@ func TestHandleLabelsGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateLabel(&Label{Name: "Bug", Color: "#FF0000"})
-	CreateLabel(&Label{Name: "Feature", Color: "#00FF00"})
+	CreateLabel(&Label{Name: "Bug", Color: "#FF0000", ProjectID: 1})
+	CreateLabel(&Label{Name: "Feature", Color: "#00FF00", ProjectID: 1})
 
 	req, err := http.NewRequest("GET", apiLabels, nil)
 	if err != nil {
@@ -719,7 +719,7 @@ func TestHandleLabelsGet(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabels)
+	handler := http.HandlerFunc(HandleProject)
 
 	handler.ServeHTTP(rr, req)
 
@@ -737,7 +737,7 @@ func TestHandleLabelsGet(t *testing.T) {
 	}
 }
 
-func TestHandleLabelsPost(t *testing.T) {
+func TestHandleProjectPost(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
@@ -751,7 +751,7 @@ func TestHandleLabelsPost(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabels)
+	handler := http.HandlerFunc(HandleProject)
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
@@ -768,7 +768,7 @@ func TestHandleLabelsPost(t *testing.T) {
 	}
 }
 
-func TestHandleLabelsPostInvalidJSON(t *testing.T) {
+func TestHandleProjectPostInvalidJSON(t *testing.T) {
 	req, err := http.NewRequest("POST", apiLabels, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -776,7 +776,7 @@ func TestHandleLabelsPostInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabels)
+	handler := http.HandlerFunc(HandleProject)
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
@@ -791,7 +791,7 @@ func TestHandleLabelsMethodNotAllowed(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabels)
+	handler := http.HandlerFunc(HandleProject)
 
 	handler.ServeHTTP(rr, req)
 
@@ -804,7 +804,7 @@ func TestHandleLabelDelete(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	label := &Label{Name: toDelete, Color: "#FF00FF"}
+	label := &Label{Name: toDelete, Color: "#FF00FF", ProjectID: 1}
 	CreateLabel(label)
 
 	req, err := http.NewRequest("DELETE", apiLabels1, nil)
@@ -814,7 +814,7 @@ func TestHandleLabelDelete(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabel)
+	handler := http.HandlerFunc(HandleProject)
 
 	handler.ServeHTTP(rr, req)
 
@@ -822,20 +822,20 @@ func TestHandleLabelDelete(t *testing.T) {
 		t.Errorf(wrongStatusCode, status, http.StatusNoContent)
 	}
 
-	labels, _ := GetAllLabels()
+	labels, _ := GetLabelsByProject(1)
 	if len(labels) != 0 {
 		t.Errorf("expected 0 labels, got %d", len(labels))
 	}
 }
 
 func TestHandleLabelInvalidID(t *testing.T) {
-	req, err := http.NewRequest("DELETE", "/api/labels/invalid", nil)
+	req, err := http.NewRequest("DELETE", "/api/projects/1/labels/invalid", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabel)
+	handler := http.HandlerFunc(HandleProject)
 
 	handler.ServeHTTP(rr, req)
 
@@ -851,7 +851,7 @@ func TestHandleLabelMethodNotAllowed(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabel)
+	handler := http.HandlerFunc(HandleProject)
 
 	handler.ServeHTTP(rr, req)
 
@@ -897,9 +897,9 @@ func TestHandlersDBError(t *testing.T) {
 		{"HandleCreateTask_POST", "POST", apiTasks, taskBody, HandleCreateTask},
 		{"HandleTask_PUT", "PUT", apiTasks1, taskBody, HandleTask},
 		{"HandleTask_DELETE", "DELETE", apiTasks1, nil, HandleTask},
-		{"HandleLabels_GET", "GET", apiLabels, nil, HandleLabels},
-		{"HandleLabels_POST", "POST", apiLabels, labelBody, HandleLabels},
-		{"HandleLabel_DELETE", "DELETE", apiLabels1, nil, HandleLabel},
+		{"HandleProject_GET", "GET", apiLabels, nil, HandleProject},
+		{"HandleProject_POST", "POST", apiLabels, labelBody, HandleProject},
+		{"HandleProject_DELETE", "DELETE", apiLabels1, nil, HandleProject},
 	}
 
 	for _, tt := range tests {
@@ -984,7 +984,7 @@ func TestHandleTaskInvalidInput(t *testing.T) {
 	}
 }
 
-func TestHandleLabelInvalidInput(t *testing.T) {
+func TestHandleProjectInvalidInput(t *testing.T) {
 	tests := []struct {
 		name  string
 		label Label
@@ -999,7 +999,7 @@ func TestHandleLabelInvalidInput(t *testing.T) {
 			req, _ := http.NewRequest("POST", apiLabels, bytes.NewBuffer(body))
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 			rr := httptest.NewRecorder()
-			handle := http.HandlerFunc(HandleLabels)
+			handle := http.HandlerFunc(HandleProject)
 			handle.ServeHTTP(rr, req)
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1062,14 +1062,14 @@ func TestHandleDeleteLabelWithNonExistentID(t *testing.T) {
 	defer teardownTestDB()
 
 	// DELETE non-existent label
-	req, _ := http.NewRequest("DELETE", "/api/labels/999", nil)
+	req, _ := http.NewRequest("DELETE", "/api/projects/1/labels/999", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleLabel)
+	handler := http.HandlerFunc(HandleProject)
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNotFound {
-		t.Errorf("DELETE /api/labels/999: "+wrongStatusCode,
+		t.Errorf("DELETE /api/projects/1/labels/999: "+wrongStatusCode,
 			status, http.StatusNotFound)
 	}
 }
@@ -1201,9 +1201,9 @@ func TestHandlersDBErrors(t *testing.T) {
 		{"HandleCreateTask", "POST", apiTasks, validTask, HandleCreateTask},
 		{"HandleTask_PUT", "PUT", apiTasks1, validTaskUpdate, HandleTask},
 		{"HandleTask_DELETE", "DELETE", apiTasks1, "", HandleTask},
-		{"HandleLabels_GET", "GET", apiLabels, "", HandleLabels},
-		{"HandleLabels_POST", "POST", apiLabels, validLabel, HandleLabels},
-		{"HandleLabel_DELETE", "DELETE", apiLabels1, "", HandleLabel},
+		{"HandleProject_GET", "GET", apiLabels, "", HandleProject},
+		{"HandleProject_POST", "POST", apiLabels, validLabel, HandleProject},
+		{"HandleProject_DELETE", "DELETE", apiLabels1, "", HandleProject},
 	}
 
 	for _, tt := range tests {
@@ -1881,14 +1881,12 @@ func TestHandlersForbidden(t *testing.T) {
 		{"UnarchiveIssue/user", "POST", apiIssues1Unarchive, RoleUser, HandleIssue},
 
 		// Sysadmin-only actions: RoleUser must be denied
-		{"CreateLabel/user", "POST", apiLabels, RoleUser, HandleLabels},
-		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, HandleLabel},
+		{"CreateLabel/user", "POST", apiLabels, RoleUser, HandleProject},
+		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, HandleProject},
 		{"CreateUser/user", "POST", apiUsers, RoleUser, HandleUsers},
 		{"UpdateUser/user", "PUT", apiUsers1, RoleUser, HandleUser},
 
 		// Sysadmin-only actions: RoleAdmin must also be denied
-		{"CreateLabel/admin", "POST", apiLabels, RoleAdmin, HandleLabels},
-		{"DeleteLabel/admin", "DELETE", apiLabels1, RoleAdmin, HandleLabel},
 		{"CreateUser/admin", "POST", apiUsers, RoleAdmin, HandleUsers},
 		{"UpdateUser/admin", "PUT", apiUsers1, RoleAdmin, HandleUser},
 
@@ -1904,9 +1902,9 @@ func TestHandlersForbidden(t *testing.T) {
 		{"CreateTask/noRole", "POST", apiTasks, "", HandleCreateTask},
 		{"UpdateTask/noRole", "PUT", apiTasks1, "", HandleTask},
 		{"DeleteTask/noRole", "DELETE", apiTasks1, "", HandleTask},
-		{"ListLabels/noRole", "GET", apiLabels, "", HandleLabels},
-		{"CreateLabel/noRole", "POST", apiLabels, "", HandleLabels},
-		{"DeleteLabel/noRole", "DELETE", apiLabels1, "", HandleLabel},
+		{"ListLabels/noRole", "GET", apiLabels, "", HandleProject},
+		{"CreateLabel/noRole", "POST", apiLabels, "", HandleProject},
+		{"DeleteLabel/noRole", "DELETE", apiLabels1, "", HandleProject},
 		{"ListUsers/noRole", "GET", apiUsers, "", HandleUsers},
 		{"CreateUser/noRole", "POST", apiUsers, "", HandleUsers},
 		{"GetUser/noRole", "GET", apiUsers1, "", HandleUser},
@@ -1973,7 +1971,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 	task := &Task{Title: "Task 1", IssueID: issue.ID}
 	CreateTask(task)
 
-	label := &Label{Name: "Label 1", Color: "#000"}
+	label := &Label{Name: "Label 1", Color: "#000", ProjectID: 1}
 	CreateLabel(label)
 
 	// Create Admin User
@@ -2097,20 +2095,20 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 
 		// --- Label Handlers ---
 		{
-			name:    "HandleLabels_GET",
+			name:    "HandleProject_GET",
 			method:  "GET",
 			url:     apiLabels,
-			handler: HandleLabels,
+			handler: HandleProject,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
 		},
 		{
-			name:    "HandleLabels_POST",
+			name:    "HandleProject_POST",
 			method:  "POST",
 			url:     apiLabels,
 			body:    labelBody,
-			handler: HandleLabels,
+			handler: HandleProject,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2367,7 +2365,7 @@ func TestCheckLabel(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	label := &Label{Name: "Bug", Color: "red"}
+	label := &Label{Name: "Bug", Color: "#FF0000", ProjectID: 1}
 	if err := CreateLabel(label); err != nil {
 		t.Fatalf("Failed to create label: %v", err)
 	}
@@ -2386,7 +2384,7 @@ func TestCheckLabel(t *testing.T) {
 		},
 		{
 			name:         "Existent Label",
-			issue:        &Issue{Label: &Label{ID: label.ID}},
+			issue:        &Issue{Label: &Label{ID: label.ID}, ProjectID: 1},
 			expectedRes:  true,
 			expectedCode: http.StatusOK,
 		},

@@ -6,13 +6,13 @@ When you start the application for the very first time, the system automatically
 - **Email**: `admin@local` as default or use the one you defined in the `WF_INITIAL_ADMIN_EMAIL` (if using Docker) or `-initial-admin-email` argument when starting the app.
 - **Password**: The password you defined in the `WF_INITIAL_ADMIN_PASSWORD` (if using Docker) or `-initial-admin-password` argument when starting the app.
 
-Once you are logged in, it's recommended to navigate to the **Setup View** to adapt the initial user, e.g. setting a new password or to create additional users.
-Only users having the sysadmin role are allowed to access the setup view.
+Once you are logged in, it's recommended to navigate to the **System Settings View** to adapt the initial user, e.g. setting a new password or to create additional users.
+Only users having the sysadmin role are allowed to access the system settings view.
 
 ## The Interface
 
 wuFlow is built with a clearly arranged layout that combines all relevant information in one view:
-- **Main Menu**: In the left sidebar, you can switch between the different views of the application: New issue, Backlog, Board, Archive and Setup
+- **Main Menu**: In the left sidebar, you can switch between the different views of the application: New issue, Backlog, Board, Archive, Project Settings and System Settings
 - **Board** (Main view): Displays issues in the usual Kanban style with columns. You can freely drag and drop issues between columns. Click on an issue card to view and adapt details. The board layout changes when you switch to backlog or archive view (see below).
 - **Planning Sidebar**: Placed on the right, this simple calendar view allows you to plan issues by dragging them to a specific date. This allows you additionally to plan issues and tasks over the next 10 days, keeping an eye on upcoming deadlines.
 - **User Menu**: In the top right corner, there is the menu of the currently logged in user. Currently, password management and log out is available.
@@ -54,7 +54,7 @@ Click on an issue card to view and adapt details. In addition to title and descr
 - **Deadline**: Here you can assign a deadline for the issue. If set, then the issue is considered in the planning sidebar. See the Planning section below for more details.
 - **Assignee**: At least when the issue arrives on the board, it should get an Assignee. The Assignee user is responsible for the issue. Select one of the configured users. The assignee is shown on the cards with a user badge, built from the first letters of the first and last name. 
 - **Priority**: This sets an urgency level for the issue. We only support two levels: **Normal** and **High**. It's fairly useless to have more levels. Usually, teams are only able to cope with these two levels. Issues with High priority are red colored on the board. 
-- **Label**: If labels have been created in the Setup view, you can assign them to the issue here. This leads to a colored label badge on the issues card and can be used too as filter criteria. Use labels to either define issue types (story, bug, question etc.) or to separate different topics or domains. So, use labels until features like Releases or EPICs are available.
+- **Label**: If labels have been created in the Project Settings view, you can assign them to the issue here. This leads to a colored label badge on the issues card and can be used too as filter criteria. Use labels to either define issue types (story, bug, question etc.) or to separate different topics or domains. So, use labels until features like Releases or EPICs are available.
 - **Tasks**: Here you can define subtasks for the issue. See the Tasks section below for more details.
 
 In the bottom right corner there is information when and by whom the issue was created and lastly updated. The user is indicated using the users badge. These fields are automatically filled and can't be edited.
@@ -135,20 +135,24 @@ The Archive View is similar to the Backlog View, but the other way round: Issue 
 Archiving a bunch of DONE issues could be done along with a kind of a review process in the team or celebrating the completion of a project or milestone. 
 Archived issues are read-only. Users owning the Admin or Sysadmin role are entitled to **restore** archived issues to the board. This is done by clicking the "Restore" button in the Issue details view.
 
-## The Setup View
+## The Project Settings View
+
+The Project Settings View is available for users with Admin or Sysadmin role. It allows managing **labels** for the currently selected project. Switch between projects using the project selector at the top of the view to manage labels per project.
+
+### Labels
+Labels are scoped to a project. Create labels which can be used in issues to categorize and color-code them. The label name is limited to 15 characters and the color is randomly assigned. Labels can't be edited, only deletion is possible.
+
+## The System Settings View
 
 <img src="screenshots/setup.png" alt="Initial Setup" width="900">
 
-The Setup View is only available for users with sysadmin role and allows to configure **projects**, **labels** and **users**.
+The System Settings View is only available for users with Sysadmin role and allows to configure **projects** and **users**.
 
 ### Projects
 Projects group issues into separate workstreams or areas of responsibility. Each issue belongs to exactly one project. A **default project** (id=1) is always present and cannot be deleted.
 - **Create** a new project by entering a name (max 15 characters) and an optional description (max 100 characters), then click "Save".
 - **Rename or update** a project by clicking on it, changing the values, and saving. The project name must be unique.
 - **Delete** a project by clicking "Delete". Deletion is only possible if no issues are currently assigned to that project. The default project cannot be deleted.
-
-### Labels
-Create labels which can be used in issues to categorize and color-code them. The label name is limited and the color is randomly generated. Labels can't be edited, only deletion is possible.
 
 ### Users
 Users can be created, adapted or deactivated here. 
@@ -169,7 +173,9 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | Archive an issue | — | ✓ | ✓ |
 | Unarchive an issue | — | ✓ | ✓ |
 | Delete an issue | — | ✓ | ✓ |
-| Create / delete labels | — | — | ✓ |
+| Access Project Settings view | — | ✓ | ✓ |
+| Create / delete labels | — | ✓ | ✓ |
+| Access Project Settings view | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |
-| Access Setup view | — | — | ✓ |
+| Access System Settings view | — | — | ✓ |

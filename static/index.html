@@ -144,7 +144,24 @@
                     </svg>
                     <span class="menu-tooltip">Archive</span>
                 </button>
-                <button id="nav-setup" class="menu-btn" aria-label="Setup">
+                <button id="nav-project-settings" class="menu-btn" aria-label="Project Settings">
+                    <!-- Sliders / adjustments icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="4" y1="21" x2="4" y2="14"></line>
+                        <line x1="4" y1="10" x2="4" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12" y2="3"></line>
+                        <line x1="20" y1="21" x2="20" y2="16"></line>
+                        <line x1="20" y1="12" x2="20" y2="3"></line>
+                        <line x1="1" y1="14" x2="7" y2="14"></line>
+                        <line x1="9" y1="8" x2="15" y2="8"></line>
+                        <line x1="17" y1="16" x2="23" y2="16"></line>
+                    </svg>
+                    <span class="menu-tooltip">Project Settings</span>
+                </button>
+                <div class="menu-separator"></div>
+                <button id="nav-system-settings" class="menu-btn" aria-label="System Settings">
                     <!-- Cogwheel -->
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round">
@@ -153,49 +170,52 @@
                             d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
                         </path>
                     </svg>
-                    <span class="menu-tooltip">Setup</span>
+                    <span class="menu-tooltip">System Settings</span>
                 </button>
                 <div class="menu-spacer"></div>
 
             </nav>
-            <div id="setup-view" class="hidden">
-                <div class="setup-section" id="project-management-section">
+            <div id="system-settings-view" class="hidden">
+                <div class="settings-section" id="project-management-section">
                     <div class="column-header">
                         <h2>Project Management</h2>
                     </div>
-                    <div class="setup-content">
+                    <div class="settings-content">
                         <button id="add-project-btn" class="btn secondary">+ Add Project</button>
                         <div id="projects-list" class="users-list">
                             <!-- Projects injected here -->
                         </div>
                     </div>
                 </div>
-                <div class="setup-section">
-                    <div class="column-header">
-                        <h2>Label Management</h2>
-                    </div>
-                    <div class="setup-content">
-                        <div class="label-input-group">
-                            <div class="label-input-wrapper">
-                                <input type="text" id="new-label-input" placeholder="New label (max 15 chars)"
-                                    class="setup-input">
-                            </div>
-                            <button id="add-label-btn" class="btn secondary">+ Add</button>
-                        </div>
-                        <div id="labels-list" class="labels-grid">
-                            <!-- Labels injected here -->
-                        </div>
-                    </div>
-                </div>
                 <!-- User Management Section (admin only) -->
-                <div id="user-management-section" class="setup-section">
+                <div id="user-management-section" class="settings-section">
                     <div class="column-header">
                         <h2>User Management</h2>
                     </div>
-                    <div class="setup-content">
+                    <div class="settings-content">
                         <button id="add-user-btn" class="btn secondary">+ Add User</button>
                         <div id="users-list" class="users-list">
                             <!-- Users injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="project-settings-view" class="hidden">
+                <div class="settings-section">
+                    <div class="column-header">
+                        <h2>Label Management</h2>
+                    </div>
+                    <div class="settings-content">
+                        <div class="label-input-group">
+                            <div class="label-input-wrapper">
+                                <input type="text" id="ps-new-label-input" placeholder="New label (max 15 chars)"
+                                    class="settings-input">
+                            </div>
+                            <button id="ps-add-label-btn" class="btn secondary">+ Add</button>
+                        </div>
+                        <div id="ps-labels-list" class="labels-grid">
+                            <!-- Labels injected here -->
                         </div>
                     </div>
                 </div>
@@ -277,7 +297,7 @@
                         </div>
                         <div class="form-group">
                             <label for="project-description">Description</label>
-                            <textarea id="project-description" placeholder="Short description" maxlength="100" rows="3" class="setup-input" style="width:100%;resize:vertical;"></textarea>
+                            <textarea id="project-description" placeholder="Short description" maxlength="100" rows="3" class="settings-input" style="width:100%;resize:vertical;"></textarea>
                         </div>
                         <div id="project-modal-error" class="form-error hidden" role="alert"></div>
                         <div class="form-actions" style="justify-content: space-between;">

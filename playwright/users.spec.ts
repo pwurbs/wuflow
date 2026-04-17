@@ -18,9 +18,9 @@ test.describe('User Management', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', workerServer.adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
-    await page.click('#nav-setup');
+    await page.click('#nav-system-settings');
   });
 
   test('Sysadmin can create, edit, and manage users', async ({ page }) => {
@@ -106,7 +106,7 @@ test.describe('User Management', () => {
     await page.click('#user-modal-cancel');
   });
 
-  test('Standard user cannot access Setup page', async ({ page }) => {
+  test('Standard user cannot access System Settings page', async ({ page }) => {
     // 1. Create a Standard User
     await page.click('#add-user-btn');
     const userEmail = `std_${Date.now()}@example.com`;
@@ -132,7 +132,7 @@ test.describe('User Management', () => {
 
     // 4. Verify Setup Nav is Not Visible
     await expect(page.locator('.board')).toBeVisible();
-    await expect(page.locator('#nav-setup')).toBeHidden();
+    await expect(page.locator('#nav-system-settings')).toBeHidden();
 
     // 5. Cleanup - Logout
     await page.click('#user-menu-btn');
@@ -140,7 +140,7 @@ test.describe('User Management', () => {
     await page.click('#user-menu-logout');
   });
 
-  test('Admin role user cannot access Setup page', async ({ page }) => {
+  test('Admin role user cannot access System Settings page', async ({ page }) => {
     // 1. Create an Admin-role user (not sysadmin)
     await page.click('#add-user-btn');
     const adminUserEmail = `admin_role_${Date.now()}@example.com`;
@@ -168,7 +168,7 @@ test.describe('User Management', () => {
 
     // 4. Verify Setup Nav is hidden (admin role does NOT see Setup)
     await expect(page.locator('.board')).toBeVisible();
-    await expect(page.locator('#nav-setup')).toBeHidden();
+    await expect(page.locator('#nav-system-settings')).toBeHidden();
 
     // 5. Cleanup - Logout, then log back in as sysadmin to deactivate
     await page.click('#user-menu-btn');
@@ -177,7 +177,7 @@ test.describe('User Management', () => {
   });
 
   test('Initial sysadmin has Sysadmin role badge', async ({ page }) => {
-    // Already on Setup page from beforeEach
+    // Already on System Settings page from beforeEach
     const adminRow = page.locator(`.user-row:has-text("${adminEmail}")`);
     await expect(adminRow).toBeVisible();
     await expect(adminRow.locator('.user-role-badge.sysadmin')).toBeVisible();
@@ -185,7 +185,7 @@ test.describe('User Management', () => {
   });
 
   test('Header User Menu displays badge and email correctly', async ({ page }) => {
-    // Already on Setup page from beforeEach (which means logged in)
+    // Already on System Settings page from beforeEach (which means logged in)
     const userMenuBtn = page.locator('#user-menu-btn');
     await expect(userMenuBtn).toBeVisible();
 
@@ -199,7 +199,7 @@ test.describe('User Management', () => {
   });
 
   test('User Management list displays badges', async ({ page }) => {
-    // Already on Setup page from beforeEach
+    // Already on System Settings page from beforeEach
     await expect(page.locator('#users-list')).toBeVisible();
 
     // Find the row for the admin email
@@ -216,7 +216,7 @@ test.describe('User Management', () => {
   });
 
   test('Newly created user has correct badge initials', async ({ page }) => {
-    // Already on Setup page from beforeEach
+    // Already on System Settings page from beforeEach
 
     // Create a user with known names
     await page.click('#add-user-btn');

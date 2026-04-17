@@ -143,24 +143,24 @@ test.describe('Notifications', () => {
 
   test.describe('Label', () => {
     test.beforeEach(async ({ page }) => {
-      await navigateTo(page, 'setup');
+      await navigateTo(page, 'project-settings');
     });
 
     test('label created', async ({ page }) => {
       // Max 15 chars; use last 8 digits of timestamp to stay unique
       const name = `L${Date.now().toString().slice(-8)}`;
-      await page.fill('#new-label-input', name);
-      await page.click('#add-label-btn');
+      await page.fill('#ps-new-label-input', name);
+      await page.click('#ps-add-label-btn');
       await waitForToast(page, 'Label created');
     });
 
     test('label deleted', async ({ page }) => {
       const name = `D${Date.now().toString().slice(-8)}`;
-      await page.fill('#new-label-input', name);
-      await page.click('#add-label-btn');
-      await expect(page.locator('#labels-list')).toContainText(name);
+      await page.fill('#ps-new-label-input', name);
+      await page.click('#ps-add-label-btn');
+      await expect(page.locator('#ps-labels-list')).toContainText(name);
       // Delete it
-      const labelItem = page.locator(`#labels-list .label-item:has-text("${name}")`);
+      const labelItem = page.locator(`#ps-labels-list .label-item:has-text("${name}")`);
       await labelItem.locator('.delete-label-btn').click();
       await expect(page.locator('#confirm-modal')).toBeVisible();
       await page.click('#confirm-ok-btn');
@@ -172,7 +172,7 @@ test.describe('Notifications', () => {
 
   test.describe('User', () => {
     test.beforeEach(async ({ page }) => {
-      await navigateTo(page, 'setup');
+      await navigateTo(page, 'system-settings');
     });
 
     test('user created', async ({ page }) => {

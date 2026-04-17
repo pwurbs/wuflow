@@ -22,7 +22,7 @@ vi.mock('../api.js', () => ({
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteIssue: vi.fn(),
-  fetchLabels: vi.fn(),
+  fetchLabelsByProject: vi.fn(),
   fetchUsers: vi.fn(),
   fetchProjects: vi.fn(),
   fetchIssueById: vi.fn()
@@ -55,7 +55,7 @@ vi.mock('../markdown.js', () => ({
   renderMarkdown: vi.fn((s, returnObject = false) => {
     const html = s ? `<p>${s}</p>` : '';
     // Let tests mock strippedHTML by throwing something specific in the string, or just default to false
-    const strippedHTML = s && s.includes('<script>');
+    const strippedHTML = s?.includes('<script>') ?? false;
     return returnObject ? { html, strippedHTML } : html;
   }),
 }));
@@ -175,7 +175,7 @@ describe('Modal Component', () => {
     vi.clearAllMocks();
 
     // Default mock returns
-    api.fetchLabels.mockResolvedValue([{ id: 1, name: 'Bug' }, { id: 2, name: 'Feature' }]);
+    api.fetchLabelsByProject.mockResolvedValue([{ id: 1, name: 'Bug' }, { id: 2, name: 'Feature' }]);
     api.fetchUsers.mockResolvedValue([{ id: 1, first_name: 'Test', last_name: 'User', active: true }]);
     api.fetchProjects.mockResolvedValue([{ id: 1, name: 'default' }]);
     api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
@@ -219,7 +219,7 @@ describe('Modal Component', () => {
     expect(document.getElementById('title').value).toBe('Test Issue');
     expect(document.getElementById('description-editor').value).toBe('Test Desc');
     expect(setCurrentIssue).toHaveBeenCalledWith(issue);
-    expect(api.fetchLabels).toHaveBeenCalled(); // labels fetched to render options
+    expect(api.fetchLabelsByProject).toHaveBeenCalled(); // labels fetched to render options
   });
 
   it('should close modal and reset state', () => {
@@ -1950,5 +1950,37 @@ describe('Project Selector Coverage', () => {
     await new Promise(process.nextTick);
 
     expect(api.updateIssue).not.toHaveBeenCalled();
+  });
+
+  it('should reload labels and reset selection when a project option is clicked (lines 1295-1299)', async () => {
+    api.fetchProjects.mockResolvedValue([{ id: 1, name: 'Default' }, { id: 2, name: 'Other' }]);
+    api.fetchLabelsByProject.mockResolvedValue([{ id: 10, name: 'Backend' }]);
+
+    await openModal(null);
+    await new Promise(process.nextTick);
+
+    // Second option corresponds to project id=2 ('Other')
+    const option = document.querySelectorAll('#project-options .custom-option')[1];
+    option.click();
+    await new Promise(process.nextTick);
+
+    expect(api.fetchLabelsByProject).toHaveBeenCalledWith(2);
+    expect(document.getElementById('label-select').value).toBe('');
+    expect(document.getElementById('label-text').textContent).toBe('No Label');
+  });
+
+  it('should log error when fetchLabelsByProject fails on project option click (line 1299)', async () => {
+    api.fetchProjects.mockResolvedValue([{ id: 1, name: 'Default' }, { id: 2, name: 'Other' }]);
+    api.fetchLabelsByProject.mockRejectedValue(new Error('Network error'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await openModal(null);
+    await new Promise(process.nextTick);
+
+    const option = document.querySelectorAll('#project-options .custom-option')[1];
+    option.click();
+    await new Promise(process.nextTick);
+
+    expect(consoleSpy).toHaveBeenCalledWith('Failed to reload labels for project', expect.any(Error));
   });
 });

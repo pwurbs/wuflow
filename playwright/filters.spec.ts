@@ -56,10 +56,10 @@ test.describe('Filtering and Search', () => {
 
   test('filter issues by label', async ({ page }) => {
     // First create a label
-    await navigateTo(page, 'setup');
-    await page.fill('#new-label-input', 'Bug');
-    await page.click('#add-label-btn');
-    await expect(page.locator('#labels-list')).toContainText('Bug');
+    await navigateTo(page, 'project-settings');
+    await page.fill('#ps-new-label-input', 'Bug');
+    await page.click('#ps-add-label-btn');
+    await expect(page.locator('#ps-labels-list')).toContainText('Bug');
 
     // Go back to board
     await navigateTo(page, 'board');
@@ -290,9 +290,9 @@ test.describe('Planning Panel Filtering', () => {
     const dateStr = formatDate(today);
 
     // Create label
-    await navigateTo(page, 'setup');
-    await page.fill('#new-label-input', 'PlanLabel');
-    await page.click('#add-label-btn');
+    await navigateTo(page, 'project-settings');
+    await page.fill('#ps-new-label-input', 'PlanLabel');
+    await page.click('#ps-add-label-btn');
     await navigateTo(page, 'board');
 
     await createIssue(page, { title: 'Plan Labeled', status: 'Todo', label: 'PlanLabel', plannedDate: dateStr });

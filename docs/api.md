@@ -30,9 +30,9 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/tasks` | POST | `HandleCreateTask` | Required | Create task (IssueID in body) |
 | `/tasks/:id` | PUT | `HandleTask` | Required | Update task |
 | `/tasks/:id` | DELETE | `HandleTask` | Required | Delete task |
-| `/labels` | GET | `HandleLabels` | Required | Get all labels |
-| `/labels` | POST | `HandleLabels` | Sysadmin | Create label |
-| `/labels/:id` | DELETE | `HandleLabel` | Sysadmin | Delete label |
+| `/projects/:id/labels` | GET | `HandleProject` | Required | List labels for a project |
+| `/projects/:id/labels` | POST | `HandleProject` | Admin | Create label for a project |
+| `/projects/:id/labels/:lid` | DELETE | `HandleProject` | Admin | Delete label from a project |
 | `/projects` | GET | `HandleProjects` | Required | List all projects |
 | `/projects` | POST | `HandleProjects` | Sysadmin | Create project |
 | `/projects/:id` | PUT | `HandleProject` | Sysadmin | Update project |
@@ -246,13 +246,17 @@ Deletes a task.
 
 ## Labels
 
-### Get All Labels
-Retrieves all available labels. Accessible to all authenticated users.
-- **GET** `/labels`
+Labels are scoped to a project. All label endpoints are nested under `/projects/:id/`.
 
-### Create Label
-Creates a new label (Sysadmin only).
-- **POST** `/labels`
+### List Labels for a Project
+Retrieves all labels belonging to a specific project. Accessible to all authenticated users.
+- **GET** `/projects/:id/labels`
+- **Errors**:
+  - `404 Not Found` - Project doesn't exist
+
+### Create Label for a Project
+Creates a new label within a project (Admin or Sysadmin).
+- **POST** `/projects/:id/labels`
 - **Body**:
   ```json
   {
@@ -260,10 +264,21 @@ Creates a new label (Sysadmin only).
     "color": "#ff0000"
   }
   ```
+- **Notes**:
+  - `name` is required, max 15 characters
+  - `color` must be a valid hex color (`#rrggbb`)
+- **Response**: Created label object (201 Created)
+- **Errors**:
+  - `400 Bad Request` - Validation failed
+  - `403 Forbidden` - Not an admin or sysadmin
+  - `404 Not Found` - Project doesn't exist
 
-### Delete Label
-Deletes a label (Sysadmin only).
-- **DELETE** `/labels/:id`
+### Delete Label from a Project
+Deletes a label from a project (Admin or Sysadmin).
+- **DELETE** `/projects/:id/labels/:lid`
+- **Errors**:
+  - `403 Forbidden` - Not an admin or sysadmin
+  - `404 Not Found` - Project or label doesn't exist
 
 ## Projects
 

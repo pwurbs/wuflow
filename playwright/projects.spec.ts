@@ -4,10 +4,10 @@ import { navigateTo, createIssue } from './helpers/test-utils';
 test.describe('Project Management', () => {
   test.beforeEach(async ({ page, login }) => {
     await login();
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
   });
 
-  test('Project Management section is visible in Setup', async ({ page }) => {
+  test('Project Management section is visible in System Settings', async ({ page }) => {
     await expect(page.locator('#project-management-section')).toBeVisible();
     await expect(page.locator('#project-management-section h2:has-text("Project Management")')).toBeVisible();
     await expect(page.locator('#add-project-btn')).toBeVisible();
@@ -145,8 +145,8 @@ test.describe('Project Selector', () => {
     await expect(page.locator('#project-selector-container')).toBeVisible();
   });
 
-  test('Project selector is hidden in the setup view', async ({ page }) => {
-    await navigateTo(page, 'setup');
+  test('Project selector is hidden in the system settings view', async ({ page }) => {
+    await navigateTo(page, 'system-settings');
     await expect(page.locator('#project-selector-container')).toBeHidden();
   });
 
@@ -158,7 +158,7 @@ test.describe('Project Selector', () => {
 
   test('Newly created project appears in the project selector', async ({ page }) => {
     // Create a project
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
     const name = `sel_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', name);
@@ -171,7 +171,7 @@ test.describe('Project Selector', () => {
     await expect(page.locator('#project-selector-options')).toContainText(name);
 
     // Cleanup
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
     const projectRow = page.locator(`#projects-list .user-row:has-text("${name}")`);
     await projectRow.locator('.project-edit-btn').click();
     await page.click('#project-modal-delete');
@@ -180,7 +180,7 @@ test.describe('Project Selector', () => {
 
   test('Selecting a project updates the selector label', async ({ page }) => {
     // Create a second project to switch to
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
     const name = `switch_${Date.now()}`.slice(0, 12);
     await page.fill('#project-name', name);
@@ -194,7 +194,7 @@ test.describe('Project Selector', () => {
     await expect(page.locator('#project-selector-text')).toHaveText(name);
 
     // Cleanup
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
     const projectRow = page.locator(`#projects-list .user-row:has-text("${name}")`);
     await projectRow.locator('.project-edit-btn').click();
     await page.click('#project-modal-delete');
@@ -233,7 +233,7 @@ test.describe('Issues with Projects', () => {
 
   test('Issues from another project are not shown when a different project is selected', async ({ page }) => {
     // Create a second project
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
     const projectName = `isol_${Date.now()}`.slice(0, 15);
     await page.fill('#project-name', projectName);
@@ -254,7 +254,7 @@ test.describe('Issues with Projects', () => {
     await expect(page.locator(`.card:has-text("${defaultIssueTitle}")`)).toHaveCount(0);
 
     // Cleanup — delete the new project (switch back to default first)
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
     const projectRow = page.locator(`#projects-list .user-row:has-text("${projectName}")`);
     await projectRow.locator('.project-edit-btn').click();
     await page.click('#project-modal-delete');

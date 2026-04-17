@@ -199,12 +199,12 @@
   justify-content: center;
 }
 
-/* Setup view: hide dividers and right-align the user menu */
-.toolbar--setup .toolbar-divider {
+/* System Settings / Project Settings views: hide dividers and right-align the user menu */
+.toolbar--system-settings .toolbar-divider {
   display: none;
 }
 
-.toolbar--setup {
+.toolbar--system-settings {
   flex: 0 0 auto;
   margin-left: auto;
 }

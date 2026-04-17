@@ -64,13 +64,13 @@ test.describe('Edge Cases and Validation', () => {
 
   test('cancel label deletion', async ({ page }) => {
     // Create a label
-    await navigateTo(page, 'setup');
-    await page.fill('#new-label-input', 'KeepLabel');
-    await page.click('#add-label-btn');
-    await expect(page.locator('#labels-list')).toContainText('KeepLabel');
+    await navigateTo(page, 'project-settings');
+    await page.fill('#ps-new-label-input', 'KeepLabel');
+    await page.click('#ps-add-label-btn');
+    await expect(page.locator('#ps-labels-list')).toContainText('KeepLabel');
 
     // Find and click the delete button for this label
-    const labelItem = page.locator('#labels-list .label-item:has-text("KeepLabel")');
+    const labelItem = page.locator('#ps-labels-list .label-item:has-text("KeepLabel")');
     await labelItem.locator('.delete-label-btn').click();
 
     // Check if confirmation modal appears
@@ -82,7 +82,7 @@ test.describe('Edge Cases and Validation', () => {
     }
 
     // Verify label still exists
-    await expect(page.locator('#labels-list')).toContainText('KeepLabel');
+    await expect(page.locator('#ps-labels-list')).toContainText('KeepLabel');
   });
 
   test('delete issue with tasks (cascading delete)', async ({ page }) => {
@@ -121,9 +121,9 @@ test.describe('Edge Cases and Validation', () => {
 
   test('delete label assigned to issues', async ({ page }) => {
     // Create a label
-    await navigateTo(page, 'setup');
-    await page.fill('#new-label-input', 'AssignedLabel');
-    await page.click('#add-label-btn');
+    await navigateTo(page, 'project-settings');
+    await page.fill('#ps-new-label-input', 'AssignedLabel');
+    await page.click('#ps-add-label-btn');
 
     // Go back to board
     await navigateTo(page, 'board');
@@ -132,11 +132,11 @@ test.describe('Edge Cases and Validation', () => {
     await createIssue(page, { title: 'Issue 1', status: 'Todo', label: 'AssignedLabel' });
     await createIssue(page, { title: 'Issue 2', status: 'Todo', label: 'AssignedLabel' });
 
-    // Go back to setup
-    await navigateTo(page, 'setup');
+    // Go back to project settings
+    await navigateTo(page, 'project-settings');
 
     // Delete the label
-    const labelItem = page.locator('#labels-list .label-item:has-text("AssignedLabel")');
+    const labelItem = page.locator('#ps-labels-list .label-item:has-text("AssignedLabel")');
     await labelItem.locator('.delete-label-btn').click();
 
     // Confirm deletion if modal appears
@@ -146,7 +146,7 @@ test.describe('Edge Cases and Validation', () => {
     }
 
     // Verify label is removed
-    await expect(page.locator('#labels-list')).not.toContainText('AssignedLabel');
+    await expect(page.locator('#ps-labels-list')).not.toContainText('AssignedLabel');
 
     // Go back to board and verify issues still exist but without the label
     await navigateTo(page, 'board');
@@ -160,9 +160,9 @@ test.describe('Edge Cases and Validation', () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // First create a label
-    await navigateTo(page, 'setup');
-    await page.fill('#new-label-input', 'PersistLabel');
-    await page.click('#add-label-btn');
+    await navigateTo(page, 'project-settings');
+    await page.fill('#ps-new-label-input', 'PersistLabel');
+    await page.click('#ps-add-label-btn');
     await navigateTo(page, 'board');
 
     await createIssue(page, {

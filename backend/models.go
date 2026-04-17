@@ -71,9 +71,10 @@ type Task struct {
 
 // Label represents a tag that can be assigned to an issue.
 type Label struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Color string `json:"color"`
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Color     string `json:"color"`
+	ProjectID int    `json:"project_id"`
 }
 
 // Project represents a grouping for issues.

@@ -1,7 +1,7 @@
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setSelectedProject } from '../state.js';
 import { logout, updateCurrentUser } from '../api.js';
 import { showNotification, getUserInitials } from '../utils.js';
-import { validatePasswordPolicy } from './setup.js';
+import { validatePasswordPolicy } from './system-settings.js';
 
 // ─── Label Filter ──────────────────────────────────────────────────────────────
 

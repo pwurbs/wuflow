@@ -27,10 +27,10 @@ test.describe('Role Based Authorization', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 2. Create a Standard User
-    await page.click('#nav-setup');
+    await page.click('#nav-system-settings');
     await page.click('#add-user-btn');
 
     const timestamp = Date.now();
@@ -62,7 +62,7 @@ test.describe('Role Based Authorization', () => {
     await expect(page.locator('.board')).toBeVisible();
 
     // 2. Verify User Management is not accessible
-    await expect(page.locator('#nav-setup')).toBeHidden();
+    await expect(page.locator('#nav-system-settings')).toBeHidden();
 
     // 3. Create an Issue to test restrictions on it
     const issueTitle = `User Issue ${Date.now()}`;
@@ -140,17 +140,14 @@ test.describe('Role Based Authorization', () => {
     });
     expect(unarchiveResp.status()).toBe(403);
 
-    // 6. Attempt POST /api/labels (Create Label)
-    const createLabelResp = await page.request.post('/api/labels', {
+    // 6. Attempt POST /api/projects/1/labels (Create Label)
+    const createLabelResp = await page.request.post('/api/projects/1/labels', {
       data: { name: 'Restricted Label', color: '#ff0000' }
     });
     expect(createLabelResp.status()).toBe(403);
 
-    // 7. Attempt DELETE /api/labels/1
-    // backend/permissions.go: denyForbidden happens before DB calls usually if using standard flow, but let's check.
-    // In handlers.go: HandleLabel -> DELETE -> Can(ActionDeleteLabel) -> denyForbidden. 
-    // So ID existence might not matter for the 403 check.
-    const labelResp = await page.request.delete(`/api/labels/999999`);
+    // 7. Attempt DELETE /api/projects/1/labels/999999
+    const labelResp = await page.request.delete(`/api/projects/1/labels/999999`);
     expect(labelResp.status()).toBe(403);
 
     // 8. Attempt POST /api/users (Create User)
@@ -194,7 +191,7 @@ test.describe('Role Based Authorization', () => {
     await expect(page.locator('.board')).toBeVisible();
 
     // 2. Verify User Management is accessible
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 3. Create an Issue
     const issueTitle = `Admin Issue ${Date.now()}`;

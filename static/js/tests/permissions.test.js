@@ -10,10 +10,8 @@ import {
     ACTION_LIST_PROJECTS, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_DELETE_PROJECT,
 } from '../permissions.js';
 
-// Actions only sysadmin can perform (system management + issue power ops)
+// Actions only sysadmin can perform (system management)
 const SYSADMIN_ONLY_ACTIONS = [
-    ACTION_CREATE_LABEL,
-    ACTION_DELETE_LABEL,
     ACTION_CREATE_USER,
     ACTION_UPDATE_USER,
     ACTION_CREATE_PROJECT,
@@ -21,11 +19,13 @@ const SYSADMIN_ONLY_ACTIONS = [
     ACTION_DELETE_PROJECT,
 ];
 
-// Actions both sysadmin and admin can perform (issue power operations)
+// Actions both sysadmin and admin can perform (issue power operations + label management)
 const ADMIN_AND_SYSADMIN_ACTIONS = [
     ACTION_DELETE_ISSUE,
     ACTION_ARCHIVE_ISSUE,
     ACTION_UNARCHIVE_ISSUE,
+    ACTION_CREATE_LABEL,
+    ACTION_DELETE_LABEL,
 ];
 
 // Actions all authenticated roles can perform

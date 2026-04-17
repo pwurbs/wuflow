@@ -1,11 +1,12 @@
-import { fetchActiveIssuesByProject, fetchLabels, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects } from './api.js';
+import { fetchActiveIssuesByProject, fetchLabelsByProject, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects } from './api.js';
 import { renderMarkdown } from './markdown.js';
 import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView, resetOpenLoaded } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
 import { renderArchive, setupArchiveView, resetArchivedLoaded } from './components/archive.js';
-import { setupSetupView, renderSetupView } from './components/setup.js';
+import { setupSystemSettingsView, renderSystemSettingsView } from './components/system-settings.js';
+import { setupProjectSettingsView, renderProjectSettingsView } from './components/project-settings.js';
 import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
@@ -14,11 +15,13 @@ import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePr
 const navBoard = document.getElementById('nav-board');
 const navArchive = document.getElementById('nav-archive');
 const navBacklog = document.getElementById('nav-backlog');
-const navSetup = document.getElementById('nav-setup');
+const navSystemSettings = document.getElementById('nav-system-settings');
+const navProjectSettings = document.getElementById('nav-project-settings');
 const boardView = document.querySelector('.board');
 const archiveView = document.getElementById('archive-view');
 const backlogView = document.getElementById('backlog-view');
-const setupView = document.getElementById('setup-view');
+const systemSettingsView = document.getElementById('system-settings-view');
+const projectSettingsView = document.getElementById('project-settings-view');
 const sidebar = document.querySelector('.sidebar');
 const filterContainer = document.getElementById('filter-container');
 const projectSelectorContainer = document.getElementById('project-selector-container');
@@ -38,9 +41,13 @@ async function init() {
         return;
     }
     setCurrentUser(user);
-    // Hide Setup nav for non-sysadmin users
+    // Hide System Settings nav for non-sysadmin users
     if (user.role !== 'sysadmin') {
-        navSetup.classList.add('hidden');
+        navSystemSettings.classList.add('hidden');
+    }
+    // Hide Project Settings nav for user role
+    if (user.role === 'user') {
+        navProjectSettings.classList.add('hidden');
     }
 
     setupEventListeners();
@@ -51,7 +58,8 @@ async function init() {
     setupBoardView(refreshApp, openModal);
     setupBacklogView(refreshApp, openModal);
     setupArchiveView(refreshApp, openModal);
-    setupSetupView(refreshApp);
+    setupSystemSettingsView(refreshApp);
+    setupProjectSettingsView(refreshApp);
     setupModal(refreshApp); // Pass refresh callback
     setupUserMenu(user);
 
@@ -79,8 +87,8 @@ async function refreshApp() {
         const issues = await fetchActiveIssuesByProject(state.selectedProjectId);
         setIssues(issues);
 
-        // Refresh Label Filter
-        const labels = await fetchLabels();
+        // Refresh Label Filter (project-scoped; empty when no project selected)
+        const labels = state.selectedProjectId ? await fetchLabelsByProject(state.selectedProjectId) : [];
         updateLabelFilterOptions(labels);
 
         const users = await fetchUsers();
@@ -101,6 +109,9 @@ async function refreshApp() {
         if (!archiveView.classList.contains('hidden')) {
             await renderArchive(refreshApp, openModal);
         }
+        if (projectSettingsView && !projectSettingsView.classList.contains('hidden')) {
+            await renderProjectSettingsView();
+        }
         renderPlanningPanel(refreshApp, openModal);
     } catch (err) {
         console.error('Failed to refresh app:', err);
@@ -114,7 +125,8 @@ function setupEventListeners() {
     navBoard.addEventListener('click', () => switchView('board'));
     navArchive.addEventListener('click', () => switchView('archive'));
     navBacklog.addEventListener('click', () => switchView('backlog'));
-    navSetup.addEventListener('click', () => switchView('setup'));
+    navSystemSettings.addEventListener('click', () => switchView('system-settings'));
+    navProjectSettings.addEventListener('click', () => switchView('project-settings'));
 
     // New Issue Btn
     document.getElementById('add-issue-btn').addEventListener('click', () => openModal(null));
@@ -147,70 +159,97 @@ function switchView(view) {
         boardView.classList.remove('hidden');
         backlogView.classList.add('hidden');
         archiveView.classList.add('hidden');
-        setupView.classList.add('hidden');
+        systemSettingsView.classList.add('hidden');
+        projectSettingsView.classList.add('hidden');
 
         navBoard.classList.add('active');
         navBacklog.classList.remove('active');
         navArchive.classList.remove('active');
-        navSetup.classList.remove('active');
+        navSystemSettings.classList.remove('active');
+        navProjectSettings.classList.remove('active');
 
         sidebar.classList.remove('hidden');
         filterContainer.classList.remove('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
-        toolbar.classList.remove('toolbar--setup');
+        toolbar.classList.remove('toolbar--system-settings');
 
         refreshApp();
     } else if (view === 'archive') {
         boardView.classList.add('hidden');
         backlogView.classList.add('hidden');
         archiveView.classList.remove('hidden');
-        setupView.classList.add('hidden');
+        systemSettingsView.classList.add('hidden');
+        projectSettingsView.classList.add('hidden');
 
         navBoard.classList.remove('active');
         navArchive.classList.add('active');
         navBacklog.classList.remove('active');
-        navSetup.classList.remove('active');
+        navSystemSettings.classList.remove('active');
+        navProjectSettings.classList.remove('active');
 
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
-        toolbar.classList.remove('toolbar--setup');
+        toolbar.classList.remove('toolbar--system-settings');
 
         refreshApp();
     } else if (view === 'backlog') {
         boardView.classList.add('hidden');
         backlogView.classList.remove('hidden');
         archiveView.classList.add('hidden');
-        setupView.classList.add('hidden');
+        systemSettingsView.classList.add('hidden');
+        projectSettingsView.classList.add('hidden');
 
         navBoard.classList.remove('active');
         navArchive.classList.remove('active');
         navBacklog.classList.add('active');
-        navSetup.classList.remove('active');
+        navSystemSettings.classList.remove('active');
+        navProjectSettings.classList.remove('active');
 
         sidebar.classList.add('hidden');
         filterContainer.classList.remove('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
-        toolbar.classList.remove('toolbar--setup');
+        toolbar.classList.remove('toolbar--system-settings');
 
         refreshApp();
-    } else if (view === 'setup') {
+    } else if (view === 'system-settings') {
         boardView.classList.add('hidden');
         backlogView.classList.add('hidden');
         archiveView.classList.add('hidden');
-        setupView.classList.remove('hidden');
+        systemSettingsView.classList.remove('hidden');
+        projectSettingsView.classList.add('hidden');
 
         navBoard.classList.remove('active');
         navArchive.classList.remove('active');
         navBacklog.classList.remove('active');
-        navSetup.classList.add('active');
+        navSystemSettings.classList.add('active');
+        navProjectSettings.classList.remove('active');
 
         sidebar.classList.add('hidden');
         filterContainer.classList.add('hidden');
         if (projectSelectorContainer) projectSelectorContainer.classList.add('hidden');
-        toolbar.classList.add('toolbar--setup');
+        toolbar.classList.add('toolbar--system-settings');
 
-        renderSetupView(refreshApp);
+        renderSystemSettingsView(refreshApp);
+    } else if (view === 'project-settings') {
+        boardView.classList.add('hidden');
+        backlogView.classList.add('hidden');
+        archiveView.classList.add('hidden');
+        systemSettingsView.classList.add('hidden');
+        projectSettingsView.classList.remove('hidden');
+
+        navBoard.classList.remove('active');
+        navArchive.classList.remove('active');
+        navBacklog.classList.remove('active');
+        navSystemSettings.classList.remove('active');
+        navProjectSettings.classList.add('active');
+
+        sidebar.classList.add('hidden');
+        filterContainer.classList.add('hidden');
+        if (projectSelectorContainer) projectSelectorContainer.classList.remove('hidden');
+        toolbar.classList.remove('toolbar--system-settings');
+
+        renderProjectSettingsView();
     }
 }
 

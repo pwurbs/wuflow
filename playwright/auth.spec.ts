@@ -43,7 +43,7 @@ test.describe('Authentication Security', () => {
     await page1.fill('#login-email', adminEmail);
     await page1.fill('#login-password', adminPassword);
     await page1.click('#login-btn');
-    await expect(page1.locator('#nav-setup')).toBeVisible();
+    await expect(page1.locator('#nav-system-settings')).toBeVisible();
 
     // Context 2 (Device B)
     const context2 = await browser.newContext();
@@ -52,11 +52,11 @@ test.describe('Authentication Security', () => {
     await page2.fill('#login-email', adminEmail);
     await page2.fill('#login-password', adminPassword);
     await page2.click('#login-btn');
-    await expect(page2.locator('#nav-setup')).toBeVisible();
+    await expect(page2.locator('#nav-system-settings')).toBeVisible();
 
     // Verify Context 1 is STILL valid (concurrent session support)
     await page1.reload();
-    await expect(page1.locator('#nav-setup')).toBeVisible();
+    await expect(page1.locator('#nav-system-settings')).toBeVisible();
 
     await context1.close();
     await context2.close();
@@ -68,7 +68,7 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 2. Capture Valid Cookies (Session A)
     const validCookies = await context.cookies();
@@ -102,7 +102,7 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 2. Capture Cookies (State A - Valid)
     const cookiesA = await context.cookies();
@@ -148,7 +148,7 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 2. Simulate Access Token Expiry by deleting the cookie
     //    (The Refresh Token 'wf_refresh_token' remains)
@@ -166,7 +166,7 @@ test.describe('Authentication Security', () => {
 
     // Expect: Stay on Dashboard (Not Redirected)
     await expect(page).toHaveURL(/\/$/); // just verify root path, not hardcoded port
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // Verify new access token was set
     const newCookies = await context.cookies();
@@ -180,7 +180,7 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 2. Tamper with Refresh Token
     const cookies = await context.cookies();
@@ -210,7 +210,7 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     const cookies = await context.cookies();
     const accessToken = cookies.find(c => c.name === 'wf_access_token');
@@ -263,12 +263,12 @@ test.describe('Authentication Security', () => {
   });
 
   test('Role-based nav: sysadmin sees Setup, admin role does not', async ({ page }) => {
-    // 1. Login as sysadmin — Setup nav must be visible
+    // 1. Login as sysadmin — System Settings nav must be visible
     await page.goto('/login');
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 2. Create a plain admin-role user via API (sysadmin session is active)
     const adminUserEmail = `nav_admin_${Date.now()}@example.com`;
@@ -292,12 +292,12 @@ test.describe('Authentication Security', () => {
     await page.click('#user-menu-logout');
     await expect(page).toHaveURL(/\/login/);
 
-    // 4. Log in as the plain admin user — Setup nav must be hidden
+    // 4. Log in as the plain admin user — System Settings nav must be hidden
     await page.fill('#login-email', adminUserEmail);
     await page.fill('#login-password', adminUserPassword);
     await page.click('#login-btn');
     await expect(page.locator('.board')).toBeVisible();
-    await expect(page.locator('#nav-setup')).toBeHidden();
+    await expect(page.locator('#nav-system-settings')).toBeHidden();
 
     // 5. Cleanup: log back in as sysadmin and deactivate the temp user
     await page.click('#user-menu-btn');
@@ -341,7 +341,7 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // 2. Drop the access token to force a full refresh cycle
     const cookies = await context.cookies();
@@ -370,7 +370,7 @@ test.describe('Authentication Security', () => {
     // 2. Client Route (e.g., /board) -> Should Redirect to Login
     await page.goto('/board');
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.locator('#nav-setup')).toBeHidden();
+    await expect(page.locator('#nav-system-settings')).toBeHidden();
 
     // 3. Protected Static File (index.html) -> Should Redirect to Login
     //    Note: index.html is the default for /, so accessing it directly should also trigger auth check

@@ -1,59 +1,16 @@
-import { fetchLabels, createLabel, deleteLabel, fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout } from '../api.js';
-import { showNotification, showConfirm, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
+import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout } from '../api.js';
+import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
 import { state } from '../state.js';
-import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
+import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
 const HINT_NEW_USER = 'Minimum 12 characters. No common passwords.';
 
 
-let setupViewContainer = null;
+let systemSettingsViewContainer = null;
 
-export function setupSetupView(refreshCallback) {
-  setupViewContainer = document.getElementById('setup-view');
-  // Add event listener for adding a label
-  const addLabelInput = document.getElementById('new-label-input');
-  const addLabelBtn = document.getElementById('add-label-btn');
-
-  if (addLabelBtn && addLabelInput) {
-    if (userCan(state.currentUser, ACTION_CREATE_LABEL)) {
-      initCharCounter(addLabelInput, 15);
-
-      // Function to handle adding label
-      const handleAdd = async () => {
-        const name = addLabelInput.value.trim();
-        if (!name) return;
-        if (countCodepoints(name) > 15) {
-          showNotification('Label name must not exceed 15 characters.', 'error');
-          return;
-        }
-
-        try {
-          // Fetch existing labels to check used colors
-          const existingLabels = await fetchLabels();
-          const usedColors = existingLabels.map(l => l.color);
-
-          const color = getUnusedColor(usedColors);
-          await createLabel({ name, color });
-          addLabelInput.value = '';
-          renderSetupView(refreshCallback); // Refresh list
-          if (refreshCallback) refreshCallback(); // Refresh board/app
-          showNotification('Label created', 'success');
-        } catch (err) {
-          console.error(err);
-          showNotification('Failed to create label', 'error');
-        }
-      };
-
-      addLabelBtn.addEventListener('click', handleAdd);
-      addLabelInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleAdd();
-      });
-    } else {
-      const group = addLabelBtn.closest('.label-input-group');
-      if (group) group.style.display = 'none';
-    }
-  }
+export function setupSystemSettingsView(refreshCallback) {
+  systemSettingsViewContainer = document.getElementById('system-settings-view');
 
   // User management
   setupUserModal(refreshCallback);
@@ -62,80 +19,10 @@ export function setupSetupView(refreshCallback) {
   setupProjectModal(refreshCallback);
 }
 
-export async function renderSetupView(refreshCallback) {
-  if (!setupViewContainer) return;
+export async function renderSystemSettingsView(refreshCallback) {
+  if (!systemSettingsViewContainer) return;
 
-  const labelsList = document.getElementById('labels-list');
-  if (!labelsList) return;
-
-  const labelsSection = labelsList.closest('.setup-section');
-  if (labelsSection) {
-    if (userCan(state.currentUser, ACTION_LIST_LABELS)) {
-      labelsSection.style.display = '';
-    } else {
-      labelsSection.style.display = 'none';
-      return;
-    }
-  }
-
-  labelsList.innerHTML = '<div class="loader">Loading...</div>';
-
-  try {
-    const labels = await fetchLabels();
-    labelsList.innerHTML = ''; // Clear loader
-
-    if (labels.length === 0) {
-      labelsList.innerHTML = '';
-    }
-
-    labels.forEach(label => {
-      const labelEl = document.createElement('div');
-      labelEl.className = 'label-item';
-      // Match Board Style: Light BG, Border, Colored Text
-      const safeColor = /^#[0-9A-Fa-f]{6}$/.test(label.color) ? label.color : '#808080';
-      labelEl.style.backgroundColor = safeColor + '20';
-      labelEl.style.color = safeColor;
-      labelEl.style.border = `1px solid ${safeColor}`;
-
-      labelEl.innerHTML = `
-                <span class="label-name">${escapeHtml(label.name)}</span>
-                ${userCan(state.currentUser, ACTION_DELETE_LABEL) ? '<button class="delete-label-btn" title="Delete Label">×</button>' : ''}
-            `;
-
-      const deleteBtn = labelEl.querySelector('.delete-label-btn');
-      if (deleteBtn) {
-        deleteBtn.addEventListener('click', async () => {
-          if (!userCan(state.currentUser, ACTION_DELETE_LABEL)) return;
-          const confirmed = await showConfirm(
-            'Delete Label',
-            `Are you sure you want to delete the label "${label.name}"? This action cannot be undone.`
-          );
-          if (confirmed) {
-            try {
-              await deleteLabel(label.id);
-              renderSetupView(refreshCallback); // Refresh
-              if (refreshCallback) refreshCallback(); // Refresh board/app
-              showNotification('Label deleted', 'success');
-            } catch (err) {
-              console.error(err);
-              showNotification('Failed to delete label', 'error');
-            }
-          }
-        });
-      }
-
-      labelsList.appendChild(labelEl);
-    });
-
-  } catch (err) {
-    console.error(err);
-    labelsList.innerHTML = '<div class="error">Failed to load labels.</div>';
-  }
-
-  // Render project list
   await renderProjectList(refreshCallback);
-
-  // Render user list
   await renderUserList(refreshCallback);
 }
 
@@ -246,7 +133,7 @@ async function handleProjectSubmit(refreshCallback) {
       showNotification('Project created', 'success');
     }
     closeProjectModal();
-    renderSetupView(refreshCallback);
+    renderSystemSettingsView(refreshCallback);
     if (refreshCallback) refreshCallback();
   } catch (err) {
     showProjectError(errorDisplay, err.message);
@@ -276,7 +163,7 @@ function handleDeleteProject(refreshCallback) {
       await deleteProject(editingProjectId);
       showNotification('Project deleted', 'success');
       closeProjectModal();
-      renderSetupView(refreshCallback);
+      renderSystemSettingsView(refreshCallback);
       if (refreshCallback) refreshCallback();
     } catch (err) {
       const errorDisplay = document.getElementById('project-modal-error');
@@ -510,7 +397,7 @@ async function handleUserSubmit(refreshCallback) {
 
     showNotification(isEditing ? 'User updated' : 'User created', 'success');
     closeUserModal();
-    renderSetupView(refreshCallback);
+    renderSystemSettingsView(refreshCallback);
   } catch (err) {
     showUserError(errorDisplay, err.message);
   }
@@ -713,24 +600,6 @@ function setupUserDropdown(triggerId, optionsId, inputId, textId) {
   });
 }
 
-
-export function getUnusedColor(usedColors) {
-  const colors = [
-    '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
-    '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
-    '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
-    '#FF7043', '#8D6E63', '#78909C'
-  ];
-
-  const availableColors = colors.filter(c => !usedColors.includes(c));
-
-  if (availableColors.length > 0) {
-    return availableColors[Math.floor(Math.random() * availableColors.length)]; //NOSONAR
-  }
-
-  // Fallback: if all colors used, pick random from full list
-  return colors[Math.floor(Math.random() * colors.length)]; //NOSONAR
-}
 
 // Simple helper to check if color is light or dark (for text contrast)
 export function isLight(color) {

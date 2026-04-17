@@ -66,8 +66,8 @@ test.describe('Landing Page', () => {
     // Board navigation
     await expect(page.locator('#nav-board')).toBeVisible();
 
-    // Setup navigation
-    await expect(page.locator('#nav-setup')).toBeVisible();
+    // System Settings navigation
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
 
     // User Menu button
     await expect(page.locator('#user-menu-btn')).toBeVisible();

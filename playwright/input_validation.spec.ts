@@ -131,16 +131,16 @@ test.describe('Validation limits – Task', () => {
 test.describe('Validation limits – Label', () => {
   test.beforeEach(async ({ page, login }) => {
     await login();
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'project-settings');
   });
 
   test('label name exceeding 15 characters is rejected', async ({ page }) => {
     // Set value directly (bypasses input-event truncation) to test JS validation backstop
     await page.evaluate(() => {
-      (document.getElementById('new-label-input') as HTMLInputElement).value = 'a'.repeat(16);
+      (document.getElementById('ps-new-label-input') as HTMLInputElement).value = 'a'.repeat(16);
     });
 
-    await page.click('#add-label-btn');
+    await page.click('#ps-add-label-btn');
 
     await expectMainError(page, 'Label name must not exceed 15 characters');
   });
@@ -151,7 +151,7 @@ test.describe('Validation limits – Label', () => {
 test.describe('Validation limits – User', () => {
   test.beforeEach(async ({ page, login }) => {
     await login();
-    await navigateTo(page, 'setup');
+    await navigateTo(page, 'system-settings');
     await page.click('#add-user-btn');
     await expect(page.locator('#user-modal-overlay')).toBeVisible();
   });

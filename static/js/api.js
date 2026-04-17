@@ -199,26 +199,24 @@ export async function deleteIssue(id) {
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete issue');
 }
 
-export async function fetchLabels() {
-  const response = await authFetch(`${API_URL}/labels`);
+export async function fetchLabelsByProject(projectId) {
+  const response = await authFetch(`${API_URL}/projects/${projectId}/labels`);
   if (!response.ok) throw new Error(await response.text() || 'Failed to fetch labels');
   return await response.json();
 }
 
-export async function createLabel(label) {
-  const response = await authFetch(`${API_URL}/labels`, {
+export async function createLabel(projectId, label) {
+  const response = await authFetch(`${API_URL}/projects/${projectId}/labels`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(label),
   });
   if (!response.ok) throw new Error(await response.text() || 'Failed to create label');
   return await response.json();
 }
 
-export async function deleteLabel(id) {
-  const response = await authFetch(`${API_URL}/labels/${id}`, {
+export async function deleteLabel(projectId, labelId) {
+  const response = await authFetch(`${API_URL}/projects/${projectId}/labels/${labelId}`, {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error(await response.text() || 'Failed to delete label');

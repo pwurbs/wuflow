@@ -62,8 +62,8 @@ var rolePermissions = map[Action][]UserRole{
 
 	// Labels
 	ActionListLabels:  {RoleSysAdmin, RoleAdmin, RoleUser},
-	ActionCreateLabel: {RoleSysAdmin},
-	ActionDeleteLabel: {RoleSysAdmin},
+	ActionCreateLabel: {RoleSysAdmin, RoleAdmin},
+	ActionDeleteLabel: {RoleSysAdmin, RoleAdmin},
 
 	// Users
 	ActionListUsers:  {RoleSysAdmin, RoleAdmin, RoleUser},
