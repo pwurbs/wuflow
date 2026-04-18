@@ -72,8 +72,8 @@ test.describe('Role Based Authorization', () => {
 
     // 4. Open the issue
     // Verify it is in the To-do column and is visible
-    const cardSelector = `#col-todo .card:has-text("${issueTitle}")`;
-    await expect(page.locator('#col-todo')).toBeVisible();
+    const cardSelector = `.column[data-status="Todo"] .card:has-text("${issueTitle}")`;
+    await expect(page.locator('.column[data-status="Todo"]')).toBeVisible();
     await expect(page.locator(cardSelector)).toBeVisible();
     await page.click(cardSelector, { force: true });
     await expect(page.locator('#issue-modal')).toBeVisible();
@@ -101,9 +101,9 @@ test.describe('Role Based Authorization', () => {
     // Wait for board reload and find the issue ID
     // Pass a function to evaluate to get the ID from the DOM
     // Verify it is in the To-do column
-    const cardSelector = `#col-todo .card:has-text("${issueTitle}")`;
+    const cardSelector = `.column[data-status="Todo"] .card:has-text("${issueTitle}")`;
     const issueCard = page.locator(cardSelector).first();
-    await expect(page.locator('#col-todo')).toBeVisible();
+    await expect(page.locator('.column[data-status="Todo"]')).toBeVisible();
     // Wait for overlay to be hidden before interacting/checking visibility
     await expect(page.locator('#issue-modal-overlay')).toBeHidden();
 
@@ -198,7 +198,7 @@ test.describe('Role Based Authorization', () => {
     await createIssue(page, { title: issueTitle, status: 'Todo' });
 
     // 4. Open Issue
-    const cardSelector = `#col-todo .card:has-text("${issueTitle}")`;
+    const cardSelector = `.column[data-status="Todo"] .card:has-text("${issueTitle}")`;
     await expect(page.locator(cardSelector)).toBeVisible();
     await page.click(cardSelector, { force: true });
 
@@ -224,6 +224,75 @@ test.describe('Role Based Authorization', () => {
     // 9. Verify Unarchive button is visible
     await expect(page.locator('#unarchive-issue-btn')).toBeVisible();
     await expect(page.locator('#archive-issue-btn')).toBeHidden(); // Should be hidden if already archived
+  });
+
+  test('Standard user cannot access Project Settings and can read status config via API', async ({ page }) => {
+    // Login as standard user
+    await page.fill('#login-email', standardUserEmail);
+    await page.fill('#login-password', standardUserPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+
+    // Project Settings nav button is hidden for standard users
+    await expect(page.locator('#nav-project-settings')).toBeHidden();
+
+    // Standard user can still GET status config via API (read access)
+    const resp = await page.request.get('/api/projects/1/statusconfig');
+    expect(resp.status()).toBe(200);
+    const cfg = await resp.json();
+    expect(cfg).toHaveProperty('stage1_name');
+    expect(cfg).toHaveProperty('stage2_name');
+  });
+
+  test('Standard user cannot update board column settings via API (403)', async ({ page }) => {
+    // Login as standard user
+    await page.fill('#login-email', standardUserEmail);
+    await page.fill('#login-password', standardUserPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+
+    // Attempt PUT /api/projects/1/statusconfig
+    const resp = await page.request.put('/api/projects/1/statusconfig', {
+      data: { stage1_name: 'Hacked', stage2_name: 'Working', stage3_name: '', stage4_name: '' }
+    });
+    expect(resp.status()).toBe(403);
+  });
+
+  test('Admin can update board column settings', async ({ page }) => {
+    // Login as admin
+    await page.fill('#login-email', adminEmail);
+    await page.fill('#login-password', adminPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+
+    // Navigate to Project Settings
+    await page.click('#nav-project-settings');
+    await expect(page.locator('#project-settings-view')).toBeVisible();
+
+    // Save button is visible
+    await expect(page.locator('#ps-save-status-config-btn')).toBeVisible();
+
+    // Inputs are enabled
+    const inputs = page.locator('#ps-status-config-content .sc-name-input');
+    for (const input of await inputs.all()) {
+      await expect(input).toBeEnabled();
+    }
+
+    // Rename Stage1 to "Review" and save
+    const stage1Input = page.locator('.sc-name-input[name="stage1_name"]');
+    await stage1Input.fill('Review');
+    await page.click('#ps-save-status-config-btn');
+    await expect(page.locator('#notification-toast')).toContainText('saved');
+
+    // Board should now show a "Review" column
+    await page.click('#nav-board');
+    await expect(page.locator('.column[data-status="Stage1"] .column-header h2')).toHaveText('Review');
+
+    // Restore original name
+    await page.click('#nav-project-settings');
+    await page.locator('.sc-name-input[name="stage1_name"]').fill('Pending');
+    await page.click('#ps-save-status-config-btn');
+    await expect(page.locator('#notification-toast')).toContainText('saved');
   });
 
 });

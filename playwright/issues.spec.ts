@@ -12,7 +12,7 @@ test.describe('Issue CRUD Operations', () => {
     await createIssue(page, { title, status: 'Todo' });
 
     // Verify the issue appears in the To-Do column (use .board-card to be specific)
-    await expect(page.locator(`#col-todo .board-card:has-text("${title}")`)).toBeVisible();
+    await expect(page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`)).toBeVisible();
   });
 
   test('create issue with all properties', async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe('Issue CRUD Operations', () => {
     });
 
     // Verify issue appears in Working column
-    await expect(page.locator(`#col-working .board-card:has-text("${title}")`)).toBeVisible();
+    await expect(page.locator(`.column[data-status="Stage2"] .board-card:has-text("${title}")`)).toBeVisible();
   });
 
   test('edit an existing issue title', async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe('Issue CRUD Operations', () => {
     await createIssue(page, { title, status: 'Todo' });
 
     // Verify it's in To-Do column
-    await expect(page.locator(`#col-todo .board-card:has-text("${title}")`)).toBeVisible();
+    await expect(page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`)).toBeVisible();
 
     // Open the issue
     await page.click(`.board-card:has-text("${title}")`);
@@ -85,7 +85,7 @@ test.describe('Issue CRUD Operations', () => {
     await expect(page.locator('#issue-modal')).toBeHidden();
 
     // Verify it moved to Pending column
-    await expect(page.locator(`#col-pending .board-card:has-text("${title}")`)).toBeVisible();
+    await expect(page.locator(`.column[data-status="Stage1"] .board-card:has-text("${title}")`)).toBeVisible();
   });
 
   test('delete an issue', async ({ page }) => {
@@ -190,8 +190,8 @@ test.describe('Issue CRUD Operations', () => {
     await page.click('#done-btn');
 
     // Drag titleB onto titleA, shifting titleA's position within the same column
-    const cardA = page.locator(`#col-todo .board-card:has-text("${titleA}")`);
-    const cardB = page.locator(`#col-todo .board-card:has-text("${titleB}")`);
+    const cardA = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleA}")`);
+    const cardB = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleB}")`);
     const putPromises: Promise<void>[] = [];
     page.on('response', r => {
       if (r.url().includes('/api/issues/') && r.request().method() === 'PUT') {

@@ -21,6 +21,7 @@ const (
 	MaxAccessTokenLength  = 4096
 	MaxProjectNameLen     = 15
 	MaxProjectDescLen     = 100
+	MaxStatusNameLen      = 15
 )
 
 // Validation errors
@@ -52,23 +53,44 @@ var (
 	ErrInvalidProjectName = errors.New("project name is required")
 	ErrProjectNameTooLong = errors.New("project name must not exceed 15 characters")
 	ErrProjectDescTooLong = errors.New("project description must not exceed 100 characters")
+
+	ErrStatusNameTooLong = errors.New("column name must not exceed 15 characters")
+	ErrStatusNameInvalid = errors.New("column name must contain only letters and digits")
 )
 
 // Compiled regexes (package-level, compiled once).
 var (
 	// emailRegex is a basic check. Start/end anchors, one @, non-empty parts.
 	// We allow minimal "user@domain" without enforcing a .TLD to support local/intranet use (e.g. admin@local).
-	emailRegex  = regexp.MustCompile(`^[^\s@]+@[^\s@]+$`)
-	colorRegex  = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-	anyTagRegex = regexp.MustCompile(`<[^>]+>`)
+	emailRegex      = regexp.MustCompile(`^[^\s@]+@[^\s@]+$`)
+	colorRegex      = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+	anyTagRegex     = regexp.MustCompile(`<[^>]+>`)
+	statusNameRegex = regexp.MustCompile(`^[a-zA-Z0-9]*$`)
 )
 
 func isValidStatus(status IssueStatus) bool {
 	switch status {
-	case StatusOpen, StatusTodo, StatusPending, StatusWorking, StatusDone, StatusArchive:
+	case StatusOpen, StatusTodo, StatusStage1, StatusStage2, StatusStage3, StatusStage4, StatusDone, StatusArchive:
 		return true
 	}
 	return false
+}
+
+func validateStatusConfig(cfg *StatusConfig) error {
+	names := []*string{&cfg.Stage1Name, &cfg.Stage2Name, &cfg.Stage3Name, &cfg.Stage4Name}
+	for _, name := range names {
+		*name = strings.TrimSpace(*name)
+		if *name == "" {
+			continue // empty = column hidden, valid
+		}
+		if !statusNameRegex.MatchString(*name) {
+			return ErrStatusNameInvalid
+		}
+		if utf8.RuneCountInString(*name) > MaxStatusNameLen {
+			return ErrStatusNameTooLong
+		}
+	}
+	return nil
 }
 
 func isValidPriority(priority IssuePriority) bool {

@@ -3507,3 +3507,223 @@ func TestProjectNameCaseNormalisation(t *testing.T) {
 		t.Errorf("expected 409 for duplicate name, got %d", rr2.Code)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// handleProjectStatusConfig
+// ---------------------------------------------------------------------------
+
+const apiStatusConfig = "/api/projects/1/statusconfig"
+
+func TestHandleProjectStatusConfigGet(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, err := http.NewRequest("GET", apiStatusConfig, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var cfg StatusConfig
+	if err := json.NewDecoder(rr.Body).Decode(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Stage1Name != "Pending" || cfg.Stage2Name != "Working" {
+		t.Errorf("expected default config, got %+v", cfg)
+	}
+}
+
+func TestHandleProjectStatusConfigGetCustomValues(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	UpsertStatusConfig(&StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA", Stage3Name: "Staging"})
+
+	req, err := http.NewRequest("GET", apiStatusConfig, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var cfg StatusConfig
+	if err := json.NewDecoder(rr.Body).Decode(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Stage1Name != "Review" || cfg.Stage2Name != "QA" || cfg.Stage3Name != "Staging" {
+		t.Errorf("unexpected config: %+v", cfg)
+	}
+}
+
+func TestHandleProjectStatusConfigGetForbidden(t *testing.T) {
+	req, err := http.NewRequest("GET", apiStatusConfig, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No role in context → denied
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestHandleProjectStatusConfigGetDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE project_status_config")
+
+	req, err := http.NewRequest("GET", apiStatusConfig, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleProjectStatusConfigPut(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	payload := StatusConfig{Stage1Name: "Review", Stage2Name: "QA", Stage3Name: "", Stage4Name: ""}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest("PUT", apiStatusConfig, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
+	ctx = context.WithValue(ctx, contextKeyEmail, testAssigneeEmail)
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var resp StatusConfig
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Stage1Name != "Review" || resp.Stage2Name != "QA" {
+		t.Errorf("unexpected response config: %+v", resp)
+	}
+	if resp.ProjectID != 1 {
+		t.Errorf("expected ProjectID 1 in response, got %d", resp.ProjectID)
+	}
+}
+
+func TestHandleProjectStatusConfigPutForbiddenUser(t *testing.T) {
+	payload := StatusConfig{Stage1Name: "Review"}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest("PUT", apiStatusConfig, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestHandleProjectStatusConfigPutInvalidJSON(t *testing.T) {
+	req, err := http.NewRequest("PUT", apiStatusConfig, bytes.NewBufferString(invalidJSON))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleProjectStatusConfigPutValidationFails(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	payload := StatusConfig{Stage1Name: "Bad!Name"}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest("PUT", apiStatusConfig, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleProjectStatusConfigPutDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE project_status_config")
+
+	payload := StatusConfig{Stage1Name: "Review", Stage2Name: "Working"}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest("PUT", apiStatusConfig, bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
+	ctx = context.WithValue(ctx, contextKeyEmail, testAssigneeEmail)
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleProjectStatusConfigMethodNotAllowed(t *testing.T) {
+	req, err := http.NewRequest("DELETE", apiStatusConfig, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}

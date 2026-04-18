@@ -184,7 +184,7 @@ test.describe('Edge Cases and Validation', () => {
     await page.reload();
 
     // Verify issue still exists in Working column
-    await expect(page.locator('#col-working .board-card:has-text("Persistent Issue")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Stage2"] .board-card:has-text("Persistent Issue")')).toBeVisible();
 
     // Open the issue and verify all properties
     await openIssueByTitle(page, 'Persistent Issue');
@@ -221,10 +221,10 @@ test.describe('Edge Cases and Validation', () => {
     await page.reload();
 
     // Verify each issue is in the correct column
-    await expect(page.locator('#col-todo .board-card:has-text("Todo Issue")')).toBeVisible();
-    await expect(page.locator('#col-pending .board-card:has-text("Pending Issue")')).toBeVisible();
-    await expect(page.locator('#col-working .board-card:has-text("Working Issue")')).toBeVisible();
-    await expect(page.locator('#col-done .board-card:has-text("Done Issue")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Todo"] .board-card:has-text("Todo Issue")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Stage1"] .board-card:has-text("Pending Issue")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Stage2"] .board-card:has-text("Working Issue")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Done"] .board-card:has-text("Done Issue")')).toBeVisible();
   });
 
   test('empty title validation', async ({ page }) => {
@@ -244,7 +244,7 @@ test.describe('Edge Cases and Validation', () => {
     // Create an issue in To-do
     await createIssue(page, { title: 'Drag Cancel Test', status: 'Todo' });
 
-    const issueCard = page.locator('#col-todo .board-card:has-text("Drag Cancel Test")');
+    const issueCard = page.locator('.column[data-status="Todo"] .board-card:has-text("Drag Cancel Test")');
     await expect(issueCard).toBeVisible();
 
     // Get initial position/state
@@ -266,12 +266,12 @@ test.describe('Edge Cases and Validation', () => {
     await page.waitForTimeout(500);
 
     // Verify it is STILL in To-do
-    await expect(page.locator('#col-todo .board-card:has-text("Drag Cancel Test")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Todo"] .board-card:has-text("Drag Cancel Test")')).toBeVisible();
 
     // Verify it is NOT in other columns
-    await expect(page.locator('#col-pending .board-card:has-text("Drag Cancel Test")')).toBeHidden();
-    await expect(page.locator('#col-working .board-card:has-text("Drag Cancel Test")')).toBeHidden();
-    await expect(page.locator('#col-done .board-card:has-text("Drag Cancel Test")')).toBeHidden();
+    await expect(page.locator('.column[data-status="Stage1"] .board-card:has-text("Drag Cancel Test")')).toBeHidden();
+    await expect(page.locator('.column[data-status="Stage2"] .board-card:has-text("Drag Cancel Test")')).toBeHidden();
+    await expect(page.locator('.column[data-status="Done"] .board-card:has-text("Drag Cancel Test")')).toBeHidden();
   });
 
   test('strict validation: rejects query parameters', async ({ page }) => {

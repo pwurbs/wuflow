@@ -33,6 +33,8 @@ export const ACTION_LIST_PROJECTS   = 'project:list';
 export const ACTION_CREATE_PROJECT  = 'project:create';
 export const ACTION_UPDATE_PROJECT  = 'project:update';
 export const ACTION_DELETE_PROJECT  = 'project:delete';
+export const ACTION_GET_STATUS_CONFIG    = 'statusconfig:get';
+export const ACTION_UPDATE_STATUS_CONFIG = 'statusconfig:update';
 
 // Allowlist policy — mirrors rolePermissions in backend/permissions.go.
 // To add a new role or action, update both this map and the backend map.
@@ -68,6 +70,9 @@ const rolePermissions = {
     [ACTION_CREATE_PROJECT]:  [ROLE_SYSADMIN],
     [ACTION_UPDATE_PROJECT]:  [ROLE_SYSADMIN],
     [ACTION_DELETE_PROJECT]:  [ROLE_SYSADMIN],
+    // Status config
+    [ACTION_GET_STATUS_CONFIG]:    [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_UPDATE_STATUS_CONFIG]: [ROLE_SYSADMIN, ROLE_ADMIN],
 };
 
 /**

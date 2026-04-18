@@ -359,3 +359,26 @@ export async function deleteProject(id) {
     throw new Error(text || 'Failed to delete project');
   }
 }
+
+export async function fetchStatusConfig(projectId) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/statusconfig`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to fetch status config');
+  }
+  return await res.json();
+}
+
+export async function updateStatusConfig(projectId, config) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/statusconfig`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to update status config');
+  }
+  return await res.json();
+}
+

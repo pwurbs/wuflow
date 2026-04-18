@@ -182,7 +182,7 @@ test.describe('Archive View', () => {
 
     // Find the CARD on the board (it's not a planning item yet)
     // Target specific column to avoid duplicates (e.g. if backlog is also visible or other elements match)
-    const cardToPlan = page.locator('#col-todo .card', { hasText: 'Planned Issue' });
+    const cardToPlan = page.locator('.column[data-status="Todo"] .card', { hasText: 'Planned Issue' });
     await expect(cardToPlan).toBeVisible();
 
     const todayCol = page.locator('.planning-day').filter({ hasNotText: 'Unscheduled' }).first();
@@ -193,7 +193,7 @@ test.describe('Archive View', () => {
 
     // Now go to Board and move to Done (we need it in Done to see it in Archive's Done list)
     await navigateTo(page, 'board');
-    const cardToMove = page.locator('#col-todo .card', { hasText: 'Planned Issue' });
+    const cardToMove = page.locator('.column[data-status="Todo"] .card', { hasText: 'Planned Issue' });
     await expect(cardToMove).toBeVisible();
 
     // Use modal to be more reliable than drag-and-drop on board

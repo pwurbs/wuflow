@@ -31,7 +31,7 @@
     {
       "label": "Go Fuzz",
       "type": "shell",
-      "command": "for t in FuzzSanitizeHTML FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
+      "command": "for t in FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue FuzzValidateProject FuzzValidateStatusConfig; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
       "group": "test",
       "presentation": {
         "reveal": "always",
@@ -65,6 +65,19 @@
         "panel": "shared"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Go Checks",
+      "type": "shell",
+      "command": "gosec ./... ; go vet ./... ; govulncheck ./...",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": [
+        "$go"
+      ]
     },
     {
       "label": "Go Build",

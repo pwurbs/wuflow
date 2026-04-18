@@ -37,6 +37,8 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/projects` | POST | `HandleProjects` | Sysadmin | Create project |
 | `/projects/:id` | PUT | `HandleProject` | Sysadmin | Update project |
 | `/projects/:id` | DELETE | `HandleProject` | Sysadmin | Delete project |
+| `/projects/:id/statusconfig` | GET | `HandleProject` | Required | Get board column configuration for a project |
+| `/projects/:id/statusconfig` | PUT | `HandleProject` | Admin | Update board column configuration for a project |
 | `/version` | GET | `Anonymous Func` | Public | Get app version |
 
 **Legend:**
@@ -145,7 +147,7 @@ Updates an existing user (Sysadmin only).
 ## Issues
 
 ### Get Active Issues for a Project
-Retrieves issues with status *Todo, Pending, Working, or Done* for a specific project. Excludes *Open* and *Archive* statuses. Includes associated tasks.
+Retrieves issues with status *Todo, Stage1, Stage2, Stage3, Stage4, or Done* for a specific project (board issues). Excludes *Open* and *Archive* statuses. Includes associated tasks.
 - **GET** `/projects/:id/issues/active`
 - **Errors**:
   - `404 Not Found` - Project doesn't exist
@@ -170,7 +172,7 @@ Creates a new issue.
   {
     "title": "Issue Title",
     "description": "Optional Markdown content",
-    "status": "Open", // Open, Todo, Pending, Working, Done, Archive
+    "status": "Open", // Open, Todo, Stage1, Stage2, Stage3, Stage4, Done, Archive
     "priority": "Normal", // Normal, High
     "label_id": 1 // Optional
   }
@@ -333,6 +335,47 @@ Deletes a project (Sysadmin only).
   - `400 Bad Request` - Cannot delete the default project (id=1) or project still has assigned issues
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not a sysadmin
+  - `404 Not Found` - Project doesn't exist
+
+## Status Config
+
+Board column names are stored per project in a `StatusConfig` object. The four middle slots (`Stage1`–`Stage4`) have configurable display names; `Todo` and `Done` are fixed. An empty name means the column is hidden on the board.
+
+### Get Status Config
+Retrieves the board column configuration for a project. Accessible to all authenticated users.
+- **GET** `/projects/:id/statusconfig`
+- **Response**:
+  ```json
+  {
+    "project_id": 1,
+    "stage1_name": "Pending",
+    "stage2_name": "Working",
+    "stage3_name": "",
+    "stage4_name": ""
+  }
+  ```
+- **Errors**:
+  - `404 Not Found` - Project doesn't exist
+
+### Update Status Config
+Updates the board column configuration for a project (Admin or Sysadmin).
+- **PUT** `/projects/:id/statusconfig`
+- **Body**:
+  ```json
+  {
+    "stage1_name": "Review",
+    "stage2_name": "Working",
+    "stage3_name": "QA",
+    "stage4_name": ""
+  }
+  ```
+- **Notes**:
+  - Each name must contain only letters and digits, max 15 characters
+  - Empty string deactivates (hides) that column; existing issues with that status are preserved but hidden
+- **Response**: Updated `StatusConfig` object
+- **Errors**:
+  - `400 Bad Request` - Validation failed (invalid characters or name too long)
+  - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Project doesn't exist
 
 ## System

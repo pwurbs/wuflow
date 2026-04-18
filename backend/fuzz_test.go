@@ -3,6 +3,7 @@ package backend
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // FuzzValidateLabel tests the label validation logic for crashes and name sanitization.
@@ -37,6 +38,9 @@ func FuzzValidateLabel(f *testing.F) {
 			if anyTagRegex.MatchString(l.Name) {
 				t.Errorf("Validated label name still contains tags: %q", l.Name)
 			}
+			if utf8.RuneCountInString(l.Name) > MaxLabelNameLen {
+				t.Errorf("Validated label name exceeds max length: %q", l.Name)
+			}
 		}
 	})
 }
@@ -68,6 +72,12 @@ func FuzzValidateUser(f *testing.F) {
 			}
 			if anyTagRegex.MatchString(u.LastName) {
 				t.Errorf("Validated user LastName still contains tags: %q", u.LastName)
+			}
+			if utf8.RuneCountInString(u.FirstName) > MaxUserNameLength {
+				t.Errorf("Validated user FirstName exceeds max length: %q", u.FirstName)
+			}
+			if utf8.RuneCountInString(u.LastName) > MaxUserNameLength {
+				t.Errorf("Validated user LastName exceeds max length: %q", u.LastName)
 			}
 		}
 	})
@@ -145,24 +155,80 @@ func FuzzValidateProject(f *testing.F) {
 			if anyTagRegex.MatchString(p.Description) {
 				t.Errorf("Validated project description still contains tags: %q", p.Description)
 			}
+			if utf8.RuneCountInString(p.Name) > MaxProjectNameLen {
+				t.Errorf("Validated project name exceeds max length: %q", p.Name)
+			}
+			if utf8.RuneCountInString(p.Description) > MaxProjectDescLen {
+				t.Errorf("Validated project description exceeds max length: %q", p.Description)
+			}
 		}
 	})
 }
 
-// FuzzValidateIssue tests the issue validation logic, specifically verifying
-// that plain-text fields (like Title) are correctly cleaned and validated,
-// while Description is only validated for length constraints.
+// FuzzValidateStatusConfig tests the board column name validation for crashes and
+// correct rejection of names that contain disallowed characters or exceed length limits.
+func FuzzValidateStatusConfig(f *testing.F) {
+	f.Add("Pending", "Working", "", "")
+	f.Add("", "", "", "")
+	f.Add("<script>xss</script>", "Working", "", "")
+	f.Add("Done", "In Progress", "Review", "QA")
+	f.Add(strings.Repeat("A", MaxStatusNameLen+1), "Working", "", "")
+	f.Add("  Pending  ", "Working", "", "")
+
+	// Null bytes — should fail the alphanumeric regex.
+	f.Add("\x00Name", "Working", "", "")
+
+	// Unicode letters — must fail the ASCII-only regex.
+	f.Add("Révision", "Working", "", "")
+
+	// Partial-tag pattern: should fail the alphanumeric regex.
+	f.Add("<x<b>col</b>", "Working", "", "")
+
+	f.Fuzz(func(t *testing.T, s1, s2, s3, s4 string) {
+		cfg := &StatusConfig{
+			Stage1Name: s1,
+			Stage2Name: s2,
+			Stage3Name: s3,
+			Stage4Name: s4,
+		}
+
+		// Should never panic.
+		if err := validateStatusConfig(cfg); err != nil {
+			return
+		}
+
+		// Invariant: every non-empty name must consist solely of alphanumeric characters.
+		for _, name := range []string{cfg.Stage1Name, cfg.Stage2Name, cfg.Stage3Name, cfg.Stage4Name} {
+			if name == "" {
+				continue
+			}
+			if !statusNameRegex.MatchString(name) {
+				t.Errorf("Validated stage name contains disallowed characters: %q", name)
+			}
+			if utf8.RuneCountInString(name) > MaxStatusNameLen {
+				t.Errorf("Validated stage name exceeds max length: %q", name)
+			}
+		}
+	})
+}
+
+// FuzzValidateIssue tests the issue validation logic, verifying that Title is
+// cleaned of HTML and null bytes, and that Description is cleaned of null
+// bytes and trimmed.
 func FuzzValidateIssue(f *testing.F) {
 	f.Add("Clean Title", "Some description")
 	f.Add("<b>HTML Title</b>", "**Markdown** description")
 	f.Add("", "")
 
-	// Null bytes (\x00) should be stripped from Title before length/content validation.
-	f.Add("\x00\x00Title With Nulls\x00", "description")
+	// Null bytes (\x00) should be stripped from Title and Description before validation.
+	f.Add("\x00\x00Title With Nulls\x00", "description\x00with\x00nulls")
 
 	// Title with only tags (all stripped) — validateIssue must return an error
 	// for empty-after-strip, exercising the ErrInvalidTitle branch.
 	f.Add("<b></b>", "description")
+
+	// Whitespace trimming
+	f.Add("  Title  ", "  Trimmed Description  ")
 
 	// Title length bounds testing (MaxTitleLength = 100)
 	f.Add(strings.Repeat("A", MaxTitleLength+1), "description")
@@ -181,16 +247,33 @@ func FuzzValidateIssue(f *testing.F) {
 		err := validateIssue(i)
 
 		if err == nil {
-			// Invariant: validated title must be entirely clean of HTML tags
-			// and Null bytes.
-			if anyTagRegex.MatchString(i.Title) {
-				t.Errorf("Validated issue title still contains tags: %q", i.Title)
-			}
-			if strings.Contains(i.Title, "\x00") {
-				t.Errorf("Validated issue title still contains null bytes: %q", i.Title)
-			}
-			// Description is preserved entirely; security constraints for description
-			// (e.g. DOMPurify) are enforced on the frontend during rendering.
+			checkValidatedIssueInvariants(t, i)
 		}
 	})
+}
+
+// checkValidatedIssueInvariants asserts post-validation invariants on a successfully validated issue.
+// Description is intentionally NOT checked for HTML tags; that sanitization is handled by
+// DOMPurify on the frontend to support Markdown rendering.
+func checkValidatedIssueInvariants(t *testing.T, i *Issue) {
+	t.Helper()
+
+	if anyTagRegex.MatchString(i.Title) {
+		t.Errorf("Validated issue title still contains tags: %q", i.Title)
+	}
+	if strings.Contains(i.Title, "\x00") {
+		t.Errorf("Validated issue title still contains null bytes: %q", i.Title)
+	}
+	if strings.Contains(i.Description, "\x00") {
+		t.Errorf("Validated issue description still contains null bytes: %q", i.Description)
+	}
+	if len(i.Description) > 0 && strings.TrimSpace(i.Description) != i.Description {
+		t.Errorf("Validated issue description is not trimmed: %q", i.Description)
+	}
+	if utf8.RuneCountInString(i.Title) > MaxTitleLength {
+		t.Errorf("Validated issue title exceeds max length: %q", i.Title)
+	}
+	if utf8.RuneCountInString(i.Description) > MaxDescLength {
+		t.Errorf("Validated issue description exceeds max length: %q", i.Description)
+	}
 }

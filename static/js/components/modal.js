@@ -1,4 +1,5 @@
 import { state, setCurrentIssue } from '../state.js';
+import { getStatusOptions, getStatusLabel } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
@@ -147,8 +148,9 @@ export async function openModal(issue = null) {
 function renderModalDropdowns(issue) {
   // Status Dropdown
   const statusInput = document.getElementById('status');
-  statusInput.value = issue?.status ?? 'Open';
-  document.getElementById('status-text').textContent = issue?.status ?? 'Open';
+  const currentStatus = issue?.status ?? 'Open';
+  statusInput.value = currentStatus;
+  document.getElementById('status-text').textContent = getStatusLabel(currentStatus);
   renderStatusOptions();
 
   // Priority Dropdown
@@ -1227,14 +1229,13 @@ function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
 function renderStatusOptions() {
   const optionsContainer = document.getElementById('status-options');
   optionsContainer.innerHTML = '';
-  const statuses = ['Open', 'Todo', 'Pending', 'Working', 'Done'];
 
-  statuses.forEach(status => {
+  getStatusOptions().forEach(({ value, label }) => {
     const div = document.createElement('div');
     div.className = 'custom-option';
-    div.textContent = status;
+    div.textContent = label;
     div.addEventListener('click', () => {
-      selectOption('status', 'status-text', 'status-options', status, status);
+      selectOption('status', 'status-text', 'status-options', value, label);
     });
     optionsContainer.appendChild(div);
   });

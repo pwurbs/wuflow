@@ -20,6 +20,7 @@
 | **Issue/Task Title** | 100 chars | Encourages concise summaries. |
 | **Description** | 5,000 chars | Allows detailed content while preventing excessive payload sizes. |
 | **Label Name** | 15 chars | UI space constraints (chips/tags). |
+| **Column Name** | 15 chars, letters & digits only | Fits board column headers; empty = column hidden. |
 | **User Name** | 50 chars | Accommodates most names without layout breakage. |
 | **Search Filter** | 50 chars | Prevents performance issues and UX breakdown during string matching. |
 | **Email** | 254 bytes | RFC 5321 standard limit. |

@@ -160,20 +160,18 @@ func createTables() error {
 		return err
 	}
 
-	// Migration Code, can be removed in a later version (TODO)
-	// Add project_id column to labels if it doesn't exist (migration for existing DBs)
-	// SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we check column existence first.
-	var labelColCount int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&labelColCount); err != nil {
-		slog.Error("Failed to check for project_id column in labels", "error", err)
+	createStatusConfigTable := `
+	CREATE TABLE IF NOT EXISTS project_status_config (
+		project_id   INTEGER PRIMARY KEY,
+		stage1_name  TEXT NOT NULL DEFAULT 'Pending',
+		stage2_name  TEXT NOT NULL DEFAULT 'Working',
+		stage3_name  TEXT NOT NULL DEFAULT '',
+		stage4_name  TEXT NOT NULL DEFAULT '',
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+	);`
+	if _, err := DB.Exec(createStatusConfigTable); err != nil {
+		slog.Error("Failed to create project_status_config table", "error", err)
 		return err
-	}
-	if labelColCount == 0 {
-		if _, err := DB.Exec(`ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
-			slog.Error("Failed to add project_id column to labels", "error", err)
-			return err
-		}
-		slog.Info("Migrated labels table: added project_id column (existing labels assigned to project 1)")
 	}
 
 	createUsersTable := `
@@ -209,6 +207,51 @@ func createTables() error {
 	// Create index on user_id to speed up session revocation by user (e.g., logout all devices)
 	if _, err := DB.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
 		slog.Error("Failed to create index on sessions(user_id)", "error", err)
+		return err
+	}
+
+	if err := runMigrations(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// runMigrations applies incremental schema and data migrations to existing databases.
+// All migrations must be idempotent so they are safe to run on every startup.
+func runMigrations() error {
+	// TODO: Migration code, can be removed in a later version.
+	// Add project_id column to labels if it doesn't exist (migration for existing DBs).
+	// SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so check column existence first.
+	var labelColCount int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&labelColCount); err != nil {
+		slog.Error("Failed to check for project_id column in labels", "error", err)
+		return err
+	}
+	if labelColCount == 0 {
+		if _, err := DB.Exec(`ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
+			slog.Error("Failed to add project_id column to labels", "error", err)
+			return err
+		}
+		slog.Info("Migrated labels table: added project_id column (existing labels assigned to project 1)")
+	}
+
+	// TODO: Migration code, can be removed in a later version.
+	// Migrate Pending/Working status values to Stage1/Stage2 (idempotent).
+	if res, err := DB.Exec(`UPDATE issues SET status = 'Stage1' WHERE status = 'Pending'`); err != nil {
+		slog.Error("Failed to migrate Pending -> Stage1", "error", err)
+		return err
+	} else if n, _ := res.RowsAffected(); n > 0 {
+		slog.Info("Migrated issues: Pending -> Stage1", "count", n)
+	}
+	if res, err := DB.Exec(`UPDATE issues SET status = 'Stage2' WHERE status = 'Working'`); err != nil {
+		slog.Error("Failed to migrate Working -> Stage2", "error", err)
+		return err
+	} else if n, _ := res.RowsAffected(); n > 0 {
+		slog.Info("Migrated issues: Working -> Stage2", "count", n)
+	}
+	// Seed default status/column config for all existing projects that don't have one yet.
+	if _, err := DB.Exec(`INSERT OR IGNORE INTO project_status_config (project_id) SELECT id FROM projects`); err != nil {
+		slog.Error("Failed to seed project_status_config", "error", err)
 		return err
 	}
 
@@ -886,6 +929,12 @@ func CreateProject(p *Project) error {
 		return err
 	}
 	p.ID = int(id)
+
+	// Seed default column/status config for the new project.
+	if _, err := DB.Exec(`INSERT OR IGNORE INTO project_status_config (project_id) VALUES (?)`, p.ID); err != nil {
+		slog.Error("Database Error: CreateProject seed status config", "error", err)
+		return err
+	}
 	return nil
 }
 
@@ -1348,4 +1397,38 @@ func DeleteExpiredSessions() (int64, error) {
 		return 0, err
 	}
 	return rowsAffected, nil
+}
+
+// GetStatusConfig retrieves the status config for a project.
+// Returns default values if no config row exists yet.
+func GetStatusConfig(projectID int) (*StatusConfig, error) {
+	cfg := &StatusConfig{ProjectID: projectID}
+	err := DB.QueryRow(
+		`SELECT stage1_name, stage2_name, stage3_name, stage4_name
+		 FROM project_status_config WHERE project_id = ?`, projectID,
+	).Scan(&cfg.Stage1Name, &cfg.Stage2Name, &cfg.Stage3Name, &cfg.Stage4Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		cfg.Stage1Name = "Pending"
+		cfg.Stage2Name = "Working"
+		return cfg, nil
+	}
+	if err != nil {
+		slog.Error("Database Error: GetStatusConfig", "project_id", projectID, "error", err)
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// UpsertStatusConfig saves the status config for a project.
+func UpsertStatusConfig(cfg *StatusConfig) error {
+	_, err := DB.Exec(
+		`INSERT OR REPLACE INTO project_status_config
+		 (project_id, stage1_name, stage2_name, stage3_name, stage4_name)
+		 VALUES (?, ?, ?, ?, ?)`,
+		cfg.ProjectID, cfg.Stage1Name, cfg.Stage2Name, cfg.Stage3Name, cfg.Stage4Name,
+	)
+	if err != nil {
+		slog.Error("Database Error: UpsertStatusConfig", "project_id", cfg.ProjectID, "error", err)
+	}
+	return err
 }

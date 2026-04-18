@@ -1,6 +1,6 @@
-import { fetchActiveIssuesByProject, fetchLabelsByProject, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects } from './api.js';
+import { fetchActiveIssuesByProject, fetchLabelsByProject, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects, fetchStatusConfig } from './api.js';
 import { renderMarkdown } from './markdown.js';
-import { state, setIssues, setFilterSearch, setCurrentUser } from './state.js';
+import { state, setIssues, setFilterSearch, setCurrentUser, setStatusConfig } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView, resetOpenLoaded } from './components/backlog.js';
 import { renderPlanningPanel } from './components/planning.js';
@@ -78,8 +78,20 @@ async function init() {
     setTimeout(() => renderMarkdown('a'), 0);
 }
 
+async function loadStatusConfig() {
+    const id = state.selectedProjectId;
+    try {
+        setStatusConfig(id ? await fetchStatusConfig(id) : null);
+    } catch (err) {
+        console.warn('Failed to load status config, using defaults:', err);
+        setStatusConfig(null);
+    }
+}
+
 async function refreshApp() {
     try {
+        await loadStatusConfig();
+
         // Reset lazy-load flags so we fetch fresh data on next view switch
         resetArchivedLoaded();
         resetOpenLoaded();

@@ -13,7 +13,7 @@ Only users having the sysadmin role are allowed to access the system settings vi
 
 wuFlow is built with a clearly arranged layout that combines all relevant information in one view:
 - **Main Menu**: In the left sidebar, you can switch between the different views of the application: New issue, Backlog, Board, Archive, Project Settings and System Settings
-- **Board** (Main view): Displays issues in the usual Kanban style with columns. You can freely drag and drop issues between columns. Click on an issue card to view and adapt details. The board layout changes when you switch to backlog or archive view (see below).
+- **Board** (Main view): Displays issues in the usual Kanban style with configurable columns. You can freely drag and drop issues between columns and change the order within one column. Click on an issue card to view and adapt details. The board layout changes when you switch to backlog or archive view (see below).
 - **Planning Sidebar**: Placed on the right, this simple calendar view allows you to plan issues by dragging them to a specific date. This allows you additionally to plan issues and tasks over the next 10 days, keeping an eye on upcoming deadlines.
 - **User Menu**: In the top right corner, there is the menu of the currently logged in user. Currently, password management and log out is available.
 - **Project Selection**: Select the project for which you want to see issues on the boards and in the planning sidebar.
@@ -28,11 +28,11 @@ wuFlow is built with a clearly arranged layout that combines all relevant inform
 An issue is a discrete unit of work that tracks a specific task, bug, or requirement from inception to completion. It serves as a centralized record containing essential details like priority, assignee, and status to ensure team alignment. Ultimately, issues function as the fundamental building blocks for collaboration in an agile team, allowing for well balancing the work and guaranteeing an optimal flow in the team.
 
 ### Status and Lifecycle of an Issue
-The scheme is borrowed from the way how Jira handles issues, but simplified and currently not configurable.
-- An issue can have one of the following statuses: **OPEN, TODO, PENDING, WORKING, DONE, ARCHIVED**. 
+The scheme is borrowed from the way how Jira handles issues, but simplified. The board column names are configurable per project in the Project Settings view.
+- An issue can have one of the following statuses: **OPEN, TODO, the configured board columns (default: PENDING, WORKING), DONE, ARCHIVED**. 
 - When an issue is created, it gets normally the **status OPEN and is placed in the Backlog**.
 - The Backlog view allows to organize the backlog (see below) and to **move selected issues from the Backlog to the current board** by changing the status from OPEN to TODO. 
-- On the Board, **only issues with status TODO, PENDING, WORKING and DONE are shown**. Drag the issues from left to right according to the progress of work.
+- On the Board, **only issues with status TODO, the configured board columns, and DONE are shown**. Drag the issues from left to right according to the progress of work.
 - There will be a time, when too many issues are piling up in the DONE column. Then it's time to archive them. This is done in the **Archive view** (see below), where you can drag selected issues from the DONE to the ARCHIVE area. Issues can also be archived in the issue details view.
 - When an issue is **archived**, it's still there but **can't be edited anymore**. Users owning the Admin or Sysadmin role can Unarchive issues in special cases.
 
@@ -49,7 +49,7 @@ Click on **Save** to create the issue. There will be a green notification toast 
 
 ### Editing Issues
 Click on an issue card to view and adapt details. In addition to title and description, there are these properties available:
-- **Status**: The current status of the issue (OPEN, TODO, PENDING, WORKING, DONE). The ARCHIVED status can only be entered in the Archive view or when clicking the "Archive Issue" button.
+- **Status**: The current status of the issue (OPEN, TODO, the configured board column names, DONE). The ARCHIVED status can only be entered in the Archive view or when clicking the "Archive Issue" button.
 - **Planned Date(s)**: Here you can assign one or more dates when you intend to work on this issue or define a follow-up date. If set, then the issue is placed in the planning sidebar. As an alternative, the planned date can be set by dragging the issue card on the board onto one of the days in the planning sidebar.
 - **Deadline**: Here you can assign a deadline for the issue. If set, then the issue is considered in the planning sidebar. See the Planning section below for more details.
 - **Assignee**: At least when the issue arrives on the board, it should get an Assignee. The Assignee user is responsible for the issue. Select one of the configured users. The assignee is shown on the cards with a user badge, built from the first letters of the first and last name. 
@@ -139,7 +139,18 @@ Archived issues are read-only. Users owning the Admin or Sysadmin role are entit
 
 <img src="screenshots/project-settings.png" alt="Project Settings" width="500">
 
-The Project Settings View is available for users with Admin or Sysadmin role. It allows managing **labels** for the currently selected project. Switch between projects using the project selector at the top of the view to manage labels per project.
+The Project Settings View is available for users with Admin or Sysadmin role. It allows managing **board columns** and **labels** for the currently selected project. Switch between projects using the project selector at the top of the view to manage settings per project.
+
+### Board Columns
+The board has two fixed columns (Todo and Done) and up to four configurable middle columns (Stage1–Stage4). By default, Stage1 is named "Pending" and Stage2 is named "Working"; Stage3 and Stage4 are empty (hidden).
+
+In the Board Columns section you see six boxes side by side representing the full column layout. The Todo and Done boxes are fixed (greyed out). The four middle boxes each have an editable name field:
+- **Active column**: has a non-empty name — the column is visible on the board and in the issue status dropdown.
+- **Inactive column**: empty name — the column is hidden on the board. Issues already assigned to that status are preserved but not visible until the column is re-enabled.
+
+Rules for column names: letters and digits only, max 15 characters. Empty = hidden.
+
+Click **Save Columns** to apply the changes. The board updates immediately. If a column being deactivated still has issues, a confirmation dialog warns you before saving.
 
 ### Labels
 Labels are scoped to a project. Create labels which can be used in issues to categorize and color-code them. The label name is limited to 15 characters and the color is randomly assigned. Labels can't be edited, only deletion is possible.
@@ -176,6 +187,7 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | Unarchive an issue | — | ✓ | ✓ |
 | Delete an issue | — | ✓ | ✓ |
 | Create / delete labels | — | ✓ | ✓ |
+| Configure board columns | — | ✓ | ✓ |
 | Access Project Settings view | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |

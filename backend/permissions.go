@@ -35,6 +35,10 @@ const (
 	ActionCreateProject Action = "project:create"
 	ActionUpdateProject Action = "project:update"
 	ActionDeleteProject Action = "project:delete"
+
+	// Status config actions
+	ActionGetStatusConfig    Action = "statusconfig:get"
+	ActionUpdateStatusConfig Action = "statusconfig:update"
 )
 
 // rolePermissions is the single source of truth for the permission policy.
@@ -76,6 +80,10 @@ var rolePermissions = map[Action][]UserRole{
 	ActionCreateProject: {RoleSysAdmin},
 	ActionUpdateProject: {RoleSysAdmin},
 	ActionDeleteProject: {RoleSysAdmin},
+
+	// Status config
+	ActionGetStatusConfig:    {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionUpdateStatusConfig: {RoleSysAdmin, RoleAdmin},
 }
 
 // Can reports whether a user with the given role is permitted to perform action.

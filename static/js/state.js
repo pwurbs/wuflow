@@ -3,6 +3,7 @@ export const state = {
   currentIssue: null,
   currentUser: null,
   selectedProjectId: null, // null = show all projects (project selector context)
+  statusConfig: null,      // StatusConfig for selectedProjectId, null until loaded
   filter: {
     labelId: null,
     priority: null,
@@ -42,6 +43,10 @@ export function setCurrentIssue(issue) {
 
 export function setCurrentUser(user) {
   state.currentUser = user;
+}
+
+export function setStatusConfig(cfg) {
+  state.statusConfig = cfg;
 }
 
 export function isFilterActive() {

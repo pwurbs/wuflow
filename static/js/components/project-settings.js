@@ -1,7 +1,8 @@
-import { fetchLabelsByProject, createLabel, deleteLabel } from '../api.js';
+import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.js';
 import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor } from '../utils.js';
-import { state } from '../state.js';
-import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL } from '../permissions.js';
+import { state, setStatusConfig } from '../state.js';
+import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.js';
+import { STATUS_SLOTS, getDefaultStatusConfig } from '../status-config.js';
 
 let projectSettingsContainer = null;
 let refreshCallback = null;
@@ -53,6 +54,8 @@ export function setupProjectSettingsView(callback) {
 
 export async function renderProjectSettingsView() {
   if (!projectSettingsContainer) return;
+
+  renderStatusConfigSection();
 
   const labelsList = document.getElementById('ps-labels-list');
   if (!labelsList) return;
@@ -110,5 +113,123 @@ export async function renderProjectSettingsView() {
   } catch (err) {
     console.error(err);
     labelsList.innerHTML = '<div class="error">Failed to load labels.</div>';
+  }
+}
+
+function renderStatusConfigSection() {
+  const content = document.getElementById('ps-status-config-content');
+  if (!content) return;
+
+  const canEdit = userCan(state.currentUser, ACTION_UPDATE_STATUS_CONFIG);
+  const projectId = state.selectedProjectId ?? 1;
+  const cfg = state.statusConfig ?? getDefaultStatusConfig();
+
+  const disabledAttr = canEdit ? '' : 'disabled';
+
+  const slotBoxes = STATUS_SLOTS.map((slot, i) => {
+    const val = escapeHtml(cfg[slot.field] ?? '');
+    const isActive = val.trim() !== '';
+    const activeClass = isActive ? 'sc-box--active' : 'sc-box--inactive';
+    // Count issues with this stage status in the current project (from already-loaded state)
+    const orphanCount = state.issues.filter(issue => issue.status === slot.statusKey).length;
+    const plural = orphanCount === 1 ? '' : 's';
+    const orphanBadge = (isActive || orphanCount === 0)
+      ? ''
+      : `<span class="sc-orphan-badge" title="${orphanCount} hidden issue${plural}">${orphanCount}</span>`;
+    return `
+      <div class="sc-box sc-box--configurable ${activeClass}">
+        <div class="sc-box-label">Column ${i + 1}${orphanBadge}</div>
+        <input type="text" class="sc-name-input" name="${slot.field}" data-field="${slot.field}"
+               value="${val}" maxlength="15" ${disabledAttr}>
+      </div>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="sc-row">
+      <div class="sc-box sc-box--fixed">
+        <div class="sc-box-label">Fixed</div>
+        <div class="sc-fixed-name">Todo</div>
+      </div>
+      ${slotBoxes}
+      <div class="sc-box sc-box--fixed">
+        <div class="sc-box-label">Fixed</div>
+        <div class="sc-fixed-name">Done</div>
+      </div>
+    </div>
+    <p class="sc-hint">Empty columns are hidden on the board. These names also define the status values when editing an issue. Letters and digits only, max 15 characters.</p>
+    ${canEdit ? '<button id="ps-save-status-config-btn" class="btn primary">Save Columns</button>' : ''}
+  `;
+
+  // Toggle active/inactive styling as user types
+  content.querySelectorAll('.sc-name-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const box = input.closest('.sc-box');
+      const active = input.value !== '';
+      box.classList.toggle('sc-box--active', active);
+      box.classList.toggle('sc-box--inactive', !active);
+      // Hide badge when user types a name (column becoming active)
+      const badge = box.querySelector('.sc-orphan-badge');
+      if (badge) badge.style.display = active ? 'none' : '';
+    });
+  });
+
+  if (canEdit) {
+    document.getElementById('ps-save-status-config-btn').addEventListener('click', () =>
+      handleSaveStatusConfig(projectId, cfg)
+    );
+  }
+}
+
+async function handleSaveStatusConfig(projectId, previousCfg) {
+  const inputs = document.querySelectorAll('#ps-status-config-content .sc-name-input');
+  const payload = {};
+  inputs.forEach(input => {
+    payload[input.dataset.field] = input.value.trim();
+  });
+
+  const invalidName = Object.values(payload).find(name => name !== '' && !/^[a-zA-Z0-9]+$/.test(name));
+  if (invalidName) {
+    showNotification('Column names must contain only letters and digits.', 'error');
+    return;
+  }
+  if (Object.values(payload).some(name => name.length > 15)) {
+    showNotification('Column names must not exceed 15 characters.', 'error');
+    return;
+  }
+
+  // Check for columns being deactivated that still have issues
+  const deactivating = STATUS_SLOTS.filter(slot => {
+    const wasActive = (previousCfg[slot.field] ?? '').trim() !== '';
+    const willBeActive = (payload[slot.field] ?? '').trim() !== '';
+    return wasActive && !willBeActive;
+  });
+
+  if (deactivating.length > 0) {
+    const affected = deactivating
+      .map(slot => {
+        const count = state.issues.filter(i => i.status === slot.statusKey).length;
+        return count > 0 ? { name: previousCfg[slot.field], count } : null;
+      })
+      .filter(Boolean);
+
+    if (affected.length > 0) {
+      const details = affected
+        .map(d => { const s = d.count === 1 ? '' : 's'; return `"${d.name}" (${d.count} issue${s})`; })
+        .join(', ');
+      const confirmed = await showConfirm(
+        'Deactivate Column',
+        `The following columns have issues that will be hidden until the column is re-enabled: ${details}. Continue?`
+      );
+      if (!confirmed) return;
+    }
+  }
+
+  try {
+    const updated = await updateStatusConfig(projectId, payload);
+    setStatusConfig(updated);
+    showNotification('Column configuration saved', 'success');
+    if (refreshCallback) refreshCallback();
+  } catch (err) {
+    showNotification(err.message || 'Failed to save column configuration', 'error');
   }
 }

@@ -1,6 +1,7 @@
 
 # 1.2.0
 
+- Added feature to configure board columns
 - Excluded pure position changes from issue change timestamp
 - Redesigned Backlog and Archive cards: compact single-line layout with aligned columns
 - Removed move-to-top/bottom arrows from Backlog cards (to be later replaced by a context menu)

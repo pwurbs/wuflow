@@ -219,6 +219,16 @@
                         </div>
                     </div>
                 </div>
+                <div class="settings-section" id="ps-status-config-section">
+                    <div class="column-header">
+                        <h2>Board Columns / Status</h2>
+                    </div>
+                    <div class="settings-content">
+                        <div id="ps-status-config-content">
+                            <!-- Status config injected by project-settings.js -->
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- User Modal -->
@@ -314,39 +324,7 @@
             </div>
             <div class="board">
                 <div class="board-columns">
-                    <div class="column" data-status="Todo">
-                        <div class="column-header">
-                            <h2>Todo</h2>
-                            <span class="count">0</span>
-                        </div>
-                        <div class="column-content" id="col-todo">
-                            <!-- Issues will be injected here -->
-                        </div>
-                    </div>
-
-                    <div class="column" data-status="Pending">
-                        <div class="column-header">
-                            <h2>Pending</h2>
-                            <span class="count">0</span>
-                        </div>
-                        <div class="column-content" id="col-pending"></div>
-                    </div>
-
-                    <div class="column" data-status="Working">
-                        <div class="column-header">
-                            <h2>Working</h2>
-                            <span class="count">0</span>
-                        </div>
-                        <div class="column-content" id="col-working"></div>
-                    </div>
-
-                    <div class="column" data-status="Done">
-                        <div class="column-header">
-                            <h2>Done</h2>
-                            <span class="count">0</span>
-                        </div>
-                        <div class="column-content" id="col-done"></div>
-                    </div>
+                    <!-- Board columns injected dynamically by board.js -->
 
                     <aside class="sidebar">
                         <div id="planning-panel">

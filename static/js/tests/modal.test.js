@@ -372,7 +372,7 @@ describe('Modal Component', () => {
     const statusInput = document.getElementById('status');
     const statusText = document.getElementById('status-text');
 
-    expect(statusInput.value).toBe('Working');
+    expect(statusInput.value).toBe('Stage2');
     expect(statusText.textContent).toBe('Working');
     expect(statusOptions.classList.contains('hidden')).toBe(true);
   });

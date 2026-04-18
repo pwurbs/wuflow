@@ -7,7 +7,7 @@ import { Page, expect } from '@playwright/test';
 export interface IssueData {
   title: string;
   description?: string;
-  status?: 'Open' | 'Todo' | 'Pending' | 'Working' | 'Done' | 'Archive';
+  status?: 'Open' | 'Todo' | 'Pending' | 'Working' | 'Stage1' | 'Stage2' | 'Stage3' | 'Stage4' | 'Done' | 'Archive';
   priority?: 'Normal' | 'High';
   deadline?: string; // YYYY-MM-DD format
   plannedDate?: string; // YYYY-MM-DD format
@@ -129,7 +129,8 @@ export async function waitForToast(page: Page, expectedText?: string): Promise<v
  * Card class is 'card' or 'board-card', not 'issue-card'
  */
 export async function getColumnCount(page: Page, column: 'todo' | 'pending' | 'working' | 'done'): Promise<number> {
-  const cards = page.locator(`#col-${column} .card`);
+  const statusKey = { todo: 'Todo', pending: 'Stage1', working: 'Stage2', done: 'Done' }[column];
+  const cards = page.locator(`.column[data-status="${statusKey}"] .card`);
   return await cards.count();
 }
 

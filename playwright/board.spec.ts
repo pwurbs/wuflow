@@ -7,7 +7,7 @@ test.describe('Board Functionality', () => {
   });
 
   test('board displays all four columns', async ({ page }) => {
-    const columns = ['Todo', 'Pending', 'Working', 'Done'];
+    const columns = ['Todo', 'Stage1', 'Stage2', 'Done'];
 
     for (const column of columns) {
       await expect(page.locator(`.column[data-status="${column}"]`)).toBeVisible();
@@ -35,10 +35,10 @@ test.describe('Board Functionality', () => {
     await createIssue(page, { title: 'Pending Status Issue', status: 'Pending' });
 
     // Verify it's in Pending column
-    await expect(page.locator('#col-pending .board-card:has-text("Pending Status Issue")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Stage1"] .board-card:has-text("Pending Status Issue")')).toBeVisible();
 
     // Verify it's NOT in To-Do column
-    await expect(page.locator('#col-todo .board-card:has-text("Pending Status Issue")')).toHaveCount(0);
+    await expect(page.locator('.column[data-status="Todo"] .board-card:has-text("Pending Status Issue")')).toHaveCount(0);
   });
 
   test('planning panel shows issues with deadlines in unscheduled section', async ({ page }) => {
@@ -68,16 +68,16 @@ test.describe('Board Functionality', () => {
     await createIssue(page, { title: 'Drag Test Issue', status: 'Todo' });
 
     // Verify it's in To-Do
-    const issueCard = page.locator('#col-todo .board-card:has-text("Drag Test Issue")');
+    const issueCard = page.locator('.column[data-status="Todo"] .board-card:has-text("Drag Test Issue")');
     await expect(issueCard).toBeVisible();
 
     // Drag to Working column
-    const workingColumn = page.locator('#col-working');
+    const workingColumn = page.locator('.column[data-status="Stage2"]');
     await issueCard.dragTo(workingColumn);
 
     // Verify it moved to Working
-    await expect(page.locator('#col-working .board-card:has-text("Drag Test Issue")')).toBeVisible();
-    await expect(page.locator('#col-todo .board-card:has-text("Drag Test Issue")')).toHaveCount(0);
+    await expect(page.locator('.column[data-status="Stage2"] .board-card:has-text("Drag Test Issue")')).toBeVisible();
+    await expect(page.locator('.column[data-status="Todo"] .board-card:has-text("Drag Test Issue")')).toHaveCount(0);
   });
 
   test('assignee badge initials on board card', async ({ page }) => {

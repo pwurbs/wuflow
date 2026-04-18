@@ -710,6 +710,50 @@ func handleProjectLabels(w http.ResponseWriter, r *http.Request, projectID int) 
 	}
 }
 
+// handleProjectStatusConfig handles GET and PUT for /api/projects/{id}/statusconfig.
+func handleProjectStatusConfig(w http.ResponseWriter, r *http.Request, projectID int) {
+	switch r.Method {
+	case http.MethodGet:
+		if !Can(GetRoleFromContext(r.Context()), ActionGetStatusConfig) {
+			denyForbidden(w, r, ActionGetStatusConfig)
+			return
+		}
+		cfg, err := GetStatusConfig(projectID)
+		if err != nil {
+			slog.Error("GetStatusConfig failed", "project_id", projectID, "error", err)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set(headerContentType, contentTypeJSON)
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			slog.Error("handleProjectStatusConfig: failed to encode response", "error", err)
+		}
+	case http.MethodPut:
+		if !Can(GetRoleFromContext(r.Context()), ActionUpdateStatusConfig) {
+			denyForbidden(w, r, ActionUpdateStatusConfig)
+			return
+		}
+		var cfg StatusConfig
+		if !decodeAndValidate(w, r, &cfg, validateStatusConfig) {
+			return
+		}
+		cfg.ProjectID = projectID
+		userEmail := GetEmailFromContext(r.Context())
+		if err := UpsertStatusConfig(&cfg); err != nil {
+			slog.Error("UpsertStatusConfig failed", "project_id", projectID, "error", err, "user_email", userEmail)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return
+		}
+		slog.Info("Status config updated", "project_id", projectID, "user_email", userEmail)
+		w.Header().Set(headerContentType, contentTypeJSON)
+		if err := json.NewEncoder(w).Encode(cfg); err != nil {
+			slog.Error("handleProjectStatusConfig: failed to encode update response", "error", err)
+		}
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
 // handleDeleteProjectLabel handles DELETE /api/projects/{id}/labels/{labelId}.
 func handleDeleteProjectLabel(w http.ResponseWriter, r *http.Request, projectID, labelID int) {
 	if r.Method != http.MethodDelete {
@@ -1433,6 +1477,8 @@ func handleCreateProject(w http.ResponseWriter, r *http.Request) {
 //   - GET    /api/projects/{id}/labels         → list labels for project
 //   - POST   /api/projects/{id}/labels         → create label for project
 //   - DELETE /api/projects/{id}/labels/{lid}   → delete label from project
+//   - GET    /api/projects/{id}/statusconfig   → get board stage column config
+//   - PUT    /api/projects/{id}/statusconfig   → update board stage column config
 func HandleProject(w http.ResponseWriter, r *http.Request) {
 	// Strip prefix and split the remainder to detect sub-resource paths.
 	rest := strings.TrimPrefix(r.URL.Path, "/api/projects/")
@@ -1456,6 +1502,8 @@ func HandleProject(w http.ResponseWriter, r *http.Request) {
 			handleProjectOpenIssues(w, r, id)
 		case parts[1] == "labels":
 			handleProjectLabels(w, r, id)
+		case parts[1] == "statusconfig":
+			handleProjectStatusConfig(w, r, id)
 		case strings.HasPrefix(parts[1], "labels/"):
 			labelIDStr := strings.TrimPrefix(parts[1], "labels/")
 			labelID, err := strconv.Atoi(labelIDStr)

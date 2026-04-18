@@ -3,11 +3,14 @@ import { setupProjectSettingsView, renderProjectSettingsView } from '../componen
 import * as api from '../api.js';
 import * as utils from '../utils.js';
 import * as permissions from '../permissions.js';
+import * as stateModule from '../state.js';
 
 vi.mock('../api.js', () => ({
   fetchLabelsByProject: vi.fn(),
   createLabel: vi.fn(),
   deleteLabel: vi.fn(),
+  fetchStatusConfig: vi.fn(),
+  updateStatusConfig: vi.fn(),
 }));
 
 vi.mock('../utils.js', () => ({
@@ -25,11 +28,22 @@ vi.mock('../permissions.js', async (importOriginal) => {
 });
 
 vi.mock('../state.js', () => ({
-  state: { currentUser: { role: 'admin' }, selectedProjectId: 1 },
+  state: { currentUser: { role: 'admin' }, selectedProjectId: 1, issues: [] },
+  setStatusConfig: vi.fn(),
 }));
+
+const DEFAULT_CFG = {
+  stage1_name: 'Pending',
+  stage2_name: 'Working',
+  stage3_name: '',
+  stage4_name: '',
+};
 
 const DOM = `
   <div id="project-settings-view">
+    <div class="settings-section">
+      <div id="ps-status-config-content"></div>
+    </div>
     <div class="settings-section">
       <div id="ps-labels-list"></div>
       <div class="label-input-group">
@@ -47,6 +61,8 @@ describe('project-settings.js component', () => {
     utils.countCodepoints.mockImplementation(s => [...s].length);
     permissions.userCan.mockReturnValue(true);
     api.fetchLabelsByProject.mockResolvedValue([]);
+    api.fetchStatusConfig.mockResolvedValue(DEFAULT_CFG);
+    stateModule.state.issues = [];
   });
 
   // ── setupProjectSettingsView ──────────────────────────────────────────────
@@ -229,6 +245,242 @@ describe('project-settings.js component', () => {
       document.body.innerHTML = '';
       await renderProjectSettingsView();
       expect(document.querySelector('.delete-label-btn')).toBeNull();
+    });
+  });
+
+  // ── renderStatusConfigSection ─────────────────────────────────────────────
+
+  describe('renderStatusConfigSection()', () => {
+    beforeEach(() => {
+      setupProjectSettingsView();
+    });
+
+    it('renders 6 boxes (Todo, Stage1–4, Done)', async () => {
+      await renderProjectSettingsView();
+      expect(document.querySelectorAll('.sc-box').length).toBe(6);
+    });
+
+    it('marks Stage1 and Stage2 as active when they have names', async () => {
+      await renderProjectSettingsView();
+      expect(document.querySelectorAll('.sc-box--active').length).toBe(2);
+    });
+
+    it('marks Stage3 and Stage4 as inactive when names are empty', async () => {
+      await renderProjectSettingsView();
+      expect(document.querySelectorAll('.sc-box--inactive').length).toBe(2);
+    });
+
+    it('populates inputs with stage names from config', async () => {
+      await renderProjectSettingsView();
+      expect(document.querySelector('.sc-name-input[data-field="stage1_name"]').value).toBe('Pending');
+      expect(document.querySelector('.sc-name-input[data-field="stage2_name"]').value).toBe('Working');
+      expect(document.querySelector('.sc-name-input[data-field="stage3_name"]').value).toBe('');
+    });
+
+    it('shows save button when user has UPDATE_STATUS_CONFIG permission', async () => {
+      await renderProjectSettingsView();
+      expect(document.getElementById('ps-save-status-config-btn')).not.toBeNull();
+    });
+
+    it('hides save button when user lacks UPDATE_STATUS_CONFIG permission', async () => {
+      permissions.userCan.mockImplementation(
+        (_user, action) => action !== permissions.ACTION_UPDATE_STATUS_CONFIG
+      );
+      await renderProjectSettingsView();
+      expect(document.getElementById('ps-save-status-config-btn')).toBeNull();
+    });
+
+    it('disables inputs when user lacks UPDATE_STATUS_CONFIG permission', async () => {
+      permissions.userCan.mockImplementation(
+        (_user, action) => action !== permissions.ACTION_UPDATE_STATUS_CONFIG
+      );
+      await renderProjectSettingsView();
+      document.querySelectorAll('.sc-name-input').forEach(input => {
+        expect(input.disabled).toBe(true);
+      });
+    });
+
+    it('shows orphan badge on inactive stage that has hidden issues', async () => {
+      stateModule.state.issues = [{ id: 1, status: 'Stage3' }, { id: 2, status: 'Stage3' }];
+      await renderProjectSettingsView();
+
+      const stage3Box = document.querySelector('.sc-name-input[data-field="stage3_name"]').closest('.sc-box');
+      const badge = stage3Box.querySelector('.sc-orphan-badge');
+      expect(badge).not.toBeNull();
+      expect(badge.textContent).toBe('2');
+    });
+
+    it('does not show orphan badge on active stage', async () => {
+      stateModule.state.issues = [{ id: 1, status: 'Stage1' }];
+      await renderProjectSettingsView();
+
+      const stage1Box = document.querySelector('.sc-name-input[data-field="stage1_name"]').closest('.sc-box');
+      expect(stage1Box.querySelector('.sc-orphan-badge')).toBeNull();
+    });
+
+    it('input event activates box when a name is typed', async () => {
+      await renderProjectSettingsView();
+
+      const input = document.querySelector('.sc-name-input[data-field="stage3_name"]');
+      const box = input.closest('.sc-box');
+      expect(box.classList.contains('sc-box--inactive')).toBe(true);
+
+      input.value = 'QA';
+      input.dispatchEvent(new Event('input'));
+
+      expect(box.classList.contains('sc-box--active')).toBe(true);
+      expect(box.classList.contains('sc-box--inactive')).toBe(false);
+    });
+
+    it('input event deactivates box when name is cleared', async () => {
+      await renderProjectSettingsView();
+
+      const input = document.querySelector('.sc-name-input[data-field="stage1_name"]');
+      const box = input.closest('.sc-box');
+      expect(box.classList.contains('sc-box--active')).toBe(true);
+
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+
+      expect(box.classList.contains('sc-box--inactive')).toBe(true);
+      expect(box.classList.contains('sc-box--active')).toBe(false);
+    });
+
+    it('input event hides orphan badge when user types a name', async () => {
+      stateModule.state.issues = [{ id: 1, status: 'Stage3' }];
+      await renderProjectSettingsView();
+
+      const input = document.querySelector('.sc-name-input[data-field="stage3_name"]');
+      const box = input.closest('.sc-box');
+      const badge = box.querySelector('.sc-orphan-badge');
+      expect(badge).not.toBeNull();
+
+      input.value = 'QA';
+      input.dispatchEvent(new Event('input'));
+
+      expect(badge.style.display).toBe('none');
+    });
+
+    it('input event restores orphan badge visibility when name is cleared again', async () => {
+      stateModule.state.issues = [{ id: 1, status: 'Stage3' }];
+      await renderProjectSettingsView();
+
+      const input = document.querySelector('.sc-name-input[data-field="stage3_name"]');
+      const box = input.closest('.sc-box');
+      const badge = box.querySelector('.sc-orphan-badge');
+
+      input.value = 'QA';
+      input.dispatchEvent(new Event('input'));
+      expect(badge.style.display).toBe('none');
+
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      expect(badge.style.display).toBe('');
+    });
+  });
+
+  // ── handleSaveStatusConfig ────────────────────────────────────────────────
+
+  describe('handleSaveStatusConfig()', () => {
+    const updatedCfg = { stage1_name: 'Review', stage2_name: 'Working', stage3_name: '', stage4_name: '' };
+
+    beforeEach(() => {
+      setupProjectSettingsView();
+      api.updateStatusConfig.mockResolvedValue(updatedCfg);
+    });
+
+    it('saves config and shows success notification', async () => {
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = 'Review';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(api.updateStatusConfig).toHaveBeenCalledWith(
+        1, expect.objectContaining({ stage1_name: 'Review' })
+      );
+      expect(utils.showNotification).toHaveBeenCalledWith('Column configuration saved', 'success');
+    });
+
+    it('calls setStatusConfig with the API response', async () => {
+      await renderProjectSettingsView();
+
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(stateModule.setStatusConfig).toHaveBeenCalledWith(updatedCfg);
+    });
+
+    it('shows error notification when updateStatusConfig fails', async () => {
+      api.updateStatusConfig.mockRejectedValue(new Error('Server error'));
+      await renderProjectSettingsView();
+
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Server error', 'error');
+    });
+
+    it('shows error notification using message from error when available', async () => {
+      api.updateStatusConfig.mockRejectedValue({ message: 'Validation failed' });
+      await renderProjectSettingsView();
+
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Validation failed', 'error');
+    });
+
+    it('saves without confirmation when deactivating a column that has no issues', async () => {
+      stateModule.state.issues = [];
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = '';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(api.updateStatusConfig).toHaveBeenCalled();
+    });
+
+    it('prompts confirmation when deactivating a column that has hidden issues', async () => {
+      stateModule.state.issues = [{ id: 1, status: 'Stage1' }];
+      utils.showConfirm.mockResolvedValue(true);
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = '';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+      expect(api.updateStatusConfig).toHaveBeenCalled();
+    });
+
+    it('does not save when deactivation confirmation is cancelled', async () => {
+      stateModule.state.issues = [{ id: 1, status: 'Stage1' }];
+      utils.showConfirm.mockResolvedValue(false);
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = '';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showConfirm).toHaveBeenCalled();
+      expect(api.updateStatusConfig).not.toHaveBeenCalled();
+    });
+
+    it('confirmation message lists column name and issue count', async () => {
+      stateModule.state.issues = [{ id: 1, status: 'Stage1' }, { id: 2, status: 'Stage1' }];
+      utils.showConfirm.mockResolvedValue(true);
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = '';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      const [, message] = utils.showConfirm.mock.calls[0];
+      expect(message).toContain('"Pending"');
+      expect(message).toContain('2 issues');
     });
   });
 });

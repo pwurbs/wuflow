@@ -51,19 +51,20 @@ We developed this tool having the following goals in mind:
 - Ensure **"Security by Design"** through strict headers, CSRF/XSS prevention, and rigorous testing.
 - Slim and **modern software architecture** using only Go and Vanilla JavaScript.
 - Rely only on **few dependencies** to significantly reduce the **supply chain attack surface**.
-- **No tracking, telemetry or any other "calling home"** functions.
-- Easy to deploy and use.
-- 100% Open Source.
+- **No tracking**, telemetry or any other "calling home" functions.
+- **Easy** to deploy and use.
+- **100% Open Source**.
 
 ## Features
 - **Intuitive Planning & Kanban**: Combine flexible daily planning with a classic Kanban board view to easily organize your workflow side-by-side.
 - **Projects**: Projects allow you to separate the visibility of issues for different teams, projects or topics. Each issue belongs to exactly one project.
+- **Configurable Board Columns**: Adapt the board per project according to your workflow.
 - **Subtasks & Deadlines**: Break down larger issues into smaller, actionable tasks with individual deadlines.
-- **Custom Labels**: Categorize and color-code issues with an easy-to-use label management system.
+- **Custom Labels**: Categorize and color-code issues with an easy-to-use label management system per project.
 - **Advanced Filtering & Search**: Quickly find issues by filtering based on labels, priority, assignees, or text search.
 - **Multi-user Support**: Built-in user management with role-based access, allowing safe concurrent editing of issues.
 - **Rich Text Markdown Editor**: Write readable issue descriptions using a built-in Markdown editor with formatting tools and live preview.
-- **Prioritization & Assignment**: Assign issues directly to specific users and flag important work with High Priority.
+- **Prioritization & Assignment**: Assign issues directly to specific users, flag important work with High Priority and order the issues per column.
 - **Backlog Management**: Use the backlog view to plan and prioritize your work.
 - **Issue Archiving**: Keep your active board clean by archiving completed issues for later reference.
 - **No dependencies** on external services or libs during runtime. Allows for air-gapped deployments.
@@ -165,7 +166,6 @@ For deeper technical insights, architecture overviews, and detailed functional d
 We plan to add the following features in the future:
 - Dependencies between Issues
 - Links between issues
-- Configurable columns
 - Releases
 - User assignment to projects
 - Postgres support

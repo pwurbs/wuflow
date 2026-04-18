@@ -61,7 +61,7 @@ test.describe('Backlog View', () => {
     await navigateTo(page, 'board');
 
     // Verify issue is now in To-Do column on Board
-    await expect(page.locator('#col-todo .card')).toContainText('Move to Board Issue');
+    await expect(page.locator('.column[data-status="Todo"] .card')).toContainText('Move to Board Issue');
   });
 
   test('backlog counts are displayed', async ({ page }) => {

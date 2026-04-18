@@ -76,8 +76,8 @@ test.describe('Landing Page', () => {
   test('board columns are displayed', async ({ page }) => {
     // All four columns should be visible
     await expect(page.locator('.column[data-status="Todo"]')).toBeVisible();
-    await expect(page.locator('.column[data-status="Pending"]')).toBeVisible();
-    await expect(page.locator('.column[data-status="Working"]')).toBeVisible();
+    await expect(page.locator('.column[data-status="Stage1"]')).toBeVisible();
+    await expect(page.locator('.column[data-status="Stage2"]')).toBeVisible();
     await expect(page.locator('.column[data-status="Done"]')).toBeVisible();
 
     // Column headers

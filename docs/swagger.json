@@ -59,7 +59,11 @@
             "type": "string",
             "enum": [
               "Open",
-              "In Progress",
+              "Todo",
+              "Stage1",
+              "Stage2",
+              "Stage3",
+              "Stage4",
               "Done",
               "Archive"
             ]
@@ -67,9 +71,8 @@
           "priority": {
             "type": "string",
             "enum": [
-              "High",
-              "Medium",
-              "Low"
+              "Normal",
+              "High"
             ]
           },
           "label_id": {
@@ -205,7 +208,11 @@
             "type": "string",
             "enum": [
               "Open",
-              "In Progress",
+              "Todo",
+              "Stage1",
+              "Stage2",
+              "Stage3",
+              "Stage4",
               "Done",
               "Archive"
             ]
@@ -213,9 +220,8 @@
           "priority": {
             "type": "string",
             "enum": [
-              "High",
-              "Medium",
-              "Low"
+              "Normal",
+              "High"
             ]
           },
           "label_id": {
@@ -239,9 +245,62 @@
             "type": "string",
             "enum": [
               "Open",
-              "In Progress",
+              "Todo",
+              "Stage1",
+              "Stage2",
+              "Stage3",
+              "Stage4",
               "Done"
             ]
+          }
+        }
+      },
+      "StatusConfig": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer"
+          },
+          "stage1_name": {
+            "type": "string",
+            "maxLength": 15,
+            "description": "Display name for Stage1 column. Default: 'Pending'. Empty = hidden."
+          },
+          "stage2_name": {
+            "type": "string",
+            "maxLength": 15,
+            "description": "Display name for Stage2 column. Default: 'Working'. Empty = hidden."
+          },
+          "stage3_name": {
+            "type": "string",
+            "maxLength": 15,
+            "description": "Display name for Stage3 column. Default: '' (hidden)."
+          },
+          "stage4_name": {
+            "type": "string",
+            "maxLength": 15,
+            "description": "Display name for Stage4 column. Default: '' (hidden)."
+          }
+        }
+      },
+      "StatusConfigUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "stage1_name": {
+            "type": "string",
+            "maxLength": 15
+          },
+          "stage2_name": {
+            "type": "string",
+            "maxLength": 15
+          },
+          "stage3_name": {
+            "type": "string",
+            "maxLength": 15
+          },
+          "stage4_name": {
+            "type": "string",
+            "maxLength": 15
           }
         }
       },
@@ -1134,6 +1193,85 @@
         }
       }
     },
+    "/projects/{id}/statusconfig": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get board column configuration for a project",
+        "tags": [
+          "Projects"
+        ],
+        "responses": {
+          "200": {
+            "description": "Status config for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusConfig"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update board column configuration for a project",
+        "description": "Requires admin or sysadmin role.",
+        "x-required-role": "admin",
+        "tags": [
+          "Projects"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusConfigUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated status config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - validation failed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
     "/projects/{id}/issues/active": {
       "parameters": [
         {
@@ -1146,13 +1284,13 @@
         }
       ],
       "get": {
-        "summary": "Get active issues for a project (Todo, Pending, Working, Done)",
+        "summary": "Get active issues for a project (Todo, Stage1–Stage4, Done)",
         "tags": [
           "Issues"
         ],
         "responses": {
           "200": {
-            "description": "List of active issues for the project (excludes Open and Archive statuses)",
+            "description": "List of active issues for the project (status Todo, Stage1–Stage4, or Done; excludes Open and Archive)",
             "content": {
               "application/json": {
                 "schema": {

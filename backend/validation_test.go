@@ -130,7 +130,7 @@ func TestValidateIssueTitleTrimmed(t *testing.T) {
 }
 
 func TestValidateIssueAllValidStatuses(t *testing.T) {
-	for _, s := range []IssueStatus{StatusOpen, StatusTodo, StatusPending, StatusWorking, StatusDone, StatusArchive} {
+	for _, s := range []IssueStatus{StatusOpen, StatusTodo, StatusStage1, StatusStage2, StatusStage3, StatusStage4, StatusDone, StatusArchive} {
 		i := &Issue{Title: "T", Status: s}
 		if err := validateIssue(i); err != nil {
 			t.Errorf("expected no error for status %q, got %v", s, err)
@@ -366,5 +366,88 @@ func TestValidatePasswordBlacklisted(t *testing.T) {
 func TestValidatePasswordValid(t *testing.T) {
 	if err := ValidatePassword("V3ryStr0ng!Pass", testSimpleEmail); err != nil {
 		t.Errorf("expected no error, got %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateStatusConfig
+// ---------------------------------------------------------------------------
+
+func TestValidateStatusConfigAllEmpty(t *testing.T) {
+	cfg := &StatusConfig{}
+	if err := validateStatusConfig(cfg); err != nil {
+		t.Errorf("expected no error for all-empty names, got %v", err)
+	}
+}
+
+func TestValidateStatusConfigValidNames(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: "Pending", Stage2Name: "Working", Stage3Name: "Review", Stage4Name: "QA"}
+	if err := validateStatusConfig(cfg); err != nil {
+		t.Errorf("expected no error for valid names, got %v", err)
+	}
+}
+
+func TestValidateStatusConfigNamesWithSpaces(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: "In Progress", Stage2Name: "Code Review"}
+	if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
+		t.Errorf("expected ErrStatusNameInvalid for names with spaces, got %v", err)
+	}
+}
+
+func TestValidateStatusConfigNameExactlyMaxLength(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: strings.Repeat("A", MaxStatusNameLen)}
+	if err := validateStatusConfig(cfg); err != nil {
+		t.Errorf("expected no error at max length, got %v", err)
+	}
+}
+
+func TestValidateStatusConfigNameTooLong(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: strings.Repeat("A", MaxStatusNameLen+1)}
+	if err := validateStatusConfig(cfg); err != ErrStatusNameTooLong {
+		t.Errorf("expected ErrStatusNameTooLong, got %v", err)
+	}
+}
+
+func TestValidateStatusConfigNameInvalidChars(t *testing.T) {
+	cases := []string{"Bad!Name", "No#Hash", "dash-not-ok", "dot.not.ok", "slash/bad"}
+	for _, name := range cases {
+		cfg := &StatusConfig{Stage1Name: name}
+		if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
+			t.Errorf("expected ErrStatusNameInvalid for %q, got %v", name, err)
+		}
+	}
+}
+
+func TestValidateStatusConfigNonASCIIInvalid(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: "Überprüfung"}
+	if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
+		t.Errorf("expected ErrStatusNameInvalid for non-ASCII name, got %v", err)
+	}
+}
+
+func TestValidateStatusConfigTrimmedBeforeValidation(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: "  Review  "}
+	if err := validateStatusConfig(cfg); err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if cfg.Stage1Name != "Review" {
+		t.Errorf("expected trimmed 'Review', got '%s'", cfg.Stage1Name)
+	}
+}
+
+func TestValidateStatusConfigWhitespaceOnlyBecomesEmpty(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: "   "}
+	if err := validateStatusConfig(cfg); err != nil {
+		t.Errorf("expected no error for whitespace-only name (treated as empty), got %v", err)
+	}
+	if cfg.Stage1Name != "" {
+		t.Errorf("expected trimmed empty string, got '%s'", cfg.Stage1Name)
+	}
+}
+
+func TestValidateStatusConfigStage3InvalidOthersValid(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: "Pending", Stage2Name: "Working", Stage3Name: "Bad!", Stage4Name: ""}
+	if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
+		t.Errorf("expected ErrStatusNameInvalid for Stage3, got %v", err)
 	}
 }

@@ -1276,3 +1276,113 @@ func TestScanIssueNulls(t *testing.T) {
 		t.Error("Did not find the issue with null fields")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// GetStatusConfig / UpsertStatusConfig
+// ---------------------------------------------------------------------------
+
+func TestGetStatusConfigReturnsDefaultsWhenNoRow(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Delete the seeded row so no row exists for project 1.
+	if _, err := DB.Exec("DELETE FROM project_status_config WHERE project_id = 1"); err != nil {
+		t.Fatalf("failed to delete seeded row: %v", err)
+	}
+
+	cfg, err := GetStatusConfig(1)
+	if err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if cfg.ProjectID != 1 {
+		t.Errorf("expected ProjectID 1, got %d", cfg.ProjectID)
+	}
+	if cfg.Stage1Name != "Pending" || cfg.Stage2Name != "Working" {
+		t.Errorf("expected default names, got %+v", cfg)
+	}
+	if cfg.Stage3Name != "" || cfg.Stage4Name != "" {
+		t.Errorf("expected empty stage 3/4, got %+v", cfg)
+	}
+}
+
+func TestGetStatusConfigReturnsStoredValues(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	stored := &StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA", Stage3Name: "Staging", Stage4Name: "Prod"}
+	if err := UpsertStatusConfig(stored); err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+
+	cfg, err := GetStatusConfig(1)
+	if err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if cfg.Stage1Name != "Review" || cfg.Stage2Name != "QA" || cfg.Stage3Name != "Staging" || cfg.Stage4Name != "Prod" {
+		t.Errorf("unexpected stored config: %+v", cfg)
+	}
+}
+
+func TestGetStatusConfigDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if _, err := DB.Exec("DROP TABLE project_status_config"); err != nil {
+		t.Fatalf("failed to drop table: %v", err)
+	}
+
+	if _, err := GetStatusConfig(1); err == nil {
+		t.Error("expected error after table drop, got nil")
+	}
+}
+
+func TestUpsertStatusConfigPersists(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	cfg := &StatusConfig{ProjectID: 1, Stage1Name: "Todo", Stage2Name: "Doing", Stage3Name: "", Stage4Name: ""}
+	if err := UpsertStatusConfig(cfg); err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+
+	got, err := GetStatusConfig(1)
+	if err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if got.Stage1Name != "Todo" || got.Stage2Name != "Doing" {
+		t.Errorf("expected persisted values, got %+v", got)
+	}
+}
+
+func TestUpsertStatusConfigReplacesExisting(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := UpsertStatusConfig(&StatusConfig{ProjectID: 1, Stage1Name: "Pending", Stage2Name: "Working"}); err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if err := UpsertStatusConfig(&StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA"}); err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+
+	got, err := GetStatusConfig(1)
+	if err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if got.Stage1Name != "Review" || got.Stage2Name != "QA" {
+		t.Errorf("expected replaced values, got %+v", got)
+	}
+}
+
+func TestUpsertStatusConfigDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if _, err := DB.Exec("DROP TABLE project_status_config"); err != nil {
+		t.Fatalf("failed to drop table: %v", err)
+	}
+
+	if err := UpsertStatusConfig(&StatusConfig{ProjectID: 1}); err == nil {
+		t.Error("expected error after table drop, got nil")
+	}
+}

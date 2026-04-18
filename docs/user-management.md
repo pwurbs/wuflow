@@ -21,6 +21,7 @@ Three roles are available, ordered from least to most privileged:
 | Unarchive an issue | — | ✓ | ✓ |
 | Delete an issue | — | ✓ | ✓ |
 | Create / delete labels | — | ✓ | ✓ |
+| Configure board columns | — | ✓ | ✓ |
 | Access Project Settings view | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |

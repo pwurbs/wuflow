@@ -730,8 +730,8 @@ test.describe('Planning Panel', () => {
     await expect(planningItem).not.toHaveClass(/done/);
 
     // Drag the issue card to the Done column on the Kanban board
-    const issueCard = page.locator('#col-todo .board-card:has-text("Done Completion Test")');
-    const doneColumn = page.locator('#col-done');
+    const issueCard = page.locator('.column[data-status="Todo"] .board-card:has-text("Done Completion Test")');
+    const doneColumn = page.locator('.column[data-status="Done"]');
     await issueCard.dragTo(doneColumn);
 
     // Wait for the PUT request that persists the status change

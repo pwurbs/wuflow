@@ -13,10 +13,11 @@ const (
 	StatusOpen IssueStatus = "Open"
 	// StatusTodo represents an issue that is in the "To Do" state.
 	StatusTodo IssueStatus = "Todo"
-	// StatusPending represents an issue that is pending.
-	StatusPending IssueStatus = "Pending"
-	// StatusWorking represents an issue that is currently being worked on.
-	StatusWorking IssueStatus = "Working"
+	// StatusStage1 through StatusStage4 represent configurable intermediate stages.
+	StatusStage1 IssueStatus = "Stage1"
+	StatusStage2 IssueStatus = "Stage2"
+	StatusStage3 IssueStatus = "Stage3"
+	StatusStage4 IssueStatus = "Stage4"
 	// StatusDone represents an issue that is completed.
 	StatusDone IssueStatus = "Done"
 	// StatusArchive represents an issue that is archived.
@@ -82,6 +83,16 @@ type Project struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+}
+
+// StatusConfig holds the per-project display names for the four configurable board stage columns.
+// An empty name means that stage column is hidden on the board.
+type StatusConfig struct {
+	ProjectID  int    `json:"project_id"`
+	Stage1Name string `json:"stage1_name"` // default "Pending"
+	Stage2Name string `json:"stage2_name"` // default "Working"
+	Stage3Name string `json:"stage3_name"` // default "" (hidden)
+	Stage4Name string `json:"stage4_name"` // default "" (hidden)
 }
 
 // UserRole represents a user's role in the system.
