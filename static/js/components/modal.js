@@ -286,6 +286,11 @@ function setupNewModal() {
 
   toggleInlineEditMode(false);
 
+  document.querySelectorAll('.custom-date-input, .custom-select-trigger').forEach(el => {
+    el.style.pointerEvents = '';
+    el.style.opacity = '';
+  });
+
   const activeNav = document.querySelector('.left-menu .menu-btn.active');
   if (activeNav && activeNav.id !== 'add-issue-btn') {
     previousActiveNavBtn = activeNav;

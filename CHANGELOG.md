@@ -1,6 +1,7 @@
 
 # 1.2.0
 
+- Fixed the bug that fields were not editable in new issue modal when creation occurs right after viewing an archived issue 
 - Added feature to configure board columns
 - Excluded pure position changes from issue change timestamp
 - Redesigned Backlog and Archive cards: compact single-line layout with aligned columns
