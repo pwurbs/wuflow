@@ -14,6 +14,8 @@
 - Further improved layzy loading by adding another API endpoint for only OPEN issues and adapted backlog rendering
 - Implemented caching renderMarkdown output to eliminate DOMPurify cold-start delay
 - Accelerated Playwright tests by scheduling over 5 parallel instances
+- Bumped dompurify to 3.4.0
+- Bumped marked to 18.0.2
 
 # 1.1.1
 
