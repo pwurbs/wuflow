@@ -2,6 +2,7 @@ import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
+import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
@@ -33,8 +34,8 @@ export function setupModal(refreshApp) {
   setupSidebarImmediateSave();
 
   // Character counters
-  initCharCounter(document.getElementById('description-editor'), 5000, { className: 'editor-counter' });
-  initCharCounter(document.getElementById('new-task-title'), 100, { className: 'task-title-counter' });
+  initCharCounter(document.getElementById('description-editor'), MAX_DESC_LENGTH, { className: 'editor-counter' });
+  initCharCounter(document.getElementById('new-task-title'), MAX_TITLE_LENGTH, { className: 'task-title-counter' });
 
   // Task Form
   document.getElementById('add-task-btn').addEventListener('click', handleTaskSubmit);
@@ -438,13 +439,13 @@ function validateIssueForm(title, description) {
     document.getElementById('title').focus();
     return false;
   }
-  if (countCodepoints(title) > 100) {
-    showNotification('Title must not exceed 100 characters.', 'error');
+  if (countCodepoints(title) > MAX_TITLE_LENGTH) {
+    showNotification(`Title must not exceed ${MAX_TITLE_LENGTH} characters.`, 'error');
     document.getElementById('title').focus();
     return false;
   }
-  if (countCodepoints(description) > 5000) {
-    showNotification('Description must not exceed 5000 characters.', 'error');
+  if (countCodepoints(description) > MAX_DESC_LENGTH) {
+    showNotification(`Description must not exceed ${MAX_DESC_LENGTH} characters.`, 'error');
     return false;
   }
   return true;
@@ -558,7 +559,7 @@ let _cancelTitleFn = null;
 
 function setupInlineEditing() {
   const titleInput = document.getElementById('title');
-  const titleCounter = initCharCounter(titleInput, 100, { manual: true });
+  const titleCounter = initCharCounter(titleInput, MAX_TITLE_LENGTH, { manual: true });
 
   const descEditor = document.getElementById('description-editor');
   const descContainer = document.querySelector('.editor-container');
@@ -1137,8 +1138,8 @@ async function handleTaskSubmit(e) {
   const titleInput = document.getElementById('new-task-title');
   const deadlineInput = document.getElementById('new-task-deadline');
   if (!titleInput.value.trim()) return;
-  if (countCodepoints(titleInput.value) > 100) {
-    showNotification('Task title must not exceed 100 characters.', 'error');
+  if (countCodepoints(titleInput.value) > MAX_TITLE_LENGTH) {
+    showNotification(`Task title must not exceed ${MAX_TITLE_LENGTH} characters.`, 'error');
     return;
   }
 

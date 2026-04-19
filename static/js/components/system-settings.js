@@ -1,5 +1,6 @@
 import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout } from '../api.js';
 import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
+import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state } from '../state.js';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
 
@@ -38,8 +39,8 @@ function setupProjectModal(refreshCallback) {
 
   const nameInput = document.getElementById('project-name');
   const descInput = document.getElementById('project-description');
-  if (nameInput) initCharCounter(nameInput, 15);
-  if (descInput) initCharCounter(descInput, 100);
+  if (nameInput) initCharCounter(nameInput, MAX_PROJECT_NAME_LEN);
+  if (descInput) initCharCounter(descInput, MAX_PROJECT_DESC_LEN);
 
   if (addProjectBtn) {
     addProjectBtn.addEventListener('click', () => openProjectModal(null));
@@ -113,12 +114,12 @@ async function handleProjectSubmit(refreshCallback) {
     showProjectError(errorDisplay, 'Project name is required.');
     return;
   }
-  if (countCodepoints(name) > 15) {
-    showProjectError(errorDisplay, 'Project name must not exceed 15 characters.');
+  if (countCodepoints(name) > MAX_PROJECT_NAME_LEN) {
+    showProjectError(errorDisplay, `Project name must not exceed ${MAX_PROJECT_NAME_LEN} characters.`);
     return;
   }
-  if (countCodepoints(description) > 100) {
-    showProjectError(errorDisplay, 'Project description must not exceed 100 characters.');
+  if (countCodepoints(description) > MAX_PROJECT_DESC_LEN) {
+    showProjectError(errorDisplay, `Project description must not exceed ${MAX_PROJECT_DESC_LEN} characters.`);
     return;
   }
 
@@ -281,8 +282,8 @@ function setupUserModal(refreshCallback) {
   setupUserDropdown('user-role-trigger', 'user-role-options', 'user-role', 'user-role-text');
 
   // Character counters for user name fields
-  initCharCounter(document.getElementById('user-first-name'), 50);
-  initCharCounter(document.getElementById('user-last-name'), 50);
+  initCharCounter(document.getElementById('user-first-name'), MAX_USERNAME_LENGTH);
+  initCharCounter(document.getElementById('user-last-name'), MAX_USERNAME_LENGTH);
 }
 
 function openUserModal(user) {
@@ -404,14 +405,13 @@ async function handleUserSubmit(refreshCallback) {
 }
 
 function validateUserInput(userData, errorDisplay) {
-  const emailRegex = /^[^\s@]+@[^\s@]+$/;
-  if (!userData.email || !emailRegex.test(userData.email)) {
+  if (!userData.email || !EMAIL_REGEX.test(userData.email)) {
     showUserError(errorDisplay, 'A valid email address is required.');
     document.getElementById('user-email')?.focus();
     return false;
   }
-  if (userData.email.length > 254) {
-    showUserError(errorDisplay, 'Email must not exceed 254 characters.');
+  if (userData.email.length > MAX_EMAIL_LENGTH) {
+    showUserError(errorDisplay, `Email must not exceed ${MAX_EMAIL_LENGTH} characters.`);
     document.getElementById('user-email')?.focus();
     return false;
   }
@@ -419,8 +419,8 @@ function validateUserInput(userData, errorDisplay) {
     showUserError(errorDisplay, 'First name and last name are required.');
     return false;
   }
-  if (countCodepoints(userData.first_name) > 50 || countCodepoints(userData.last_name) > 50) {
-    showUserError(errorDisplay, 'First and last name must not exceed 50 characters.');
+  if (countCodepoints(userData.first_name) > MAX_USERNAME_LENGTH || countCodepoints(userData.last_name) > MAX_USERNAME_LENGTH) {
+    showUserError(errorDisplay, `First and last name must not exceed ${MAX_USERNAME_LENGTH} characters.`);
     return false;
   }
 
@@ -430,8 +430,8 @@ function validateUserInput(userData, errorDisplay) {
   }
 
   if (userData.password) {
-    if (countCodepoints(userData.password) > 128) {
-      showUserError(errorDisplay, 'Password must not exceed 128 characters.');
+    if (countCodepoints(userData.password) > MAX_PASSWORD_LENGTH) {
+      showUserError(errorDisplay, `Password must not exceed ${MAX_PASSWORD_LENGTH} characters.`);
       return false;
     }
     const pwError = validatePasswordPolicy(userData.password, userData.email);
@@ -454,8 +454,8 @@ function showUserError(el, message) {
  * Must match backend rules in validation.go.
  */
 export function validatePasswordPolicy(password, email) {
-  if (countCodepoints(password) < 12) {
-    return 'Password must be at least 12 characters';
+  if (countCodepoints(password) < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
   }
   if (email && password.toLowerCase() === email.toLowerCase()) {
     return 'Password must not be your email address';

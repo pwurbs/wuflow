@@ -1,5 +1,6 @@
 import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.js';
 import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor } from '../utils.js';
+import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.js';
 import { state, setStatusConfig } from '../state.js';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.js';
 import { STATUS_SLOTS, getDefaultStatusConfig } from '../status-config.js';
@@ -16,13 +17,13 @@ export function setupProjectSettingsView(callback) {
 
   if (addLabelBtn && addLabelInput) {
     if (userCan(state.currentUser, ACTION_CREATE_LABEL)) {
-      initCharCounter(addLabelInput, 15);
+      initCharCounter(addLabelInput, MAX_LABEL_NAME_LEN);
 
       const handleAdd = async () => {
         const name = addLabelInput.value.trim();
         if (!name) return;
-        if (countCodepoints(name) > 15) {
-          showNotification('Label name must not exceed 15 characters.', 'error');
+        if (countCodepoints(name) > MAX_LABEL_NAME_LEN) {
+          showNotification(`Label name must not exceed ${MAX_LABEL_NAME_LEN} characters.`, 'error');
           return;
         }
         try {
@@ -76,7 +77,7 @@ export async function renderProjectSettingsView() {
     labels.forEach(label => {
       const labelEl = document.createElement('div');
       labelEl.className = 'label-item';
-      const safeColor = /^#[0-9A-Fa-f]{6}$/.test(label.color) ? label.color : '#808080';
+      const safeColor = COLOR_REGEX.test(label.color) ? label.color : '#808080';
       labelEl.style.backgroundColor = safeColor + '20';
       labelEl.style.color = safeColor;
       labelEl.style.border = `1px solid ${safeColor}`;
@@ -140,7 +141,7 @@ function renderStatusConfigSection() {
       <div class="sc-box sc-box--configurable ${activeClass}">
         <div class="sc-box-label">Column ${i + 1}${orphanBadge}</div>
         <input type="text" class="sc-name-input" name="${slot.field}" data-field="${slot.field}"
-               value="${val}" maxlength="15" ${disabledAttr}>
+               value="${val}" maxlength="${MAX_STATUS_NAME_LEN}" ${disabledAttr}>
       </div>`;
   }).join('');
 
@@ -187,13 +188,16 @@ async function handleSaveStatusConfig(projectId, previousCfg) {
     payload[input.dataset.field] = input.value.trim();
   });
 
-  const invalidName = Object.values(payload).find(name => name !== '' && !/^[a-zA-Z0-9]+$/.test(name));
+  const invalidName = Object.values(payload).find(
+    name => name !== '' && (!STATUS_NAME_REGEX.test(name) || name.length > MAX_STATUS_NAME_LEN)
+  );
   if (invalidName) {
-    showNotification('Column names must contain only letters and digits.', 'error');
-    return;
-  }
-  if (Object.values(payload).some(name => name.length > 15)) {
-    showNotification('Column names must not exceed 15 characters.', 'error');
+    showNotification(
+      STATUS_NAME_REGEX.test(invalidName)
+        ? `Column names must not exceed ${MAX_STATUS_NAME_LEN} characters.`
+        : 'Column names must contain only letters and digits.',
+      'error'
+    );
     return;
   }
 

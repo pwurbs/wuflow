@@ -1,6 +1,7 @@
 
 ## 1.2.0
 
+- Refactored the central definition of frontend validation rules
 - Fixed the bug that fields were not editable in new issue modal when creation occurs right after viewing an archived issue 
 - Added feature to configure board columns
 - Excluded pure position changes from issue change timestamp

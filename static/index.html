@@ -72,6 +72,7 @@
 
                     <!-- Search Input -->
                     <div id="search-filter-wrapper" class="toolbar-input-wrapper">
+                        <!-- maxlength: sync with search limit (50) documented in input-validation.md -->
                         <input type="text" id="search-input" placeholder="Search..." class="search-input"
                             maxlength="50">
                     </div>
@@ -240,6 +241,7 @@
                     <form id="user-form" autocomplete="off">
                         <div class="form-group">
                             <label for="user-email">Email</label>
+                            <!-- maxlength/pattern: sync with MAX_EMAIL_LENGTH / EMAIL_REGEX in validation-config.js -->
                             <input type="text" id="user-email" required placeholder="user@example.com" maxlength="254"
                                 pattern="[^\s@]+@[^\s@]+" title="Email address (e.g. user@domain)">
                         </div>
@@ -259,6 +261,7 @@
                         </div>
                         <div class="form-group">
                             <label for="user-password">Password</label>
+                            <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
                             <input type="password" id="user-password" maxlength="128" autocomplete="new-password">
                             <small id="user-password-hint" class="form-hint">Leave empty to keep current password (edit
                                 only)</small>
@@ -302,11 +305,13 @@
                         <div class="form-group">
                             <label for="project-name">Name</label>
                             <div class="name-input-wrapper">
+                                <!-- maxlength: sync with MAX_PROJECT_NAME_LEN in validation-config.js -->
                                 <input type="text" id="project-name" required placeholder="Project name" maxlength="15">
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="project-description">Description</label>
+                            <!-- maxlength: sync with MAX_PROJECT_DESC_LEN in validation-config.js -->
                             <textarea id="project-description" placeholder="Short description" maxlength="100" rows="3" class="settings-input" style="width:100%;resize:vertical;"></textarea>
                         </div>
                         <div id="project-modal-error" class="form-error hidden" role="alert"></div>
@@ -673,6 +678,7 @@
             <form id="password-form">
                 <div class="form-group">
                     <label for="new-password">New Password</label>
+                    <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
                     <input type="password" id="new-password" required placeholder="Enter new password" maxlength="128">
                     <small class="form-hint">Minimum 12 characters. No common passwords.</small>
                 </div>

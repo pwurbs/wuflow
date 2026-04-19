@@ -1,4 +1,5 @@
 import { escapeHtml, showNotification, showConfirm, initCharCounter } from '../utils.js';
+import { MAX_TITLE_LENGTH } from '../validation-config.js';
 import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.js';
 import { userCan, ACTION_UPDATE_TASK, ACTION_DELETE_TASK } from '../permissions.js';
@@ -100,7 +101,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
     if (!callbacks.readOnly) {
       let originalTitle = task.title;
 
-      const titleCounter = initCharCounter(titleInput, 100, { manual: true });
+      const titleCounter = initCharCounter(titleInput, MAX_TITLE_LENGTH, { manual: true });
 
       const enterEditMode = () => {
         li.classList.add('editing');

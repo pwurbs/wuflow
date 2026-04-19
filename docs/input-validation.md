@@ -6,6 +6,7 @@
     - Uses HTML5 attributes (`maxlength`, `required`, `type="email"`) for basic constraints.
     - JavaScript logic handles complex rules (e.g., password strength) and displays error toasts.
     - Prevents invalid requests from being sent to the server.
+    - All limits and regex patterns are centrally defined in `static/js/validation-config.js`.
 
 2.  **Server-Side (Backend)**:
     - The source of truth for data integrity.
@@ -13,6 +14,7 @@
     - Uses `LimitBodyMiddleware` to cap incoming HTTP request bodies at 32 KB, preventing memory exhaustion attacks.
     - Uses `utf8.RuneCountInString` to correctly handle multi-byte characters (emojis, international text).
     - Returns descriptive HTTP 400 Bad Request errors if validation fails.
+    - All limits are defined as constants and all regex patterns are compiled at package level in `backend/validation.go`.
 
 ## Key Limits
 | Field | Limit | Reasoning |
@@ -25,6 +27,9 @@
 | **Search Filter** | 50 chars | Prevents performance issues and UX breakdown during string matching. |
 | **Email** | 254 bytes | RFC 5321 standard limit. |
 | **Planned Dates** | 100 entries | Prevents unbounded array iteration; each entry must be a valid `YYYY-MM-DD` date. |
+| **Password** | Min 12, max 128 chars | Minimum complexity baseline; max prevents DoS via bcrypt on long inputs. |
+| **Project Name** | 15 chars | UI space constraint (sidebar, header). |
+| **Project Description** | 100 chars | Brief tagline shown in project overview. |
 | **Request Body** | 32 KB | Hard limit on all incoming requests to prevent memory exhaustion attacks. |
 
 ## Description Sanitization

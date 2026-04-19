@@ -1,4 +1,5 @@
 import { escapeHtml } from '../utils.js';
+import { COLOR_REGEX } from '../validation-config.js';
 import { setDraggedCard, setDraggedCardOrigin } from '../drag.js';
 
 export function createCardElement(issue, isBoard = false, callbacks = {}) {
@@ -68,7 +69,7 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
 }
 
 function getBoardCardHTML(issue, openTasks) {
-  const labelColor = issue.label && /^#[0-9A-Fa-f]{6}$/.test(issue.label.color) ? issue.label.color : '#808080';
+  const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
 
   return `
             <div class="board-card-title">${escapeHtml(issue.title)}</div>
@@ -105,7 +106,7 @@ function getBoardCardHTML(issue, openTasks) {
 }
 
 function getBacklogCardHTML(issue, openTasks, totalTasks) {
-  const labelColor = issue.label && /^#[0-9A-Fa-f]{6}$/.test(issue.label.color) ? issue.label.color : '#808080';
+  const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
 
   const taskTooltipHTML = openTasks > 0 ? `
     <div class="board-task-tooltip">
