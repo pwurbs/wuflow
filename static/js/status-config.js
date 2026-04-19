@@ -1,3 +1,5 @@
+// Configuration and accessor layer for board column statuses (4 configurable stages plus fixed anchors).
+// Used by board rendering, issue modal, and project settings.
 import { state } from './state.js';
 
 // Fixed mapping between StatusConfig fields and internal issue status keys.
