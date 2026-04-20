@@ -33,7 +33,7 @@
       // for both standalone execution and precondition for sonar-scanner
       "label": "Go Checks",
       "type": "shell",
-      // excutes gosec twice for both Sonar scanner and console output for standalone execution
+      // executes gosec twice for both Sonar scanner and console output for standalone execution
       "command": "gosec -fmt sonarqube -out backend/test-results/gosec-report.json ./... ; gosec ./... ; go vet ./... ; govulncheck ./...",
       "group": "test",
       "presentation": {

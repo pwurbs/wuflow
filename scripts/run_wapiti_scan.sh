@@ -90,23 +90,8 @@ source ~/python_wapiti_env/bin/activate
 # Tailored module list
 MODULES="backup,brute_login_form,buster,cookieflags,crlf,csrf,csp,http_headers,htp,inconsistent_redirection,permanentxss,redirect,sql,timesql,xss"
 
-# --- PHASE 1: Unauthenticated Scan ---
-echo "[*] Phase 1: Running Unauthenticated Wapiti scan..."
-wapiti -u "http://localhost:$APP_PORT/" \
-  -m "$MODULES" \
-  --swagger docs/swagger.json \
-  -f html \
-  -o "$REPORT_DIR" \
-  --flush-session \
-  --color \
-  -v 1
-
-# Rename the unauthenticated report
-mv "$REPORT_DIR"/localhost_*.html "$REPORT_UNAUTH" 2>/dev/null
-echo "[*] Unauthenticated scan complete. Report: $REPORT_UNAUTH"
-
-# --- PHASE 2: Authenticated Scan ---
-echo "[*] Phase 2: Authenticating to perform Authenticated Scan..."
+# --- PHASE 1: Authenticated Scan (crawls and discovers all endpoints) ---
+echo "[*] Phase 1: Authenticating to perform Authenticated Scan..."
 
 # Get the JWT token
 AUTH_RESP_FILE="/tmp/auth_response_$(date +%s).txt"
@@ -139,14 +124,28 @@ wapiti -u "http://localhost:$APP_PORT/" \
 
 # Rename the authenticated report
 mv "$REPORT_DIR"/localhost_*.html "$REPORT_AUTH" 2>/dev/null
+echo "[*] Authenticated scan complete. Report: $REPORT_AUTH"
+
+# --- PHASE 2: Unauthenticated Scan (reuses discovered URLs, no credentials) ---
+echo "[*] Phase 2: Running Unauthenticated Wapiti scan (reusing crawl session)..."
+wapiti -u "http://localhost:$APP_PORT/" \
+  -m "$MODULES" \
+  --swagger docs/swagger.json \
+  -f html \
+  -o "$REPORT_DIR" \
+  --color \
+  -v 1
+
+# Rename the unauthenticated report
+mv "$REPORT_DIR"/localhost_*.html "$REPORT_UNAUTH" 2>/dev/null
+echo "[*] Unauthenticated scan complete. Report: $REPORT_UNAUTH"
 
 # Deactivate venv
 deactivate 2>/dev/null || true
 
-echo "[*] Authenticated scan complete. Report: $REPORT_AUTH"
 echo "[*] All scans complete. You can find both reports in $REPORT_DIR"
 
 # Open both reports in the browser automatically (Mac script)
-open "$REPORT_UNAUTH"
 open "$REPORT_AUTH"
+open "$REPORT_UNAUTH"
 # The trap 'cleanup' will run automatically now
