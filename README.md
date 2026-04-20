@@ -6,10 +6,10 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/pwurbs/wuflow)](https://github.com/pwurbs/wuflow) 
 [![Go Report Card](https://goreportcard.com/badge/github.com/pwurbs/wuflow)](https://goreportcard.com/report/github.com/pwurbs/wuflow) <br>
 [![Container Image](https://img.shields.io/badge/ghcr.io-image-blue?logo=docker)](https://github.com/pwurbs/wuflow/pkgs/container/wuflow) <br>
-![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=alert_status) 
-![Coverage](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=coverage) 
-![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=vulnerabilities) 
-![Bugs](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=bugs)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=alert_status)](https://sonarcloud.io/dashboard?id=wuflow-oss) 
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=coverage)](https://sonarcloud.io/dashboard?id=wuflow-oss) 
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=vulnerabilities)](https://sonarcloud.io/dashboard?id=wuflow-oss) 
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=bugs)](https://sonarcloud.io/dashboard?id=wuflow-oss)
 
 <img src="static/logo.png" alt="wuFlow Logo" width="100">
 

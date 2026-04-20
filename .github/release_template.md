@@ -1,12 +1,12 @@
 # Release Vx.y.z
 
+## 🎉 Highlights
+
+
 ## ⚡️Security Fixes
 - 
 
 ## ⚠️ Breaking Changes
-- 
-
-## 🚀 New Features
 - 
 
 ## 🚀 New Features
