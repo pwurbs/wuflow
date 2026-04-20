@@ -198,7 +198,7 @@ func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 		}
 
 		// If we get here, no valid session exists and it's not a public asset
-		slog.Info("Unauthenticated access, redirecting to login", "path", path, "ip", GetClientIP(r))
+		slog.Info("Unauthenticated access, redirecting to login", "path", strings.ReplaceAll(path, "\n", ""), "ip", strings.ReplaceAll(GetClientIP(r), "\n", ""))
 		w.Header().Set("Location", loginPath)
 		w.WriteHeader(http.StatusFound)
 	}
@@ -309,7 +309,7 @@ func UserRateLimitMiddleware(next http.Handler) http.Handler {
 
 		if !apiLimiter.allow(userID) {
 			slog.Warn("API rate limit exceeded", "user_id", userID,
-				"method", r.Method, "path", r.URL.Path)
+				"method", strings.ReplaceAll(r.Method, "\n", ""), "path", strings.ReplaceAll(r.URL.Path, "\n", ""))
 			http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
 			return
 		}
@@ -326,9 +326,9 @@ func ValidatePathMiddleware(next http.Handler) http.Handler {
 		// If RawQuery is present, it means the client sent something like ?foo=bar
 		if r.URL.RawQuery != "" {
 			slog.Warn("Strict validation failed: query parameters not allowed",
-				"path", r.URL.Path,
-				"query", r.URL.RawQuery,
-				"ip", GetClientIP(r),
+				"path", strings.ReplaceAll(r.URL.Path, "\n", ""),
+				"query", strings.ReplaceAll(r.URL.RawQuery, "\n", ""),
+				"ip", strings.ReplaceAll(GetClientIP(r), "\n", ""),
 			)
 			http.Error(w, "Query parameters are not allowed on this endpoint", http.StatusBadRequest)
 			return
@@ -366,9 +366,9 @@ func WithLogging(next http.Handler) http.Handler {
 		duration := time.Since(start)
 
 		slog.Info("HTTP Request",
-			"ip", GetClientIP(r),
-			"method", r.Method,
-			"path", r.URL.Path,
+			"ip", strings.ReplaceAll(GetClientIP(r), "\n", ""),
+			"method", strings.ReplaceAll(r.Method, "\n", ""),
+			"path", strings.ReplaceAll(r.URL.Path, "\n", ""),
 			"duration", duration,
 			"status", wrapper.statusCode,
 			"size", wrapper.written,

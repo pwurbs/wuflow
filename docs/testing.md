@@ -8,6 +8,7 @@
 | **Unit (Frontend)** | JS State logic, Utilities | `vitest` | Yes |
 | **End-to-End** | Essential User Journeys | `playwright` | No |
 | **Go Fuzzing** | Edge Cases, Input Validation | `go test -fuzz` | No |
+| **SAST (Go)** | Static security analysis | `gosec` | Yes |
 | **Vulnerability Scan** | Security vulnerabilities | `wapiti` | No |
 | **Image Scanning** | Container security | `trivy` | No |
 
@@ -49,6 +50,11 @@ SonarQube acts as the single source of truth for **Code Health**.
 1. **Combined Coverage:** SonarQube aggregates coverage from both Go (`cover.out`) and JavaScript (`lcov.info`).
 2. **Static Analysis:** We monitor for code smells, cognitive complexity (especially in JS state logic), and security vulnerabilities.
 3. **Requirement:** New PRs should not decrease the overall coverage percentage.
+
+## Static Application Security Testing (gosec)
+We use **gosec** to perform static security analysis on the Go codebase, detecting common vulnerabilities at the source level before runtime.
+* **Focus:** Hardcoded credentials, SQL injection risks, unsafe use of crypto, insecure file permissions, and other CWE-mapped issues.
+* **Reporting:** Results are exported in SonarQube format (`gosec-report.json`) and fed into the quality gate alongside unit test coverage.
 
 ## Vulnerability Scan
 We use **Wapiti** to perform black-box vulnerability scanning against the running application.

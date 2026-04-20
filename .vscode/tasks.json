@@ -16,6 +16,7 @@
   ],
   "tasks": [
     {
+      // for both standalone execution and precondition for sonar-scanner
       "label": "Go Test",
       "type": "shell",
       "command": "go test -v -coverprofile=backend/test-results/coverage.out ./backend/...",
@@ -27,6 +28,19 @@
       "problemMatcher": [
         "$go"
       ]
+    },
+    {
+      // for both standalone execution and precondition for sonar-scanner
+      "label": "Go Checks",
+      "type": "shell",
+      // excutes gosec twice for both Sonar scanner and console output for standalone execution
+      "command": "gosec -fmt sonarqube -out backend/test-results/gosec-report.json ./... ; gosec ./... ; go vet ./... ; govulncheck ./...",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
     },
     {
       "label": "Go Fuzz",
@@ -42,6 +56,7 @@
       ]
     },
     {
+      // for both standalone execution and precondition for sonar-scanner
       "label": "JS Test",
       "type": "shell",
       "command": "npm run test:coverage",
@@ -67,32 +82,6 @@
       "problemMatcher": []
     },
     {
-      "label": "Go Checks",
-      "type": "shell",
-      "command": "gosec ./... ; go vet ./... ; govulncheck ./...",
-      "group": "test",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": [
-        "$go"
-      ]
-    },
-    {
-      "label": "Go Build",
-      "type": "shell",
-      "command": "go build -v -ldflags \"-X main.Version=$(cat VERSION)\" -o bin/wuflow main.go",
-      "group": "build",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": [
-        "$go"
-      ]
-    },
-    {
       "label": "Run Playwright Tests",
       "type": "shell",
       "command": "npm test",
@@ -109,6 +98,8 @@
       "label": "Sonar Scanner",
       "type": "shell",
       "command": "export VERSION=$(cat VERSION) && export BRANCH=$(git branch --show-current) && sonar-scanner -Dsonar.token=${env:SONAR_TOKEN} -Dsonar.projectVersion=$VERSION -Dsonar.branch.name=$BRANCH",
+      "dependsOn": ["Go Test", "JS Test", "Go Checks"],
+      "dependsOrder": "sequence",
       "options": {
         "shell": {
           "args": [
@@ -162,26 +153,6 @@
       "type": "shell",
       "command": "export VERSION=$(cat VERSION) && echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container image tag wuflow:$VERSION ghcr.io/pwurbs/wuflow:$VERSION && container image push ghcr.io/pwurbs/wuflow:$VERSION",
       "group": "build",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Start Container",
-      "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && container rm -f wuflow || true && container run -d -p 8080:8080 --name wuflow wuflow:$VERSION",
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Stop Container",
-      "type": "shell",
-      "command": "container stop wuflow || true",
       "presentation": {
         "reveal": "always",
         "panel": "shared"

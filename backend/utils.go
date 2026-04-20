@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 )
 
 // GetClientIP extracts the client's IP address from the request.
@@ -16,7 +17,7 @@ func GetClientIP(r *http.Request) string {
 		if headerIP := r.Header.Get(remoteIPHeader); headerIP != "" {
 			if net.ParseIP(headerIP) == nil {
 				slog.Warn("GetClientIP: invalid IP in header, falling back to RemoteAddr",
-					"header", remoteIPHeader, "value", headerIP)
+					"header", remoteIPHeader, "value", strings.ReplaceAll(headerIP, "\n", ""))
 			} else {
 				return headerIP
 			}

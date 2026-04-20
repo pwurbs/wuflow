@@ -47,7 +47,7 @@ var errAdminCheckDB = errors.New("internal admin count check failed")
 // denyForbidden logs a permission-denied warning and writes a 403 response.
 func denyForbidden(w http.ResponseWriter, r *http.Request, action Action) {
 	email := GetEmailFromContext(r.Context())
-	slog.Warn("Permission denied", "action", action, "role", GetRoleFromContext(r.Context()), "email", email, "method", r.Method, "path", r.URL.Path)
+	slog.Warn("Permission denied", "action", action, "role", GetRoleFromContext(r.Context()), "email", strings.ReplaceAll(email, "\n", ""), "method", strings.ReplaceAll(r.Method, "\n", ""), "path", strings.ReplaceAll(r.URL.Path, "\n", ""))
 	http.Error(w, errMsgForbidden, http.StatusForbidden)
 }
 
@@ -816,7 +816,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	ip := GetClientIP(r)
 	if loginLimiter.checkIP(ip) {
-		slog.Warn("Login blocked: IP rate limit exceeded", "ip", ip)
+		slog.Warn("Login blocked: IP rate limit exceeded", "ip", strings.ReplaceAll(ip, "\n", ""))
 		http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
 		return
 	}
@@ -827,7 +827,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if loginLimiter.checkIPAndEmail(ip, req.Email) {
-		slog.Warn("Login blocked: IP and email rate limit exceeded", "email", req.Email, "ip", ip)
+		slog.Warn("Login blocked: IP and email rate limit exceeded", "email", strings.ReplaceAll(req.Email, "\n", ""), "ip", strings.ReplaceAll(ip, "\n", ""))
 		dummyPasswordCheck(req.Password)                           // Equalize timing to prevent side channels
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized) // we don't reveal the actual cause here
 		return
@@ -842,7 +842,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		// Equalise timing with the valid-user path to prevent user enumeration.
 		dummyPasswordCheck(req.Password)
-		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "user_not_found")
+		slog.Warn(errMsgFailedLogin, "email", strings.ReplaceAll(req.Email, "\n", ""), "reason", "user_not_found")
 		loginLimiter.recordFailure(ip, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
@@ -850,14 +850,14 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	if !user.Active {
 		dummyPasswordCheck(req.Password) // Equalize timing to prevent side channels
-		slog.Warn("Failed login attempt", "email", user.Email, "reason", "inactive_user")
+		slog.Warn("Failed login attempt", "email", strings.ReplaceAll(user.Email, "\n", ""), "reason", "inactive_user")
 		loginLimiter.recordFailure(ip, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
 
 	if !CheckPassword(user.PasswordHash, req.Password) {
-		slog.Warn(errMsgFailedLogin, "email", req.Email, "reason", "invalid_password")
+		slog.Warn(errMsgFailedLogin, "email", strings.ReplaceAll(req.Email, "\n", ""), "reason", "invalid_password")
 		loginLimiter.recordFailure(ip, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
@@ -873,7 +873,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	loginLimiter.resetOnSuccess(ip, req.Email)
 	SetAuthCookies(w, accessToken, refreshToken)
-	slog.Info("Successful login", "email", user.Email, "session_id", session.ID)
+	slog.Info("Successful login", "email", strings.ReplaceAll(user.Email, "\n", ""), "session_id", session.ID)
 
 	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(map[string]any{
@@ -895,7 +895,7 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	email := getUserEmailFromCookie(r)
 
 	ClearAuthCookies(w)
-	slog.Info("Successful logout", "email", email)
+	slog.Info("Successful logout", "email", strings.ReplaceAll(email, "\n", ""))
 
 	w.Header().Set(headerContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
@@ -910,9 +910,9 @@ func revokeSessionFromCookie(r *http.Request) {
 		if err == nil {
 			if err := RevokeSession(sessionID); err != nil {
 				if errors.Is(err, ErrSessionNotFound) {
-					slog.Info("Logout: session already revoked or not found", "session_id", sessionID)
+					slog.Info("Logout: session already revoked or not found", "session_id", strconv.Itoa(sessionID))
 				} else {
-					slog.Warn("Logout: failed to revoke session", "session_id", sessionID, "error", err)
+					slog.Warn("Logout: failed to revoke session", "session_id", strconv.Itoa(sessionID), "error", err)
 				}
 			}
 		}

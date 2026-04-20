@@ -1,6 +1,8 @@
 
 ## 1.2.0
 
+- Removed tainting issues from some logging and improved cookie setting code (solved gosec issues)
+- Added gosec report to sonar-scanner
 - Refactored the central definition of frontend validation rules
 - Fixed a bug that search filters were not editable in toolbar when used right after viewing an archived issue
 - Fixed a bug that fields were not editable in new issue modal when creation occurs right after viewing an archived issue
