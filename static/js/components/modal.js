@@ -381,6 +381,10 @@ function renderModalTimestamps(issue) {
 
 export function closeModal() {
   document.getElementById('issue-modal').classList.add('hidden');
+  document.querySelectorAll('.custom-date-input, .custom-select-trigger').forEach(el => {
+    el.style.pointerEvents = '';
+    el.style.opacity = '';
+  });
   const addBtn = document.getElementById('add-issue-btn');
   if (addBtn.classList.contains('active')) {
     addBtn.classList.remove('active');

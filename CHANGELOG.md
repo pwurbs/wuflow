@@ -2,7 +2,8 @@
 # 1.2.0
 
 - Refactored the central definition of frontend validation rules
-- Fixed the bug that fields were not editable in new issue modal when creation occurs right after viewing an archived issue 
+- Fixed a bug that search filters were not editable in toolbar when used right after viewing an archived issue
+- Fixed a bug that fields were not editable in new issue modal when creation occurs right after viewing an archived issue
 - Added feature to configure board columns
 - Excluded pure position changes from issue change timestamp
 - Redesigned Backlog and Archive cards: compact single-line layout with aligned columns
