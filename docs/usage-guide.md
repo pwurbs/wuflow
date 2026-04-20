@@ -108,7 +108,7 @@ If there are many users active on the board, the entries in the planning sidebar
 
 ## The Backlog View
 
-<img src="screenshots/backlog.png" alt="Backlog Management" width="900">
+<img src="screenshots/backlog.png" alt="Backlog Management" width="1000">
 
 According to the issue lifecycle above, the backlog is usually the starting point for all issues. Here, all ideas, planned topics, issues not yet ready to work etc. are collected in the backlog. 
 To keep the board clean, only issues ready to work on should be on the board. INVEST is a checklist often used to determine if a user story meets the DoR (Definition of Ready) criteria:
@@ -128,7 +128,7 @@ On the Backlog view, you can:
 
 ## The Archive View
 
-<img src="screenshots/archive.png" alt="Archive" width="900">
+<img src="screenshots/archive.png" alt="Archive" width="1000">
 
 Once an issue is completed (DONE status) and no longer needed on the board, you can archive it. This hides the issue from the active views while keeping it stored for future reference. Archived issues are not deleted; they can be reviewed, searched, or even restored to the board at any time.
 The Archive View is similar to the Backlog View, but the other way round: Issue to be archived are moved from top (DONE area) to bottom (ARCHIVE area). By this, the issue vanishes from the board and is instead visible in the Archive area, sorted and grouped per month of archiving.
@@ -137,7 +137,7 @@ Archived issues are read-only. Users owning the Admin or Sysadmin role are entit
 
 ## The Project Settings View
 
-<img src="screenshots/project-settings.png" alt="Project Settings" width="500">
+<img src="screenshots/project-settings.png" alt="Project Settings" width="700">
 
 The Project Settings View is available for users with Admin or Sysadmin role. It allows managing **board columns** and **labels** for the currently selected project. Switch between projects using the project selector at the top of the view to manage settings per project.
 
@@ -157,7 +157,7 @@ Labels are scoped to a project. Create labels which can be used in issues to cat
 
 ## The System Settings View
 
-<img src="screenshots/system-settings.png" alt="System Settings" width="800">
+<img src="screenshots/system-settings.png" alt="System Settings" width="700">
 
 The System Settings View is only available for users with Sysadmin role and allows to configure **projects** and **users**.
 
