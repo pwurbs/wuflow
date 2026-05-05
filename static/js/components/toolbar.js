@@ -1,4 +1,5 @@
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setSelectedProject } from '../state.js';
+import { PRIORITY_OPTIONS } from '../domain-constants.js';
 import { logout, updateCurrentUser } from '../api.js';
 import { showNotification, getUserInitials } from '../utils.js';
 import { validatePasswordPolicy } from './system-settings.js';
@@ -132,10 +133,7 @@ export function updatePriorityFilterOptions() {
 
   priorityFilterOptions.innerHTML = '';
 
-  const priorities = [
-    { text: 'Normal', value: 'Normal' },
-    { text: 'High', value: 'High' }
-  ];
+  const priorities = PRIORITY_OPTIONS;
 
   priorities.forEach(prio => {
     const option = createPriorityOption(prio.text, prio.value);

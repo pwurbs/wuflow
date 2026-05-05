@@ -1,5 +1,7 @@
 import { updateIssue, archiveIssue } from './api.js';
 import { state } from './state.js';
+import { PRIORITY_NORMAL, PRIORITY_HIGH } from './domain-constants.js';
+import { STATUS_ARCHIVE } from './status-config.js';
 import { getDraggedCard, getDragAfterElement } from './drag.js';
 import { showNotification } from './utils.js';
 
@@ -37,7 +39,7 @@ export async function handleMoveBottom(issue, allIssuesInList, refreshCallback) 
 
 export async function handleTogglePriority(issue, refreshCallback) {
   const originalPriority = issue.priority;
-  issue.priority = issue.priority === 'High' ? 'Normal' : 'High';
+  issue.priority = issue.priority === PRIORITY_HIGH ? PRIORITY_NORMAL : PRIORITY_HIGH;
   try {
     await updateIssue(issue);
     if (refreshCallback) refreshCallback();
@@ -90,11 +92,11 @@ export function getListUpdates(listId, targetStatus) {
     const issue = state.issues.find(i => i.id === id);
     if (issue) {
       const statusChanged = issue.status !== targetStatus;
-      const positionChanged = targetStatus !== 'Archive' && issue.position !== index;
+      const positionChanged = targetStatus !== STATUS_ARCHIVE && issue.position !== index;
 
       if (statusChanged || positionChanged) {
         issue.status = targetStatus;
-        if (targetStatus === 'Archive') {
+        if (targetStatus === STATUS_ARCHIVE) {
           updates.push(archiveIssue(issue.id));
         } else {
           issue.position = index;
@@ -152,7 +154,7 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
 
     issue.status = targetStatus;
     try {
-      if (targetStatus === 'Archive') {
+      if (targetStatus === STATUS_ARCHIVE) {
         await archiveIssue(issue.id);
       } else {
         issue.planned_dates = [];

@@ -53,6 +53,7 @@ vi.mock('../utils.js', () => ({
 }));
 
 vi.mock('../status-config.js', () => ({
+  STATUS_OPEN: 'Open',
   getBoardColumns: vi.fn(() => [
     { statusKey: 'Todo',   displayName: 'Todo'    },
     { statusKey: 'Stage1', displayName: 'Pending' },

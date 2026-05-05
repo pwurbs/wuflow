@@ -9,6 +9,7 @@ import { setupSystemSettingsView, renderSystemSettingsView } from './components/
 import { setupProjectSettingsView, renderProjectSettingsView } from './components/project-settings.js';
 import { setupModal, openModal } from './components/modal.js';
 import { debounce } from './utils.js';
+import { STATUS_OPEN } from './status-config.js';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
 
 // DOM Elements
@@ -156,9 +157,9 @@ function setupEventListeners() {
         const issueId = e.detail.issueId;
         const issue = state.issues.find(i => i.id === issueId);
         if (issue) {
-            if (issue.status === 'Open' && backlogView.classList.contains('hidden')) {
+            if (issue.status === STATUS_OPEN && backlogView.classList.contains('hidden')) {
                 switchView('backlog');
-            } else if (issue.status !== 'Open' && boardView.classList.contains('hidden')) {
+            } else if (issue.status !== STATUS_OPEN && boardView.classList.contains('hidden')) {
                 switchView('board');
             }
             setTimeout(() => highlightIssueCard(issue.id), 100);

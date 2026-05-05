@@ -5,7 +5,7 @@ import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
-import { getBoardColumns } from '../status-config.js';
+import { getBoardColumns, STATUS_OPEN } from '../status-config.js';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe } from '../list-utils.js';
 
 let refreshAppCallback = null;
@@ -46,7 +46,7 @@ export function renderBoard(refreshApp, openModal) {
     attachColumnDragListeners(content);
   }
 
-  const nonBacklogIssues = state.issues.filter(issue => issue.status !== 'Open');
+  const nonBacklogIssues = state.issues.filter(issue => issue.status !== STATUS_OPEN);
   nonBacklogIssues.forEach(issue => {
     if (totalCounts[issue.status] !== undefined) {
       totalCounts[issue.status]++;

@@ -1,8 +1,9 @@
 import { state, setCurrentIssue } from '../state.js';
-import { getStatusOptions, getStatusLabel } from '../status-config.js';
+import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
+import { PRIORITY_NORMAL, PRIORITY_OPTIONS } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
@@ -149,15 +150,15 @@ export async function openModal(issue = null) {
 function renderModalDropdowns(issue) {
   // Status Dropdown
   const statusInput = document.getElementById('status');
-  const currentStatus = issue?.status ?? 'Open';
+  const currentStatus = issue?.status ?? STATUS_OPEN;
   statusInput.value = currentStatus;
   document.getElementById('status-text').textContent = getStatusLabel(currentStatus);
   renderStatusOptions();
 
   // Priority Dropdown
   const priorityInput = document.getElementById('priority');
-  priorityInput.value = issue?.priority ?? 'Normal';
-  document.getElementById('priority-text').textContent = issue?.priority ?? 'Normal';
+  priorityInput.value = issue?.priority ?? PRIORITY_NORMAL;
+  document.getElementById('priority-text').textContent = issue?.priority ?? PRIORITY_NORMAL;
   renderPriorityOptions();
 
   // Label Dropdown
@@ -207,7 +208,7 @@ function renderModalDropdowns(issue) {
 }
 
 function setupEditModal(issue) {
-  const isArchived = issue.status === 'Archive';
+  const isArchived = issue.status === STATUS_ARCHIVE;
   document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Edit Issue #${issue.id}`;
   document.getElementById('issue-id').value = issue.id;
   document.getElementById('title').value = issue.title;
@@ -580,7 +581,7 @@ function setupInlineEditing() {
   });
 
   titleInput.addEventListener('click', () => {
-    if (state.currentIssue?.status === 'Archive') return;
+    if (state.currentIssue?.status === STATUS_ARCHIVE) return;
     if (titleInput.classList.contains('inline-editable')) {
       originalTitle = titleInput.value;
       titleInput.classList.remove('inline-editable');
@@ -669,7 +670,7 @@ function setupInlineEditing() {
       globalThis.open(anchor.href, '_blank', 'noopener,noreferrer');
       return;
     }
-    if (state.currentIssue?.status === 'Archive') return;
+    if (state.currentIssue?.status === STATUS_ARCHIVE) return;
     if (descContainer.classList.contains('inline-editable')) {
       originalDesc = descEditor.value;
       descContainer.classList.remove('inline-editable');
@@ -1221,7 +1222,7 @@ function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
 
-    if (state.currentIssue?.status === 'Archive') return;
+    if (state.currentIssue?.status === STATUS_ARCHIVE) return;
 
     const wasHidden = options.classList.contains('hidden');
 
@@ -1269,14 +1270,12 @@ function renderStatusOptions() {
 function renderPriorityOptions() {
   const optionsContainer = document.getElementById('priority-options');
   optionsContainer.innerHTML = '';
-  const priorities = ['Normal', 'High'];
-
-  priorities.forEach(prio => {
+  PRIORITY_OPTIONS.forEach(({ text, value }) => {
     const div = document.createElement('div');
     div.className = 'custom-option';
-    div.textContent = prio;
+    div.textContent = text;
     div.addEventListener('click', () => {
-      selectOption('priority', 'priority-text', 'priority-options', prio, prio);
+      selectOption('priority', 'priority-text', 'priority-options', value, text);
     });
     optionsContainer.appendChild(div);
   });

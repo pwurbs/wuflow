@@ -2,12 +2,22 @@
 // Used by board rendering, issue modal, and project settings.
 import { state } from './state.js';
 
+// Mirror of backend/models.go IssueStatus constants — keep in sync when changing.
+export const STATUS_OPEN    = 'Open';
+export const STATUS_TODO    = 'Todo';
+export const STATUS_DONE    = 'Done';
+export const STATUS_ARCHIVE = 'Archive';
+export const STATUS_STAGE1  = 'Stage1';
+export const STATUS_STAGE2  = 'Stage2';
+export const STATUS_STAGE3  = 'Stage3';
+export const STATUS_STAGE4  = 'Stage4';
+
 // Fixed mapping between StatusConfig fields and internal issue status keys.
 export const STATUS_SLOTS = [
-    { field: 'stage1_name', statusKey: 'Stage1' },
-    { field: 'stage2_name', statusKey: 'Stage2' },
-    { field: 'stage3_name', statusKey: 'Stage3' },
-    { field: 'stage4_name', statusKey: 'Stage4' },
+    { field: 'stage1_name', statusKey: STATUS_STAGE1 },
+    { field: 'stage2_name', statusKey: STATUS_STAGE2 },
+    { field: 'stage3_name', statusKey: STATUS_STAGE3 },
+    { field: 'stage4_name', statusKey: STATUS_STAGE4 },
 ];
 
 export function getDefaultStatusConfig() {
@@ -28,14 +38,14 @@ export function getActiveStatusConfig() {
 // as anchors; Stage1–4 only when their name is non-empty.
 export function getBoardColumns() {
     const cfg = getActiveStatusConfig();
-    const cols = [{ statusKey: 'Todo', displayName: 'Todo' }];
+    const cols = [{ statusKey: STATUS_TODO, displayName: 'Todo' }];
     for (const slot of STATUS_SLOTS) {
         const name = cfg[slot.field];
         if (name && name.trim() !== '') {
             cols.push({ statusKey: slot.statusKey, displayName: name.trim() });
         }
     }
-    cols.push({ statusKey: 'Done', displayName: 'Done' });
+    cols.push({ statusKey: STATUS_DONE, displayName: 'Done' });
     return cols;
 }
 
@@ -44,8 +54,8 @@ export function getBoardColumns() {
 export function getStatusOptions() {
     const cfg = getActiveStatusConfig();
     const opts = [
-        { value: 'Open', label: 'Open' },
-        { value: 'Todo', label: 'Todo' },
+        { value: STATUS_OPEN, label: 'Open' },
+        { value: STATUS_TODO, label: 'Todo' },
     ];
     for (const slot of STATUS_SLOTS) {
         const name = cfg[slot.field];
@@ -53,7 +63,7 @@ export function getStatusOptions() {
             opts.push({ value: slot.statusKey, label: name.trim() });
         }
     }
-    opts.push({ value: 'Done', label: 'Done' });
+    opts.push({ value: STATUS_DONE, label: 'Done' });
     return opts;
 }
 

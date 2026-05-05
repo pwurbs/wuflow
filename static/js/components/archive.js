@@ -1,4 +1,5 @@
 import { state, isFilterActive } from '../state.js';
+import { STATUS_ARCHIVE, STATUS_DONE } from '../status-config.js';
 import { fetchArchivedIssuesByProject } from '../api.js';
 import { createCardElement } from './card.js';
 import { getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
@@ -45,11 +46,11 @@ export async function renderArchive(refreshApp, openModal) {
   const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
 
   // Archive list: Sorted by UpdatedAt (desc), Grouped by Month
-  const archivedIssuesRaw = filterByStatus(filteredIssues, 'Archive');
+  const archivedIssuesRaw = filterByStatus(filteredIssues, STATUS_ARCHIVE);
   const archivedIssues = archivedIssuesRaw.toSorted((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
   // Done list: Keep existing behavior (position sorted)
-  const doneIssues = sortByPosition(filterByStatus(filteredIssues, 'Done'));
+  const doneIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_DONE));
 
   // Render Archive (Grouped)
   if (archivedIssues.length === 0) {
@@ -78,8 +79,8 @@ export async function renderArchive(refreshApp, openModal) {
     }));
   });
 
-  archiveCount.textContent = isFilterActive() ? `${archivedIssues.length}/${filterByStatus(state.issues, 'Archive').length}` : archivedIssues.length;
-  doneCount.textContent = isFilterActive() ? `${doneIssues.length}/${filterByStatus(state.issues, 'Done').length}` : doneIssues.length;
+  archiveCount.textContent = isFilterActive() ? `${archivedIssues.length}/${filterByStatus(state.issues, STATUS_ARCHIVE).length}` : archivedIssues.length;
+  doneCount.textContent = isFilterActive() ? `${doneIssues.length}/${filterByStatus(state.issues, STATUS_DONE).length}` : doneIssues.length;
 }
 
 function groupByMonth(issues) {
@@ -98,10 +99,10 @@ function groupByMonth(issues) {
 
 
 async function validateArchiveDrop(issue, targetStatus) {
-  if (issue.status === 'Archive' && targetStatus !== 'Archive') {
+  if (issue.status === STATUS_ARCHIVE && targetStatus !== STATUS_ARCHIVE) {
     return false;
   }
-  if (targetStatus === 'Archive' && issue.status !== 'Archive') {
+  if (targetStatus === STATUS_ARCHIVE && issue.status !== STATUS_ARCHIVE) {
     if (!userCan(state.currentUser, ACTION_ARCHIVE_ISSUE)) {
       await showConfirm('Not Allowed', 'You do not have permission to archive issues.', 'OK', null, 'primary');
       return false;
@@ -118,8 +119,8 @@ async function validateArchiveDrop(issue, targetStatus) {
 
 async function performDropUpdate() {
   const updates = [
-    ...getListUpdates('archive-list', 'Archive'),
-    ...getListUpdates('archive-done-list', 'Done')
+    ...getListUpdates('archive-list', STATUS_ARCHIVE),
+    ...getListUpdates('archive-done-list', STATUS_DONE)
   ];
 
   await Promise.all(updates);
@@ -130,17 +131,17 @@ export function setupArchiveView(refreshApp, openModal) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
 
-  setupSectionDrop('archive-archive-section', 'Archive', {
+  setupSectionDrop('archive-archive-section', STATUS_ARCHIVE, {
     refreshApp: refreshAppCallback,
     onValidate: validateArchiveDrop
   });
-  setupSectionDrop('archive-done-section', 'Done', {
+  setupSectionDrop('archive-done-section', STATUS_DONE, {
     refreshApp: refreshAppCallback,
     onValidate: validateArchiveDrop,
     showDragHighlight: false
   });
 
-  setupListDrag('archive-list', 'Archive', {
+  setupListDrag('archive-list', STATUS_ARCHIVE, {
     refreshApp: refreshAppCallback,
     onValidate: validateArchiveDrop,
     performReorder: false,
@@ -154,7 +155,7 @@ export function setupArchiveView(refreshApp, openModal) {
     }
   });
 
-  setupListDrag('archive-done-list', 'Done', {
+  setupListDrag('archive-done-list', STATUS_DONE, {
     refreshApp: refreshAppCallback,
     onValidate: validateArchiveDrop,
     showDragHighlight: false,

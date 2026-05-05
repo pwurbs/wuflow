@@ -19,6 +19,7 @@ export default defineConfig({
         'login.js',
         'list-utils.js',
         'validation-config.js',
+        'domain-constants.js',
         'components/card.js',
       ]
     }

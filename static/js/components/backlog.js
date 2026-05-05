@@ -1,4 +1,5 @@
 import { state, isFilterActive } from '../state.js';
+import { STATUS_OPEN, STATUS_TODO } from '../status-config.js';
 import { fetchOpenIssuesByProject } from '../api.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
@@ -41,8 +42,8 @@ export async function renderBacklog(refreshApp, openModal) {
 
   // Filter and sort issues using extracted pure functions
   const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
-  const openIssues = sortByPosition(filterByStatus(filteredIssues, 'Open'));
-  const todoIssues = sortByPosition(filterByStatus(filteredIssues, 'Todo'));
+  const openIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_OPEN));
+  const todoIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_TODO));
 
   function makeCardCallbacks(issue, issuesInList) {
     const isFirst = issuesInList[0]?.id === issue.id;
@@ -66,8 +67,8 @@ export async function renderBacklog(refreshApp, openModal) {
     moveToTodoList.appendChild(createCardElement(issue, false, makeCardCallbacks(issue, todoIssues)));
   });
 
-  backlogCount.textContent = isFilterActive() ? `${openIssues.length}/${state.issues.filter(i => i.status === 'Open').length}` : openIssues.length;
-  todoCount.textContent = isFilterActive() ? `${todoIssues.length}/${state.issues.filter(i => i.status === 'Todo').length}` : todoIssues.length;
+  backlogCount.textContent = isFilterActive() ? `${openIssues.length}/${state.issues.filter(i => i.status === STATUS_OPEN).length}` : openIssues.length;
+  todoCount.textContent = isFilterActive() ? `${todoIssues.length}/${state.issues.filter(i => i.status === STATUS_TODO).length}` : todoIssues.length;
 }
 
 
@@ -83,19 +84,19 @@ export function setupBacklogView(refreshApp, openModal) {
     onValidate: validateUpdate,
     onDrop: async () => {
       const updates = [
-        ...getListUpdates('backlog-list', 'Open'),
-        ...getListUpdates('move-to-todo-list', 'Todo')
+        ...getListUpdates('backlog-list', STATUS_OPEN),
+        ...getListUpdates('move-to-todo-list', STATUS_TODO)
       ];
       await Promise.all(updates);
       if (refreshAppCallback) refreshAppCallback();
     }
   };
 
-  setupSectionDrop('backlog-open-section', 'Open', { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
-  setupSectionDrop('backlog-todo-section', 'Todo', { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
+  setupSectionDrop('backlog-open-section', STATUS_OPEN, { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
+  setupSectionDrop('backlog-todo-section', STATUS_TODO, { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
 
-  setupListDrag('backlog-list', 'Open', { ...dropOptions, showDragHighlight: false });
-  setupListDrag('move-to-todo-list', 'Todo', { ...dropOptions, showDragHighlight: false });
+  setupListDrag('backlog-list', STATUS_OPEN, { ...dropOptions, showDragHighlight: false });
+  setupListDrag('move-to-todo-list', STATUS_TODO, { ...dropOptions, showDragHighlight: false });
 }
 
 

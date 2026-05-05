@@ -1,5 +1,7 @@
-import { escapeHtml, showNotification } from '../utils.js';
+import { escapeHtml, showNotification, getUserInitials } from '../utils.js';
 import { COLOR_REGEX } from '../validation-config.js';
+import { PRIORITY_HIGH } from '../domain-constants.js';
+import { STATUS_ARCHIVE } from '../status-config.js';
 import { setDraggedCard, setDraggedCardOrigin } from '../drag.js';
 import { showCardContextMenu } from '../context-menu.js';
 
@@ -9,10 +11,10 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
   if (isBoard) {
     card.classList.add('board-card');
   }
-  card.draggable = issue.status !== 'Archive';
+  card.draggable = issue.status !== STATUS_ARCHIVE;
   card.dataset.id = issue.id;
-  card.classList.toggle('is-archived', issue.status === 'Archive');
-  if (issue.priority === 'High') {
+  card.classList.toggle('is-archived', issue.status === STATUS_ARCHIVE);
+  if (issue.priority === PRIORITY_HIGH) {
     card.classList.add('high-priority');
   }
 
@@ -83,7 +85,7 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
           action: () => callbacks.onMoveBottom?.()
         },
         {
-          label: issue.priority === 'High' ? 'Remove high priority' : 'Set high priority',
+          label: issue.priority === PRIORITY_HIGH ? 'Remove high priority' : 'Set high priority',
           disabled: !callbacks.onTogglePriority,
           action: () => callbacks.onTogglePriority?.()
         },
@@ -192,12 +194,5 @@ function getAssigneeBadgeHTML(issue, extraStyle = '') {
   const initials = getUserInitials(issue.assignee);
   const fullName = `${issue.assignee.first_name} ${issue.assignee.last_name}`;
   return `<span class="user-badge" title="Assignee: ${escapeHtml(fullName)}" style="${extraStyle}">${escapeHtml(initials)}</span>`;
-}
-
-function getUserInitials(user) {
-  if (!user) return '?';
-  const first = user.first_name ? user.first_name.charAt(0) : '';
-  const last = user.last_name ? user.last_name.charAt(0) : '';
-  return (first + last).toUpperCase() || '?';
 }
 

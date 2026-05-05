@@ -1,4 +1,5 @@
 import { state, isFilterActive } from '../state.js';
+import { STATUS_DONE, STATUS_ARCHIVE } from '../status-config.js';
 import { updateIssue } from '../api.js';
 import { showNotification } from '../utils.js';
 import { getDraggedCard, setDraggedCard } from '../drag.js';
@@ -60,7 +61,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
     .filter(issue => {
       const info = getEffectiveDeadlineInfo(issue);
       const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
-      return info && isUnscheduled && issue.status !== 'Done' && issue.status !== 'Archive';
+      return info && isUnscheduled && issue.status !== STATUS_DONE && issue.status !== STATUS_ARCHIVE;
     })
     .sort((a, b) => {
       const infoA = getEffectiveDeadlineInfo(a);
@@ -154,7 +155,7 @@ export function renderPlanningPanel(refreshApp, openModal) {
   if (isFilterActive()) {
     let totalCount = 0;
     state.issues.forEach(issue => {
-      if (issue.status !== 'Done' && issue.status !== 'Archive') {
+      if (issue.status !== STATUS_DONE && issue.status !== STATUS_ARCHIVE) {
         // Unscheduled: has deadline/subtask-deadline but no planned dates
         const info = getEffectiveDeadlineInfo(issue);
         const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
@@ -282,7 +283,7 @@ function createAssigneeBadgeElement(issue) {
 
 function createPlanningItem(issue, dateStr) {
   const div = document.createElement('div');
-  div.className = `planning-item ${issue.status === 'Done' ? 'done' : ''}`;
+  div.className = `planning-item ${issue.status === STATUS_DONE ? 'done' : ''}`;
   div.draggable = true;
   div.dataset.id = issue.id;
   // Store the date of this specific instance

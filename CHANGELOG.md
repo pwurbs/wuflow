@@ -6,6 +6,7 @@
 - Bumped go-sqlite3
 - Bumped dompurify to 3.4.2
 - Bumped marked to 18.0.3
+- Refactored the global definition of fixed values in frontend (priority, status) 
 
 # 1.2.0
 
