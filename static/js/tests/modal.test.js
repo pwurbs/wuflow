@@ -159,6 +159,7 @@ describe('Modal Component', () => {
             <button class="editor-btn" data-md="ol"></button>
             <button class="editor-btn" data-md="link"></button>
             <button class="editor-btn" data-md="code"></button>
+            <button class="editor-btn" data-md="table"></button>
             <button id="md-preview-toggle" class="editor-btn">Preview</button>
           </form>
         </div>
@@ -465,6 +466,68 @@ describe('Modal Component', () => {
     editor.selectionEnd = 21;
     codeBtn.click();
     expect(editor.value).toBe('```\nlet x = 1;\nlet y = 2;\n```');
+  });
+
+  it('should insert table template at start of empty editor', () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+    const tableBtn = document.querySelector('.editor-btn[data-md="table"]');
+
+    editor.value = '';
+    editor.selectionStart = 0;
+    editor.selectionEnd = 0;
+    tableBtn.click();
+
+    const expected = '| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n';
+    expect(editor.value).toBe(expected);
+    // Cursor lands after "| " — position 2
+    expect(editor.selectionStart).toBe(2);
+    expect(editor.selectionEnd).toBe(2);
+  });
+
+  it('should prepend newline when inserting table after non-newline content', () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+    const tableBtn = document.querySelector('.editor-btn[data-md="table"]');
+
+    editor.value = 'existing text';
+    editor.selectionStart = 13;
+    editor.selectionEnd = 13;
+    tableBtn.click();
+
+    expect(editor.value).toBe('existing text\n| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n');
+    // Cursor lands after the injected "\n| " — offset 13 + 1 (prefix) + 2 = 16
+    expect(editor.selectionStart).toBe(16);
+  });
+
+  it('should not prepend extra newline when cursor is already at a line start', () => {
+    openModal(null);
+    const editor = document.getElementById('description-editor');
+    const tableBtn = document.querySelector('.editor-btn[data-md="table"]');
+
+    editor.value = 'line one\n';
+    editor.selectionStart = 9; // right after the \n
+    editor.selectionEnd = 9;
+    tableBtn.click();
+
+    expect(editor.value).toBe('line one\n| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n');
+    // No extra newline prefix — cursor is 9 + 0 + 2 = 11
+    expect(editor.selectionStart).toBe(11);
+  });
+
+  it('should update preview after inserting table', () => {
+    openModal(null);
+    const preview = document.getElementById('description-preview');
+    const editor = document.getElementById('description-editor');
+    const tableBtn = document.querySelector('.editor-btn[data-md="table"]');
+
+    editor.value = '';
+    editor.selectionStart = 0;
+    editor.selectionEnd = 0;
+    tableBtn.click();
+
+    // renderMarkdown mock wraps input in <p>…</p>
+    expect(preview.innerHTML).not.toBe('');
   });
 
   it('should toggle edit and preview modes and disable toolbar', () => {

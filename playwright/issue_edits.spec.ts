@@ -56,6 +56,39 @@ test.describe('Issue Edit Operations', () => {
     await page.click('#done-btn');
   });
 
+  test('table toolbar button inserts GFM table and renders it in preview', async ({ page }) => {
+    const title = `Table-Test-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    // Enter inline edit mode for the description
+    await page.click('#description-preview');
+    await page.waitForSelector('#description-editor:not([disabled])');
+
+    // Click the table toolbar button
+    await page.click('button[data-md="table"]');
+
+    // The textarea should now contain the table template
+    const editorValue = await page.locator('#description-editor').inputValue();
+    expect(editorValue).toContain('| Header 1 | Header 2 | Header 3 |');
+    expect(editorValue).toContain('| --- | --- | --- |');
+    expect(editorValue).toContain('| Cell | Cell | Cell |');
+
+    // Save the description
+    await page.click('#desc-save-btn');
+
+    // Close and reopen so the persisted description is fetched fresh
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+    await openIssueByTitle(page, title);
+
+    // The preview should render a <table> with the expected header and cell text
+    const preview = page.locator('#description-preview');
+    await expect(preview.locator('table')).toHaveCount(1);
+    await expect(preview.locator('th').first()).toHaveText('Header 1');
+    await expect(preview.locator('td').first()).toHaveText('Cell');
+  });
+
   test('change issue priority', async ({ page }) => {
     // Create an issue with normal priority (default)
     await createIssue(page, { title: 'Priority Change Issue', status: 'Todo' });

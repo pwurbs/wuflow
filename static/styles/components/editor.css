@@ -352,3 +352,31 @@
   border: none;
   /* Strip inner borders on pre > code containers */
 }
+
+/* Table styles */
+.md-preview table,
+.rich-editor table {
+  border-collapse: collapse;
+  margin-bottom: 8px;
+  width: 100%;
+  font-size: 13px;
+}
+
+.md-preview th,
+.md-preview td,
+.rich-editor th,
+.rich-editor td {
+  border: 1px solid var(--card-border);
+  padding: 6px 10px;
+}
+
+.md-preview thead tr,
+.rich-editor thead tr {
+  background-color: var(--column-bg);
+  font-weight: 700;
+}
+
+.md-preview tbody tr:nth-child(even),
+.rich-editor tbody tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}

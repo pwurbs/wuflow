@@ -32,7 +32,8 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 | Lists (`-`, `1.`)     | `<ul>`, `<ol>`, `<li>` | **Allowed** (Attribute on `<ol>`: `start`) |
 | Paragraphs / Linebreaks | `<p>`, `<br>`     | **Allowed**         |
 | Links (`[text](url)`) | `<a>`              | **Allowed** (Attributes: `href`, `title`, `target`, `rel`) |
-| Code (`inline`, block)| `<code>`, `<pre>`  | **Allowed**         |
+| Code (`inline`, block)| `<code>`, `<pre>`  | **Allowed** (Attribute `class` allowed; marked always emits `class="language-…"` on code blocks) |
+| GFM Tables (`\| … \|`) | `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` | **Allowed** (Attribute `align` allowed for column alignment; marked emits `align="left\|center\|right"`) |
 
 ---
 
@@ -76,7 +77,17 @@ This is **bold**, *italic*, and ~~strikethrough~~.
 console.log("Hello World");
 ```
 
-### 🟡 2. Allowed Embedded HTML
+### 🟢 2. GFM Tables
+Tests GFM table rendering including optional column alignment. Should render a bordered table **without** triggering a security alert.
+
+```markdown
+| Left | Center | Right |
+| :--- | :----: | ----: |
+| A    | B      | C     |
+| 1    | 2      | 3     |
+```
+
+### 🟡 3. Allowed Embedded HTML
 Tests manual HTML tags that are explicitly permitted by our `PURIFY_CONFIG` (e.g., custom manual HTML in Markdown text). These should render seamlessly **without** triggering a security alert.
 
 ```markdown
@@ -91,7 +102,7 @@ Check out this <a href="https://example.com" target="_blank" rel="noopener">Allo
 </ul>
 ```
 
-### 🔴 3. Disallowed HTML (Security Stripping Test)
+### 🔴 4. Disallowed HTML (Security Stripping Test)
 Tests tags and attributes that must be stripped for security. This **should** trigger the "Unsupported HTML tags are not rendered for security" warning toast in the client.
 
 **Disallowed Tags**:
@@ -100,7 +111,7 @@ Warning: <script>alert('XSS!')</script> should be stripped.
 
 Check this <iframe src="https://malicious.site"></iframe> out.
 
-<style>body { background: red; }</style> Styling is blocked.
+<style>body { background: red; }</style> The <style> tag is blocked (only the style attribute on allowed elements is permitted).
 ```
 
 **Disallowed Attributes & Schemes**:
@@ -110,7 +121,7 @@ Link with a bad attribute: <a href="https://example.com" onclick="alert(1)">Clic
 Malicious Link: [Don't click](javascript:alert('XSS'))
 ```
 
-### 🟠 4. Unclosed Tags
+### 🟠 5. Unclosed Tags
 Validates how DOMPurify strictly bounds unclosed HTML tags to prevent bleeding across the page layout.
 
 **Unclosed Safe Tag**  

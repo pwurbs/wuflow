@@ -2,6 +2,7 @@
 ## 1.2.1
 
 - Added issue card right mouse click context menu for move up/down, self-assign and prio toggle
+- Added possibility to create tables in issue description
 - Bumped go-sqlite3
 - Bumped dompurify to 3.4.2
 - Bumped marked to 18.0.3

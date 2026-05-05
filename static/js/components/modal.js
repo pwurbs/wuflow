@@ -1069,6 +1069,18 @@ function setupEditorToolbar() {
     }
   }
 
+  function applyTable() {
+    const pos = editor.selectionStart;
+    const value = editor.value;
+    const needsNewlineBefore = pos > 0 && value[pos - 1] !== '\n';
+    const prefix = needsNewlineBefore ? '\n' : '';
+    const template = `${prefix}| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n`;
+    editor.value = value.slice(0, pos) + template + value.slice(pos);
+    editor.selectionStart = editor.selectionEnd = pos + prefix.length + 2;
+    editor.focus();
+    preview.innerHTML = renderMarkdown(editor.value);
+  }
+
   function handleMarkdownCommand(cmd) {
     switch (cmd) {
       case 'ul': applyList('ul'); break;
@@ -1077,6 +1089,7 @@ function setupEditorToolbar() {
       case 'h2': applyHeading(2); break;
       case 'link': applyLink(); break;
       case 'code': applyCode(); break;
+      case 'table': applyTable(); break;
     }
   }
 

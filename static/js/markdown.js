@@ -8,8 +8,8 @@ marked.use({ gfm: true, breaks: true });
 // DOMPurify allowlist — only tags and attributes that safe Markdown can produce.
 // javascript: and data: URIs are stripped by DOMPurify by default.
 const PURIFY_CONFIG = {
-  ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'strong', 'i', 'em', 'u', 's', 'del', 'ul', 'ol', 'li', 'p', 'br', 'a', 'code', 'pre'],
-  ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'start'],
+  ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'strong', 'i', 'em', 'u', 's', 'del', 'ul', 'ol', 'li', 'p', 'br', 'a', 'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+  ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'start', 'class', 'align'],
   FORCE_BODY: true,
 };
 
