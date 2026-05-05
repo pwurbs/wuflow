@@ -1,7 +1,7 @@
 import { state, isFilterActive } from '../state.js';
 import { fetchOpenIssuesByProject } from '../api.js';
 import { createCardElement } from './card.js';
-import { handleMoveTop, handleMoveBottom, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 
@@ -44,20 +44,26 @@ export async function renderBacklog(refreshApp, openModal) {
   const openIssues = sortByPosition(filterByStatus(filteredIssues, 'Open'));
   const todoIssues = sortByPosition(filterByStatus(filteredIssues, 'Todo'));
 
+  function makeCardCallbacks(issue, issuesInList) {
+    const isFirst = issuesInList[0]?.id === issue.id;
+    const isLast  = issuesInList[issuesInList.length - 1]?.id === issue.id;
+    const cb = {
+      openModal:        openModalCallback,
+      onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInList, refreshAppCallback),
+      onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInList, refreshAppCallback),
+      onTogglePriority: () => handleTogglePriority(issue, refreshAppCallback)
+    };
+    if (state.currentUser && issue.assignee_id !== state.currentUser.id) {
+      cb.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, refreshAppCallback);
+    }
+    return cb;
+  }
+
   openIssues.forEach(issue => {
-    backlogList.appendChild(createCardElement(issue, false, {
-      openModal: openModalCallback,
-      onMoveTop: () => handleMoveTop(issue, openIssues, refreshAppCallback),
-      onMoveBottom: () => handleMoveBottom(issue, openIssues, refreshAppCallback)
-    }));
+    backlogList.appendChild(createCardElement(issue, false, makeCardCallbacks(issue, openIssues)));
   });
   todoIssues.forEach(issue => {
-    moveToTodoList.appendChild(createCardElement(issue, false, {
-      openModal: openModalCallback,
-      onMoveTop: () => handleMoveTop(issue, todoIssues, refreshAppCallback),
-      onMoveBottom: () => handleMoveBottom(issue, todoIssues, refreshAppCallback)
-    }));
-
+    moveToTodoList.appendChild(createCardElement(issue, false, makeCardCallbacks(issue, todoIssues)));
   });
 
   backlogCount.textContent = isFilterActive() ? `${openIssues.length}/${state.issues.filter(i => i.status === 'Open').length}` : openIssues.length;

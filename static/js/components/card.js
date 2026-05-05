@@ -1,6 +1,7 @@
-import { escapeHtml } from '../utils.js';
+import { escapeHtml, showNotification } from '../utils.js';
 import { COLOR_REGEX } from '../validation-config.js';
 import { setDraggedCard, setDraggedCardOrigin } from '../drag.js';
+import { showCardContextMenu } from '../context-menu.js';
 
 export function createCardElement(issue, isBoard = false, callbacks = {}) {
   const card = document.createElement('div');
@@ -64,6 +65,46 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
   card.addEventListener('mouseleave', () => {
     document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
   });
+
+  const hasContextActions = callbacks.onMoveTop || callbacks.onMoveBottom || callbacks.onTogglePriority || callbacks.onAssignToMe;
+  if (hasContextActions) {
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+
+      const items = [
+        {
+          label: 'Move to top',
+          disabled: !callbacks.onMoveTop,
+          action: () => callbacks.onMoveTop?.()
+        },
+        {
+          label: 'Move to bottom',
+          disabled: !callbacks.onMoveBottom,
+          action: () => callbacks.onMoveBottom?.()
+        },
+        {
+          label: issue.priority === 'High' ? 'Remove high priority' : 'Set high priority',
+          disabled: !callbacks.onTogglePriority,
+          action: () => callbacks.onTogglePriority?.()
+        },
+        {
+          label: 'Copy issue ID',
+          action: () => {
+            navigator.clipboard.writeText(`#${issue.id}`);
+            showNotification(`Copied #${issue.id} to clipboard`, 'success');
+          }
+        }
+      ];
+
+      items.push({
+        label: 'Assign to me',
+        disabled: !callbacks.onAssignToMe,
+        action: () => callbacks.onAssignToMe?.()
+      });
+
+      showCardContextMenu(e.clientX, e.clientY, items);
+    });
+  }
 
   return card;
 }

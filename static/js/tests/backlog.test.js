@@ -126,7 +126,7 @@ describe('Backlog Component', () => {
       expect(refreshApp).toHaveBeenCalled();
     });
 
-    it('handleMoveTop should do nothing if already at top', async () => {
+    it('handleMoveTop should be null if already at top', async () => {
       const issues = [
         { id: 1, title: 'Item 1', status: 'Open', position: 0 },
         { id: 2, title: 'Item 2', status: 'Open', position: 1 }
@@ -136,9 +136,7 @@ describe('Backlog Component', () => {
       await renderBacklog(vi.fn(), vi.fn());
       const card1 = document.getElementById('backlog-list').children[0];
 
-      const onMoveTop = card1._callbacks.onMoveTop;
-      await onMoveTop();
-
+      expect(card1._callbacks.onMoveTop).toBeNull();
       expect(api.updateIssue).not.toHaveBeenCalled();
     });
 
@@ -186,7 +184,7 @@ describe('Backlog Component', () => {
       expect(state.state.issues.find(i => i.id === 2)).toBeDefined();
     });
 
-    it('handleMoveBottom should do nothing if already at bottom', async () => {
+    it('handleMoveBottom should be null if already at bottom', async () => {
       const issues = [
         { id: 1, title: 'Item 1', status: 'Open', position: 0 },
         { id: 2, title: 'Item 2', status: 'Open', position: 1 }
@@ -196,9 +194,7 @@ describe('Backlog Component', () => {
       await renderBacklog(vi.fn(), vi.fn());
       const card2 = document.getElementById('backlog-list').children[1];
 
-      const onMoveBottom = card2._callbacks.onMoveBottom;
-      await onMoveBottom();
-
+      expect(card2._callbacks.onMoveBottom).toBeNull();
       expect(api.updateIssue).not.toHaveBeenCalled();
     });
   });

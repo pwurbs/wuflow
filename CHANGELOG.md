@@ -1,4 +1,8 @@
 
+# 1.2.1
+
+- Added issue card right mouse click context menu for move up/down, self-assign and prio toggle
+
 # 1.2.0
 
 - Removed tainting issues from some logging and improved cookie setting code (solved gosec issues)

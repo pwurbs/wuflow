@@ -6,6 +6,7 @@ import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
 import { getBoardColumns } from '../status-config.js';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe } from '../list-utils.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
@@ -55,12 +56,22 @@ export function renderBoard(refreshApp, openModal) {
   const filteredIssues = filterIssues(nonBacklogIssues, state.filter, state.currentUser?.id);
   const sortedIssues = sortByPosition(filteredIssues);
 
+  const columnIssues = {};
+  for (const col of columnDefs) {
+    columnIssues[col.statusKey] = sortByPosition(
+      nonBacklogIssues.filter(i => i.status === col.statusKey)
+    );
+  }
+
   sortedIssues.forEach(issue => {
     if (columns[issue.status]) {
-      const card = createCardElement(issue, true, {
-        openModal: openModalCallback,
-        onDragStart: () => setDragSuccess(false),
-        onDragEnd: (cardEl) => {
+      const issuesInColumn = columnIssues[issue.status] ?? [];
+      const isFirst = issuesInColumn[0]?.id === issue.id;
+      const isLast  = issuesInColumn[issuesInColumn.length - 1]?.id === issue.id;
+      const cardCallbacks = {
+        openModal:        openModalCallback,
+        onDragStart:      () => setDragSuccess(false),
+        onDragEnd:        (cardEl) => {
           if (!getDragSuccess()) {
             const origin = getDraggedCardOrigin();
             if (origin?.parent && document.body.contains(origin.parent)) {
@@ -71,8 +82,15 @@ export function renderBoard(refreshApp, openModal) {
               }
             }
           }
-        }
-      });
+        },
+        onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInColumn, refreshAppCallback),
+        onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInColumn, refreshAppCallback),
+        onTogglePriority: () => handleTogglePriority(issue, refreshAppCallback)
+      };
+      if (state.currentUser && issue.assignee_id !== state.currentUser.id) {
+        cardCallbacks.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, refreshAppCallback);
+      }
+      const card = createCardElement(issue, true, cardCallbacks);
       columns[issue.status].appendChild(card);
       counts[issue.status]++;
     }

@@ -61,10 +61,18 @@ vi.mock('../status-config.js', () => ({
   ])
 }));
 
+vi.mock('../list-utils.js', () => ({
+  handleMoveTop:        vi.fn(),
+  handleMoveBottom:     vi.fn(),
+  handleTogglePriority: vi.fn(),
+  handleAssignToMe:     vi.fn()
+}));
+
 describe('Board Component', () => {
   beforeEach(() => {
     document.body.innerHTML = `<div class="board-columns"><aside class="sidebar"></aside></div>`;
     state.state.issues = [];
+    state.state.currentUser = { role: 'admin' };
     vi.clearAllMocks();
   });
 
@@ -354,6 +362,40 @@ describe('Board Component', () => {
     });
 
 
+
+    it('should pass onMoveTop, onMoveBottom, onTogglePriority to createCardElement', () => {
+      const issues = [{ id: 1, title: 'Task 1', status: 'Todo', position: 0 }];
+      state.state.issues = issues;
+      filters.filterIssues.mockReturnValue(issues);
+      filters.sortByPosition.mockReturnValue(issues);
+
+      renderBoard();
+
+      const options = card.createCardElement.mock.lastCall[2];
+      expect(options.onMoveTop).toBeDefined();
+      expect(options.onMoveBottom).toBeDefined();
+      expect(options.onTogglePriority).toBeDefined();
+    });
+
+    it('should pass onAssignToMe only when user is not the assignee', () => {
+      state.state.currentUser = { id: 99, first_name: 'Me', last_name: 'User' };
+      const issues = [
+        { id: 1, status: 'Todo', position: 0, assignee_id: 99 },
+        { id: 2, status: 'Todo', position: 1, assignee_id: 7  }
+      ];
+      state.state.issues = issues;
+      filters.filterIssues.mockReturnValue(issues);
+      filters.sortByPosition.mockReturnValue(issues);
+
+      renderBoard();
+
+      const calls = card.createCardElement.mock.calls;
+      const optionsAssigned   = calls.find(c => c[0].id === 1)[2];
+      const optionsUnassigned = calls.find(c => c[0].id === 2)[2];
+
+      expect(optionsAssigned.onAssignToMe).toBeUndefined();
+      expect(optionsUnassigned.onAssignToMe).toBeDefined();
+    });
 
     it('should not process dragover if dragged element is not a card', () => {
       setupBoardView(vi.fn(), vi.fn());

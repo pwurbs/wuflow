@@ -35,6 +35,29 @@ export async function handleMoveBottom(issue, allIssuesInList, refreshCallback) 
   }
 }
 
+export async function handleTogglePriority(issue, refreshCallback) {
+  issue.priority = issue.priority === 'High' ? 'Normal' : 'High';
+  try {
+    await updateIssue(issue);
+    if (refreshCallback) refreshCallback();
+  } catch (err) {
+    showNotification(err.message, 'error');
+    if (refreshCallback) refreshCallback();
+  }
+}
+
+export async function handleAssignToMe(issue, currentUser, refreshCallback) {
+  issue.assignee_id = currentUser.id;
+  issue.assignee = currentUser;
+  try {
+    await updateIssue(issue);
+    if (refreshCallback) refreshCallback();
+  } catch (err) {
+    showNotification(err.message, 'error');
+    if (refreshCallback) refreshCallback();
+  }
+}
+
 export async function updatePositions(orderedIssues, refreshCallback) {
   const updates = [];
   orderedIssues.forEach((issue, index) => {

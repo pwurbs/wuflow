@@ -1,8 +1,8 @@
 import { test, expect } from './fixtures';
-import { createIssue, selectAssignee, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, selectAssignee, openIssueByTitle, navigateTo } from './helpers/test-utils';
 
 test.describe('Board Functionality', () => {
-  test.beforeEach(async ({ page, login }) => {
+  test.beforeEach(async ({ login }) => {
     await login();
   });
 
@@ -100,5 +100,136 @@ test.describe('Board Functionality', () => {
     const badge = page.locator(`.board-card:has-text("${title}") .user-badge`);
     await expect(badge).toBeVisible();
     await expect(badge).toHaveText('AU');
+  });
+
+  test.describe('Card Context Menu', () => {
+    test('right-click shows context menu with all expected items', async ({ page }) => {
+      const title = `Context Menu ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+
+      await page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`).click({ button: 'right' });
+
+      const menu = page.locator('.card-context-menu');
+      await expect(menu).toBeVisible();
+      await expect(menu.locator('.card-context-menu-item:has-text("Move to top")')).toBeVisible();
+      await expect(menu.locator('.card-context-menu-item:has-text("Move to bottom")')).toBeVisible();
+      await expect(menu.locator('.card-context-menu-item:has-text("priority")')).toBeVisible();
+      await expect(menu.locator('.card-context-menu-item:has-text("Copy issue ID")')).toBeVisible();
+      await expect(menu.locator('.card-context-menu-item:has-text("Assign to me")')).toBeVisible();
+    });
+
+    test('context menu closes on Escape', async ({ page }) => {
+      const title = `Escape Test ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+
+      await page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`).click({ button: 'right' });
+      await expect(page.locator('.card-context-menu')).toBeVisible();
+
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.card-context-menu')).toBeHidden();
+    });
+
+    test('context menu closes on click outside', async ({ page }) => {
+      const title = `Click Outside ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+
+      await page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`).click({ button: 'right' });
+      await expect(page.locator('.card-context-menu')).toBeVisible();
+
+      await page.locator('.board-columns').click({ position: { x: 5, y: 5 } });
+      await expect(page.locator('.card-context-menu')).toBeHidden();
+    });
+
+    test('Move to top disabled for first card, Move to bottom disabled for last card', async ({ page }) => {
+      await createIssue(page, { title: `Boundary A ${Date.now()}`, status: 'Todo' });
+      await createIssue(page, { title: `Boundary B ${Date.now()}`, status: 'Todo' });
+
+      const cards = page.locator('.column[data-status="Todo"] .column-content .board-card');
+
+      await cards.first().click({ button: 'right' });
+      await expect(page.locator('.card-context-menu-item:has-text("Move to top")')).toBeDisabled();
+      await page.keyboard.press('Escape');
+
+      await cards.last().click({ button: 'right' });
+      await expect(page.locator('.card-context-menu-item:has-text("Move to bottom")')).toBeDisabled();
+      await page.keyboard.press('Escape');
+    });
+
+    test('Move to top moves card to first position', async ({ page }) => {
+      const titleA = `Move A ${Date.now()}`;
+      const titleB = `Move B ${Date.now()}`;
+      await createIssue(page, { title: titleA, status: 'Todo' });
+      await createIssue(page, { title: titleB, status: 'Todo' }); // B is after A
+
+      const cardB = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleB}")`);
+      const updateDone = page.waitForResponse(r =>
+        r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      );
+      await cardB.click({ button: 'right' });
+      await page.locator('.card-context-menu-item:has-text("Move to top")').click();
+      await updateDone;
+
+      const firstCard = page.locator('.column[data-status="Todo"] .column-content .board-card').first();
+      await expect(firstCard).toContainText(titleB);
+    });
+
+    test('Set high priority applies styling and flips menu label', async ({ page }) => {
+      const title = `Priority ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+
+      const card = page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`);
+
+      const updateDone = page.waitForResponse(r =>
+        r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      );
+      await card.click({ button: 'right' });
+      await page.locator('.card-context-menu-item:has-text("Set high priority")').click();
+      await updateDone;
+
+      await expect(card).toHaveClass(/high-priority/);
+
+      await card.click({ button: 'right' });
+      await expect(page.locator('.card-context-menu-item:has-text("Remove high priority")')).toBeVisible();
+      await page.keyboard.press('Escape');
+    });
+
+    test('Assign to me becomes disabled after self-assignment', async ({ page }) => {
+      const title = `Self Assign ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+
+      const card = page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`);
+
+      const updateDone = page.waitForResponse(r =>
+        r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      );
+      await card.click({ button: 'right' });
+      await page.locator('.card-context-menu-item:has-text("Assign to me")').click();
+      await updateDone;
+
+      await card.click({ button: 'right' });
+      await expect(page.locator('.card-context-menu-item:has-text("Assign to me")')).toBeDisabled();
+      await page.keyboard.press('Escape');
+    });
+
+    test('Copy issue ID shows success toast', async ({ page }) => {
+      await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+      const title = `Copy ID ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+
+      await page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`).click({ button: 'right' });
+      await page.locator('.card-context-menu-item:has-text("Copy issue ID")').click();
+
+      await expect(page.locator('#notification-toast')).toContainText('Copied #');
+    });
+
+    test('no context menu on archive-view card', async ({ page }) => {
+      const title = `Archive Card ${Date.now()}`;
+      await createIssue(page, { title, status: 'Done' });
+
+      await navigateTo(page, 'archive');
+      await page.locator(`#archive-done-list .card:has-text("${title}")`).click({ button: 'right' });
+
+      await expect(page.locator('.card-context-menu')).toBeHidden();
+    });
   });
 });
