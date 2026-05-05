@@ -2,6 +2,9 @@
 # 1.2.1
 
 - Added issue card right mouse click context menu for move up/down, self-assign and prio toggle
+- Bumped go-sqlite3
+- Bumped dompurify to 3.4.2
+- Bumped marked to 18.0.3
 
 # 1.2.0
 
