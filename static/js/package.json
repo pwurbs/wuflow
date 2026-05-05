@@ -8,9 +8,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.0.0",
-    "jsdom": "^24.0.0",
-    "vitest": "^2.0.0"
+    "@vitest/coverage-v8": "^4.0.0",
+    "jsdom": "^29.0.0",
+    "vitest": "^4.0.0"
   },
   "dependencies": {
     "dompurify": "^3.4.0",

@@ -14,37 +14,53 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}======================================================${NC}"
-echo -e "${BLUE}             Dependency Update Checker                ${NC}"
-echo -e "${BLUE}======================================================${NC}"
 
 # 1. NPM Dependencies
-echo -e "\n${BLUE}--- Checking NPM Dependencies ---${NC}"
+echo -e "\n${BLUE}=====================================================${NC}"
+echo -e "${BLUE}               Checking NPM Dependencies             ${NC}"
+echo -e "${BLUE}=====================================================${NC}"
 NPM_DIRS=("static/js" "playwright")
 
 for dir in "${NPM_DIRS[@]}"; do
     if [[ -d "$dir" ]] && [[ -f "$dir/package.json" ]]; then
-        echo -e "${YELLOW}--> Checking $dir...${NC}"
+        echo -e "${BLUE}------------------------------------------------------${NC}"
+        echo -e "${BLUE}  $dir${NC}"
+        echo -e "${BLUE}------------------------------------------------------${NC}"
+
+        echo -e "${YELLOW}--> npm outdated${NC}"
         # npm outdated returns exit code 1 if there are updates available.
         # We disable 'set -e' temporarily to handle this gracefully.
         set +e
         OUTPUT=$(cd "$dir" && npm outdated 2>&1)
         EXIT_CODE=$?
         set -e
-        
+
         if [[ $EXIT_CODE -eq 0 ]] && [[ -z "$OUTPUT" ]]; then
             echo -e "${GREEN}All NPM packages in $dir are up to date.${NC}"
         else
             echo -e "${YELLOW}Note: Only packages with available updates are listed below.${NC}"
             echo "$OUTPUT"
         fi
+
+        echo -e "\n${YELLOW}--> npm audit${NC}"
+        set +e
+        (cd "$dir" && npm audit)
+        AUDIT_EXIT=$?
+        set -e
+        if [[ $AUDIT_EXIT -eq 0 ]]; then
+            echo -e "${GREEN}No vulnerabilities found in $dir.${NC}"
+        fi
     else
         echo -e "${YELLOW}--> Skipping $dir (no package.json found)${NC}"
     fi
+
+    echo ""
 done
 
 # 2. Go Dependencies
-echo -e "\n${BLUE}--- Checking Go Dependencies ---${NC}"
+echo -e "\n${BLUE}=====================================================${NC}"
+echo -e "${BLUE}                    Checking Go                      ${NC}"
+echo -e "${BLUE}=====================================================${NC}"
 
 # Check Go CLI Version
 echo -e "${YELLOW}--> Checking Go local version...${NC}"

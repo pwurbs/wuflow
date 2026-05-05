@@ -6,7 +6,9 @@
 - Bumped go-sqlite3
 - Bumped dompurify to 3.4.2
 - Bumped marked to 18.0.3
-- Refactored the global definition of fixed values in frontend (priority, status) 
+- Refactored the global definition of fixed values in frontend (priority, status)
+- Added "npm audit" to the dependency check script
+- Bumped vitest and jsdom to current versions to solve minor security issues
 
 # 1.2.0
 
