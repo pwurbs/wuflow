@@ -89,9 +89,13 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
         },
         {
           label: 'Copy issue ID',
-          action: () => {
-            navigator.clipboard.writeText(`#${issue.id}`);
-            showNotification(`Copied #${issue.id} to clipboard`, 'success');
+          action: async () => {
+            try {
+              await navigator.clipboard.writeText(`#${issue.id}`);
+              showNotification(`Copied #${issue.id} to clipboard`, 'success');
+            } catch {
+              showNotification('Failed to copy to clipboard', 'error');
+            }
           }
         }
       ];

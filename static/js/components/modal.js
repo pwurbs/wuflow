@@ -911,6 +911,10 @@ function setupSidebarImmediateSave() {
   }
 }
 
+function needsLeadingNewline(value, pos) {
+  return pos > 0 && value[pos - 1] !== '\n';
+}
+
 function setupEditorToolbar() {
   const editor = document.getElementById('description-editor');
   const preview = document.getElementById('description-preview');
@@ -1059,9 +1063,8 @@ function setupEditorToolbar() {
     const selected = editor.value.slice(start, end);
 
     if (selected.includes('\n')) {
-      const needsNewlineBefore = start > 0 && editor.value[start - 1] !== '\n';
       const needsNewlineAfter = end < editor.value.length && editor.value[end] !== '\n';
-      const beforePfx = needsNewlineBefore ? '\n```\n' : '```\n';
+      const beforePfx = needsLeadingNewline(editor.value, start) ? '\n```\n' : '```\n';
       const afterSfx = needsNewlineAfter ? '\n```\n' : '\n```';
       insertMarkdown(beforePfx, afterSfx);
     } else {
@@ -1072,8 +1075,7 @@ function setupEditorToolbar() {
   function applyTable() {
     const pos = editor.selectionStart;
     const value = editor.value;
-    const needsNewlineBefore = pos > 0 && value[pos - 1] !== '\n';
-    const prefix = needsNewlineBefore ? '\n' : '';
+    const prefix = needsLeadingNewline(value, pos) ? '\n' : '';
     const template = `${prefix}| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n`;
     editor.value = value.slice(0, pos) + template + value.slice(pos);
     editor.selectionStart = editor.selectionEnd = pos + prefix.length + 2;

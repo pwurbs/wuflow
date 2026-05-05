@@ -36,23 +36,29 @@ export async function handleMoveBottom(issue, allIssuesInList, refreshCallback) 
 }
 
 export async function handleTogglePriority(issue, refreshCallback) {
+  const originalPriority = issue.priority;
   issue.priority = issue.priority === 'High' ? 'Normal' : 'High';
   try {
     await updateIssue(issue);
     if (refreshCallback) refreshCallback();
   } catch (err) {
+    issue.priority = originalPriority;
     showNotification(err.message, 'error');
     if (refreshCallback) refreshCallback();
   }
 }
 
 export async function handleAssignToMe(issue, currentUser, refreshCallback) {
+  const originalAssigneeId = issue.assignee_id;
+  const originalAssignee = issue.assignee;
   issue.assignee_id = currentUser.id;
   issue.assignee = currentUser;
   try {
     await updateIssue(issue);
     if (refreshCallback) refreshCallback();
   } catch (err) {
+    issue.assignee_id = originalAssigneeId;
+    issue.assignee = originalAssignee;
     showNotification(err.message, 'error');
     if (refreshCallback) refreshCallback();
   }
