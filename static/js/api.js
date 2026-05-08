@@ -382,3 +382,75 @@ export async function updateStatusConfig(projectId, config) {
   return await res.json();
 }
 
+export async function fetchReleases(projectId) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/releases`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to fetch releases');
+  }
+  return await res.json();
+}
+
+export async function createRelease(projectId, data) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/releases`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to create release');
+  }
+  return await res.json();
+}
+
+export async function updateRelease(id, data) {
+  const res = await authFetch(`${API_URL}/releases/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to update release');
+  }
+  return await res.json();
+}
+
+export async function deleteRelease(id) {
+  const res = await authFetch(`${API_URL}/releases/${id}`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to delete release');
+  }
+}
+
+export async function reopenRelease(id) {
+  const res = await authFetch(`${API_URL}/releases/${id}/reopen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to reopen release');
+  }
+  return await res.json();
+}
+
+export async function triggerRelease(id, archiveDone) {
+  const res = await authFetch(`${API_URL}/releases/${id}/release`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ archive_done: archiveDone })
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to trigger release');
+  }
+  return await res.json();
+}
+
+

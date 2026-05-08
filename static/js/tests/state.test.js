@@ -16,7 +16,7 @@ describe('state', () => {
   beforeEach(() => {
     state.issues = [];
     state.currentIssue = null;
-    state.filter = { labelId: null, priority: null, assigneeId: null, search: '' };
+    state.filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null, releaseOwnerFilter: null, releaseSearch: '' };
   });
 
   describe('setFilterLabel', () => {

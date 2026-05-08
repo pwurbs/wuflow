@@ -122,6 +122,7 @@ function getBoardCardHTML(issue, openTasks) {
             <div class="board-card-title">${escapeHtml(issue.title)}</div>
             <div class="board-card-label-space">
                 ${issue.label ? `<span class="label-chip" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
+                ${getReleaseChipHTML(issue.release)}
             </div>
             <div class="board-card-bottom">
                 <div class="board-card-id-group" style="display: flex; align-items: center; gap: 8px;">
@@ -185,8 +186,15 @@ function getBacklogCardHTML(issue, openTasks, totalTasks) {
             ${taskTooltipHTML}
         </div>
         ` : ''}
+        ${getReleaseChipHTML(issue.release)}
     </div>
   `;
+}
+
+function getReleaseChipHTML(release) {
+  if (!release) return '';
+  const check = release.status === 'closed' ? '<span class="release-chip-check">✓</span>' : '';
+  return `<span class="release-chip">${check}${escapeHtml(release.name)}</span>`;
 }
 
 function getAssigneeBadgeHTML(issue, extraStyle = '') {

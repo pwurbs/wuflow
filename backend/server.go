@@ -139,6 +139,7 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	http.Handle("/api/users/", authAPI(http.HandlerFunc(HandleUser)))
 	http.Handle("/api/projects", authAPI(http.HandlerFunc(HandleProjects)))
 	http.Handle("/api/projects/", authAPI(http.HandlerFunc(HandleProject)))
+	http.Handle("/api/releases/", authAPI(http.HandlerFunc(HandleRelease)))
 	http.Handle("/api/version", authAPI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set(headerContentType, contentTypeJSON)
 		_ = json.NewEncoder(w).Encode(map[string]string{"version": version})
@@ -272,6 +273,7 @@ func RequireJSONMiddleware(next http.Handler) http.Handler {
 		if r.Method == http.MethodPost || r.Method == http.MethodPut {
 			ct := r.Header.Get("Content-Type")
 			if !strings.HasPrefix(ct, "application/json") {
+				slog.Warn("RequireJSONMiddleware: rejected request", "method", r.Method, "path", r.URL.Path, "content_type", ct)
 				http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
 				return
 			}

@@ -136,6 +136,25 @@ body:not(.is-dragging) .card.is-archived:hover {
   margin-left: 8px;
 }
 
+/* Release Chip Styles */
+.release-chip {
+  display: inline-block;
+  padding: 1px 8px 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  border: 1px solid var(--muted-text);
+  color: var(--muted-text);
+  margin-left: auto;
+}
+
+.release-chip-check {
+  color: #4caf50;
+  margin-right: 3px;
+  font-size: 10px;
+}
+
 /* Label Styles */
 .label-chip {
   display: inline-block;
@@ -205,3 +224,7 @@ body:not(.is-dragging) .card.high-priority:hover {
 }
 .card-context-menu-item:hover:not(:disabled) { background-color: var(--hover-bg); }
 .card-context-menu-item:disabled { color: var(--muted-text); cursor: default; opacity: 0.5; }
+
+.card--clickable {
+  cursor: pointer;
+}

@@ -45,6 +45,11 @@ export function filterIssues(issues, filter, currentUserId) {
     });
   }
 
+  // Release filter
+  if (filter.releaseId !== null && filter.releaseId !== undefined) {
+    result = result.filter(issue => matchesRelease(issue, filter.releaseId));
+  }
+
   // Search filter (matches title or description)
   if (filter.search) {
     const term = filter.search.trim().toLowerCase();
@@ -57,6 +62,11 @@ export function filterIssues(issues, filter, currentUserId) {
   }
 
   return result;
+}
+
+function matchesRelease(issue, releaseId) {
+  if (releaseId === '__no_release__') return !issue.release_id;
+  return issue.release_id === releaseId;
 }
 
 /**

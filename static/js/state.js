@@ -1,5 +1,6 @@
 export const state = {
   issues: [],
+  releases: [],
   currentIssue: null,
   currentUser: null,
   selectedProjectId: null, // null = show all projects (project selector context)
@@ -9,6 +10,9 @@ export const state = {
     priority: null,
     assigneeId: null,
     search: '',
+    releaseId: null,
+    releaseOwnerFilter: null,
+    releaseSearch: '',
   },
 };
 
@@ -49,7 +53,26 @@ export function setStatusConfig(cfg) {
   state.statusConfig = cfg;
 }
 
+export function setReleases(releases) {
+  state.releases = releases;
+}
+
+export function setFilterRelease(releaseId) {
+  state.filter.releaseId = releaseId;
+}
+
+export function setFilterReleaseOwner(id) {
+  state.filter.releaseOwnerFilter = id;
+}
+
+export function setFilterReleaseSearch(term) {
+  state.filter.releaseSearch = term;
+}
+
 export function isFilterActive() {
-  const { labelId, priority, assigneeId, search } = state.filter;
-  return !!(labelId !== null || priority !== null || assigneeId !== null || (search && search.trim() !== ''));
+  const { labelId, priority, assigneeId, search, releaseId, releaseOwnerFilter, releaseSearch } = state.filter;
+  return !!(labelId !== null || priority !== null || assigneeId !== null || releaseId !== null ||
+    releaseOwnerFilter !== null ||
+    search.trim() !== '' ||
+    releaseSearch.trim() !== '');
 }

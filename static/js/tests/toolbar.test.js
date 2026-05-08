@@ -476,30 +476,30 @@ describe('User Filter', () => {
     expect(opts[3].textContent).toBe('Carol White');
   });
 
-  it('shows arrow icon and "User" text when no filter is active', () => {
+  it('shows arrow icon and "Assignee" text when no filter is active', () => {
     updateUserFilterOptions([]);
     const btn = document.getElementById('user-filter-btn');
-    expect(btn.textContent).toContain('User');
+    expect(btn.textContent).toContain('Assignee');
     expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
   });
 
-  it('shows "User: My Issues" when filter is set to "me"', () => {
+  it('shows "Assignee: My Issues" when filter is set to "me"', () => {
     state.filter.assigneeId = 'me';
     updateUserFilterOptions([]);
-    expect(document.getElementById('user-filter-btn').textContent).toContain('User: My Issues');
+    expect(document.getElementById('user-filter-btn').textContent).toContain('Assignee: My Issues');
   });
 
-  it('shows "User: Unassigned" when filter is set to "unassigned"', () => {
+  it('shows "Assignee: Unassigned" when filter is set to "unassigned"', () => {
     state.filter.assigneeId = 'unassigned';
     updateUserFilterOptions([]);
-    expect(document.getElementById('user-filter-btn').textContent).toContain('User: Unassigned');
+    expect(document.getElementById('user-filter-btn').textContent).toContain('Assignee: Unassigned');
   });
 
   it('shows user full name when filter is set to a user id', () => {
     state.filter.assigneeId = 1;
     updateUserFilterOptions(mockUsers);
-    expect(document.getElementById('user-filter-btn').textContent).toContain('User: Alice Smith');
+    expect(document.getElementById('user-filter-btn').textContent).toContain('Assignee: Alice Smith');
   });
 
   it('shows has-selection class and clear icon when filter is active', () => {

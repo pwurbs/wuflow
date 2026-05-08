@@ -1,4 +1,9 @@
 
+## 1.3.0
+
+- Improved styles of fonts and buttons
+- Added Release feature
+
 ## 1.2.1
 
 - Added issue card right mouse click context menu for move up/down, self-assign and prio toggle

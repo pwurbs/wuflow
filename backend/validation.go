@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -16,46 +17,54 @@ const (
 	MaxLabelNameLen       = 15
 	MaxEmailLength        = 254
 	MaxUserNameLength     = 50
+	MinPasswordLength     = 12
 	MaxPasswordLength     = 128
 	MaxRefreshTokenLength = 512
 	MaxAccessTokenLength  = 4096
 	MaxProjectNameLen     = 15
 	MaxProjectDescLen     = 100
 	MaxStatusNameLen      = 15
+	MaxReleaseNameLen     = 20
+	MaxReleaseDescLen     = 200
+	MaxPlannedDates       = 100
 )
 
 // Validation errors
 var (
 	ErrInvalidTitle    = errors.New("title is required")
-	ErrTitleTooLong    = errors.New("title must not exceed 100 characters")
-	ErrDescTooLong     = errors.New("description must not exceed 5000 characters")
+	ErrTitleTooLong    = fmt.Errorf("title must not exceed %d characters", MaxTitleLength)
+	ErrDescTooLong     = fmt.Errorf("description must not exceed %d characters", MaxDescLength)
 	ErrInvalidStatus   = errors.New("invalid status")
 	ErrInvalidPriority = errors.New("invalid priority")
 
 	ErrInvalidLabel     = errors.New("label name and color are required")
-	ErrLabelNameTooLong = errors.New("label name must not exceed 15 characters")
+	ErrLabelNameTooLong = fmt.Errorf("label name must not exceed %d characters", MaxLabelNameLen)
 	ErrColorInvalid     = errors.New("color must be a valid hex color (#RRGGBB)")
 
 	ErrInvalidEmail    = errors.New("valid email is required")
-	ErrEmailTooLong    = errors.New("email must not exceed 254 characters")
+	ErrEmailTooLong    = fmt.Errorf("email must not exceed %d characters", MaxEmailLength)
 	ErrInvalidName     = errors.New("first name and last name are required")
-	ErrUserNameTooLong = errors.New("first and last name must not exceed 50 characters")
+	ErrUserNameTooLong = fmt.Errorf("first and last name must not exceed %d characters", MaxUserNameLength)
 	ErrInvalidRole     = errors.New("role must be 'admin', 'user', or 'sysadmin'")
 
-	ErrPasswordTooShort  = errors.New("password must be at least 12 characters")
-	ErrPasswordTooLong   = errors.New("password must not exceed 128 characters")
+	ErrPasswordTooShort  = fmt.Errorf("password must be at least %d characters", MinPasswordLength)
+	ErrPasswordTooLong   = fmt.Errorf("password must not exceed %d characters", MaxPasswordLength)
 	ErrPasswordIsEmail   = errors.New("password must not be your email address")
 	ErrPasswordBlacklist = errors.New("password is too common")
 
 	ErrDateInvalid  = errors.New("date must be in YYYY-MM-DD format")
-	ErrTooManyDates = errors.New("too many planned dates (maximum 100)")
+	ErrTooManyDates = fmt.Errorf("too many planned dates (maximum %d)", MaxPlannedDates)
 
 	ErrInvalidProjectName = errors.New("project name is required")
-	ErrProjectNameTooLong = errors.New("project name must not exceed 15 characters")
-	ErrProjectDescTooLong = errors.New("project description must not exceed 100 characters")
+	ErrProjectNameTooLong = fmt.Errorf("project name must not exceed %d characters", MaxProjectNameLen)
+	ErrProjectDescTooLong = fmt.Errorf("project description must not exceed %d characters", MaxProjectDescLen)
 
-	ErrStatusNameTooLong = errors.New("column name must not exceed 15 characters")
+	ErrStatusNameTooLong = fmt.Errorf("column name must not exceed %d characters", MaxStatusNameLen)
 	ErrStatusNameInvalid = errors.New("column name must contain only letters and digits")
+
+	ErrInvalidReleaseName = errors.New("release name is required")
+	ErrReleaseNameTooLong = fmt.Errorf("release name must not exceed %d characters", MaxReleaseNameLen)
+	ErrReleaseDescTooLong = fmt.Errorf("release description must not exceed %d characters", MaxReleaseDescLen)
 )
 
 // Compiled regexes (package-level, compiled once).
@@ -67,6 +76,12 @@ var (
 	anyTagRegex     = regexp.MustCompile(`<[^>]+>`)
 	statusNameRegex = regexp.MustCompile(`^[a-zA-Z0-9]*$`)
 )
+
+func sanitizeString(s string) string {
+	s = strings.ReplaceAll(s, "\x00", "")
+	s = strings.TrimSpace(s)
+	return anyTagRegex.ReplaceAllString(s, "")
+}
 
 func isValidStatus(status IssueStatus) bool {
 	switch status {
@@ -110,9 +125,7 @@ func isValidRole(role UserRole) bool {
 }
 
 func validateProject(p *Project) error {
-	p.Name = strings.ReplaceAll(p.Name, "\x00", "")
-	p.Name = strings.TrimSpace(p.Name)
-	p.Name = anyTagRegex.ReplaceAllString(p.Name, "")
+	p.Name = sanitizeString(p.Name)
 	p.Name = strings.ToLower(p.Name)
 	if p.Name == "" {
 		return ErrInvalidProjectName
@@ -120,9 +133,7 @@ func validateProject(p *Project) error {
 	if utf8.RuneCountInString(p.Name) > MaxProjectNameLen {
 		return ErrProjectNameTooLong
 	}
-	p.Description = strings.ReplaceAll(p.Description, "\x00", "")
-	p.Description = strings.TrimSpace(p.Description)
-	p.Description = anyTagRegex.ReplaceAllString(p.Description, "")
+	p.Description = sanitizeString(p.Description)
 	if utf8.RuneCountInString(p.Description) > MaxProjectDescLen {
 		return ErrProjectDescTooLong
 	}
@@ -130,9 +141,7 @@ func validateProject(p *Project) error {
 }
 
 func validateIssue(i *Issue) error {
-	i.Title = strings.ReplaceAll(i.Title, "\x00", "")
-	i.Title = strings.TrimSpace(i.Title)
-	i.Title = anyTagRegex.ReplaceAllString(i.Title, "")
+	i.Title = sanitizeString(i.Title)
 	if i.Title == "" {
 		return ErrInvalidTitle
 	}
@@ -160,7 +169,7 @@ func validateIssue(i *Issue) error {
 		return errors.New("deadline year must be between 2000 and 2100")
 	}
 	// Validate planned dates format (each must be YYYY-MM-DD).
-	if len(i.PlannedDates) > 100 {
+	if len(i.PlannedDates) > MaxPlannedDates {
 		return ErrTooManyDates
 	}
 	for _, d := range i.PlannedDates {
@@ -172,9 +181,7 @@ func validateIssue(i *Issue) error {
 }
 
 func validateTask(t *Task) error {
-	t.Title = strings.ReplaceAll(t.Title, "\x00", "")
-	t.Title = strings.TrimSpace(t.Title)
-	t.Title = anyTagRegex.ReplaceAllString(t.Title, "")
+	t.Title = sanitizeString(t.Title)
 	if t.Title == "" {
 		return ErrInvalidTitle
 	}
@@ -191,9 +198,7 @@ func validateTask(t *Task) error {
 }
 
 func validateLabel(l *Label) error {
-	l.Name = strings.ReplaceAll(l.Name, "\x00", "")
-	l.Name = strings.TrimSpace(l.Name)
-	l.Name = anyTagRegex.ReplaceAllString(l.Name, "")
+	l.Name = sanitizeString(l.Name)
 	l.Color = strings.TrimSpace(l.Color)
 	if l.Name == "" || l.Color == "" {
 		return ErrInvalidLabel
@@ -210,12 +215,8 @@ func validateLabel(l *Label) error {
 // validateUser validates user fields (not password).
 func validateUser(u *User) error {
 	u.Email = strings.TrimSpace(u.Email)
-	u.FirstName = strings.ReplaceAll(u.FirstName, "\x00", "")
-	u.FirstName = strings.TrimSpace(u.FirstName)
-	u.FirstName = anyTagRegex.ReplaceAllString(u.FirstName, "")
-	u.LastName = strings.ReplaceAll(u.LastName, "\x00", "")
-	u.LastName = strings.TrimSpace(u.LastName)
-	u.LastName = anyTagRegex.ReplaceAllString(u.LastName, "")
+	u.FirstName = sanitizeString(u.FirstName)
+	u.LastName = sanitizeString(u.LastName)
 
 	if u.Email == "" || !emailRegex.MatchString(u.Email) {
 		return ErrInvalidEmail
@@ -235,9 +236,33 @@ func validateUser(u *User) error {
 	return nil
 }
 
+func validateRelease(r *Release) error {
+	r.Name = sanitizeString(r.Name)
+	if r.Name == "" {
+		return ErrInvalidReleaseName
+	}
+	if utf8.RuneCountInString(r.Name) > MaxReleaseNameLen {
+		return ErrReleaseNameTooLong
+	}
+	r.Description = sanitizeString(r.Description)
+	if utf8.RuneCountInString(r.Description) > MaxReleaseDescLen {
+		return ErrReleaseDescTooLong
+	}
+	if r.StartDate != nil && (r.StartDate.Year() < 2000 || r.StartDate.Year() > 2100) {
+		return errors.New("start date year must be between 2000 and 2100")
+	}
+	if r.ReleaseDate != nil && (r.ReleaseDate.Year() < 2000 || r.ReleaseDate.Year() > 2100) {
+		return errors.New("release date year must be between 2000 and 2100")
+	}
+	if r.StartDate != nil && r.ReleaseDate != nil && r.ReleaseDate.Before(*r.StartDate) {
+		return errors.New("release date must not be before start date")
+	}
+	return nil
+}
+
 // ValidatePassword checks the password against the policy.
 func ValidatePassword(password, email string) error {
-	if utf8.RuneCountInString(password) < 12 {
+	if utf8.RuneCountInString(password) < MinPasswordLength {
 		return ErrPasswordTooShort
 	}
 	if utf8.RuneCountInString(password) > MaxPasswordLength {

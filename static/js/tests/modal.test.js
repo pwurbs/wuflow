@@ -127,6 +127,11 @@ describe('Modal Component', () => {
               <div id="project-options" class="custom-select-options hidden"></div>
               <input type="hidden" id="project-select" value="1">
             </div>
+            <div id="release-dropdown">
+              <div id="release-trigger" class="custom-select-trigger"><span id="release-text"></span></div>
+              <div id="release-options" class="custom-select-options hidden"></div>
+              <input type="hidden" id="release-select">
+            </div>
 
             <div id="tasks-section">
               <div id="task-form-container">

@@ -59,7 +59,8 @@ We developed this tool having the following goals in mind:
 - **Intuitive Planning & Kanban**: Combine flexible daily planning with a classic Kanban board view to easily organize your workflow side-by-side.
 - **Projects**: Projects allow you to separate the visibility of issues for different teams, projects or topics. Each issue belongs to exactly one project.
 - **Configurable Board Columns**: Adapt the board per project according to your workflow.
-- **Subtasks & Deadlines**: Break down larger issues into smaller, actionable tasks with individual deadlines.
+- **Release Management**: Group issues into named, time-boxed releases, track progress with a visual indicator and assign an owner responsible for a release.
+- **Subtasks & Deadlines**: Break down larger issues into smaller, actionable tasks or checklists with individual deadlines.
 - **Custom Labels**: Categorize and color-code issues with an easy-to-use label management system per project.
 - **Advanced Filtering & Search**: Quickly find issues by filtering based on labels, priority, assignees, or text search.
 - **Multi-user Support**: Built-in user management with role-based access, allowing safe concurrent editing of issues.
@@ -68,7 +69,7 @@ We developed this tool having the following goals in mind:
 - **Backlog Management**: Use the backlog view to plan and prioritize your work.
 - **Issue Archiving**: Keep your active board clean by archiving completed issues for later reference.
 - **No dependencies** on external services or libs during runtime. Allows for air-gapped deployments.
-- More features to cover core functions for agile teams are coming, e.g. Release Management.
+- More features to cover core functions for agile teams are coming.
 
 The app is currently only tested to run in the Chrome browser.
 
@@ -166,7 +167,6 @@ For deeper technical insights, architecture overviews, and detailed functional d
 We plan to add the following features in the future:
 - Dependencies between Issues
 - Links between issues
-- Releases
 - User assignment to projects
 - Postgres support
 - Horizontal scalability

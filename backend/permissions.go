@@ -39,6 +39,13 @@ const (
 	// Status config actions
 	ActionGetStatusConfig    Action = "statusconfig:get"
 	ActionUpdateStatusConfig Action = "statusconfig:update"
+
+	// Release actions
+	ActionListReleases   Action = "release:list"
+	ActionCreateRelease  Action = "release:create"
+	ActionUpdateRelease  Action = "release:update"
+	ActionDeleteRelease  Action = "release:delete"
+	ActionTriggerRelease Action = "release:trigger"
 )
 
 // rolePermissions is the single source of truth for the permission policy.
@@ -84,6 +91,13 @@ var rolePermissions = map[Action][]UserRole{
 	// Status config
 	ActionGetStatusConfig:    {RoleSysAdmin, RoleAdmin, RoleUser},
 	ActionUpdateStatusConfig: {RoleSysAdmin, RoleAdmin},
+
+	// Releases
+	ActionListReleases:   {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionCreateRelease:  {RoleSysAdmin, RoleAdmin},
+	ActionUpdateRelease:  {RoleSysAdmin, RoleAdmin},
+	ActionDeleteRelease:  {RoleSysAdmin, RoleAdmin},
+	ActionTriggerRelease: {RoleSysAdmin, RoleAdmin},
 }
 
 // Can reports whether a user with the given role is permitted to perform action.

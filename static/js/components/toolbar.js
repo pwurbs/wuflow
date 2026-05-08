@@ -1,4 +1,4 @@
-import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setSelectedProject } from '../state.js';
+import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setFilterRelease, setFilterReleaseOwner, setSelectedProject } from '../state.js';
 import { PRIORITY_OPTIONS } from '../domain-constants.js';
 import { logout, updateCurrentUser } from '../api.js';
 import { showNotification, getUserInitials } from '../utils.js';
@@ -215,39 +215,40 @@ export function initUserFilter(refreshApp) {
   });
 }
 
-export function updateUserFilterOptions(users) {
+function resolveFilterLabel(currentVal, users, myLabel, unassignedLabel) {
+  if (currentVal === 'me') return myLabel;
+  if (currentVal === 'unassigned') return unassignedLabel;
+  const user = users.find(u => u.id === Number.parseInt(currentVal));
+  return user ? `${user.first_name} ${user.last_name}` : 'User';
+}
+
+export function updateUserFilterOptions(users, context = 'issues') {
   if (!userFilterOptions) return;
-  const currentVal = state.filter.assigneeId;
+  const isReleases = context === 'releases';
+  const currentVal = isReleases ? state.filter.releaseOwnerFilter : state.filter.assigneeId;
+  const setFilter = isReleases ? setFilterReleaseOwner : setFilterAssignee;
+  const myLabel = isReleases ? 'My Releases' : 'My Issues';
+  const unassignedLabel = isReleases ? 'No Owner' : 'Unassigned';
+  const buttonLabel = isReleases ? 'Owner' : 'Assignee';
 
   userFilterOptions.innerHTML = '';
 
-  const myIssuesOption = createUserOption('My Issues', 'me');
+  const myIssuesOption = createUserOption(myLabel, 'me', setFilter);
   userFilterOptions.appendChild(myIssuesOption);
 
-  const unassignedOption = createUserOption('Unassigned', 'unassigned');
+  const unassignedOption = createUserOption(unassignedLabel, 'unassigned', setFilter);
   userFilterOptions.appendChild(unassignedOption);
 
   users.filter(u => u.active).forEach(user => {
-    const option = createUserOption(`${user.first_name} ${user.last_name}`, user.id);
+    const option = createUserOption(`${user.first_name} ${user.last_name}`, user.id, setFilter);
     userFilterOptions.appendChild(option);
   });
 
   userFilterBtn.innerHTML = '';
   if (currentVal !== null && currentVal !== undefined) {
-    let userName = 'User';
-    if (currentVal === 'me') {
-      userName = 'My Issues';
-    } else if (currentVal === 'unassigned') {
-      userName = 'Unassigned';
-    } else {
-      const user = users.find(u => u.id === Number.parseInt(currentVal));
-      if (user) {
-        userName = `${user.first_name} ${user.last_name}`;
-      }
-    }
-
+    const userName = resolveFilterLabel(currentVal, users, myLabel, unassignedLabel);
     const textSpan = document.createElement('span');
-    textSpan.textContent = `User: ${userName}`;
+    textSpan.textContent = `${buttonLabel}: ${userName}`;
     userFilterBtn.appendChild(textSpan);
 
     const clearIcon = document.createElement('span');
@@ -257,7 +258,7 @@ export function updateUserFilterOptions(users) {
 
     clearIcon.addEventListener('click', (e) => {
       e.stopPropagation();
-      setFilterAssignee(null);
+      setFilter(null);
       if (userRefreshCallback) userRefreshCallback();
     });
 
@@ -265,7 +266,7 @@ export function updateUserFilterOptions(users) {
     userFilterBtn.classList.add('has-selection');
   } else {
     const textSpan = document.createElement('span');
-    textSpan.textContent = 'User';
+    textSpan.textContent = buttonLabel;
     userFilterBtn.appendChild(textSpan);
 
     const arrowIcon = document.createElement('span');
@@ -277,14 +278,107 @@ export function updateUserFilterOptions(users) {
   }
 }
 
-function createUserOption(text, value) {
+function createUserOption(text, value, setFilter) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
   div.addEventListener('click', () => {
-    setFilterAssignee(value);
+    setFilter(value);
     userFilterOptions.classList.add('hidden');
     if (userRefreshCallback) userRefreshCallback();
+  });
+  return div;
+}
+
+// ─── Release Filter ────────────────────────────────────────────────────────────
+
+let releaseFilterContainer;
+let releaseFilterBtn;
+let releaseFilterOptions;
+let releaseRefreshCallback;
+
+export function initReleaseFilter(refreshApp) {
+  releaseRefreshCallback = refreshApp;
+
+  releaseFilterContainer = document.getElementById('release-filter-wrapper');
+  releaseFilterBtn = document.getElementById('release-filter-btn');
+  releaseFilterOptions = document.getElementById('release-filter-options');
+
+  if (!releaseFilterBtn) return;
+
+  releaseFilterBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    releaseFilterOptions.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (releaseFilterContainer && !releaseFilterContainer.contains(e.target)) {
+      releaseFilterOptions.classList.add('hidden');
+    }
+  });
+}
+
+export function updateReleaseFilterOptions(releases) {
+  if (!releaseFilterOptions) return;
+  const currentVal = state.filter.releaseId;
+
+  releaseFilterOptions.innerHTML = '';
+
+  const noReleaseOption = createReleaseOption('No Release', '__no_release__');
+  releaseFilterOptions.appendChild(noReleaseOption);
+
+  releases.forEach(release => {
+    const option = createReleaseOption(release.name, release.id);
+    releaseFilterOptions.appendChild(option);
+  });
+
+  releaseFilterBtn.innerHTML = '';
+  if (currentVal !== null && currentVal !== undefined) {
+    let releaseText = 'Unknown';
+    if (currentVal === '__no_release__') {
+      releaseText = 'No Release';
+    } else {
+      const found = releases.find(r => r.id === currentVal);
+      if (found) releaseText = found.name;
+    }
+
+    const textSpan = document.createElement('span');
+    textSpan.textContent = `Release: ${releaseText}`;
+    releaseFilterBtn.appendChild(textSpan);
+
+    const clearIcon = document.createElement('span');
+    clearIcon.className = 'toolbar-icon-clear';
+    clearIcon.innerHTML = '&times;';
+    clearIcon.title = 'Clear filter';
+    clearIcon.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setFilterRelease(null);
+      if (releaseRefreshCallback) releaseRefreshCallback();
+    });
+
+    releaseFilterBtn.appendChild(clearIcon);
+    releaseFilterBtn.classList.add('has-selection');
+  } else {
+    const textSpan = document.createElement('span');
+    textSpan.textContent = 'Release';
+    releaseFilterBtn.appendChild(textSpan);
+
+    const arrowIcon = document.createElement('span');
+    arrowIcon.className = 'toolbar-icon-arrow';
+    arrowIcon.innerHTML = '▼';
+    releaseFilterBtn.appendChild(arrowIcon);
+    releaseFilterBtn.classList.remove('has-selection');
+  }
+}
+
+function createReleaseOption(text, value) {
+  const div = document.createElement('div');
+  div.className = 'custom-option';
+  div.textContent = text;
+  div.addEventListener('click', () => {
+    setFilterRelease(value);
+    releaseFilterOptions.classList.add('hidden');
+    if (releaseRefreshCallback) releaseRefreshCallback();
   });
   return div;
 }

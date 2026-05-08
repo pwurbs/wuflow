@@ -105,22 +105,22 @@ describe('status-config', () => {
     });
 
     describe('getStatusOptions', () => {
-        it('should always include Open, Todo, and Done', () => {
+        it('should always include Open, Todo, Done, and Archive', () => {
             state.statusConfig = { stage1_name: '', stage2_name: '', stage3_name: '', stage4_name: '' };
             const opts = getStatusOptions();
-            expect(opts.map(o => o.value)).toEqual(['Open', 'Todo', 'Done']);
+            expect(opts.map(o => o.value)).toEqual(['Open', 'Todo', 'Done', 'Archive']);
         });
 
         it('should include active stages between Todo and Done', () => {
             state.statusConfig = { stage1_name: 'In Progress', stage2_name: '', stage3_name: '', stage4_name: '' };
             const opts = getStatusOptions();
-            expect(opts.map(o => o.value)).toEqual(['Open', 'Todo', 'Stage1', 'Done']);
+            expect(opts.map(o => o.value)).toEqual(['Open', 'Todo', 'Stage1', 'Done', 'Archive']);
             expect(opts.find(o => o.value === 'Stage1').label).toBe('In Progress');
         });
 
-        it('should not include Archive', () => {
+        it('should include Archive as last option', () => {
             const opts = getStatusOptions();
-            expect(opts.map(o => o.value)).not.toContain('Archive');
+            expect(opts.at(-1).value).toBe('Archive');
         });
 
         it('should trim stage labels', () => {
@@ -139,9 +139,11 @@ describe('status-config', () => {
             expect(getStatusLabel('Done')).toBe('Done');
         });
 
+        it('should return "Archived" for the Archive status key', () => {
+            expect(getStatusLabel('Archive')).toBe('Archived');
+        });
+
         it('should fall back to the raw status key for unknown values', () => {
-            // Archive is never included in options; Stage3/Stage4 are empty in the default config
-            expect(getStatusLabel('Archive')).toBe('Archive');
             expect(getStatusLabel('Stage3')).toBe('Stage3');
         });
     });

@@ -392,6 +392,87 @@
         "required": [
           "name"
         ]
+      },
+      "Release": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "closed"]
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "release_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "closed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "owner_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "ID of the user responsible for this release"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/User",
+            "nullable": true,
+            "description": "Embedded owner user object, present when owner_id is set"
+          }
+        }
+      },
+      "ReleaseWriteRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "Required"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Optional plain-text summary"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Optional. Year must be 2000–2100."
+          },
+          "release_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Optional. Must not be before start_date. Year must be 2000–2100."
+          },
+          "owner_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Optional. ID of the user responsible for this release."
+          }
+        },
+        "required": ["name"]
       }
     }
   },
@@ -1386,6 +1467,214 @@
           "404": {
             "description": "Project not found"
           }
+        }
+      }
+    },
+    "/projects/{id}/releases": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List releases for a project",
+        "tags": ["Releases"],
+        "responses": {
+          "200": {
+            "description": "List of releases for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Release"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Project not found" }
+        }
+      },
+      "post": {
+        "summary": "Create a release for a project",
+        "description": "Requires admin or sysadmin role.",
+        "x-required-role": "admin",
+        "tags": ["Releases"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad Request - validation failed" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Project not found" }
+        }
+      }
+    },
+    "/releases/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get release details",
+        "tags": ["Releases"],
+        "responses": {
+          "200": {
+            "description": "Release details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not Found" }
+        }
+      },
+      "put": {
+        "summary": "Update a release",
+        "description": "Requires admin or sysadmin role. Closed releases are read-only.",
+        "x-required-role": "admin",
+        "tags": ["Releases"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad Request - validation failed" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden - not admin, or release is closed" },
+          "404": { "description": "Not Found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete a release",
+        "description": "Requires admin or sysadmin role. Issues assigned to the release are unlinked but not deleted.",
+        "x-required-role": "admin",
+        "tags": ["Releases"],
+        "responses": {
+          "200": { "description": "Release deleted" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/releases/{id}/release": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Publish (close) a release",
+        "description": "Requires admin or sysadmin role. Closes the release and archives all Done issues assigned to it.",
+        "x-required-role": "admin",
+        "tags": ["Releases"],
+        "responses": {
+          "200": {
+            "description": "Published release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad Request - release is already closed" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/releases/{id}/reopen": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Reopen a closed release",
+        "description": "Requires admin or sysadmin role. Issues archived during publishing are not automatically unarchived.",
+        "x-required-role": "admin",
+        "tags": ["Releases"],
+        "responses": {
+          "200": {
+            "description": "Reopened release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad Request - release is not closed" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not Found" }
         }
       }
     },

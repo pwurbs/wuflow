@@ -143,11 +143,15 @@
   font-size: 14px;
   line-height: 1.6;
   margin-bottom: 24px;
-  color: #5e6c84;
+  color: var(--muted-text);
 }
 
 #confirm-modal .form-actions {
   justify-content: flex-end;
+}
+
+.form-actions--split {
+  justify-content: space-between;
 }
 
 /* Custom Dropdown in Modal Sidebar */

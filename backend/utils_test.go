@@ -124,17 +124,20 @@ func TestGetClientIP(t *testing.T) {
 func GetAllActiveIssues() ([]Issue, error) {
 	rows, err := DB.Query(`
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
+		       i.release_id,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
 		       a.id, a.email, a.first_name, a.last_name,
 		       u.id, u.email, u.first_name, u.last_name,
-		       p.id, p.name, p.description
+		       p.id, p.name, p.description,
+		       r.id, r.name, r.status
 		FROM issues i
 		LEFT JOIN labels l ON i.label_id = l.id
 		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
 		LEFT JOIN users u ON i.updated_by = u.id
 		LEFT JOIN projects p ON i.project_id = p.id
+		LEFT JOIN releases r ON i.release_id = r.id
 		WHERE i.status != ?
 		ORDER BY i.position ASC`, StatusArchive)
 	if err != nil {
@@ -174,17 +177,20 @@ func GetAllActiveIssues() ([]Issue, error) {
 func GetAllArchivedIssues() ([]Issue, error) {
 	rows, err := DB.Query(`
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
+		       i.release_id,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
 		       a.id, a.email, a.first_name, a.last_name,
 		       u.id, u.email, u.first_name, u.last_name,
-		       p.id, p.name, p.description
+		       p.id, p.name, p.description,
+		       r.id, r.name, r.status
 		FROM issues i
 		LEFT JOIN labels l ON i.label_id = l.id
 		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
 		LEFT JOIN users u ON i.updated_by = u.id
 		LEFT JOIN projects p ON i.project_id = p.id
+		LEFT JOIN releases r ON i.release_id = r.id
 		WHERE i.status = ?
 		ORDER BY i.position ASC`, StatusArchive)
 	if err != nil {

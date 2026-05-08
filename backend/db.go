@@ -37,8 +37,14 @@ var ErrDuplicateEmail = errors.New("email already exists")
 // ErrProjectNotFound is returned when a project is not found.
 var ErrProjectNotFound = errors.New("project not found")
 
+// ErrReleaseNotFound is returned when a release is not found.
+var ErrReleaseNotFound = errors.New("release not found")
+
 // ErrDuplicateProjectName is returned when a project with the same name already exists.
 var ErrDuplicateProjectName = errors.New("project name already exists")
+
+// ErrDuplicateReleaseName is returned when a release with the same name already exists in the project.
+var ErrDuplicateReleaseName = errors.New("release name already exists")
 
 // errUniqueConstraintFailed is the SQLite error text for UNIQUE constraint violations.
 const errUniqueConstraintFailed = "UNIQUE constraint failed"
@@ -101,6 +107,28 @@ func createTables() error {
 		return err
 	}
 
+	createReleasesTable := `
+	CREATE TABLE IF NOT EXISTS releases (
+		id           INTEGER PRIMARY KEY AUTOINCREMENT,
+		project_id   INTEGER NOT NULL,
+		name         TEXT NOT NULL,
+		description  TEXT NOT NULL DEFAULT '',
+		start_date   DATETIME,
+		release_date DATETIME,
+		closed_at    DATETIME,
+		status       TEXT NOT NULL DEFAULT 'open',
+		owner_id     INTEGER,
+		created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+		FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL,
+		UNIQUE(project_id, name)
+	);`
+	if _, err := DB.Exec(createReleasesTable); err != nil {
+		slog.Error("Failed to create releases table", "error", err)
+		return err
+	}
+
 	createIssuesTable := `
 	CREATE TABLE IF NOT EXISTS issues (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,13 +144,15 @@ func createTables() error {
 		assignee_id INTEGER,
 		updated_by INTEGER,
 		project_id INTEGER NOT NULL DEFAULT 1,
+		release_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (label_id) REFERENCES labels(id) ON DELETE SET NULL,
 		FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL,
 		FOREIGN KEY (assignee_id) REFERENCES users(id) ON DELETE SET NULL,
 		FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
-		FOREIGN KEY (project_id) REFERENCES projects(id)
+		FOREIGN KEY (project_id) REFERENCES projects(id),
+		FOREIGN KEY (release_id) REFERENCES releases(id) ON DELETE SET NULL
 	);`
 
 	createTasksTable := `
@@ -153,7 +183,8 @@ func createTables() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		color TEXT NOT NULL,
-		project_id INTEGER NOT NULL DEFAULT 1
+		project_id INTEGER NOT NULL DEFAULT 1,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
 	if _, err := DB.Exec(createLabelsTable); err != nil {
 		slog.Error("Failed to create labels table", "error", err)
@@ -255,6 +286,21 @@ func runMigrations() error {
 		return err
 	}
 
+	// TODO: Migration code, can be removed in a later version.
+	// Add release_id column to issues if it doesn't exist.
+	var releaseColCount int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('issues') WHERE name='release_id'`).Scan(&releaseColCount); err != nil {
+		slog.Error("Failed to check for release_id column in issues", "error", err)
+		return err
+	}
+	if releaseColCount == 0 {
+		if _, err := DB.Exec(`ALTER TABLE issues ADD COLUMN release_id INTEGER REFERENCES releases(id) ON DELETE SET NULL`); err != nil {
+			slog.Error("Failed to add release_id column to issues", "error", err)
+			return err
+		}
+		slog.Info("Migrated issues table: added release_id column")
+	}
+
 	return nil
 }
 
@@ -309,7 +355,7 @@ func CreateIssue(i *Issue) error {
 	if i.Priority == "" {
 		i.Priority = PriorityNormal
 	}
-	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, creator_id, assignee_id, updated_by, project_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, creator_id, assignee_id, updated_by, project_id, release_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		slog.Error("Database Error: CreateIssue Prepare", "error", err)
 		return err
@@ -352,7 +398,7 @@ func CreateIssue(i *Issue) error {
 		plannedDatesJSON = string(b)
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.ProjectID, i.UpdatedAt)
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt)
 	if err != nil {
 		slog.Error("Database Error: CreateIssue Exec", "error", err)
 		return err
@@ -370,17 +416,20 @@ func CreateIssue(i *Issue) error {
 // issueSelectBase is the shared SELECT + JOIN used by all project-scoped issue queries.
 const issueSelectBase = `
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
+		       i.release_id,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
 		       a.id, a.email, a.first_name, a.last_name,
 		       u.id, u.email, u.first_name, u.last_name,
-		       p.id, p.name, p.description
+		       p.id, p.name, p.description,
+		       r.id, r.name, r.status
 		FROM issues i
 		LEFT JOIN labels l ON i.label_id = l.id
 		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
 		LEFT JOIN users u ON i.updated_by = u.id
-		LEFT JOIN projects p ON i.project_id = p.id`
+		LEFT JOIN projects p ON i.project_id = p.id
+		LEFT JOIN releases r ON i.release_id = r.id`
 
 const (
 	queryActiveIssues   = issueSelectBase + ` WHERE i.status NOT IN (?, ?) AND i.project_id = ? ORDER BY i.position ASC`
@@ -441,18 +490,20 @@ func GetOpenIssuesByProject(projectID int) ([]Issue, error) {
 // GetIssueByID retrieves a single issue by ID, including its associated tasks.
 func GetIssueByID(id int) (*Issue, error) {
 	row := DB.QueryRow(`
-		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at, 
+		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
 		       a.id, a.email, a.first_name, a.last_name,
 		       u.id, u.email, u.first_name, u.last_name,
-		       p.id, p.name, p.description
-		FROM issues i 
-		LEFT JOIN labels l ON i.label_id = l.id 
+		       p.id, p.name, p.description,
+		       r.id, r.name, r.status
+		FROM issues i
+		LEFT JOIN labels l ON i.label_id = l.id
 		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
 		LEFT JOIN users u ON i.updated_by = u.id
 		LEFT JOIN projects p ON i.project_id = p.id
+		LEFT JOIN releases r ON i.release_id = r.id
 		WHERE i.id = ?`, id)
 
 	var issue Issue
@@ -487,12 +538,17 @@ func GetIssueByID(id int) (*Issue, error) {
 	var pName sql.NullString
 	var pDesc sql.NullString
 
+	var rID sql.NullInt64
+	var rName sql.NullString
+	var rStatus sql.NullString
+
 	err := row.Scan(&issue.ID, &issue.Title, &desc, &issue.Status, &issue.Position, &deadline, &plannedDatesStr, &priority, &issue.CreatedAt, &issue.UpdatedAt,
 		&lID, &lName, &lColor,
 		&cID, &cEmail, &cFirstName, &cLastName,
 		&aID, &aEmail, &aFirstName, &aLastName,
 		&uID, &uEmail, &uFirstName, &uLastName,
-		&pID, &pName, &pDesc)
+		&pID, &pName, &pDesc,
+		&rID, &rName, &rStatus)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -565,6 +621,16 @@ func GetIssueByID(id int) (*Issue, error) {
 		}
 	}
 
+	if rID.Valid {
+		id := int(rID.Int64)
+		issue.ReleaseID = &id
+		issue.Release = &Release{
+			ID:     id,
+			Name:   rName.String,
+			Status: ReleaseStatus(rStatus.String),
+		}
+	}
+
 	tasks, err := GetTasksByIssueID(issue.ID)
 	if err != nil {
 		slog.Error("Database Error: GetIssueByID GetTasksByIssueID", "error", err)
@@ -578,7 +644,7 @@ func GetIssueByID(id int) (*Issue, error) {
 // UpdateIssue updates an existing issue in the database.
 func UpdateIssue(i *Issue) error {
 
-	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, assignee_id = ?, updated_by = ?, project_id = ?, updated_at = ? WHERE id = ?")
+	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, assignee_id = ?, updated_by = ?, project_id = ?, release_id = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
 		slog.Error("Database Error: UpdateIssue Prepare", "error", err)
 		return err
@@ -608,7 +674,7 @@ func UpdateIssue(i *Issue) error {
 		updaterID = i.UpdaterID
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.ProjectID, i.UpdatedAt, i.ID)
+	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt, i.ID)
 	if err != nil {
 		slog.Error("Database Error: UpdateIssue Exec", "error", err)
 		return err
@@ -1071,12 +1137,19 @@ func scanIssue(rows *sql.Rows) (Issue, error) {
 	var pName sql.NullString
 	var pDesc sql.NullString
 
+	var rID sql.NullInt64
+	var rName sql.NullString
+	var rStatus sql.NullString
+	var releaseIDCol sql.NullInt64
+
 	if err := rows.Scan(&i.ID, &i.Title, &desc, &i.Status, &i.Position, &deadline, &plannedDatesStr, &priority, &i.CreatedAt, &i.UpdatedAt,
+		&releaseIDCol,
 		&lID, &lName, &lColor,
 		&cID, &cEmail, &cFirstName, &cLastName,
 		&aID, &aEmail, &aFirstName, &aLastName,
 		&uID, &uEmail, &uFirstName, &uLastName,
-		&pID, &pName, &pDesc); err != nil {
+		&pID, &pName, &pDesc,
+		&rID, &rName, &rStatus); err != nil {
 		return Issue{}, err
 	}
 	i.Description = desc.String
@@ -1139,6 +1212,16 @@ func scanIssue(rows *sql.Rows) (Issue, error) {
 			ID:          int(pID.Int64),
 			Name:        pName.String,
 			Description: pDesc.String,
+		}
+	}
+
+	if rID.Valid {
+		id := int(rID.Int64)
+		i.ReleaseID = &id
+		i.Release = &Release{
+			ID:     id,
+			Name:   rName.String,
+			Status: ReleaseStatus(rStatus.String),
 		}
 	}
 
@@ -1417,6 +1500,235 @@ func GetStatusConfig(projectID int) (*StatusConfig, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// -----------------------------------------------------------------------------
+// Release Management
+// -----------------------------------------------------------------------------
+
+// CreateRelease inserts a new release into the database.
+func CreateRelease(r *Release) error {
+	r.Status = ReleaseStatusOpen
+	r.CreatedAt = time.Now().UTC()
+	r.UpdatedAt = r.CreatedAt
+	res, err := DB.Exec(
+		`INSERT INTO releases(project_id, name, description, start_date, release_date, status, owner_id, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.ProjectID, r.Name, r.Description, r.StartDate, r.ReleaseDate, r.Status, r.OwnerID, r.CreatedAt, r.UpdatedAt,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
+			return ErrDuplicateReleaseName
+		}
+		slog.Error("Database Error: CreateRelease", "error", err)
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		slog.Error("Database Error: CreateRelease LastInsertId", "error", err)
+		return err
+	}
+	r.ID = int(id)
+	return nil
+}
+
+// GetReleasesByProject retrieves all releases for a project ordered by created_at desc.
+func GetReleasesByProject(projectID int) ([]Release, error) {
+	rows, err := DB.Query(
+		`SELECT r.id, r.project_id, r.name, r.description, r.start_date, r.release_date, r.closed_at, r.status, r.created_at, r.updated_at,
+		        o.id, o.first_name, o.last_name, o.email
+		 FROM releases r
+		 LEFT JOIN users o ON r.owner_id = o.id
+		 WHERE r.project_id = ? ORDER BY r.created_at DESC`, projectID,
+	)
+	if err != nil {
+		slog.Error("Database Error: GetReleasesByProject", "project_id", projectID, "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	releases := []Release{}
+	for rows.Next() {
+		r, err := scanRelease(rows)
+		if err != nil {
+			slog.Error("Database Error: GetReleasesByProject Scan", "error", err)
+			return nil, err
+		}
+		releases = append(releases, r)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Error("Database Error: GetReleasesByProject Rows", "error", err)
+		return nil, err
+	}
+	return releases, nil
+}
+
+// releaseNullFields holds the nullable columns scanned for a release row.
+type releaseNullFields struct {
+	startDate   sql.NullTime
+	releaseDate sql.NullTime
+	closedAt    sql.NullTime
+	ownerID     sql.NullInt64
+	ownerFirst  sql.NullString
+	ownerLast   sql.NullString
+	ownerEmail  sql.NullString
+}
+
+// hydrateRelease fills the nullable date and owner fields on r after a Scan.
+func hydrateRelease(r *Release, f releaseNullFields) {
+	if f.startDate.Valid {
+		r.StartDate = &f.startDate.Time
+	}
+	if f.releaseDate.Valid {
+		r.ReleaseDate = &f.releaseDate.Time
+	}
+	if f.closedAt.Valid {
+		r.ClosedAt = &f.closedAt.Time
+	}
+	if f.ownerID.Valid {
+		oid := int(f.ownerID.Int64)
+		r.OwnerID = &oid
+		r.Owner = &User{ID: oid, FirstName: f.ownerFirst.String, LastName: f.ownerLast.String, Email: f.ownerEmail.String}
+	}
+}
+
+// GetReleaseByID retrieves a single release by ID.
+func GetReleaseByID(id int) (*Release, error) {
+	row := DB.QueryRow(
+		`SELECT r.id, r.project_id, r.name, r.description, r.start_date, r.release_date, r.closed_at, r.status, r.created_at, r.updated_at,
+		        o.id, o.first_name, o.last_name, o.email
+		 FROM releases r
+		 LEFT JOIN users o ON r.owner_id = o.id
+		 WHERE r.id = ?`, id,
+	)
+	var r Release
+	var f releaseNullFields
+	err := row.Scan(&r.ID, &r.ProjectID, &r.Name, &r.Description, &f.startDate, &f.releaseDate, &f.closedAt, &r.Status, &r.CreatedAt, &r.UpdatedAt,
+		&f.ownerID, &f.ownerFirst, &f.ownerLast, &f.ownerEmail)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		slog.Error("Database Error: GetReleaseByID", "id", id, "error", err)
+		return nil, err
+	}
+	hydrateRelease(&r, f)
+	return &r, nil
+}
+
+// UpdateRelease updates name, description, dates, and owner of an existing release.
+func UpdateRelease(r *Release) error {
+	r.UpdatedAt = time.Now().UTC()
+	res, err := DB.Exec(
+		`UPDATE releases SET name = ?, description = ?, start_date = ?, release_date = ?, owner_id = ?, updated_at = ? WHERE id = ?`,
+		r.Name, r.Description, r.StartDate, r.ReleaseDate, r.OwnerID, r.UpdatedAt, r.ID,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
+			return ErrDuplicateReleaseName
+		}
+		slog.Error("Database Error: UpdateRelease", "id", r.ID, "error", err)
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: UpdateRelease RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrReleaseNotFound
+	}
+	return nil
+}
+
+// DeleteRelease removes a release. The FK ON DELETE SET NULL clears release_id on issues.
+func DeleteRelease(id int) error {
+	res, err := DB.Exec(`DELETE FROM releases WHERE id = ?`, id)
+	if err != nil {
+		slog.Error("Database Error: DeleteRelease", "id", id, "error", err)
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: DeleteRelease RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrReleaseNotFound
+	}
+	return nil
+}
+
+// ReopenRelease sets a release status back to 'open'. Already archived issues are not changed.
+func ReopenRelease(id int) error {
+	now := time.Now().UTC()
+	res, err := DB.Exec(`UPDATE releases SET status = ?, closed_at = NULL, updated_at = ? WHERE id = ? AND status = ?`,
+		ReleaseStatusOpen, now, id, ReleaseStatusClosed,
+	)
+	if err != nil {
+		slog.Error("Database Error: ReopenRelease", "id", id, "error", err)
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: ReopenRelease RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrReleaseNotFound
+	}
+	return nil
+}
+
+// TriggerRelease sets a release status to 'closed' and optionally archives all Done issues in it.
+func TriggerRelease(id int, archiveDone bool) error {
+	now := time.Now().UTC()
+	res, err := DB.Exec(`UPDATE releases SET status = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = ?`,
+		ReleaseStatusClosed, now, now, id, ReleaseStatusOpen,
+	)
+	if err != nil {
+		slog.Error("Database Error: TriggerRelease", "id", id, "error", err)
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: TriggerRelease RowsAffected", "error", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrReleaseNotFound
+	}
+	if archiveDone {
+		if _, err := DB.Exec(
+			`UPDATE issues SET status = ?, updated_at = ? WHERE release_id = ? AND status = ?`,
+			StatusArchive, now, id, StatusDone,
+		); err != nil {
+			slog.Error("Database Error: TriggerRelease archive done issues", "id", id, "error", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// ReleaseExistsInProject checks if a release exists and belongs to the given project.
+func ReleaseExistsInProject(releaseID, projectID int) (bool, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM releases WHERE id = ? AND project_id = ?", releaseID, projectID).Scan(&count)
+	if err != nil {
+		slog.Error("Database Error: ReleaseExistsInProject", "release_id", releaseID, "project_id", projectID, "error", err)
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func scanRelease(rows *sql.Rows) (Release, error) {
+	var r Release
+	var f releaseNullFields
+	if err := rows.Scan(&r.ID, &r.ProjectID, &r.Name, &r.Description, &f.startDate, &f.releaseDate, &f.closedAt, &r.Status, &r.CreatedAt, &r.UpdatedAt,
+		&f.ownerID, &f.ownerFirst, &f.ownerLast, &f.ownerEmail); err != nil {
+		return Release{}, err
+	}
+	hydrateRelease(&r, f)
+	return r, nil
 }
 
 // UpsertStatusConfig saves the status config for a project.

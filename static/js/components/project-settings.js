@@ -13,9 +13,8 @@ export function setupProjectSettingsView(callback) {
   refreshCallback = callback;
 
   const addLabelInput = document.getElementById('ps-new-label-input');
-  const addLabelBtn = document.getElementById('ps-add-label-btn');
 
-  if (addLabelBtn && addLabelInput) {
+  if (addLabelInput) {
     if (userCan(state.currentUser, ACTION_CREATE_LABEL)) {
       initCharCounter(addLabelInput, MAX_LABEL_NAME_LEN);
 
@@ -42,12 +41,11 @@ export function setupProjectSettingsView(callback) {
         }
       };
 
-      addLabelBtn.addEventListener('click', handleAdd);
       addLabelInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleAdd();
       });
     } else {
-      const group = addLabelBtn.closest('.label-input-group');
+      const group = addLabelInput.closest('.label-input-group');
       if (group) group.style.display = 'none';
     }
   }

@@ -13,11 +13,13 @@ Only users having the sysadmin role are allowed to access the system settings vi
 
 wuFlow is built with a clearly arranged layout that combines all relevant information in one view:
 - **Main Menu**: In the left sidebar, you can switch between the different views of the application: New issue, Backlog, Board, Archive, Project Settings and System Settings
-- **Board** (Main view): Displays issues in the usual Kanban style with configurable columns. You can freely drag and drop issues between columns and change the order within one column. Click on an issue card to view and adapt details. The board layout changes when you switch to backlog or archive view (see below).
+- **Board** (Main view): Displays issues in the usual Kanban style with configurable columns. You can freely drag and drop issues between columns and change the order within one column. Click on an issue card to view and adapt details.
+- **Backlog / Archive View**: Switches the main area to a list-based layout for managing open issues (Backlog) or completed and archived issues (Archive).
+- **Releases View**: Shows all releases for the selected project, grouped into open and closed sections. Accessible to all users for team-wide visibility; creating and managing releases requires Admin or Sysadmin role. On this view, the filter bar shows an owner filter and a full text search over releases.
 - **Planning Sidebar**: Placed on the right, this simple calendar view allows you to plan issues by dragging them to a specific date. This allows you additionally to plan issues and tasks over the next 10 days, keeping an eye on upcoming deadlines.
 - **User Menu**: In the top right corner, there is the menu of the currently logged in user. Currently, password management and log out is available.
 - **Project Selection**: Select the project for which you want to see issues on the boards and in the planning sidebar.
-- **Filter Bar**: Placed above the board, this bar allows you to filter issues by label, priority, assignee and full text search. The filter influences the shown issue cards and planning entries.
+- **Filter Bar**: Placed above the board, this bar allows you to filter by label, priority, assignee, release, and full text search. The filter influences the shown issue cards and planning entries.
 
 <img src="screenshots/board.png" alt="Kanban Board">
 
@@ -54,7 +56,7 @@ Click on an issue card to view and adapt details. In addition to title and descr
 - **Deadline**: Here you can assign a deadline for the issue. If set, then the issue is considered in the planning sidebar. See the Planning section below for more details.
 - **Assignee**: At least when the issue arrives on the board, it should get an Assignee. The Assignee user is responsible for the issue. Select one of the configured users. The assignee is shown on the cards with a user badge, built from the first letters of the first and last name. 
 - **Priority**: This sets an urgency level for the issue. We only support two levels: **Normal** and **High**. It's fairly useless to have more levels. Usually, teams are only able to cope with these two levels. Issues with High priority are red colored on the board. 
-- **Label**: If labels have been created in the Project Settings view, you can assign them to the issue here. This leads to a colored label badge on the issues card and can be used too as filter criteria. Use labels to either define issue types (story, bug, question etc.) or to separate different topics or domains. So, use labels until features like Releases or EPICs are available.
+- **Label**: If labels have been created in the Project Settings view, you can assign them to the issue here. This leads to a colored label badge on the issues card and can be used too as filter criteria. Use labels to either define issue types (story, bug, question etc.) or to separate different topics or domains (UI, backend, refactor ...).
 - **Tasks**: Here you can define subtasks for the issue. See the Tasks section below for more details.
 
 In the bottom right corner there is information when and by whom the issue was created and lastly updated. The user is indicated using the users badge. These fields are automatically filled and can't be edited.
@@ -135,6 +137,37 @@ The Archive View is similar to the Backlog View, but the other way round: Issue 
 Archiving a bunch of DONE issues could be done along with a kind of a review process in the team or celebrating the completion of a project or milestone. 
 Archived issues are read-only. Users owning the Admin or Sysadmin role are entitled to **restore** archived issues to the board. This is done by clicking the "Restore" button in the Issue details view.
 
+## The Releases View
+
+Releases let you group issues into named, time-boxed deliveries and track their progress. The Releases view is accessible from the main menu and shows open releases at the top and closed (published) releases below a divider.
+
+### Release Properties
+Each release has:
+- **Name**: A short identifier for the release (max 20 characters, required).
+- **Description**: An optional plain-text summary (max 200 characters).
+- **Start Date**: Optional planned start of the release cycle.
+- **Release Date**: Optional planned delivery date. Must not be before the start date.
+- **Owner**: An optional user responsible for the release. Shown as a user badge on the release card.
+
+### The Release Card
+Each release is represented as a card in the list showing the release name, optional start and release dates, the owner badge (if set), and key progress information: the total number of assigned issues and a progress bar indicating how many of them are in Done status. Clicking on the card itself opens the release details modal, where the release properties can be viewed and edited (Admin/Sysadmin only) and the full list of assigned issues with their current statuses is shown. The card also provides two action buttons: a **Board** button that navigates directly to the board filtered by that release, and a **Release** button to publish the release (Admin/Sysadmin only).
+
+### Managing Releases
+Users with Admin or Sysadmin role can:
+- **Create** a release by clicking **+ Create Release** in the Open Releases section.
+- **View and Edit** an open release by clicking on its card. This opens the release details view including an overview of assigned issues and their status.
+- **Delete** a release via the release details view — this unlinks issues from the release but does not delete them.
+- **Publish** a release via the **Release** button in the release list. A confirmation dialog appears showing a summary of the assigned issues and their statuses, an option to archive all Done issues as part of the release, and requires explicit confirmation before proceeding.
+- **Reopen** a closed release via the **Reopen** button in the release details view. Issues archived during publishing are not automatically unarchived.
+
+### Assigning Issues to a Release
+Issues can be assigned to a release in the issue details modal (the **Release** field). When assigned, the issue card on the board shows a release badge with the release name, making it easy to see at a glance which delivery an issue belongs to.
+
+### Filtering Releases
+The filter bar adapts when you switch to the Releases view:
+- **Owner filter**: Filter by your own releases, unassigned releases, or a specific user.
+- **Release search**: A text search field that filters releases by name or description in real time.
+
 ## The Project Settings View
 
 <img src="screenshots/project-settings.png" alt="Project Settings" width="700">
@@ -189,6 +222,9 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | Create / delete labels | — | ✓ | ✓ |
 | Configure board columns | — | ✓ | ✓ |
 | Access Project Settings view | — | ✓ | ✓ |
+| View releases | ✓ | ✓ | ✓ |
+| Create / edit / delete releases | — | ✓ | ✓ |
+| Publish / reopen a release | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |
 | Access System Settings view | — | — | ✓ |

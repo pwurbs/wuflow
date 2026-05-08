@@ -70,10 +70,23 @@
                         </div>
                     </div>
 
+                    <!-- Release Filter Wrapper -->
+                    <div id="release-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
+                        <button id="release-filter-btn" class="custom-select-trigger"
+                            aria-label="Filter by release">Release</button>
+                        <div id="release-filter-options" class="custom-select-options hidden">
+                            <!-- Options injected here -->
+                        </div>
+                    </div>
+
                     <!-- Search Input -->
                     <div id="search-filter-wrapper" class="toolbar-input-wrapper">
                         <!-- maxlength: sync with search limit (50) documented in input-validation.md -->
                         <input type="text" id="search-input" placeholder="Search..." class="search-input"
+                            maxlength="50">
+                    </div>
+                    <div id="release-search-wrapper" class="toolbar-input-wrapper hidden">
+                        <input type="text" id="release-search-input" placeholder="Search releases..." class="search-input"
                             maxlength="50">
                     </div>
                 </div>
@@ -145,6 +158,17 @@
                     </svg>
                     <span class="menu-tooltip">Archive</span>
                 </button>
+                <button id="nav-releases" class="menu-btn" aria-label="Releases">
+                    <!-- Package / container icon (Lucide) -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16.5 9.4 7.55 4.24"/>
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 2 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.29 7 12 12 20.71 7"/>
+                        <line x1="12" y1="22" x2="12" y2="12"/>
+                    </svg>
+                    <span class="menu-tooltip">Releases</span>
+                </button>
                 <button id="nav-project-settings" class="menu-btn" aria-label="Project Settings">
                     <!-- Sliders / adjustments icon -->
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -182,7 +206,7 @@
                         <h2>Project Management</h2>
                     </div>
                     <div class="settings-content">
-                        <button id="add-project-btn" class="btn secondary">+ Add Project</button>
+                        <button id="add-project-btn" class="btn primary">+ Add Project</button>
                         <div id="projects-list" class="users-list">
                             <!-- Projects injected here -->
                         </div>
@@ -194,7 +218,7 @@
                         <h2>User Management</h2>
                     </div>
                     <div class="settings-content">
-                        <button id="add-user-btn" class="btn secondary">+ Add User</button>
+                        <button id="add-user-btn" class="btn primary">+ Add User</button>
                         <div id="users-list" class="users-list">
                             <!-- Users injected here -->
                         </div>
@@ -210,10 +234,9 @@
                     <div class="settings-content">
                         <div class="label-input-group">
                             <div class="label-input-wrapper">
-                                <input type="text" id="ps-new-label-input" placeholder="New label (max 15 chars)"
+                                <input type="text" id="ps-new-label-input" placeholder="Add a new label, press Enter to save"
                                     class="settings-input">
                             </div>
-                            <button id="ps-add-label-btn" class="btn secondary">+ Add</button>
                         </div>
                         <div id="ps-labels-list" class="labels-grid">
                             <!-- Labels injected here -->
@@ -229,6 +252,75 @@
                             <!-- Status config injected by project-settings.js -->
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Release Modal -->
+            <div id="release-modal-overlay" class="modal-overlay hidden">
+                <div class="user-modal">
+                    <div class="user-modal-header">
+                        <h2 id="release-modal-title">New Release</h2>
+                    </div>
+                    <form id="release-form" autocomplete="off">
+                        <div class="form-group">
+                            <label for="release-modal-name">Name</label>
+                            <div class="name-input-wrapper">
+                                <input type="text" id="release-modal-name" class="settings-input" required placeholder="Release name" maxlength="20">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="release-modal-desc">Description</label>
+                            <div class="name-input-wrapper">
+                                <textarea id="release-modal-desc" class="settings-input" placeholder="Description (optional)" maxlength="200" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="release-modal-start">Start Date</label>
+                                <div class="custom-date-input">
+                                    <span id="release-modal-start-display" class="custom-date-display placeholder">Select date...</span>
+                                    <input type="date" id="release-modal-start">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="release-modal-date">Planned Release Date</label>
+                                <div class="custom-date-input">
+                                    <span id="release-modal-date-display" class="custom-date-display placeholder">Select date...</span>
+                                    <input type="date" id="release-modal-date">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group hidden" id="release-modal-closed-at-group">
+                            <label for="release-modal-closed-at">Released on</label>
+                            <div class="custom-date-input">
+                                <span id="release-modal-closed-at-display" class="custom-date-display"></span>
+                                <input type="date" id="release-modal-closed-at" readonly data-permanent-readonly>
+                            </div>
+                        </div>
+                        <div class="form-group" id="release-owner-wrapper">
+                            <label for="release-owner-trigger">Owner</label>
+                            <div class="custom-select-wrapper" id="release-owner-dropdown">
+                                <input type="hidden" id="release-owner-input" name="owner">
+                                <button type="button" class="custom-select-trigger" id="release-owner-trigger">
+                                    <span id="release-owner-text">No Owner</span>
+                                    <span class="toolbar-icon-arrow">▼</span>
+                                </button>
+                                <div class="custom-select-options hidden" id="release-owner-options"></div>
+                            </div>
+                        </div>
+                        <div id="release-modal-stats" class="release-modal-stats hidden"></div>
+                        <div id="release-modal-error" class="form-error hidden" role="alert"></div>
+                        <div class="form-actions form-actions--split">
+                            <div class="left-actions">
+                                <button type="button" id="release-modal-delete" class="btn danger hidden">Delete</button>
+                                <button type="button" id="release-modal-reopen" class="btn secondary hidden">Reopen</button>
+                            </div>
+                            <div class="right-actions">
+                                <button type="button" id="release-modal-cancel" class="btn secondary">Cancel</button>
+                                <button type="submit" id="release-modal-save" class="btn primary">Save</button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
 
@@ -315,7 +407,7 @@
                             <textarea id="project-description" placeholder="Short description" maxlength="100" rows="3" class="settings-input" style="width:100%;resize:vertical;"></textarea>
                         </div>
                         <div id="project-modal-error" class="form-error hidden" role="alert"></div>
-                        <div class="form-actions" style="justify-content: space-between;">
+                        <div class="form-actions form-actions--split">
                             <div class="left-actions">
                                 <button type="button" id="project-modal-delete" class="btn danger hidden">Delete</button>
                             </div>
@@ -407,6 +499,9 @@
                 </div>
             </div>
 
+            <div id="releases-view" class="hidden">
+                <!-- Sections rendered dynamically by releases.js -->
+            </div>
 
         </div>
 
@@ -539,7 +634,7 @@
                                         <input type="date" id="new-task-deadline" name="task_deadline"
                                             title="Task Deadline">
                                     </div>
-                                    <button type="button" id="add-task-btn" class="btn secondary">Add</button>
+                                    <button type="button" id="add-task-btn" class="btn primary add-task-btn">+ Add</button>
                                 </div>
                             </div>
                         </div>
@@ -614,6 +709,19 @@
                                     <span class="toolbar-icon-arrow">▼</span>
                                 </button>
                                 <div class="custom-select-options hidden" id="label-options">
+                                    <!-- Options injected here -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="release-trigger">Release</label>
+                            <div class="custom-select-wrapper" id="release-dropdown">
+                                <input type="hidden" id="release-select" name="release" value="">
+                                <button type="button" class="custom-select-trigger" id="release-trigger">
+                                    <span id="release-text">No Release</span>
+                                    <span class="toolbar-icon-arrow">▼</span>
+                                </button>
+                                <div class="custom-select-options hidden" id="release-options">
                                     <!-- Options injected here -->
                                 </div>
                             </div>

@@ -7,7 +7,6 @@ import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJ
 const HINT_EDIT_USER = 'Leave empty to keep current password';
 const HINT_NEW_USER = 'Minimum 12 characters. No common passwords.';
 
-
 let systemSettingsViewContainer = null;
 
 export function setupSystemSettingsView(refreshCallback) {

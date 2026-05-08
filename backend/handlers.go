@@ -36,6 +36,10 @@ const (
 	errMsgInvalidProject      = "Invalid project ID"
 	errMsgDefaultProject      = "Cannot delete or rename the default project"
 	errMsgProjectHasIssues    = "Cannot delete project with assigned issues"
+	errMsgReleaseNotFound       = "Release not found"
+	errMsgInvalidRelease        = "Invalid release ID"
+	errMsgClosedReleaseReadOnly = "Closed releases are read-only"
+	errMsgDuplicateReleaseName  = "Release name already exists in this project"
 )
 
 // errAdminCheckDB is a sentinel returned by checkLastSysAdminProtection when the
@@ -110,6 +114,25 @@ func checkLabel(w http.ResponseWriter, i *Issue, userEmail string) bool {
 	return true
 }
 
+// checkRelease verifies ReleaseID exists and belongs to the issue's project.
+func checkRelease(w http.ResponseWriter, i *Issue, userEmail string) bool {
+	if i.ReleaseID == nil {
+		return true
+	}
+	exists, err := ReleaseExistsInProject(*i.ReleaseID, i.ProjectID)
+	if err != nil {
+		slog.Error("Validate: ReleaseExistsInProject failed", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return false
+	}
+	if !exists {
+		slog.Warn("Validate: Release not found or wrong project", "release_id", *i.ReleaseID, "project_id", i.ProjectID, "user_email", userEmail)
+		http.Error(w, errMsgInvalidRelease, http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 // checkProject verifies ProjectID against the DB.
 func checkProject(w http.ResponseWriter, i *Issue, userEmail string) bool {
 	if i.ProjectID == 0 {
@@ -153,8 +176,8 @@ func HandleCreateIssue(w http.ResponseWriter, r *http.Request) {
 
 		userEmail := GetEmailFromContext(r.Context())
 
-		// Validate AssigneeID, Label and Project against the database
-		if !checkAssignee(w, &i, nil, userEmail) || !checkLabel(w, &i, userEmail) || !checkProject(w, &i, userEmail) {
+		// Validate AssigneeID, Label, Project and Release against the database
+		if !checkAssignee(w, &i, nil, userEmail) || !checkLabel(w, &i, userEmail) || !checkProject(w, &i, userEmail) || !checkRelease(w, &i, userEmail) {
 			return
 		}
 
@@ -344,9 +367,13 @@ func issueContentHash(i *Issue) string {
 	if i.Deadline != nil {
 		deadline = i.Deadline.UTC().Format(time.RFC3339)
 	}
-	return fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d\x00%d\x00%s\x00%v\x00%d",
+	var releaseID int
+	if i.ReleaseID != nil {
+		releaseID = *i.ReleaseID
+	}
+	return fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d\x00%d\x00%s\x00%v\x00%d\x00%d",
 		i.Title, i.Description, i.Status, i.Priority,
-		labelID, assigneeID, deadline, i.PlannedDates, i.ProjectID)
+		labelID, assigneeID, deadline, i.PlannedDates, i.ProjectID, releaseID)
 }
 
 // persistIssueUpdate routes to UpdateIssuePosition (no timestamp recorded) when only position
@@ -413,8 +440,8 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	i.UpdaterID = &updaterID
 	userEmail := GetEmailFromContext(r.Context())
 
-	// Validate AssigneeID, Label and Project against the database
-	if !checkAssignee(w, &i, current, userEmail) || !checkLabel(w, &i, userEmail) || !checkProject(w, &i, userEmail) {
+	// Validate AssigneeID, Label, Project and Release against the database
+	if !checkAssignee(w, &i, current, userEmail) || !checkLabel(w, &i, userEmail) || !checkProject(w, &i, userEmail) || !checkRelease(w, &i, userEmail) {
 		return
 	}
 
@@ -1504,6 +1531,8 @@ func HandleProject(w http.ResponseWriter, r *http.Request) {
 			handleProjectLabels(w, r, id)
 		case parts[1] == "statusconfig":
 			handleProjectStatusConfig(w, r, id)
+		case parts[1] == "releases":
+			handleProjectReleases(w, r, id)
 		case strings.HasPrefix(parts[1], "labels/"):
 			labelIDStr := strings.TrimPrefix(parts[1], "labels/")
 			labelID, err := strconv.Atoi(labelIDStr)
@@ -1590,6 +1619,256 @@ func handleProjectArchivedIssues(w http.ResponseWriter, r *http.Request, project
 // handleProjectOpenIssues handles GET /api/projects/{id}/issues/open.
 func handleProjectOpenIssues(w http.ResponseWriter, r *http.Request, projectID int) {
 	handleProjectIssues(w, r, projectID, "handleProjectOpenIssues", GetOpenIssuesByProject)
+}
+
+// handleProjectReleases routes GET and POST for /api/projects/{id}/releases.
+func handleProjectReleases(w http.ResponseWriter, r *http.Request, projectID int) {
+	switch r.Method {
+	case http.MethodGet:
+		handleProjectReleasesGet(w, r, projectID)
+	case http.MethodPost:
+		handleProjectReleasesPost(w, r, projectID)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+func handleProjectReleasesGet(w http.ResponseWriter, r *http.Request, projectID int) {
+	if !Can(GetRoleFromContext(r.Context()), ActionListReleases) {
+		denyForbidden(w, r, ActionListReleases)
+		return
+	}
+	releases, err := GetReleasesByProject(projectID)
+	if err != nil {
+		slog.Error("GetReleasesByProject failed", "project_id", projectID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(releases); err != nil {
+		slog.Error("handleProjectReleasesGet: failed to encode response", "error", err)
+	}
+}
+
+func handleProjectReleasesPost(w http.ResponseWriter, r *http.Request, projectID int) {
+	if !Can(GetRoleFromContext(r.Context()), ActionCreateRelease) {
+		denyForbidden(w, r, ActionCreateRelease)
+		return
+	}
+	var rel Release
+	if !decodeAndValidate(w, r, &rel, validateRelease) {
+		return
+	}
+	rel.ProjectID = projectID
+	userEmail := GetEmailFromContext(r.Context())
+	if err := CreateRelease(&rel); err != nil {
+		if errors.Is(err, ErrDuplicateReleaseName) {
+			http.Error(w, errMsgDuplicateReleaseName, http.StatusConflict)
+			return
+		}
+		slog.Error("CreateRelease failed", "project_id", projectID, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	slog.Info("Release created", "id", rel.ID, "project_id", projectID, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(rel); err != nil {
+		slog.Error("handleProjectReleasesPost: failed to encode response", "error", err)
+	}
+}
+
+// HandleRelease handles all /api/releases/{id} requests.
+//   - GET    /api/releases/{id}          → get single release
+//   - PUT    /api/releases/{id}          → update release
+//   - DELETE /api/releases/{id}          → delete release
+//   - POST   /api/releases/{id}/release  → trigger release action
+func HandleRelease(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/releases/")
+	parts := strings.SplitN(rest, "/", 2)
+
+	id, err := strconv.Atoi(parts[0])
+	if err != nil {
+		slog.Warn("Invalid release ID", "error", err)
+		http.Error(w, errMsgInvalidID, http.StatusBadRequest)
+		return
+	}
+
+	if len(parts) == 2 {
+		if r.Method != http.MethodPost {
+			http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+			return
+		}
+		if !Can(GetRoleFromContext(r.Context()), ActionTriggerRelease) {
+			denyForbidden(w, r, ActionTriggerRelease)
+			return
+		}
+		switch parts[1] {
+		case "release":
+			handleTriggerRelease(w, r, id)
+		case "reopen":
+			handleReopenRelease(w, r, id)
+		default:
+			http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+		}
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		if !Can(GetRoleFromContext(r.Context()), ActionListReleases) {
+			denyForbidden(w, r, ActionListReleases)
+			return
+		}
+		handleGetRelease(w, id)
+	case http.MethodPut:
+		if !Can(GetRoleFromContext(r.Context()), ActionUpdateRelease) {
+			denyForbidden(w, r, ActionUpdateRelease)
+			return
+		}
+		handlePutRelease(w, r, id)
+	case http.MethodDelete:
+		if !Can(GetRoleFromContext(r.Context()), ActionDeleteRelease) {
+			denyForbidden(w, r, ActionDeleteRelease)
+			return
+		}
+		handleDeleteRelease(w, r, id)
+	default:
+		http.Error(w, errMsgMethodNotAllowed, http.StatusMethodNotAllowed)
+	}
+}
+
+func handleGetRelease(w http.ResponseWriter, id int) {
+	rel, err := GetReleaseByID(id)
+	if err != nil {
+		slog.Error("GetReleaseByID failed", "id", id, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if rel == nil {
+		http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(rel); err != nil {
+		slog.Error("handleGetRelease: failed to encode response", "error", err)
+	}
+}
+
+func handlePutRelease(w http.ResponseWriter, r *http.Request, id int) {
+	var rel Release
+	if !decodeAndValidate(w, r, &rel, validateRelease) {
+		return
+	}
+	rel.ID = id
+	userEmail := GetEmailFromContext(r.Context())
+	current, err := GetReleaseByID(id)
+	if err != nil {
+		slog.Error("GetReleaseByID failed", "id", id, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if current == nil {
+		http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
+		return
+	}
+	if current.Status == ReleaseStatusClosed {
+		slog.Warn("Attempted update on closed release", "id", id, "user_email", userEmail)
+		http.Error(w, errMsgClosedReleaseReadOnly, http.StatusForbidden)
+		return
+	}
+	if err := UpdateRelease(&rel); err != nil {
+		if errors.Is(err, ErrReleaseNotFound) {
+			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrDuplicateReleaseName) {
+			http.Error(w, errMsgDuplicateReleaseName, http.StatusConflict)
+			return
+		}
+		slog.Error("UpdateRelease failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	slog.Info("Release updated", "id", id, "user_email", userEmail)
+	updated, err := GetReleaseByID(id)
+	if err != nil || updated == nil {
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(updated); err != nil {
+		slog.Error("handlePutRelease: failed to encode response", "error", err)
+	}
+}
+
+func handleDeleteRelease(w http.ResponseWriter, r *http.Request, id int) {
+	userEmail := GetEmailFromContext(r.Context())
+	if err := DeleteRelease(id); err != nil {
+		if errors.Is(err, ErrReleaseNotFound) {
+			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
+			return
+		}
+		slog.Error("DeleteRelease failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	slog.Info("Release deleted", "id", id, "user_email", userEmail)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleTriggerRelease sets a release to 'closed' and optionally archives Done issues.
+func handleTriggerRelease(w http.ResponseWriter, r *http.Request, id int) {
+	var body struct {
+		ArchiveDone bool `json:"archive_done"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+		return
+	}
+	userEmail := GetEmailFromContext(r.Context())
+	if err := TriggerRelease(id, body.ArchiveDone); err != nil {
+		if errors.Is(err, ErrReleaseNotFound) {
+			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
+			return
+		}
+		slog.Error("TriggerRelease failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	slog.Info("Release triggered", "id", id, "archive_done", body.ArchiveDone, "user_email", userEmail)
+	updated, err := GetReleaseByID(id)
+	if err != nil || updated == nil {
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(updated); err != nil {
+		slog.Error("handleTriggerRelease: failed to encode response", "error", err)
+	}
+}
+
+func handleReopenRelease(w http.ResponseWriter, r *http.Request, id int) {
+	userEmail := GetEmailFromContext(r.Context())
+	if err := ReopenRelease(id); err != nil {
+		if errors.Is(err, ErrReleaseNotFound) {
+			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
+			return
+		}
+		slog.Error("ReopenRelease failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	slog.Info("Release reopened", "id", id, "user_email", userEmail)
+	updated, err := GetReleaseByID(id)
+	if err != nil || updated == nil {
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(updated); err != nil {
+		slog.Error("handleReopenRelease: failed to encode response", "error", err)
+	}
 }
 
 func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {

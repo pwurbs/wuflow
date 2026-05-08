@@ -23,6 +23,9 @@ Three roles are available, ordered from least to most privileged:
 | Create / delete labels | — | ✓ | ✓ |
 | Configure board columns | — | ✓ | ✓ |
 | Access Project Settings view | — | ✓ | ✓ |
+| View releases | ✓ | ✓ | ✓ |
+| Create / edit / delete releases | — | ✓ | ✓ |
+| Publish / reopen a release | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |
 | Access System Settings view | — | — | ✓ |
@@ -31,6 +34,7 @@ Three roles are available, ordered from least to most privileged:
 - The `/api/auth/me` endpoint (Get Current User / Update Self) is available to **all authenticated users** regardless of role. Any user can view and update their own profile (e.g. change password).
 - **Admin and sysadmin** users see the Project Settings navigation item (label management, scoped per project).
 - Only **sysadmin** users see the System Settings navigation item (user management, projects).
+- The **Releases view** is accessible to all authenticated users to support team-wide visibility into planned and completed deliveries. However, only **admin and sysadmin** users can create, edit, delete, publish, or reopen releases — regular users have read-only access.
 - The **sysadmin** role is a super-admin: it has all permissions of both Admin and User.
 
 ### Authorization Concept

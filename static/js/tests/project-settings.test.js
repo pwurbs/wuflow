@@ -81,22 +81,24 @@ describe('project-settings.js component', () => {
       expect(document.querySelector('.label-input-group').style.display).toBe('none');
     });
 
-    it('creates a label on button click', async () => {
+    it('creates a label on Enter keypress', async () => {
       api.createLabel.mockResolvedValue({ id: 1, name: 'Bug', color: '#EF5350' });
       setupProjectSettingsView();
 
-      document.getElementById('ps-new-label-input').value = 'Bug';
-      document.getElementById('ps-add-label-btn').click();
+      const input = document.getElementById('ps-new-label-input');
+      input.value = 'Bug';
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
 
       expect(api.createLabel).toHaveBeenCalledWith(1, expect.objectContaining({ name: 'Bug' }));
     });
 
-    it('does nothing when label name is empty on button click', async () => {
+    it('does nothing when label name is empty on Enter keypress', async () => {
       setupProjectSettingsView();
 
-      document.getElementById('ps-new-label-input').value = '';
-      document.getElementById('ps-add-label-btn').click();
+      const input = document.getElementById('ps-new-label-input');
+      input.value = '';
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
 
       expect(api.createLabel).not.toHaveBeenCalled();
@@ -106,8 +108,9 @@ describe('project-settings.js component', () => {
       utils.countCodepoints.mockReturnValue(16);
       setupProjectSettingsView();
 
-      document.getElementById('ps-new-label-input').value = 'TooLongLabelName';
-      document.getElementById('ps-add-label-btn').click();
+      const input = document.getElementById('ps-new-label-input');
+      input.value = 'TooLongLabelName';
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith(
@@ -119,8 +122,9 @@ describe('project-settings.js component', () => {
       api.createLabel.mockRejectedValue(new Error('Network error'));
       setupProjectSettingsView();
 
-      document.getElementById('ps-new-label-input').value = 'Bug';
-      document.getElementById('ps-add-label-btn').click();
+      const input = document.getElementById('ps-new-label-input');
+      input.value = 'Bug';
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith('Failed to create label', 'error');

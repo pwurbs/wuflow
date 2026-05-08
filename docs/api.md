@@ -39,6 +39,13 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 | `/projects/:id` | DELETE | `HandleProject` | Sysadmin | Delete project |
 | `/projects/:id/statusconfig` | GET | `HandleProject` | Required | Get board column configuration for a project |
 | `/projects/:id/statusconfig` | PUT | `HandleProject` | Admin | Update board column configuration for a project |
+| `/projects/:id/releases` | GET | `HandleProject` | Required | List releases for a project |
+| `/projects/:id/releases` | POST | `HandleProject` | Admin | Create a release for a project |
+| `/releases/:id` | GET | `HandleRelease` | Required | Get release details |
+| `/releases/:id` | PUT | `HandleRelease` | Admin | Update a release |
+| `/releases/:id` | DELETE | `HandleRelease` | Admin | Delete a release |
+| `/releases/:id/release` | POST | `HandleRelease` | Admin | Publish (close) a release |
+| `/releases/:id/reopen` | POST | `HandleRelease` | Admin | Reopen a closed release |
 | `/version` | GET | `Anonymous Func` | Public | Get app version |
 
 **Legend:**
@@ -377,6 +384,85 @@ Updates the board column configuration for a project (Admin or Sysadmin).
   - `400 Bad Request` - Validation failed (invalid characters or name too long)
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Project doesn't exist
+
+## Releases
+
+Releases group issues into a named, time-boxed delivery. Each release belongs to exactly one project and has a lifecycle: *open* → *closed* (published). Releases are scoped to a project; list and get endpoints are accessible to all authenticated users; create, update, delete, and trigger actions require Admin or Sysadmin role.
+
+### List Releases for a Project
+Retrieves all releases for a project, ordered by creation date.
+- **GET** `/projects/:id/releases`
+- **Response**: Array of release objects (including embedded `owner` user if set)
+- **Errors**:
+  - `404 Not Found` - Project doesn't exist
+
+### Create Release
+Creates a new release within a project (Admin or Sysadmin).
+- **POST** `/projects/:id/releases`
+- **Body**:
+  ```json
+  {
+    "name": "v1.0",
+    "description": "First stable release",
+    "start_date": "2026-01-01T00:00:00Z",
+    "release_date": "2026-03-31T00:00:00Z",
+    "owner_id": 2
+  }
+  ```
+- **Notes**:
+  - `name` is required, max 20 characters
+  - `description` is optional, max 200 characters, plain text (no HTML)
+  - `start_date` and `release_date` are optional ISO 8601 timestamps; year must be between 2000 and 2100
+  - `release_date` must not be before `start_date` if both are provided
+  - `owner_id` is optional; references a user
+- **Response**: Created release object (201 Created)
+- **Errors**:
+  - `400 Bad Request` - Validation failed
+  - `403 Forbidden` - Not an admin or sysadmin
+  - `404 Not Found` - Project doesn't exist
+  - `409 Conflict` - Release name already exists in this project
+
+### Get Release
+Retrieves a specific release by ID.
+- **GET** `/releases/:id`
+- **Response**: Release object (including embedded `owner` user if set)
+- **Errors**:
+  - `404 Not Found` - Release doesn't exist
+
+### Update Release
+Updates an existing open release (Admin or Sysadmin). Closed releases are read-only.
+- **PUT** `/releases/:id`
+- **Body**: Same fields as Create Release
+- **Errors**:
+  - `400 Bad Request` - Validation failed
+  - `403 Forbidden` - Not an admin or sysadmin, or release is closed
+  - `404 Not Found` - Release doesn't exist
+  - `409 Conflict` - Release name already exists in this project
+
+### Delete Release
+Deletes a release (Admin or Sysadmin). Issues previously assigned to the release are unlinked but not deleted.
+- **DELETE** `/releases/:id`
+- **Errors**:
+  - `403 Forbidden` - Not an admin or sysadmin
+  - `404 Not Found` - Release doesn't exist
+
+### Publish (Close) Release
+Closes an open release and archives all issues assigned to it that are in Done status (Admin or Sysadmin).
+- **POST** `/releases/:id/release`
+- **Response**: Updated release object
+- **Errors**:
+  - `400 Bad Request` - Release is already closed
+  - `403 Forbidden` - Not an admin or sysadmin
+  - `404 Not Found` - Release doesn't exist
+
+### Reopen Release
+Reopens a closed release (Admin or Sysadmin). Issues that were archived when the release was closed are **not** automatically unarchived.
+- **POST** `/releases/:id/reopen`
+- **Response**: Updated release object
+- **Errors**:
+  - `400 Bad Request` - Release is not closed
+  - `403 Forbidden` - Not an admin or sysadmin
+  - `404 Not Found` - Release doesn't exist
 
 ## System
 

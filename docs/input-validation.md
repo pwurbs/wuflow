@@ -30,6 +30,8 @@
 | **Password** | Min 12, max 128 chars | Minimum complexity baseline; max prevents DoS via bcrypt on long inputs. |
 | **Project Name** | 15 chars | UI space constraint (sidebar, header). |
 | **Project Description** | 100 chars | Brief tagline shown in project overview. |
+| **Release Name** | 20 chars | UI space constraint (release cards, headers). |
+| **Release Description** | 200 chars | Brief summary shown in the release modal. |
 | **Request Body** | 32 KB | Hard limit on all incoming requests to prevent memory exhaustion attacks. |
 
 ## Description Sanitization
@@ -38,11 +40,17 @@ To prevent XSS while allowing rich text editing, the description field uses Mark
 
 For full details on the end-to-end data flow, frontend sanitization layers (using DOMPurify), and allowed Markdown/HTML mappings, please refer to the comprehensive [Markdown Security & Sanitization](markdown-security.md) documentation.
 
+## Date Validation
+Release `start_date` and `release_date` are validated on both frontend and backend:
+- Year must be between 2000 and 2100.
+- `release_date` must not be before `start_date` when both are provided.
+
 ## Plain-Text Sanitization
 The backend automatically strips ALL HTML tags and NUL bytes (`\x00`) from fields intended to be plain-text:
 - **Issue/Task**: Title
 - **Label**: Name
 - **User**: First Name, Last Name
+- **Release**: Name, Description
 
 NUL bytes are stripped first (before tag removal) because they are used internally as sentinel delimiters inside `sanitizeHTML`; allowing them through would corrupt the description sanitization pipeline.
 

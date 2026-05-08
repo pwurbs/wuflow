@@ -38,3 +38,9 @@
 .btn.danger:hover {
   background-color: #b8442f;
 }
+
+.btn--sm {
+  padding: 3px 10px;
+  font-size: 12px;
+  min-width: unset;
+}

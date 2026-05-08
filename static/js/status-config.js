@@ -63,7 +63,7 @@ export function getStatusOptions() {
             opts.push({ value: slot.statusKey, label: name.trim() });
         }
     }
-    opts.push({ value: STATUS_DONE, label: 'Done' });
+    opts.push({ value: STATUS_DONE, label: 'Done' }, { value: STATUS_ARCHIVE, label: 'Archived' });
     return opts;
 }
 

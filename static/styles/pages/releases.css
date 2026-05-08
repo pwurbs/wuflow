@@ -1,0 +1,318 @@
+/* releases.css - Styles for the Releases view and release modal */
+
+#releases-view .backlog-section {
+    margin-bottom: 0;
+}
+
+.releases-divider {
+    border: none;
+    border-top: 1px solid var(--card-border);
+    margin: 32px 0;
+}
+
+#releases-view {
+    flex: 1;
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    overflow-y: auto;
+    min-width: 0;
+    margin-bottom: 20px;
+}
+
+.release-row {
+    display: flex;
+    min-height: 40px;
+}
+
+.release-card-left {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    gap: 8px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 4px 0 0 4px;
+    padding: 6px 12px 6px 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.release-badge-placeholder {
+    width: 22px;
+    flex-shrink: 0;
+}
+
+.release-card-left--clickable {
+    cursor: pointer;
+    position: relative;
+}
+
+.release-card-left--clickable:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--accent-blue);
+    z-index: 1;
+}
+
+.release-card-left--clickable::after {
+    content: "View Details";
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    transition-delay: 0.15s;
+    z-index: 10;
+}
+
+.release-card-left--clickable:hover::after {
+    opacity: 1;
+}
+
+.release-card-content {
+    display: flex;
+    align-items: baseline;
+    flex: 1;
+    min-width: 0;
+}
+
+.release-card-title-group {
+    display: flex;
+    align-items: baseline;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    gap: 12px;
+    margin-right: 12px;
+}
+
+.release-card-name {
+    flex-shrink: 0;
+}
+
+.release-card-desc {
+    font-size: 12px;
+    color: var(--muted-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+#release-modal-overlay.hidden {
+    display: none;
+}
+
+#release-form input[type="text"][readonly],
+#release-form textarea[readonly] {
+    opacity: 0.7;
+    cursor: default;
+}
+
+#release-form .custom-date-input:has(input[readonly]) {
+    opacity: 0.7;
+    cursor: default;
+    pointer-events: none;
+}
+
+.release-dates {
+    font-size: 12px;
+    color: var(--muted-text);
+}
+
+.release-dates--overdue {
+    color: var(--danger-color);
+}
+
+.release-count {
+    font-size: 12px;
+    color: var(--muted-text);
+    white-space: nowrap;
+}
+
+.release-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 0 4px 4px 0;
+    padding: 6px 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    margin-left: -1px;
+    cursor: default;
+}
+
+.release-stats-nav-icon {
+    color: var(--muted-text);
+    opacity: 0.65;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    position: relative;
+    transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.release-stats-nav-icon:hover {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+.release-stats-nav-icon::after {
+    content: "View on board";
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    transition-delay: 0.15s;
+    z-index: 10;
+}
+
+.release-stats-nav-icon:hover::after {
+    opacity: 1;
+}
+
+.release-progress-bar {
+    width: 80px;
+    height: 6px;
+    background-color: var(--card-border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-left: 20px;
+}
+
+.release-progress-fill {
+    height: 100%;
+    background-color: var(--primary-color);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+
+.releases-empty {
+    color: var(--muted-text);
+    font-size: 13px;
+    padding: 8px 0;
+}
+
+/* ── Release modal stats ── */
+.release-modal-stats {
+    border-top: 1px solid var(--card-border);
+    padding-top: 14px;
+    margin-top: 4px;
+    margin-bottom: 16px;
+}
+
+.release-modal-stats .release-dialog-intro {
+    font-size: 13px;
+}
+
+.release-modal-stats .release-stat-row {
+    font-size: 13px;
+}
+
+/* ── Release trigger dialog ── */
+.release-dialog {
+    background-color: var(--column-bg);
+    color: var(--text-color);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    width: 400px;
+    max-width: 90%;
+    overflow: hidden;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.release-dialog-header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.release-dialog-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.release-dialog-body {
+    padding: 0 24px 20px;
+}
+
+.release-dialog-section {
+    padding-top: 14px;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 14px;
+}
+
+.release-dialog-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.release-dialog-intro {
+    color: var(--muted-text);
+    margin: 0 0 4px;
+}
+
+.release-stat-row {
+    display: flex;
+    padding: 2px 0;
+    color: var(--muted-text);
+}
+
+.release-stat-name {
+    width: 120px;
+}
+
+.release-stat-count {
+    font-weight: 600;
+}
+
+.release-dialog-warning {
+    font-size: 13px;
+    color: var(--danger-color);
+    margin: 4px 0 0;
+}
+
+.release-archive-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted-text);
+    cursor: pointer;
+}
+
+.release-archive-label input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.release-archive-label:has(input:disabled) {
+    opacity: 0.5;
+    cursor: default;
+}

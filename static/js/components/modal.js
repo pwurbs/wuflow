@@ -87,10 +87,11 @@ export function setupModal(refreshApp) {
   setupCustomDropdown('priority-dropdown', 'priority-trigger', 'priority-options', 'priority', 'priority-text');
   setupCustomDropdown('assignee-dropdown', 'assignee-trigger', 'assignee-options', 'assignee-select', 'assignee-text');
   setupCustomDropdown('project-dropdown', 'project-trigger', 'project-options', 'project-select', 'project-text');
+  setupCustomDropdown('release-dropdown', 'release-trigger', 'release-options', 'release-select', 'release-text');
 
   // Close dropdowns on outside click
   document.addEventListener('click', (e) => {
-    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown', 'project-dropdown'].forEach(id => {
+    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown', 'project-dropdown', 'release-dropdown'].forEach(id => {
       const container = document.getElementById(id);
       if (container && !container.contains(e.target)) {
         const opts = container.querySelector('.custom-select-options');
@@ -204,6 +205,15 @@ function renderModalDropdowns(issue) {
       const found = projects.find(p => p.id === currentId);
       if (found) projectText.textContent = found.name;
     }).catch(err => console.error('Failed to load projects', err));
+  }
+
+  // Release Dropdown
+  const releaseInput = document.getElementById('release-select');
+  const releaseText = document.getElementById('release-text');
+  if (releaseInput && releaseText) {
+    releaseInput.value = issue?.release_id ?? '';
+    releaseText.textContent = issue?.release?.name ?? 'No Release';
+    renderReleaseOptions(state.releases, issue?.release_id ?? null);
   }
 }
 
@@ -462,6 +472,7 @@ function getIssueDataFromForm() {
   const assigneeIdVal = document.getElementById('assignee-select').value;
   const labelId = document.getElementById('label-select').value;
   const projectIdVal = document.getElementById('project-select')?.value;
+  const releaseIdVal = document.getElementById('release-select')?.value;
 
   return {
     title,
@@ -473,7 +484,8 @@ function getIssueDataFromForm() {
     assignee_id: assigneeIdVal ? Number.parseInt(assigneeIdVal) : null,
     position: state.currentIssue ? state.currentIssue.position : 0,
     label: labelId ? { id: Number.parseInt(labelId) } : null,
-    project_id: projectIdVal ? Number.parseInt(projectIdVal) : 1
+    project_id: projectIdVal ? Number.parseInt(projectIdVal) : 1,
+    release_id: releaseIdVal ? Number.parseInt(releaseIdVal) : null
   };
 }
 
@@ -883,6 +895,27 @@ function setupSidebarImmediateSave() {
         try {
           const saved = await saveIssueWithConflictCheck(updatedIssue, 'Label updated');
           if (saved) state.currentIssue.label = labelVal;
+        } catch (err) {
+          showNotification(err.message, 'error');
+        }
+      }
+    });
+  }
+
+  const releaseSelect = document.getElementById('release-select');
+  if (releaseSelect) {
+    releaseSelect.addEventListener('change', async () => {
+      if (state.currentIssue) {
+        const val = releaseSelect.value;
+        const releaseId = val ? Number.parseInt(val) : null;
+        const release = val ? state.releases.find(r => r.id === releaseId) ?? null : null;
+        const updatedIssue = { ...state.currentIssue, release_id: releaseId, release };
+        try {
+          const saved = await saveIssueWithConflictCheck(updatedIssue, 'Release updated');
+          if (saved) {
+            state.currentIssue.release_id = releaseId;
+            state.currentIssue.release = release;
+          }
         } catch (err) {
           showNotification(err.message, 'error');
         }
@@ -1304,6 +1337,43 @@ function renderLabelOptions(labels) {
     });
     optionsContainer.appendChild(div);
   });
+}
+
+export function renderReleaseOptions(releases, currentReleaseId) {
+  const optionsContainer = document.getElementById('release-options');
+  if (!optionsContainer) return;
+  optionsContainer.innerHTML = '';
+
+  const noReleaseDiv = document.createElement('div');
+  noReleaseDiv.className = 'custom-option';
+  noReleaseDiv.textContent = 'No Release';
+  noReleaseDiv.addEventListener('click', () => {
+    selectOption('release-select', 'release-text', 'release-options', '', 'No Release');
+  });
+  optionsContainer.appendChild(noReleaseDiv);
+
+  (releases || []).forEach(release => {
+    const div = document.createElement('div');
+    div.className = 'custom-option';
+    div.textContent = release.name;
+    div.addEventListener('click', () => {
+      selectOption('release-select', 'release-text', 'release-options', release.id, release.name);
+    });
+    optionsContainer.appendChild(div);
+  });
+
+  const releaseInput = document.getElementById('release-select');
+  const releaseText = document.getElementById('release-text');
+  if (releaseInput && releaseText) {
+    if (currentReleaseId) {
+      const found = (releases || []).find(r => r.id === currentReleaseId);
+      releaseInput.value = currentReleaseId;
+      releaseText.textContent = found ? found.name : 'No Release';
+    } else {
+      releaseInput.value = '';
+      releaseText.textContent = 'No Release';
+    }
+  }
 }
 
 function renderProjectOptions(projects) {
