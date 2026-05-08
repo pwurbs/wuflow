@@ -3,6 +3,7 @@
 
 - Improved styles of fonts and buttons
 - Added Release feature
+- Bumped Go to 1.25.10 (fixing high security issue in net package)
 
 # 1.2.1
 

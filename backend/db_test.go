@@ -1386,3 +1386,355 @@ func TestUpsertStatusConfigDBError(t *testing.T) {
 		t.Error("expected error after table drop, got nil")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Release CRUD
+// ---------------------------------------------------------------------------
+
+func TestCreateRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	r := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(r); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	if r.ID == 0 {
+		t.Error("expected release ID to be set")
+	}
+	if r.Status != ReleaseStatusOpen {
+		t.Errorf("expected status open, got %s", r.Status)
+	}
+}
+
+func TestCreateReleaseDuplicate(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	r1 := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(r1); err != nil {
+		t.Fatalf("first CreateRelease failed: %v", err)
+	}
+	r2 := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(r2); err != ErrDuplicateReleaseName {
+		t.Errorf("expected ErrDuplicateReleaseName, got %v", err)
+	}
+}
+
+func TestGetReleasesByProject(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	if err := CreateRelease(&Release{ProjectID: 1, Name: "v2.0"}); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	releases, err := GetReleasesByProject(1)
+	if err != nil {
+		t.Fatalf("GetReleasesByProject failed: %v", err)
+	}
+	if len(releases) != 2 {
+		t.Errorf("expected 2 releases, got %d", len(releases))
+	}
+}
+
+func TestGetReleaseByID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	got, err := GetReleaseByID(rel.ID)
+	if err != nil {
+		t.Fatalf("GetReleaseByID failed: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected release, got nil")
+	}
+	if got.Name != "v1.0" {
+		t.Errorf("expected name 'v1.0', got '%s'", got.Name)
+	}
+}
+
+func TestGetReleaseByIDNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	got, err := GetReleaseByID(9999)
+	if err != nil {
+		t.Fatalf("expected nil error for missing release, got %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil release, got %+v", got)
+	}
+}
+
+func TestGetReleaseByIDWithDates(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	rel := &Release{ProjectID: 1, Name: "v1.0", StartDate: &start, ReleaseDate: &end}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	got, err := GetReleaseByID(rel.ID)
+	if err != nil {
+		t.Fatalf("GetReleaseByID failed: %v", err)
+	}
+	if got.StartDate == nil || got.ReleaseDate == nil {
+		t.Error("expected start and release dates to be set")
+	}
+}
+
+func TestUpdateRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	rel.Name = "v1.1"
+	if err := UpdateRelease(rel); err != nil {
+		t.Fatalf("UpdateRelease failed: %v", err)
+	}
+
+	got, _ := GetReleaseByID(rel.ID)
+	if got.Name != "v1.1" {
+		t.Errorf("expected name 'v1.1', got '%s'", got.Name)
+	}
+}
+
+func TestUpdateReleaseNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ID: 9999, ProjectID: 1, Name: "ghost"}
+	if err := UpdateRelease(rel); err != ErrReleaseNotFound {
+		t.Errorf("expected ErrReleaseNotFound, got %v", err)
+	}
+}
+
+func TestUpdateReleaseDuplicate(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	r1 := &Release{ProjectID: 1, Name: "v1.0"}
+	r2 := &Release{ProjectID: 1, Name: "v2.0"}
+	if err := CreateRelease(r1); err != nil {
+		t.Fatalf("CreateRelease r1 failed: %v", err)
+	}
+	if err := CreateRelease(r2); err != nil {
+		t.Fatalf("CreateRelease r2 failed: %v", err)
+	}
+
+	r2.Name = "v1.0"
+	if err := UpdateRelease(r2); err != ErrDuplicateReleaseName {
+		t.Errorf("expected ErrDuplicateReleaseName, got %v", err)
+	}
+}
+
+func TestDeleteRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	if err := DeleteRelease(rel.ID); err != nil {
+		t.Fatalf("DeleteRelease failed: %v", err)
+	}
+
+	got, _ := GetReleaseByID(rel.ID)
+	if got != nil {
+		t.Error("expected release to be deleted")
+	}
+}
+
+func TestDeleteReleaseNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := DeleteRelease(9999); err != ErrReleaseNotFound {
+		t.Errorf("expected ErrReleaseNotFound, got %v", err)
+	}
+}
+
+func TestTriggerRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	if err := TriggerRelease(rel.ID, false); err != nil {
+		t.Fatalf("TriggerRelease failed: %v", err)
+	}
+
+	got, _ := GetReleaseByID(rel.ID)
+	if got.Status != ReleaseStatusClosed {
+		t.Errorf("expected status closed, got %s", got.Status)
+	}
+	if got.ClosedAt == nil {
+		t.Error("expected ClosedAt to be set")
+	}
+}
+
+func TestTriggerReleaseArchivesDoneIssues(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	issue := &Issue{Title: "Done issue", Status: StatusDone, ProjectID: 1, ReleaseID: &rel.ID}
+	if err := CreateIssue(issue); err != nil {
+		t.Fatalf("CreateIssue failed: %v", err)
+	}
+
+	if err := TriggerRelease(rel.ID, true); err != nil {
+		t.Fatalf("TriggerRelease failed: %v", err)
+	}
+
+	got, _ := GetIssueByID(issue.ID)
+	if got.Status != StatusArchive {
+		t.Errorf("expected issue status archive, got %s", got.Status)
+	}
+}
+
+func TestTriggerReleaseNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := TriggerRelease(9999, false); err != ErrReleaseNotFound {
+		t.Errorf("expected ErrReleaseNotFound, got %v", err)
+	}
+}
+
+func TestReopenRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	if err := TriggerRelease(rel.ID, false); err != nil {
+		t.Fatalf("TriggerRelease failed: %v", err)
+	}
+
+	if err := ReopenRelease(rel.ID); err != nil {
+		t.Fatalf("ReopenRelease failed: %v", err)
+	}
+
+	got, _ := GetReleaseByID(rel.ID)
+	if got.Status != ReleaseStatusOpen {
+		t.Errorf("expected status open, got %s", got.Status)
+	}
+	if got.ClosedAt != nil {
+		t.Error("expected ClosedAt to be nil after reopen")
+	}
+}
+
+func TestReopenReleaseNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := ReopenRelease(9999); err != ErrReleaseNotFound {
+		t.Errorf("expected ErrReleaseNotFound, got %v", err)
+	}
+}
+
+func TestReleaseExistsInProject(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	exists, err := ReleaseExistsInProject(rel.ID, 1)
+	if err != nil {
+		t.Fatalf("ReleaseExistsInProject failed: %v", err)
+	}
+	if !exists {
+		t.Error("expected release to exist in project")
+	}
+
+	notExists, err := ReleaseExistsInProject(rel.ID, 999)
+	if err != nil {
+		t.Fatalf("ReleaseExistsInProject (wrong project) failed: %v", err)
+	}
+	if notExists {
+		t.Error("expected release NOT to exist in wrong project")
+	}
+}
+
+func TestGetIssueByIDWithRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	issue := &Issue{Title: "Issue with release", Status: StatusOpen, ProjectID: 1, ReleaseID: &rel.ID}
+	if err := CreateIssue(issue); err != nil {
+		t.Fatalf("CreateIssue failed: %v", err)
+	}
+
+	got, err := GetIssueByID(issue.ID)
+	if err != nil {
+		t.Fatalf("GetIssueByID failed: %v", err)
+	}
+	if got.ReleaseID == nil || *got.ReleaseID != rel.ID {
+		t.Errorf("expected ReleaseID %d, got %v", rel.ID, got.ReleaseID)
+	}
+	if got.Release == nil || got.Release.Name != "v1.0" {
+		t.Error("expected Release to be hydrated with name 'v1.0'")
+	}
+}
+
+func TestGetIssuesByProjectWithRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	issue := &Issue{Title: "Issue with release", Status: StatusTodo, ProjectID: 1, ReleaseID: &rel.ID}
+	if err := CreateIssue(issue); err != nil {
+		t.Fatalf("CreateIssue failed: %v", err)
+	}
+
+	issues, err := GetActiveIssuesByProject(1)
+	if err != nil {
+		t.Fatalf("GetActiveIssuesByProject failed: %v", err)
+	}
+	if len(issues) == 0 {
+		t.Fatal("expected at least one issue")
+	}
+	if issues[0].ReleaseID == nil || *issues[0].ReleaseID != rel.ID {
+		t.Errorf("expected ReleaseID %d on project issue, got %v", rel.ID, issues[0].ReleaseID)
+	}
+	if issues[0].Release == nil || issues[0].Release.Name != "v1.0" {
+		t.Error("expected Release to be hydrated with name 'v1.0'")
+	}
+}

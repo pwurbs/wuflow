@@ -3727,3 +3727,851 @@ func TestHandleProjectStatusConfigMethodNotAllowed(t *testing.T) {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Release handlers
+// ---------------------------------------------------------------------------
+
+const (
+	apiReleases       = "/api/releases/"
+	apiProjectReleases = "/api/projects/1/releases"
+)
+
+func makeAdminCtx(r *http.Request) *http.Request {
+	ctx := context.WithValue(r.Context(), contextKeyRole, RoleAdmin)
+	ctx = context.WithValue(ctx, contextKeyEmail, testAssigneeEmail)
+	return r.WithContext(ctx)
+}
+
+func TestHandleProjectReleasesGet(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", apiProjectReleases, nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var releases []Release
+	if err := json.NewDecoder(rr.Body).Decode(&releases); err != nil {
+		t.Fatal(err)
+	}
+	if len(releases) != 1 {
+		t.Errorf("expected 1 release, got %d", len(releases))
+	}
+}
+
+
+func TestHandleProjectReleasesPost(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(Release{Name: "v2.0"})
+	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusCreated)
+	}
+	var rel Release
+	if err := json.NewDecoder(rr.Body).Decode(&rel); err != nil {
+		t.Fatal(err)
+	}
+	if rel.Name != "v2.0" {
+		t.Errorf("expected name 'v2.0', got '%s'", rel.Name)
+	}
+}
+
+func TestHandleProjectReleasesPostDuplicate(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	body, _ := json.Marshal(Release{Name: "v1.0"})
+	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
+	}
+}
+
+func TestHandleProjectReleasesPostForbidden(t *testing.T) {
+	body, _ := json.Marshal(Release{Name: "v1.0"})
+	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestHandleProjectReleasesMethodNotAllowed(t *testing.T) {
+	req, _ := http.NewRequest("DELETE", apiProjectReleases, nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleReleaseGet(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", apiReleases+strconv.Itoa(rel.ID), nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var got Release
+	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "v1.0" {
+		t.Errorf("expected name 'v1.0', got '%s'", got.Name)
+	}
+}
+
+func TestHandleReleaseGetNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, _ := http.NewRequest("GET", apiReleases+"9999", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleReleaseGetInvalidID(t *testing.T) {
+	req, _ := http.NewRequest("GET", apiReleases+"abc", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleReleasePut(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	rel.Name = "v1.1"
+	body, _ := json.Marshal(rel)
+	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var got Release
+	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "v1.1" {
+		t.Errorf("expected name 'v1.1', got '%s'", got.Name)
+	}
+}
+
+func TestHandleReleasePutNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(Release{Name: "ghost"})
+	req, _ := http.NewRequest("PUT", apiReleases+"9999", bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleReleasePutClosedForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	if err := TriggerRelease(rel.ID, false); err != nil {
+		t.Fatalf("TriggerRelease failed: %v", err)
+	}
+
+	rel.Name = "changed"
+	body, _ := json.Marshal(rel)
+	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestHandleReleaseDelete(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("DELETE", apiReleases+strconv.Itoa(rel.ID), nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNoContent)
+	}
+}
+
+func TestHandleReleaseDeleteNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, _ := http.NewRequest("DELETE", apiReleases+"9999", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleReleaseTrigger(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]bool{"archive_done": false})
+	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/release", bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var got Release
+	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != ReleaseStatusClosed {
+		t.Errorf("expected status closed, got %s", got.Status)
+	}
+}
+
+func TestHandleReleaseTriggerNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(map[string]bool{"archive_done": false})
+	req, _ := http.NewRequest("POST", apiReleases+"9999/release", bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleReleaseTriggerInvalidBody(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/release", bytes.NewBufferString("not-json"))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleReleaseReopen(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	if err := TriggerRelease(rel.ID, false); err != nil {
+		t.Fatalf("TriggerRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/reopen", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var got Release
+	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != ReleaseStatusOpen {
+		t.Errorf("expected status open, got %s", got.Status)
+	}
+}
+
+func TestHandleReleaseReopenNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, _ := http.NewRequest("POST", apiReleases+"9999/reopen", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleReleaseSubpathMethodNotAllowed(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", apiReleases+strconv.Itoa(rel.ID)+"/release", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleReleaseSubpathUnknown(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/unknown", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleReleaseMethodNotAllowed(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("PATCH", apiReleases+strconv.Itoa(rel.ID), nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestCheckReleaseInvalidRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	releaseID := 9999
+	issue := &Issue{ProjectID: 1, ReleaseID: &releaseID}
+	rr := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", apiIssues, nil)
+	req = makeAdminCtx(req)
+
+	result := checkRelease(rr, issue, testAssigneeEmail)
+	if result {
+		t.Error("expected checkRelease to return false for non-existent release")
+	}
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleCreateIssueWithValidRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, ReleaseID: &rel.ID}
+	body, _ := json.Marshal(issue)
+
+	req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleCreateIssue).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusCreated)
+	}
+}
+
+func TestHandleCreateIssueWithInvalidRelease(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	invalidReleaseID := 9999
+	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, ReleaseID: &invalidReleaseID}
+	body, _ := json.Marshal(issue)
+
+	req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleCreateIssue).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Release handler error and forbidden paths
+// ---------------------------------------------------------------------------
+
+// unknownRole is a UserRole value that has no permissions in the policy table.
+const unknownRole UserRole = "unknown"
+
+// --- checkRelease DB error (lines 123-127) ---
+
+func TestCheckReleaseDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	releaseID := 1
+	issue := &Issue{ProjectID: 1, ReleaseID: &releaseID}
+	rr := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", apiIssues, nil)
+	req = makeAdminCtx(req)
+
+	result := checkRelease(rr, issue, testAssigneeEmail)
+	if result {
+		t.Error("expected checkRelease to return false on DB error")
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- issueContentHash with ReleaseID (lines 371-373) ---
+
+func TestHandleIssuePutWithReleaseID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1, ReleaseID: &rel.ID}
+	if err := CreateIssue(issue); err != nil {
+		t.Fatalf("CreateIssue failed: %v", err)
+	}
+
+	issue.Title = "Updated"
+	body, _ := json.Marshal(issue)
+	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleIssue).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+}
+
+// --- handleProjectReleasesGet forbidden (lines 1637-1640) ---
+
+func TestHandleProjectReleasesGetUnknownRoleForbidden(t *testing.T) {
+	req, _ := http.NewRequest("GET", apiProjectReleases, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, unknownRole))
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+// --- handleProjectReleasesGet DB error (lines 1642-1646) ---
+
+func TestHandleProjectReleasesGetDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	req, _ := http.NewRequest("GET", apiProjectReleases, nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- handleProjectReleasesPost invalid JSON (lines 1659-1661) ---
+
+func TestHandleProjectReleasesPostInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBufferString(invalidJSON))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+// --- handleProjectReleasesPost DB error (lines 1669-1671) ---
+
+func TestHandleProjectReleasesPostDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	body, _ := json.Marshal(Release{Name: "v1.0"})
+	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- HandleRelease sub-path forbidden (lines 1702-1705) ---
+
+func TestHandleReleaseTriggerForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]bool{"archive_done": false})
+	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/release", bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+// --- HandleRelease GET forbidden (lines 1719-1722) ---
+
+func TestHandleReleaseGetForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", apiReleases+strconv.Itoa(rel.ID), nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, unknownRole))
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+// --- HandleRelease PUT forbidden (lines 1725-1728) ---
+
+func TestHandleReleasePutForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	rel.Name = "v1.1"
+	body, _ := json.Marshal(rel)
+	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+// --- HandleRelease DELETE forbidden (lines 1731-1734) ---
+
+func TestHandleReleaseDeleteForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("DELETE", apiReleases+strconv.Itoa(rel.ID), nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+// --- handleGetRelease DB error (lines 1743-1747) ---
+
+func TestHandleReleaseGetDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	req, _ := http.NewRequest("GET", apiReleases+"1", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- handlePutRelease invalid JSON (lines 1760-1762) ---
+
+func TestHandleReleasePutInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBufferString(invalidJSON))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+// --- handlePutRelease GetReleaseByID DB error (lines 1766-1770) ---
+
+func TestHandleReleasePutGetDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	body, _ := json.Marshal(Release{Name: "v1.0"})
+	req, _ := http.NewRequest("PUT", apiReleases+"1", bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- handlePutRelease UpdateRelease duplicate name (lines 1785-1787) ---
+
+func TestHandleReleasePutDuplicateName(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+		t.Fatalf("CreateRelease r1 failed: %v", err)
+	}
+	r2 := &Release{ProjectID: 1, Name: "v2.0"}
+	if err := CreateRelease(r2); err != nil {
+		t.Fatalf("CreateRelease r2 failed: %v", err)
+	}
+
+	r2.Name = "v1.0"
+	body, _ := json.Marshal(r2)
+	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(r2.ID), bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusConflict {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
+	}
+}
+
+// --- handlePutRelease UpdateRelease internal DB error (lines 1789-1791) ---
+
+func TestHandleReleasePutUpdateDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	DB.Exec("DROP TABLE releases")
+
+	rel.Name = "v1.1"
+	body, _ := json.Marshal(rel)
+	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- handleDeleteRelease internal DB error (lines 1812-1814) ---
+
+func TestHandleReleaseDeleteDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	req, _ := http.NewRequest("DELETE", apiReleases+"1", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- handleTriggerRelease internal DB error (lines 1835-1837) ---
+
+func TestHandleReleaseTriggerDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	body, _ := json.Marshal(map[string]bool{"archive_done": false})
+	req, _ := http.NewRequest("POST", apiReleases+"1/release", bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// --- handleReopenRelease internal DB error (lines 1858-1860) ---
+
+func TestHandleReleaseReopenDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	DB.Exec("DROP TABLE releases")
+
+	req, _ := http.NewRequest("POST", apiReleases+"1/reopen", nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}

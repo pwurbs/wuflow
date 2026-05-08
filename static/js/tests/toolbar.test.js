@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
-import { state } from '../state.js';
+import { state, setFilterRelease } from '../state.js';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
 const _localStore = {};
@@ -31,6 +31,7 @@ import {
   initLabelFilter, updateLabelFilterOptions,
   initPriorityFilter, updatePriorityFilterOptions,
   initUserFilter, updateUserFilterOptions,
+  initReleaseFilter, updateReleaseFilterOptions,
   initProjectSelector, updateProjectSelectorOptions,
   setupUserMenu,
 } from '../components/toolbar.js';
@@ -157,6 +158,41 @@ describe('filterIssues', () => {
       const issues = [createIssue({ id: 1, title: 'Test', description: null })];
       const filter = { labelId: null, priority: null, assigneeId: null, search: 'test' };
       expect(filterIssues(issues, filter)).toHaveLength(1);
+    });
+  });
+
+  describe('release filter', () => {
+    it('should filter by release id', () => {
+      const issues = [
+        createIssue({ id: 1, release_id: 5 }),
+        createIssue({ id: 2, release_id: 6 }),
+        createIssue({ id: 3, release_id: null }),
+      ];
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: 5 };
+      const result = filterIssues(issues, filter);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(1);
+    });
+
+    it('should filter to show only issues without a release using __no_release__', () => {
+      const issues = [
+        createIssue({ id: 1, release_id: 5 }),
+        createIssue({ id: 2, release_id: null }),
+        createIssue({ id: 3, release_id: null }),
+      ];
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: '__no_release__' };
+      const result = filterIssues(issues, filter);
+      expect(result).toHaveLength(2);
+      expect(result.every(i => !i.release_id)).toBe(true);
+    });
+
+    it('should return all issues when releaseId filter is null', () => {
+      const issues = [
+        createIssue({ id: 1, release_id: 5 }),
+        createIssue({ id: 2, release_id: null }),
+      ];
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null };
+      expect(filterIssues(issues, filter)).toHaveLength(2);
     });
   });
 
@@ -793,5 +829,111 @@ describe('User Menu', () => {
     await Promise.resolve();
 
     expect(showNotification).toHaveBeenCalledWith('Some policy error', 'error');
+  });
+});
+
+// ─── Release Filter (toolbar) ──────────────────────────────────────────────────
+
+describe('Release Filter', () => {
+  let refreshApp;
+  const releases = [
+    { id: 1, name: 'v1.0' },
+    { id: 2, name: 'v2.0' },
+  ];
+
+  beforeEach(() => {
+    state.filter.releaseId = null;
+    refreshApp = vi.fn();
+    document.body.innerHTML = `
+      <div id="release-filter-wrapper">
+        <button id="release-filter-btn"></button>
+        <div id="release-filter-options" class="hidden"></div>
+      </div>
+    `;
+    initReleaseFilter(refreshApp);
+  });
+
+  afterEach(() => {
+    setFilterRelease(null);
+  });
+
+  it('populates "No Release" option plus all release options', () => {
+    updateReleaseFilterOptions(releases);
+    const opts = document.querySelectorAll('#release-filter-options .custom-option');
+    expect(opts).toHaveLength(3);
+    expect(opts[0].textContent).toBe('No Release');
+    expect(opts[1].textContent).toBe('v1.0');
+    expect(opts[2].textContent).toBe('v2.0');
+  });
+
+  it('shows arrow icon and "Release" text when no filter is active', () => {
+    updateReleaseFilterOptions([]);
+    const btn = document.getElementById('release-filter-btn');
+    expect(btn.textContent).toContain('Release');
+    expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
+    expect(btn.classList.contains('has-selection')).toBe(false);
+  });
+
+  it('shows active release name and clear icon when filter is set', () => {
+    state.filter.releaseId = 1;
+    updateReleaseFilterOptions(releases);
+    const btn = document.getElementById('release-filter-btn');
+    expect(btn.textContent).toContain('Release: v1.0');
+    expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
+    expect(btn.classList.contains('has-selection')).toBe(true);
+  });
+
+  it('shows "No Release" in button when __no_release__ filter is set', () => {
+    state.filter.releaseId = '__no_release__';
+    updateReleaseFilterOptions([]);
+    const btn = document.getElementById('release-filter-btn');
+    expect(btn.textContent).toContain('Release: No Release');
+  });
+
+  it('shows "Unknown" for an unrecognized release id', () => {
+    state.filter.releaseId = 999;
+    updateReleaseFilterOptions(releases);
+    const btn = document.getElementById('release-filter-btn');
+    expect(btn.textContent).toContain('Release: Unknown');
+  });
+
+  it('clears filter and calls refresh when clear icon is clicked', () => {
+    state.filter.releaseId = 1;
+    updateReleaseFilterOptions(releases);
+    document.querySelector('#release-filter-btn .toolbar-icon-clear').click();
+    expect(state.filter.releaseId).toBeNull();
+    expect(refreshApp).toHaveBeenCalled();
+  });
+
+  it('sets filter and hides dropdown when a release option is clicked', () => {
+    updateReleaseFilterOptions(releases);
+    const opts = document.querySelectorAll('#release-filter-options .custom-option');
+    opts[1].click(); // v1.0
+    expect(state.filter.releaseId).toBe(1);
+    expect(document.getElementById('release-filter-options').classList.contains('hidden')).toBe(true);
+    expect(refreshApp).toHaveBeenCalled();
+  });
+
+  it('sets __no_release__ filter when "No Release" option is clicked', () => {
+    updateReleaseFilterOptions([]);
+    document.querySelector('#release-filter-options .custom-option').click();
+    expect(state.filter.releaseId).toBe('__no_release__');
+  });
+
+  it('toggles dropdown on button click', () => {
+    const optionsDiv = document.getElementById('release-filter-options');
+    const btn = document.getElementById('release-filter-btn');
+    expect(optionsDiv.classList.contains('hidden')).toBe(true);
+    btn.click();
+    expect(optionsDiv.classList.contains('hidden')).toBe(false);
+    btn.click();
+    expect(optionsDiv.classList.contains('hidden')).toBe(true);
+  });
+
+  it('closes dropdown on outside click', () => {
+    const optionsDiv = document.getElementById('release-filter-options');
+    optionsDiv.classList.remove('hidden');
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(optionsDiv.classList.contains('hidden')).toBe(true);
   });
 });

@@ -273,7 +273,7 @@ func RequireJSONMiddleware(next http.Handler) http.Handler {
 		if r.Method == http.MethodPost || r.Method == http.MethodPut {
 			ct := r.Header.Get("Content-Type")
 			if !strings.HasPrefix(ct, "application/json") {
-				slog.Warn("RequireJSONMiddleware: rejected request", "method", r.Method, "path", r.URL.Path, "content_type", ct)
+				slog.Warn("RequireJSONMiddleware: rejected request", "method", r.Method, "path", strings.ReplaceAll(r.URL.Path, "\n", ""), "content_type", strings.ReplaceAll(ct, "\n", "")) // #nosec G706 -- false positive, newlines are cleaned
 				http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
 				return
 			}

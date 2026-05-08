@@ -1,7 +1,7 @@
 
 #------- Build stage ---------------------------------------------------------
 # Use Debian-based Go image to match the runtime and ensure libc compatibility for CGO
-FROM docker.io/library/golang:1.25.9-bookworm AS builder
+FROM docker.io/library/golang:1.25.10-bookworm AS builder
 
 # Arguments for cross-compilation
 ARG TARGETOS

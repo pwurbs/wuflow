@@ -8,13 +8,18 @@ import {
   setIssues,
   setCurrentIssue,
   setCurrentUser,
-  isFilterActive
+  isFilterActive,
+  setReleases,
+  setFilterRelease,
+  setFilterReleaseOwner,
+  setFilterReleaseSearch,
 } from '../state.js';
 
 describe('state', () => {
   // Reset state before each test
   beforeEach(() => {
     state.issues = [];
+    state.releases = [];
     state.currentIssue = null;
     state.filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null, releaseOwnerFilter: null, releaseSearch: '' };
   });
@@ -104,6 +109,60 @@ describe('state', () => {
     });
   });
 
+  describe('setReleases', () => {
+    it('should set releases array', () => {
+      const releases = [{ id: 1, name: 'v1.0' }, { id: 2, name: 'v2.0' }];
+      setReleases(releases);
+      expect(state.releases).toEqual(releases);
+      expect(state.releases).toHaveLength(2);
+    });
+
+    it('should replace existing releases', () => {
+      setReleases([{ id: 1, name: 'v1.0' }]);
+      setReleases([]);
+      expect(state.releases).toEqual([]);
+    });
+  });
+
+  describe('setFilterRelease', () => {
+    it('should set release filter', () => {
+      setFilterRelease(5);
+      expect(state.filter.releaseId).toBe(5);
+    });
+
+    it('should clear release filter when set to null', () => {
+      setFilterRelease(5);
+      setFilterRelease(null);
+      expect(state.filter.releaseId).toBeNull();
+    });
+  });
+
+  describe('setFilterReleaseOwner', () => {
+    it('should set release owner filter', () => {
+      setFilterReleaseOwner(3);
+      expect(state.filter.releaseOwnerFilter).toBe(3);
+    });
+
+    it('should clear owner filter when set to null', () => {
+      setFilterReleaseOwner(3);
+      setFilterReleaseOwner(null);
+      expect(state.filter.releaseOwnerFilter).toBeNull();
+    });
+  });
+
+  describe('setFilterReleaseSearch', () => {
+    it('should set release search term', () => {
+      setFilterReleaseSearch('v1');
+      expect(state.filter.releaseSearch).toBe('v1');
+    });
+
+    it('should allow empty release search term', () => {
+      setFilterReleaseSearch('v1');
+      setFilterReleaseSearch('');
+      expect(state.filter.releaseSearch).toBe('');
+    });
+  });
+
   describe('filter state isolation', () => {
     it('should not affect other filters when setting one', () => {
       setFilterLabel(1);
@@ -150,6 +209,26 @@ describe('state', () => {
 
     it('should return false when search is whitespace only', () => {
       state.filter.search = '   ';
+      expect(isFilterActive()).toBe(false);
+    });
+
+    it('should return true when release filter is set', () => {
+      state.filter.releaseId = 1;
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return true when release owner filter is set', () => {
+      state.filter.releaseOwnerFilter = 2;
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return true when release search is set', () => {
+      state.filter.releaseSearch = 'v1';
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return false when release search is whitespace only', () => {
+      state.filter.releaseSearch = '   ';
       expect(isFilterActive()).toBe(false);
     });
   });

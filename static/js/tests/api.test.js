@@ -20,6 +20,12 @@ import {
   updateUser,
   fetchStatusConfig,
   updateStatusConfig,
+  fetchReleases,
+  createRelease,
+  updateRelease,
+  deleteRelease,
+  reopenRelease,
+  triggerRelease,
 } from '../api.js';
 
 function makeResponse(status, body, headers = {}) {
@@ -383,6 +389,98 @@ describe('api', () => {
       fetch.mockResolvedValue(makeResponse(200, user));
       expect(await updateUser(1, { name: 'Alice Updated' })).toEqual(user);
       expect(fetch.mock.calls[0][1].method).toBe('PUT');
+    });
+  });
+
+  // --- Releases ---
+
+  describe('fetchReleases', () => {
+    it('returns releases on success', async () => {
+      const releases = [{ id: 1, name: 'v1.0' }];
+      fetch.mockResolvedValue(makeResponse(200, releases));
+      expect(await fetchReleases(1)).toEqual(releases);
+      expect(fetch).toHaveBeenCalledWith('/api/projects/1/releases', {});
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(404, 'Not found'));
+      await expect(fetchReleases(1)).rejects.toThrow('Not found');
+    });
+  });
+
+  describe('createRelease', () => {
+    it('posts release and returns created data', async () => {
+      const release = { id: 1, name: 'v1.0' };
+      fetch.mockResolvedValue(makeResponse(201, release));
+      const result = await createRelease(1, { name: 'v1.0' });
+      expect(result).toEqual(release);
+      expect(fetch.mock.calls[0][1].method).toBe('POST');
+      expect(fetch.mock.calls[0][0]).toContain('/projects/1/releases');
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(400, 'Name required'));
+      await expect(createRelease(1, {})).rejects.toThrow('Name required');
+    });
+  });
+
+  describe('updateRelease', () => {
+    it('puts release and returns updated data', async () => {
+      const release = { id: 1, name: 'v1.1' };
+      fetch.mockResolvedValue(makeResponse(200, release));
+      const result = await updateRelease(1, { name: 'v1.1' });
+      expect(result).toEqual(release);
+      expect(fetch.mock.calls[0][1].method).toBe('PUT');
+      expect(fetch.mock.calls[0][0]).toContain('/releases/1');
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(500, 'Internal error'));
+      await expect(updateRelease(1, {})).rejects.toThrow('Internal error');
+    });
+  });
+
+  describe('deleteRelease', () => {
+    it('sends DELETE and resolves on success', async () => {
+      fetch.mockResolvedValue(makeResponse(200, ''));
+      await expect(deleteRelease(1)).resolves.not.toThrow();
+      expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(403, 'No permission'));
+      await expect(deleteRelease(1)).rejects.toThrow('No permission');
+    });
+  });
+
+  describe('reopenRelease', () => {
+    it('posts to reopen endpoint and returns data', async () => {
+      const release = { id: 1, status: 'open' };
+      fetch.mockResolvedValue(makeResponse(200, release));
+      const result = await reopenRelease(1);
+      expect(result).toEqual(release);
+      expect(fetch.mock.calls[0][0]).toContain('/releases/1/reopen');
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(400, 'Cannot reopen'));
+      await expect(reopenRelease(1)).rejects.toThrow('Cannot reopen');
+    });
+  });
+
+  describe('triggerRelease', () => {
+    it('posts to release endpoint and returns data', async () => {
+      const release = { id: 1, status: 'closed' };
+      fetch.mockResolvedValue(makeResponse(200, release));
+      const result = await triggerRelease(1, true);
+      expect(result).toEqual(release);
+      expect(fetch.mock.calls[0][0]).toContain('/releases/1/release');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ archive_done: true });
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(500, 'Failed to trigger release'));
+      await expect(triggerRelease(1, false)).rejects.toThrow('Failed to trigger release');
     });
   });
 });

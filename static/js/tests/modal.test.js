@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setupModal, openModal, closeModal, preventNavigation } from '../components/modal.js';
+import { setupModal, openModal, closeModal, preventNavigation, renderReleaseOptions } from '../components/modal.js';
 import * as api from '../api.js';
 import { state, setCurrentIssue } from '../state.js';
 import * as utils from '../utils.js';
@@ -31,6 +31,7 @@ vi.mock('../api.js', () => ({
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
+    releases: [],
     currentIssue: null,
     currentUser: { role: 'admin' }
   },
@@ -2050,5 +2051,216 @@ describe('Project Selector Coverage', () => {
     await new Promise(process.nextTick);
 
     expect(consoleSpy).toHaveBeenCalledWith('Failed to reload labels for project', expect.any(Error));
+  });
+});
+
+// ─── renderReleaseOptions ──────────────────────────────────────────────────────
+
+describe('renderReleaseOptions', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="release-dropdown">
+        <div id="release-trigger" class="custom-select-trigger">
+          <span id="release-text">No Release</span>
+        </div>
+        <div id="release-options" class="custom-select-options hidden"></div>
+        <input type="hidden" id="release-select">
+      </div>
+    `;
+  });
+
+  it('always renders a "No Release" option', () => {
+    renderReleaseOptions([], null);
+    const opts = document.querySelectorAll('#release-options .custom-option');
+    expect(opts).toHaveLength(1);
+    expect(opts[0].textContent).toBe('No Release');
+  });
+
+  it('renders one option per release plus the "No Release" option', () => {
+    renderReleaseOptions([{ id: 1, name: 'v1.0' }, { id: 2, name: 'v2.0' }], null);
+    const opts = document.querySelectorAll('#release-options .custom-option');
+    expect(opts).toHaveLength(3);
+    expect(opts[1].textContent).toBe('v1.0');
+    expect(opts[2].textContent).toBe('v2.0');
+  });
+
+  it('sets input value and text to the matching release when currentReleaseId is provided', () => {
+    renderReleaseOptions([{ id: 1, name: 'v1.0' }], 1);
+    expect(document.getElementById('release-select').value).toBe('1');
+    expect(document.getElementById('release-text').textContent).toBe('v1.0');
+  });
+
+  it('sets text to "No Release" when currentReleaseId is not found in the list', () => {
+    renderReleaseOptions([{ id: 1, name: 'v1.0' }], 999);
+    expect(document.getElementById('release-select').value).toBe('999');
+    expect(document.getElementById('release-text').textContent).toBe('No Release');
+  });
+
+  it('sets input to empty and text to "No Release" when currentReleaseId is null', () => {
+    renderReleaseOptions([{ id: 1, name: 'v1.0' }], null);
+    expect(document.getElementById('release-select').value).toBe('');
+    expect(document.getElementById('release-text').textContent).toBe('No Release');
+  });
+
+  it('selects "No Release" option on click and closes dropdown', () => {
+    renderReleaseOptions([{ id: 1, name: 'v1.0' }], 1);
+    const noReleaseOpt = document.querySelector('#release-options .custom-option');
+    noReleaseOpt.click();
+    expect(document.getElementById('release-select').value).toBe('');
+    expect(document.getElementById('release-text').textContent).toBe('No Release');
+    expect(document.getElementById('release-options').classList.contains('hidden')).toBe(true);
+  });
+
+  it('selects a specific release option on click', () => {
+    renderReleaseOptions([{ id: 1, name: 'v1.0' }], null);
+    const opts = document.querySelectorAll('#release-options .custom-option');
+    opts[1].click(); // v1.0
+    expect(document.getElementById('release-select').value).toBe('1');
+    expect(document.getElementById('release-text').textContent).toBe('v1.0');
+  });
+
+  it('returns early when the options container is absent', () => {
+    document.getElementById('release-options').remove();
+    expect(() => renderReleaseOptions([], null)).not.toThrow();
+  });
+});
+
+// ─── release-select inline save ───────────────────────────────────────────────
+
+describe('release-select change handler', () => {
+  beforeEach(async () => {
+    document.body.innerHTML = `
+      <div id="issue-modal" class="hidden">
+        <div class="modal-content">
+          <h2 id="modal-title"></h2>
+          <form id="issue-form">
+            <input id="issue-id" type="hidden">
+            <input id="title" type="text" value="">
+            <div class="editor-container">
+              <div class="md-editor-panes">
+                <textarea id="description-editor"></textarea>
+                <div id="description-preview" class="hidden"></div>
+              </div>
+              <div id="description-edit-actions" class="hidden">
+                <button id="desc-cancel-btn"></button>
+                <button id="desc-save-btn"></button>
+              </div>
+            </div>
+            <div id="planned-dates-container"></div>
+            <input id="deadline" type="date">
+            <div id="status-dropdown">
+              <div id="status-trigger"><span id="status-text"></span></div>
+              <div id="status-options" class="hidden"></div>
+              <input type="hidden" id="status">
+            </div>
+            <div id="priority-dropdown">
+              <div id="priority-trigger"><span id="priority-text"></span></div>
+              <div id="priority-options" class="hidden"></div>
+              <input type="hidden" id="priority">
+            </div>
+            <div id="label-dropdown">
+              <div id="label-trigger"><span id="label-text"></span></div>
+              <div id="label-options" class="hidden"></div>
+              <input type="hidden" id="label-select">
+            </div>
+            <div id="assignee-dropdown">
+              <div id="assignee-trigger"><span id="assignee-text"></span></div>
+              <div id="assignee-options" class="hidden"></div>
+              <input type="hidden" id="assignee-select">
+            </div>
+            <div id="project-dropdown">
+              <div id="project-trigger"><span id="project-text"></span></div>
+              <div id="project-options" class="hidden"></div>
+              <input type="hidden" id="project-select" value="1">
+            </div>
+            <div id="release-dropdown">
+              <div id="release-trigger"><span id="release-text"></span></div>
+              <div id="release-options" class="hidden"></div>
+              <input type="hidden" id="release-select">
+            </div>
+            <div id="tasks-section">
+              <div id="task-form-container">
+                <input id="new-task-title" type="text">
+                <input id="new-task-deadline" type="date">
+                <button id="add-task-btn" type="button"></button>
+              </div>
+              <ul id="task-list"></ul>
+            </div>
+            <button id="delete-issue-btn" type="button"></button>
+            <button id="archive-issue-btn" type="button"></button>
+            <button id="unarchive-issue-btn" type="button"></button>
+            <div id="timestamp-container" class="hidden">
+              <div class="timestamp-item"><span id="created-at-display"></span></div>
+              <div class="timestamp-item"><span id="updated-at-display"></span></div>
+            </div>
+            <button id="cancel-btn" type="button"></button>
+            <button id="save-issue-btn" type="submit"></button>
+            <button id="done-btn" type="button"></button>
+            <button class="editor-btn" data-md="bold" data-prefix="**" data-suffix="**"></button>
+            <button class="editor-btn" data-md="italic" data-prefix="*" data-suffix="*"></button>
+            <button class="editor-btn" data-md="strike" data-prefix="~~" data-suffix="~~"></button>
+            <button class="editor-btn" data-md="h1"></button>
+            <button class="editor-btn" data-md="h2"></button>
+            <button class="editor-btn" data-md="ul"></button>
+            <button class="editor-btn" data-md="ol"></button>
+            <button class="editor-btn" data-md="link"></button>
+            <button class="editor-btn" data-md="code"></button>
+            <button class="editor-btn" data-md="table"></button>
+            <button id="md-preview-toggle" class="editor-btn">Preview</button>
+          </form>
+        </div>
+      </div>
+      <div class="left-menu">
+        <div id="add-issue-btn" class="menu-btn"></div>
+        <div id="nav-board" class="menu-btn"></div>
+      </div>
+    `;
+    vi.clearAllMocks();
+    api.fetchLabelsByProject.mockResolvedValue([]);
+    api.fetchUsers.mockResolvedValue([]);
+    api.fetchProjects.mockResolvedValue([{ id: 1, name: 'Default' }]);
+    api.updateIssue.mockResolvedValue({ issue: { id: 1, release_id: 2, release: { id: 2, name: 'v2.0' } }, etag: '"etag"', conflict: false });
+    state.releases = [{ id: 2, name: 'v2.0' }];
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    HTMLInputElement.prototype.reportValidity = vi.fn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    setupModal(vi.fn());
+  });
+
+  it('calls updateIssue with new release_id when release-select changes to a release', async () => {
+    const issue = { id: 1, title: 'T', status: 'Open', release_id: null, release: null };
+    api.fetchIssueById.mockResolvedValue({ issue, etag: '"e"' });
+    setCurrentIssue.mockImplementation(v => { state.currentIssue = v; });
+    await openModal(issue);
+    state.currentIssue = issue;
+
+    const releaseSelect = document.getElementById('release-select');
+    releaseSelect.value = '2';
+    releaseSelect.dispatchEvent(new Event('change'));
+    await new Promise(process.nextTick);
+
+    expect(api.updateIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ release_id: 2 }),
+      expect.any(String)
+    );
+  });
+
+  it('calls updateIssue with release_id null when release-select is cleared', async () => {
+    const issue = { id: 1, title: 'T', status: 'Open', release_id: 2, release: { id: 2, name: 'v2.0' } };
+    api.fetchIssueById.mockResolvedValue({ issue, etag: '"e"' });
+    api.updateIssue.mockResolvedValue({ issue: { ...issue, release_id: null, release: null }, etag: '"e2"', conflict: false });
+    setCurrentIssue.mockImplementation(v => { state.currentIssue = v; });
+    await openModal(issue);
+    state.currentIssue = issue;
+
+    const releaseSelect = document.getElementById('release-select');
+    releaseSelect.value = '';
+    releaseSelect.dispatchEvent(new Event('change'));
+    await new Promise(process.nextTick);
+
+    expect(api.updateIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ release_id: null }),
+      expect.any(String)
+    );
   });
 });

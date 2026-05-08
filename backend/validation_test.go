@@ -3,6 +3,7 @@ package backend
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -323,6 +324,104 @@ func TestValidateUserNamesStripHTML(t *testing.T) {
 	}
 	if u.LastName != "Last" {
 		t.Errorf("expected HTML stripped LastName 'Last', got '%s'", u.LastName)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateRelease
+// ---------------------------------------------------------------------------
+
+func TestValidateReleaseValid(t *testing.T) {
+	r := &Release{Name: "v1.0"}
+	if err := validateRelease(r); err != nil {
+		t.Errorf("expected no error for valid release, got %v", err)
+	}
+}
+
+func TestValidateReleaseEmptyName(t *testing.T) {
+	r := &Release{Name: ""}
+	if err := validateRelease(r); err != ErrInvalidReleaseName {
+		t.Errorf("expected ErrInvalidReleaseName, got %v", err)
+	}
+}
+
+func TestValidateReleaseNameTooLong(t *testing.T) {
+	r := &Release{Name: strings.Repeat("x", MaxReleaseNameLen+1)}
+	if err := validateRelease(r); err != ErrReleaseNameTooLong {
+		t.Errorf("expected ErrReleaseNameTooLong, got %v", err)
+	}
+}
+
+func TestValidateReleaseNameExactlyMax(t *testing.T) {
+	r := &Release{Name: strings.Repeat("x", MaxReleaseNameLen)}
+	if err := validateRelease(r); err != nil {
+		t.Errorf("expected no error at max length, got %v", err)
+	}
+}
+
+func TestValidateReleaseDescTooLong(t *testing.T) {
+	r := &Release{Name: "v1.0", Description: strings.Repeat("x", MaxReleaseDescLen+1)}
+	if err := validateRelease(r); err != ErrReleaseDescTooLong {
+		t.Errorf("expected ErrReleaseDescTooLong, got %v", err)
+	}
+}
+
+func TestValidateReleaseInvalidStartDate(t *testing.T) {
+	d := time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
+	r := &Release{Name: "v1.0", StartDate: &d}
+	if err := validateRelease(r); err == nil {
+		t.Error("expected error for start date year < 2000, got nil")
+	}
+}
+
+func TestValidateReleaseInvalidReleaseDate(t *testing.T) {
+	d := time.Date(2101, 1, 1, 0, 0, 0, 0, time.UTC)
+	r := &Release{Name: "v1.0", ReleaseDate: &d}
+	if err := validateRelease(r); err == nil {
+		t.Error("expected error for release date year > 2100, got nil")
+	}
+}
+
+func TestValidateReleaseDateOrderInvalid(t *testing.T) {
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	rel := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	r := &Release{Name: "v1.0", StartDate: &start, ReleaseDate: &rel}
+	if err := validateRelease(r); err == nil {
+		t.Error("expected error for release date before start date, got nil")
+	}
+}
+
+func TestValidateReleaseDateOrderValid(t *testing.T) {
+	start := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	rel := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	r := &Release{Name: "v1.0", StartDate: &start, ReleaseDate: &rel}
+	if err := validateRelease(r); err != nil {
+		t.Errorf("expected no error for valid date order, got %v", err)
+	}
+}
+
+func TestValidateReleaseNameStripsHTML(t *testing.T) {
+	r := &Release{Name: "<b>v1.0</b>"}
+	if err := validateRelease(r); err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if r.Name != "v1.0" {
+		t.Errorf("expected HTML stripped name 'v1.0', got '%s'", r.Name)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// validateIssue — ErrTooManyDates
+// ---------------------------------------------------------------------------
+
+func TestValidateIssueTooManyPlannedDates(t *testing.T) {
+	dates := make([]string, MaxPlannedDates+1)
+	for i := range dates {
+		dates[i] = "2026-01-15"
+	}
+	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: dates}
+	if err := validateIssue(i); err != ErrTooManyDates {
+		t.Errorf("expected ErrTooManyDates, got %v", err)
 	}
 }
 

@@ -3,6 +3,7 @@ package backend
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -250,6 +251,83 @@ func FuzzValidateIssue(f *testing.F) {
 			checkValidatedIssueInvariants(t, i)
 		}
 	})
+}
+
+// FuzzValidateRelease tests the release validation logic for crashes and field sanitization.
+// Dates are passed as Unix timestamps (int64) paired with booleans that control whether
+// each date pointer is nil, because the Go fuzz engine only supports primitive types.
+func FuzzValidateRelease(f *testing.F) {
+	// valid release: both dates present and in order
+	f.Add("v1.0", "First stable release", true, int64(1735689600), true, int64(1767225600))
+	// only name, no dates
+	f.Add("Sprint-1", "", false, int64(0), false, int64(0))
+	// HTML injection in name and description
+	f.Add("<script>xss</script>", "<b>bold</b>", false, int64(0), false, int64(0))
+	// name too long
+	f.Add(strings.Repeat("x", MaxReleaseNameLen+1), "desc", false, int64(0), false, int64(0))
+	// description too long
+	f.Add("v2.0", strings.Repeat("d", MaxReleaseDescLen+1), false, int64(0), false, int64(0))
+	// empty name (must fail)
+	f.Add("", "some desc", false, int64(0), false, int64(0))
+	// null bytes in name and description
+	f.Add("\x00release\x00", "desc\x00with\x00nulls", false, int64(0), false, int64(0))
+	// release date before start date (must fail)
+	f.Add("v3.0", "", true, int64(1767225600), true, int64(1735689600))
+	// start date year before 2000 (must fail)
+	f.Add("v4.0", "", true, int64(-315619200), false, int64(0))
+	// release date year after 2100 (must fail)
+	f.Add("v5.0", "", false, int64(0), true, int64(4133980800))
+	// both dates on the same day (boundary: release == start is allowed)
+	f.Add("v6.0", "", true, int64(1735689600), true, int64(1735689600))
+	// partial-tag pattern in name
+	f.Add("<x<b>rel</b>", "description", false, int64(0), false, int64(0))
+
+	f.Fuzz(func(t *testing.T, name, desc string, hasStart bool, startUnix int64, hasRelease bool, releaseUnix int64) {
+		r := &Release{Name: name, Description: desc}
+		if hasStart {
+			ts := time.Unix(startUnix, 0).UTC()
+			r.StartDate = &ts
+		}
+		if hasRelease {
+			ts := time.Unix(releaseUnix, 0).UTC()
+			r.ReleaseDate = &ts
+		}
+
+		// Should never panic.
+		if err := validateRelease(r); err == nil {
+			checkValidatedReleaseInvariants(t, r)
+		}
+	})
+}
+
+func checkValidatedReleaseInvariants(t *testing.T, r *Release) {
+	t.Helper()
+
+	if anyTagRegex.MatchString(r.Name) {
+		t.Errorf("Validated release name still contains tags: %q", r.Name)
+	}
+	if anyTagRegex.MatchString(r.Description) {
+		t.Errorf("Validated release description still contains tags: %q", r.Description)
+	}
+	if utf8.RuneCountInString(r.Name) > MaxReleaseNameLen {
+		t.Errorf("Validated release name exceeds max length: %q", r.Name)
+	}
+	if utf8.RuneCountInString(r.Description) > MaxReleaseDescLen {
+		t.Errorf("Validated release description exceeds max length: %q", r.Description)
+	}
+	if r.StartDate != nil {
+		if y := r.StartDate.Year(); y < 2000 || y > 2100 {
+			t.Errorf("Validated release has start date with out-of-range year: %d", y)
+		}
+	}
+	if r.ReleaseDate != nil {
+		if y := r.ReleaseDate.Year(); y < 2000 || y > 2100 {
+			t.Errorf("Validated release has release date with out-of-range year: %d", y)
+		}
+	}
+	if r.StartDate != nil && r.ReleaseDate != nil && r.ReleaseDate.Before(*r.StartDate) {
+		t.Errorf("Validated release has release date before start date: start=%v release=%v", r.StartDate, r.ReleaseDate)
+	}
 }
 
 // checkValidatedIssueInvariants asserts post-validation invariants on a successfully validated issue.
