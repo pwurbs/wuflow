@@ -234,6 +234,7 @@ function switchView(view) {
     const isReleases = view === 'releases';
     applyReleaseFilterVisibility(isReleases);
     updateUserFilterOptions(cachedUsers, isReleases ? 'releases' : 'issues');
+    if (isReleases) renderReleaseOwnerOptions(cachedUsers);
 
     // Reset release filters when leaving releases view
     if (!isReleases) {

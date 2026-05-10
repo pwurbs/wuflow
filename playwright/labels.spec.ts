@@ -24,9 +24,7 @@ test.describe('Label Management', () => {
 
     // Enter label name
     await page.fill('#ps-new-label-input', 'TestLabel');
-
-    // Click Add button
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
 
     // Verify label appears in the list
     await expect(page.locator('#ps-labels-list')).toContainText('TestLabel');
@@ -48,7 +46,7 @@ test.describe('Label Management', () => {
     // First create a label
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'Priority');
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await expect(page.locator('#ps-labels-list')).toContainText('Priority');
 
     // Go back to board
@@ -66,7 +64,7 @@ test.describe('Label Management', () => {
     // Create a label first
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'ToDelete');
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await expect(page.locator('#ps-labels-list')).toContainText('ToDelete');
 
     // Find and click the delete button for this label
@@ -105,7 +103,7 @@ test.describe('Project-scoped Labels', () => {
     await page.click('#project-selector-options .custom-option:has-text("default")');
     const labelName = `ScopedLabel${Date.now().toString().slice(-4)}`;
     await page.fill('#ps-new-label-input', labelName);
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await expect(page.locator('#ps-labels-list')).toContainText(labelName);
 
     // Switch to the new project — the label must NOT appear there
@@ -130,7 +128,7 @@ test.describe('Project-scoped Labels', () => {
     await page.click('#project-selector-options .custom-option:has-text("default")');
     const labelName = `LblRefresh${Date.now().toString().slice(-4)}`;
     await page.fill('#ps-new-label-input', labelName);
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await expect(page.locator('#ps-labels-list')).toContainText(labelName);
 
     // Open a new-issue modal
@@ -172,7 +170,7 @@ test.describe('Project-scoped Labels', () => {
     await page.click('#project-selector-options .custom-option:has-text("default")');
     const labelName = `LblRefresh2${Date.now().toString().slice(-3)}`;
     await page.fill('#ps-new-label-input', labelName);
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await waitForToast(page, 'Label created');
 
     // Switch to new project — label should not be shown

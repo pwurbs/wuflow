@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, navigateTo, selectAssignee, selectStatus, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, selectAssignee, selectStatus, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Filtering and Search', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -58,7 +58,7 @@ test.describe('Filtering and Search', () => {
     // First create a label
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'Bug');
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await expect(page.locator('#ps-labels-list')).toContainText('Bug');
 
     // Go back to board
@@ -292,7 +292,7 @@ test.describe('Planning Panel Filtering', () => {
     // Create label
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'PlanLabel');
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await navigateTo(page, 'board');
 
     await createIssue(page, { title: 'Plan Labeled', status: 'Todo', label: 'PlanLabel', plannedDate: dateStr });
@@ -306,5 +306,132 @@ test.describe('Planning Panel Filtering', () => {
 
     await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Labeled' })).toBeVisible();
     await expect(dayContainer.locator('.planning-item', { hasText: 'Plan Unlabeled' })).toBeHidden();
+  });
+});
+
+// ─── Release Filtering ────────────────────────────────────────────────────────
+
+test.describe('Release Filtering', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+  });
+
+  test('filter issues by release on board', async ({ page }) => {
+    const relName = `FilRel_${Date.now().toString().slice(-6)}`;
+    await navigateTo(page, 'releases');
+    await createRelease(page, { name: relName });
+
+    await navigateTo(page, 'board');
+    // Create two issues: one assigned to the release, one unassigned
+    // Both must use a board-visible status (not 'Open', which is backlog-only)
+    await page.click('#add-issue-btn');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    const assignedTitle = `WithRel_${relName}`;
+    await page.fill('#title', assignedTitle);
+    await page.click('#status-trigger');
+    await page.click('#status-options .custom-option:has-text("Todo")');
+    await page.click('#release-trigger');
+    await page.click(`#release-options .custom-option:has-text("${relName}")`);
+    await page.click('#save-issue-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    const freeTitle = `NoRel_${relName}`;
+    await createIssue(page, { title: freeTitle, status: 'Todo' });
+
+    // Filter by release
+    await page.click('#release-filter-btn');
+    await page.click(`#release-filter-options .custom-option:has-text("${relName}")`);
+
+    await expect(page.locator(`.card:has-text("${assignedTitle}")`)).toBeVisible();
+    await expect(page.locator(`.card:has-text("${freeTitle}")`)).toBeHidden();
+  });
+
+  test('"No Release" filter shows only unassigned issues', async ({ page }) => {
+    const relName = `NoRelFil_${Date.now().toString().slice(-5)}`;
+    await navigateTo(page, 'releases');
+    await createRelease(page, { name: relName });
+
+    await navigateTo(page, 'board');
+    const assignedTitle = `WithNR_${relName}`;
+    await page.click('#add-issue-btn');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    await page.fill('#title', assignedTitle);
+    await page.click('#status-trigger');
+    await page.click('#status-options .custom-option:has-text("Todo")');
+    await page.click('#release-trigger');
+    await page.click(`#release-options .custom-option:has-text("${relName}")`);
+    await page.click('#save-issue-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    const freeTitle = `FreeNR_${relName}`;
+    await createIssue(page, { title: freeTitle, status: 'Todo' });
+
+    // Filter by "No Release"
+    await page.click('#release-filter-btn');
+    await page.click('#release-filter-options .custom-option:has-text("No Release")');
+
+    await expect(page.locator(`.card:has-text("${freeTitle}")`)).toBeVisible();
+    await expect(page.locator(`.card:has-text("${assignedTitle}")`)).toBeHidden();
+  });
+
+  test('clear release filter restores all issues', async ({ page }) => {
+    const relName = `ClearFil_${Date.now().toString().slice(-5)}`;
+    await navigateTo(page, 'releases');
+    await createRelease(page, { name: relName });
+
+    await navigateTo(page, 'board');
+    const assignedTitle = `WithCl_${relName}`;
+    await page.click('#add-issue-btn');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    await page.fill('#title', assignedTitle);
+    await page.click('#status-trigger');
+    await page.click('#status-options .custom-option:has-text("Todo")');
+    await page.click('#release-trigger');
+    await page.click(`#release-options .custom-option:has-text("${relName}")`);
+    await page.click('#save-issue-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    const unassignedTitle = `FreeCl_${relName}`;
+    await createIssue(page, { title: unassignedTitle, status: 'Todo' });
+
+    // Apply filter then clear it
+    await page.click('#release-filter-btn');
+    await page.click(`#release-filter-options .custom-option:has-text("${relName}")`);
+    await expect(page.locator(`.card:has-text("${unassignedTitle}")`)).toBeHidden();
+
+    await page.locator('#release-filter-btn .toolbar-icon-clear').click();
+
+    // Both issues should be visible again
+    await expect(page.locator(`.card:has-text("${assignedTitle}")`)).toBeVisible();
+    await expect(page.locator(`.card:has-text("${unassignedTitle}")`)).toBeVisible();
+    await expect(page.locator('#release-filter-btn')).toContainText('Release');
+  });
+
+  test('release search filters release cards', async ({ page }) => {
+    await navigateTo(page, 'releases');
+    const nameA = `SearchA_${Date.now().toString().slice(-5)}`;
+    const nameB = `SearchB_${Date.now().toString().slice(-5)}`;
+    await createRelease(page, { name: nameA });
+    await createRelease(page, { name: nameB });
+
+    await page.fill('#release-search-input', 'SearchA');
+
+    await expect(page.locator(`.release-row:has-text("${nameA}")`)).toBeVisible();
+    await expect(page.locator(`.release-row:has-text("${nameB}")`)).toBeHidden();
+  });
+
+  test('release owner filter — assigned to me', async ({ page }) => {
+    await navigateTo(page, 'releases');
+    const ownedName = `MineRel_${Date.now().toString().slice(-5)}`;
+    const unownedName = `OtherRel_${Date.now().toString().slice(-5)}`;
+    await createRelease(page, { name: ownedName, ownerText: 'Assign to me' });
+    await createRelease(page, { name: unownedName });
+
+    // Filter by "me" using the user filter button (on releases view this shows "My Releases")
+    await page.click('#user-filter-btn');
+    await page.click('#user-filter-options .custom-option:has-text("My Releases")');
+
+    await expect(page.locator(`.release-row:has-text("${ownedName}")`)).toBeVisible();
+    await expect(page.locator(`.release-row:has-text("${unownedName}")`)).toBeHidden();
   });
 });

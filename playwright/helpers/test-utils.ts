@@ -147,7 +147,45 @@ export async function openIssueByTitle(page: Page, title: string): Promise<void>
  */
 // ...
 
-export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'system-settings' | 'archive' | 'project-settings'): Promise<void> {
+export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'system-settings' | 'archive' | 'project-settings' | 'releases'): Promise<void> {
   await page.click(`#nav-${view}`);
+}
+
+export interface ReleaseData {
+  name: string;
+  description?: string;
+  startDate?: string;   // YYYY-MM-DD
+  releaseDate?: string; // YYYY-MM-DD
+  ownerText?: string;   // e.g. "Assign to me"
+}
+
+export async function createRelease(page: Page, data: ReleaseData): Promise<void> {
+  await page.click('.release-add-btn');
+  await expect(page.locator('#release-modal-overlay')).toBeVisible();
+  await page.fill('#release-modal-name', data.name);
+  if (data.description) {
+    await page.fill('#release-modal-desc', data.description);
+  }
+  if (data.startDate) {
+    await page.fill('#release-modal-start', data.startDate);
+  }
+  if (data.releaseDate) {
+    await page.fill('#release-modal-date', data.releaseDate);
+  }
+  if (data.ownerText) {
+    await page.click('#release-owner-trigger');
+    await page.click(`#release-owner-options .custom-option:has-text("${data.ownerText}")`);
+  }
+  await page.click('#release-modal-save');
+  await expect(page.locator('#release-modal-overlay')).toBeHidden();
+}
+
+export async function triggerRelease(page: Page, releaseName: string, archiveDone = false): Promise<void> {
+  await page.locator(`.release-row:has-text("${releaseName}") .release-trigger-btn`).click();
+  const checkbox = page.locator('#release-archive-done');
+  const isChecked = await checkbox.isChecked();
+  if (archiveDone && !isChecked) await checkbox.check();
+  if (!archiveDone && isChecked) await checkbox.uncheck();
+  await page.click('#release-dialog-confirm');
 }
 

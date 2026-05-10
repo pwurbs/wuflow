@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures';
-import { createIssue, openIssueByTitle, navigateTo, selectStatus } from './helpers/test-utils';
+import { createIssue, openIssueByTitle, navigateTo, selectStatus, createRelease } from './helpers/test-utils';
 
 /**
  * Tests for:
@@ -135,12 +135,13 @@ test.describe('Validation limits – Label', () => {
   });
 
   test('label name exceeding 15 characters is rejected', async ({ page }) => {
-    // Set value directly (bypasses input-event truncation) to test JS validation backstop
+    // Focus first so initCharCounter's focus handler fires on the empty value (no truncation).
+    // Then set value directly to bypass maxlength and test the JS validation backstop.
+    await page.focus('#ps-new-label-input');
     await page.evaluate(() => {
       (document.getElementById('ps-new-label-input') as HTMLInputElement).value = 'a'.repeat(16);
     });
-
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
 
     await expectMainError(page, 'Label name must not exceed 15 characters');
   });
@@ -480,5 +481,58 @@ test.describe('XSS and Sanitization', () => {
     // Input value is sanitized by backend (tags stripped, text content kept)
     const finalValue = await titleInput.inputValue();
     expect(finalValue).toBe('Updated Italic');
+  });
+});
+
+// ─── Validation limits — Release ──────────────────────────────────────────────
+
+test.describe('Validation limits – Release', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+    await navigateTo(page, 'releases');
+    await page.click('.release-add-btn');
+    await expect(page.locator('#release-modal-overlay')).toBeVisible();
+  });
+
+  test('release name is required', async ({ page }) => {
+    // Leave name empty, attempt to save.
+    // The input has a `required` attribute so the browser blocks submission
+    // before any JS fires — the modal must remain open.
+    await page.click('#release-modal-save');
+    await expect(page.locator('#release-modal-overlay')).toBeVisible();
+  });
+
+  test('release date before start date is rejected', async ({ page }) => {
+    await page.fill('#release-modal-name', `DateVal_${Date.now().toString().slice(-5)}`);
+    await page.fill('#release-modal-start', '2026-12-01');
+    await page.fill('#release-modal-date', '2026-11-01');
+    await page.click('#release-modal-save');
+    const toast = page.locator('#notification-toast');
+    await expect(toast).toBeVisible();
+    await expect(toast).toContainText('Release date must not be before start date');
+  });
+
+  test('release name max 20 characters is enforced by backend', async ({ page }) => {
+    // Focus first so initCharCounter fires on the empty value, then bypass maxlength
+    await page.focus('#release-modal-name');
+    await page.evaluate(() => {
+      (document.getElementById('release-modal-name') as HTMLInputElement).value = 'a'.repeat(21);
+    });
+    await page.click('#release-modal-save');
+    const err = page.locator('#release-modal-error');
+    await expect(err).toBeVisible();
+    await expect(err).toContainText('must not exceed 20 characters');
+  });
+
+  test('release description max 200 characters is enforced by backend', async ({ page }) => {
+    await page.fill('#release-modal-name', `DescVal_${Date.now().toString().slice(-5)}`);
+    await page.focus('#release-modal-desc');
+    await page.evaluate(() => {
+      (document.getElementById('release-modal-desc') as HTMLTextAreaElement).value = 'a'.repeat(201);
+    });
+    await page.click('#release-modal-save');
+    const err = page.locator('#release-modal-error');
+    await expect(err).toBeVisible();
+    await expect(err).toContainText('must not exceed 200 characters');
   });
 });

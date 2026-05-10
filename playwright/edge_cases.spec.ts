@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, openIssueByTitle, navigateTo } from './helpers/test-utils';
+import { createIssue, createRelease, openIssueByTitle, navigateTo } from './helpers/test-utils';
 
 test.describe('Edge Cases and Validation', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -66,7 +66,7 @@ test.describe('Edge Cases and Validation', () => {
     // Create a label
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'KeepLabel');
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await expect(page.locator('#ps-labels-list')).toContainText('KeepLabel');
 
     // Find and click the delete button for this label
@@ -123,7 +123,7 @@ test.describe('Edge Cases and Validation', () => {
     // Create a label
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'AssignedLabel');
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
 
     // Go back to board
     await navigateTo(page, 'board');
@@ -162,7 +162,7 @@ test.describe('Edge Cases and Validation', () => {
     // First create a label
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'PersistLabel');
-    await page.click('#ps-add-label-btn');
+    await page.press('#ps-new-label-input', 'Enter');
     await navigateTo(page, 'board');
 
     await createIssue(page, {
@@ -291,5 +291,63 @@ test.describe('Edge Cases and Validation', () => {
 
     // Expect 404 Not Found
     expect(response.status()).toBe(404);
+  });
+});
+
+// ─── Release Edge Cases ───────────────────────────────────────────────────────
+
+test.describe('Release Edge Cases', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+    await navigateTo(page, 'releases');
+  });
+
+  test('duplicate release name in same project is rejected', async ({ page }) => {
+    const name = `Alpha_${Date.now().toString().slice(-6)}`;
+    await createRelease(page, { name });
+
+    // Try to create again with the same name
+    await page.click('.release-add-btn');
+    await expect(page.locator('#release-modal-overlay')).toBeVisible();
+    await page.fill('#release-modal-name', name);
+    await page.click('#release-modal-save');
+    const err = page.locator('#release-modal-error');
+    await expect(err).toBeVisible();
+    await expect(err).toContainText('already exists');
+    await page.click('#release-modal-cancel');
+  });
+
+  test('same release name is allowed in different projects', async ({ page }) => {
+    // Create a second project
+    await navigateTo(page, 'system-settings');
+    await page.click('#add-project-btn');
+    await expect(page.locator('#project-modal-overlay')).toBeVisible();
+    const projectName = `scopeD_${Date.now()}`.slice(0, 15);
+    await page.fill('#project-name', projectName);
+    await page.click('#project-modal-save');
+    await expect(page.locator('#project-modal-overlay')).toBeHidden();
+
+    const sharedName = `Shared_${Date.now().toString().slice(-5)}`;
+
+    // Create in default project
+    await navigateTo(page, 'releases');
+    await page.click('#project-selector-btn');
+    await page.click('#project-selector-options .custom-option:has-text("default")');
+    await createRelease(page, { name: sharedName });
+
+    // Switch to new project and create with the same name — should succeed
+    await page.click('#project-selector-btn');
+    await page.click(`#project-selector-options .custom-option:has-text("${projectName}")`);
+    await createRelease(page, { name: sharedName });
+    await expect(page.locator('.release-row')).toContainText(sharedName);
+  });
+
+  test('trigger dialog with 0 issues has disabled archive checkbox', async ({ page }) => {
+    const name = `ZeroIssues_${Date.now().toString().slice(-5)}`;
+    await createRelease(page, { name });
+
+    await page.locator(`.release-row:has-text("${name}") .release-trigger-btn`).click();
+    await expect(page.locator('#release-archive-done')).toBeDisabled();
+    await page.click('#release-dialog-cancel');
   });
 });

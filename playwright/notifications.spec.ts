@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 import crypto from 'node:crypto';
 import {
-  createIssue, openIssueByTitle, navigateTo,
+  createIssue, createRelease, triggerRelease, openIssueByTitle, navigateTo,
   selectPriority, waitForToast,
 } from './helpers/test-utils';
 
@@ -150,14 +150,14 @@ test.describe('Notifications', () => {
       // Max 15 chars; use last 8 digits of timestamp to stay unique
       const name = `L${Date.now().toString().slice(-8)}`;
       await page.fill('#ps-new-label-input', name);
-      await page.click('#ps-add-label-btn');
+      await page.press('#ps-new-label-input', 'Enter');
       await waitForToast(page, 'Label created');
     });
 
     test('label deleted', async ({ page }) => {
       const name = `D${Date.now().toString().slice(-8)}`;
       await page.fill('#ps-new-label-input', name);
-      await page.click('#ps-add-label-btn');
+      await page.press('#ps-new-label-input', 'Enter');
       await expect(page.locator('#ps-labels-list')).toContainText(name);
       // Delete it
       const labelItem = page.locator(`#ps-labels-list .label-item:has-text("${name}")`);
@@ -204,6 +204,58 @@ test.describe('Notifications', () => {
       await page.click('#user-modal-save');
       await expect(page.locator('#user-modal-overlay')).toBeHidden();
       await waitForToast(page, 'User updated');
+    });
+  });
+
+  test.describe('Release', () => {
+    test.beforeEach(async ({ page }) => {
+      await navigateTo(page, 'releases');
+    });
+
+    test('release created', async ({ page }) => {
+      await createRelease(page, { name: `NR_${Date.now().toString().slice(-7)}` });
+      await waitForToast(page, 'Release created');
+    });
+
+    test('release updated', async ({ page }) => {
+      const name = `NU_${Date.now().toString().slice(-7)}`;
+      await createRelease(page, { name });
+      await page.locator(`.release-row:has-text("${name}") .release-card-left`).click();
+      await expect(page.locator('#release-modal-overlay')).toBeVisible();
+      await page.fill('#release-modal-name', `${name}X`);
+      await page.click('#release-modal-save');
+      await waitForToast(page, 'Release updated');
+    });
+
+    test('release closed', async ({ page }) => {
+      const name = `NC_${Date.now().toString().slice(-7)}`;
+      await createRelease(page, { name });
+      await triggerRelease(page, name, false);
+      await waitForToast(page, 'Release closed');
+    });
+
+    test('release reopened', async ({ page }) => {
+      const name = `NRO_${Date.now().toString().slice(-6)}`;
+      await createRelease(page, { name });
+      await triggerRelease(page, name, false);
+      await waitForToast(page, 'Release closed');
+      await page.locator(`.release-row:has-text("${name}") .release-card-left`).click();
+      await expect(page.locator('#release-modal-overlay')).toBeVisible();
+      await page.click('#release-modal-reopen');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      await page.click('#confirm-ok-btn');
+      await waitForToast(page, 'Release reopened');
+    });
+
+    test('release deleted', async ({ page }) => {
+      const name = `ND_${Date.now().toString().slice(-7)}`;
+      await createRelease(page, { name });
+      await page.locator(`.release-row:has-text("${name}") .release-card-left`).click();
+      await expect(page.locator('#release-modal-overlay')).toBeVisible();
+      await page.click('#release-modal-delete');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      await page.click('#confirm-ok-btn');
+      await waitForToast(page, 'Release deleted');
     });
   });
 });
