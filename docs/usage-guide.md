@@ -23,6 +23,24 @@ wuFlow is built with a clearly arranged layout that combines all relevant inform
 
 <img src="screenshots/board.png" alt="Kanban Board">
 
+## Projects
+
+Projects group issues into separate workstreams or areas of responsibility. Each issue belongs to exactly one project. A **default project** (id=1) is always present and cannot be deleted.
+
+Use the **project selector** at the top of the interface to switch between projects. The board, backlog, planning sidebar, and releases view always reflect the currently selected project.
+
+Some properties are project-scoped, meaning they only exist within a specific project:
+- **Labels** are defined per project in the Project Settings view.
+- **Releases** are created per project in the Releases view.
+- **Board columns** (status names) are configured per project in the Project Settings view.
+
+When you reassign an existing issue to a different project, these project-scoped fields are automatically reset: 
+- the label and release are cleared
+- the status is set back to **Open**. 
+A notification informs you about this when the change is saved. This ensures the issue does not carry references that are invalid in the new project.
+
+Projects are created and managed by users with Sysadmin role in the System Settings view.
+
 ## Managing Issues
 
 ### What is an issue?
@@ -175,7 +193,7 @@ The filter bar adapts when you switch to the Releases view:
 The Project Settings View is available for users with Admin or Sysadmin role. It allows managing **board columns** and **labels** for the currently selected project. Switch between projects using the project selector at the top of the view to manage settings per project.
 
 ### Board Columns
-The board has two fixed columns (Todo and Done) and up to four configurable middle columns (Stage1–Stage4). By default, Stage1 is named "Pending" and Stage2 is named "Working"; Stage3 and Stage4 are empty (hidden).
+Board columns can be configured per project. The board has two fixed columns (Todo and Done) and up to four configurable middle columns (Stage1–Stage4). By default, Stage1 is named "Pending" and Stage2 is named "Working"; Stage3 and Stage4 are empty (hidden).
 
 In the Board Columns section you see six boxes side by side representing the full column layout. The Todo and Done boxes are fixed (greyed out). The four middle boxes each have an editable name field:
 - **Active column**: has a non-empty name — the column is visible on the board and in the issue status dropdown.
@@ -195,7 +213,7 @@ Labels are scoped to a project. Create labels which can be used in issues to cat
 The System Settings View is only available for users with Sysadmin role and allows to configure **projects** and **users**.
 
 ### Projects
-Projects group issues into separate workstreams or areas of responsibility. Each issue belongs to exactly one project. A **default project** (id=1) is always present and cannot be deleted.
+Projects can be managed here:
 - **Create** a new project by entering a name (max 15 characters) and an optional description (max 100 characters), then click "Save".
 - **Rename or update** a project by clicking on it, changing the values, and saving. The project name must be unique.
 - **Delete** a project by clicking "Delete". Deletion is only possible if no issues are currently assigned to that project. The default project cannot be deleted.

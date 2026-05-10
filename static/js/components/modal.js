@@ -1,6 +1,6 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
-import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS } from '../domain-constants.js';
@@ -930,12 +930,15 @@ function setupSidebarImmediateSave() {
       const projectId = val ? Number.parseInt(val) : 1;
       localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       if (state.currentIssue) {
-        const updatedIssue = { ...state.currentIssue, project_id: projectId, label: null };
+        const updatedIssue = { ...state.currentIssue, project_id: projectId, label: null, release_id: null, status: STATUS_OPEN };
         try {
           const saved = await saveIssueWithConflictCheck(updatedIssue, 'Project updated');
           if (saved) {
             state.currentIssue.project_id = projectId;
             state.currentIssue.label = null;
+            state.currentIssue.release_id = null;
+            state.currentIssue.status = STATUS_OPEN;
+            showNotification('Project updated. Label, release and status were reset.', 'info');
           }
         } catch (err) {
           showNotification(err.message, 'error');
@@ -1392,6 +1395,18 @@ function renderProjectOptions(projects) {
         document.getElementById('label-select').value = '';
         document.getElementById('label-text').textContent = 'No Label';
       }).catch(err => console.error('Failed to reload labels for project', err));
+      fetchReleases(project.id).then(releases => {
+        renderReleaseOptions(releases, null);
+      }).catch(err => console.error('Failed to reload releases for project', err));
+      fetchStatusConfig(project.id).then(cfg => {
+        state.statusConfig = cfg;
+        renderStatusOptions();
+        const statusInput = document.getElementById('status');
+        const statusText = document.getElementById('status-text');
+        if (statusInput) statusInput.value = STATUS_OPEN;
+        if (statusText) statusText.textContent = 'Open';
+        document.getElementById('status-options')?.classList.add('hidden');
+      }).catch(err => console.error('Failed to reload status config for project', err));
     });
     optionsContainer.appendChild(div);
   });

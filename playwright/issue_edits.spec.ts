@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, openIssueByTitle, selectPriority } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, openIssueByTitle, selectPriority, waitForToast } from './helpers/test-utils';
 
 test.describe('Issue Edit Operations', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -220,4 +220,78 @@ test.describe('Issue Edit Operations', () => {
 
   // Note: Label editing tests removed as the UI doesn't support changing labels
   // after issue creation in the current implementation
+});
+
+test.describe('Project change resets project-scoped fields', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+  });
+
+  test('changing project resets label, release and status to defaults', async ({ page }) => {
+    // Create a second project
+    await navigateTo(page, 'system-settings');
+    await page.click('#add-project-btn');
+    await expect(page.locator('#project-modal-overlay')).toBeVisible();
+    const projectName = `ResetTest_${Date.now().toString().slice(-5)}`;
+    await page.fill('#project-name', projectName);
+    await page.click('#project-modal-save');
+    await expect(page.locator('#project-modal-overlay')).toBeHidden();
+
+    // Create a label in the default project
+    await navigateTo(page, 'project-settings');
+    await page.click('#project-selector-btn');
+    await page.click('#project-selector-options .custom-option:has-text("default")');
+    const labelName = `Lbl_${Date.now().toString().slice(-5)}`;
+    await page.fill('#ps-new-label-input', labelName);
+    await page.press('#ps-new-label-input', 'Enter');
+    await expect(page.locator('#ps-labels-list')).toContainText(labelName);
+
+    // Create a release in the default project
+    await navigateTo(page, 'releases');
+    const relName = `Rel_${Date.now().toString().slice(-5)}`;
+    await createRelease(page, { name: relName });
+    await waitForToast(page, 'Release created');
+
+    // Create an issue with label, release and a non-Open status
+    await navigateTo(page, 'board');
+    await createIssue(page, { title: 'ProjectChangeIssue', status: 'Todo', label: labelName });
+
+    // Open the issue and assign the release
+    await openIssueByTitle(page, 'ProjectChangeIssue');
+    await page.click('#release-trigger');
+    await page.click(`#release-options .custom-option:has-text("${relName}")`);
+    await waitForToast(page, 'Release updated');
+
+    // Verify label, release and status are set
+    await expect(page.locator('#label-text')).toContainText(labelName);
+    await expect(page.locator('#release-text')).toContainText(relName);
+    await expect(page.locator('#status-text')).toContainText('Todo');
+
+    // Change the project inside the modal
+    await page.click('#project-trigger');
+    await page.click(`#project-options .custom-option:has-text("${projectName}")`);
+
+    // Toast must inform the user about the reset
+    await waitForToast(page, 'Project updated. Label, release and status were reset.');
+
+    // Label, release and status must be reset immediately in the UI
+    await expect(page.locator('#label-text')).toContainText('No Label');
+    await expect(page.locator('#release-text')).toContainText('No Release');
+    await expect(page.locator('#status-text')).toContainText('Open');
+
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    // Issue now belongs to the new project with Open status (backlog) — switch project and view
+    await page.click('#project-selector-btn');
+    await page.click(`#project-selector-options .custom-option:has-text("${projectName}")`);
+    await navigateTo(page, 'backlog');
+
+    // Reopen the issue and confirm the reset values were persisted
+    await openIssueByTitle(page, 'ProjectChangeIssue');
+    await expect(page.locator('#label-text')).toContainText('No Label');
+    await expect(page.locator('#release-text')).toContainText('No Release');
+    await expect(page.locator('#status-text')).toContainText('Open');
+    await page.click('#done-btn');
+  });
 });
