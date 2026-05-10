@@ -250,24 +250,47 @@ func createTables() error {
 // runMigrations applies incremental schema and data migrations to existing databases.
 // All migrations must be idempotent so they are safe to run on every startup.
 func runMigrations() error {
-	// TODO: Migration code, can be removed in a later version.
-	// Add project_id column to labels if it doesn't exist (migration for existing DBs).
-	// SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so check column existence first.
-	var labelColCount int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&labelColCount); err != nil {
+	// TODO: Migration code for 1.2.0, can be removed in a later version.
+	if err := migrateLabelsAddProjectIDColumn(); err != nil {
+		return err
+	}
+	// TODO: Migration code for 1.2.0, can be removed in a later version.
+	if err := migrateIssueStatusValues(); err != nil {
+		return err
+	}
+	// TODO: Migration code for 1.3.0, can be removed in a later version.
+	if err := migrateIssuesAddReleaseIDColumn(); err != nil {
+		return err
+	}
+	// TODO: Migration code for 1.3.0 , can be removed in a later version.
+	if err := migrateLabelsAddProjectForeignKey(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// migrateLabelsAddProjectIDColumn adds project_id to labels for existing DBs that predate the column.
+// SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so column existence is checked first.
+func migrateLabelsAddProjectIDColumn() error {
+	var count int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&count); err != nil {
 		slog.Error("Failed to check for project_id column in labels", "error", err)
 		return err
 	}
-	if labelColCount == 0 {
-		if _, err := DB.Exec(`ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
-			slog.Error("Failed to add project_id column to labels", "error", err)
-			return err
-		}
-		slog.Info("Migrated labels table: added project_id column (existing labels assigned to project 1)")
+	if count > 0 {
+		return nil
 	}
+	if _, err := DB.Exec(`ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
+		slog.Error("Failed to add project_id column to labels", "error", err)
+		return err
+	}
+	slog.Info("Migrated labels table: added project_id column (existing labels assigned to project 1)")
+	return nil
+}
 
-	// TODO: Migration code, can be removed in a later version.
-	// Migrate Pending/Working status values to Stage1/Stage2 (idempotent).
+// migrateIssueStatusValues renames legacy Pending/Working status values to Stage1/Stage2
+// and seeds default status config for projects that don't have one yet.
+func migrateIssueStatusValues() error {
 	if res, err := DB.Exec(`UPDATE issues SET status = 'Stage1' WHERE status = 'Pending'`); err != nil {
 		slog.Error("Failed to migrate Pending -> Stage1", "error", err)
 		return err
@@ -280,27 +303,93 @@ func runMigrations() error {
 	} else if n, _ := res.RowsAffected(); n > 0 {
 		slog.Info("Migrated issues: Working -> Stage2", "count", n)
 	}
-	// Seed default status/column config for all existing projects that don't have one yet.
 	if _, err := DB.Exec(`INSERT OR IGNORE INTO project_status_config (project_id) SELECT id FROM projects`); err != nil {
 		slog.Error("Failed to seed project_status_config", "error", err)
 		return err
 	}
+	return nil
+}
 
-	// TODO: Migration code, can be removed in a later version.
-	// Add release_id column to issues if it doesn't exist.
-	var releaseColCount int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('issues') WHERE name='release_id'`).Scan(&releaseColCount); err != nil {
+// migrateIssuesAddReleaseIDColumn adds release_id to issues for existing DBs that predate the column.
+func migrateIssuesAddReleaseIDColumn() error {
+	var count int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('issues') WHERE name='release_id'`).Scan(&count); err != nil {
 		slog.Error("Failed to check for release_id column in issues", "error", err)
 		return err
 	}
-	if releaseColCount == 0 {
-		if _, err := DB.Exec(`ALTER TABLE issues ADD COLUMN release_id INTEGER REFERENCES releases(id) ON DELETE SET NULL`); err != nil {
-			slog.Error("Failed to add release_id column to issues", "error", err)
-			return err
-		}
-		slog.Info("Migrated issues table: added release_id column")
+	if count > 0 {
+		return nil
+	}
+	if _, err := DB.Exec(`ALTER TABLE issues ADD COLUMN release_id INTEGER REFERENCES releases(id) ON DELETE SET NULL`); err != nil {
+		slog.Error("Failed to add release_id column to issues", "error", err)
+		return err
+	}
+	slog.Info("Migrated issues table: added release_id column")
+	return nil
+}
+
+// migrateLabelsAddProjectForeignKey rebuilds the labels table to add the missing
+// FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE constraint.
+// SQLite doesn't support ADD CONSTRAINT, so the table must be recreated.
+func migrateLabelsAddProjectForeignKey() error {
+	var count int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_list('labels') WHERE "table" = 'projects'`).Scan(&count); err != nil {
+		slog.Error("Failed to check foreign key on labels.project_id", "error", err)
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	if _, err := DB.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		slog.Error("Failed to disable foreign keys before labels migration", "error", err)
+		return err
+	}
+	tx, err := DB.Begin()
+	if err != nil {
+		slog.Error("Failed to begin transaction for labels migration", "error", err)
+		return err
+	}
+	res, err := tx.Exec(`DELETE FROM labels WHERE project_id NOT IN (SELECT id FROM projects)`)
+	if err != nil {
+		_ = tx.Rollback()
+		slog.Error("Failed to delete orphaned labels before FK migration", "error", err)
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		slog.Warn("Migrated labels table: deleted orphaned labels with no matching project", "count", n)
 	}
 
+	steps := []struct {
+		desc string
+		sql  string
+	}{
+		{"create labels_new", `CREATE TABLE labels_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			color TEXT NOT NULL,
+			project_id INTEGER NOT NULL DEFAULT 1,
+			FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+		)`},
+		{"copy rows into labels_new", `INSERT INTO labels_new SELECT id, name, color, project_id FROM labels`},
+		{"drop old labels table", `DROP TABLE labels`},
+		{"rename labels_new to labels", `ALTER TABLE labels_new RENAME TO labels`},
+	}
+	for _, s := range steps {
+		if _, err := tx.Exec(s.sql); err != nil {
+			_ = tx.Rollback()
+			slog.Error("Failed to "+s.desc, "error", err)
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		slog.Error("Failed to commit labels migration", "error", err)
+		return err
+	}
+	if _, err := DB.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		slog.Error("Failed to re-enable foreign keys after labels migration", "error", err)
+		return err
+	}
+	slog.Info("Migrated labels table: added ON DELETE CASCADE foreign key for project_id")
 	return nil
 }
 

@@ -4,6 +4,7 @@
 - Improved styles of fonts and buttons
 - Added Release feature
 - Bumped Go to 1.25.10 (fixing high security issue in net package)
+- Fixed missing project_id constraint in labels database table and added migration code for existing databases
 
 # 1.2.1
 
