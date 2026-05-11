@@ -165,7 +165,15 @@ export async function renderReleasesView(forceRefresh = false) {
     }
     return true;
   });
-  const openReleases = releases.filter(r => r.status === 'open');
+  const openReleases = releases.filter(r => r.status === 'open')
+    .sort((a, b) => {
+      const da = a.release_date ? new Date(a.release_date) : null;
+      const db = b.release_date ? new Date(b.release_date) : null;
+      if (da && db) return da - db;
+      if (da) return -1;
+      if (db) return 1;
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
   const closedReleases = releases.filter(r => r.status === 'closed')
     .sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
 

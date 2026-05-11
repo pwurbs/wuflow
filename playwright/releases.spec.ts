@@ -400,6 +400,35 @@ test.describe('Visual State', () => {
   });
 });
 
+// ─── Open Release Sort Order ─────────────────────────────────────────────────
+
+test.describe('Open Release Sort Order', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+    await navigateTo(page, 'releases');
+  });
+
+  test('release with nearer planned date appears above one with a further date', async ({ page }) => {
+    const near = `Near_${Date.now().toString().slice(-6)}`;
+    const far  = `Far_${Date.now().toString().slice(-6)}`;
+    await createRelease(page, { name: far,  releaseDate: '2028-12-01' });
+    await createRelease(page, { name: near, releaseDate: '2027-01-01' });
+
+    const names = await page.locator('.release-card-name').allTextContents();
+    expect(names.indexOf(near)).toBeLessThan(names.indexOf(far));
+  });
+
+  test('release without a planned date appears below one with a date', async ({ page }) => {
+    const dated   = `Dated_${Date.now().toString().slice(-6)}`;
+    const undated = `Undated_${Date.now().toString().slice(-6)}`;
+    await createRelease(page, { name: undated });
+    await createRelease(page, { name: dated, releaseDate: '2027-06-01' });
+
+    const names = await page.locator('.release-card-name').allTextContents();
+    expect(names.indexOf(dated)).toBeLessThan(names.indexOf(undated));
+  });
+});
+
 // ─── Role Authorization ───────────────────────────────────────────────────────
 
 test.describe('Role Authorization – Releases', () => {

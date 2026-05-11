@@ -691,6 +691,36 @@ describe('releases', () => {
       expect(names.indexOf('LateRelease')).toBeLessThan(names.indexOf('EarlyRelease'));
     });
 
+    it('sorts open releases with a release date soonest-first', async () => {
+      state.releases = [
+        { id: 1, name: 'FarRelease', status: 'open', release_date: '2026-12-01T00:00:00Z', description: '', owner: null },
+        { id: 2, name: 'NearRelease', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null },
+      ];
+      await renderReleasesView();
+      const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
+      expect(names.indexOf('NearRelease')).toBeLessThan(names.indexOf('FarRelease'));
+    });
+
+    it('places open releases without a release date after those with one', async () => {
+      state.releases = [
+        { id: 1, name: 'Undated', status: 'open', release_date: null, description: '', owner: null },
+        { id: 2, name: 'Dated', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null },
+      ];
+      await renderReleasesView();
+      const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
+      expect(names.indexOf('Dated')).toBeLessThan(names.indexOf('Undated'));
+    });
+
+    it('sorts undated open releases by creation date oldest-first', async () => {
+      state.releases = [
+        { id: 1, name: 'NewerUndated', status: 'open', release_date: null, created_at: '2026-05-01T00:00:00Z', description: '', owner: null },
+        { id: 2, name: 'OlderUndated', status: 'open', release_date: null, created_at: '2026-01-01T00:00:00Z', description: '', owner: null },
+      ];
+      await renderReleasesView();
+      const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
+      expect(names.indexOf('OlderUndated')).toBeLessThan(names.indexOf('NewerUndated'));
+    });
+
     it('deduplicates issues from archive, open fetch, and state when refreshing cache', async () => {
       const shared = { id: 1, release_id: 10, status: 'Done' };
       api.fetchArchivedIssuesByProject.mockResolvedValue([shared]);
