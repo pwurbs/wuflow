@@ -328,9 +328,7 @@ func migrateIssuesAddReleaseIDColumn() error {
 	return nil
 }
 
-// migrateLabelsAddProjectForeignKey rebuilds the labels table to add the missing
-// FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE constraint.
-// SQLite doesn't support ADD CONSTRAINT, so the table must be recreated.
+// SQLite doesn't support ADD CONSTRAINT, so the table must be recreated to add the FK.
 func migrateLabelsAddProjectForeignKey() error {
 	var count int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_list('labels') WHERE "table" = 'projects'`).Scan(&count); err != nil {
@@ -344,6 +342,7 @@ func migrateLabelsAddProjectForeignKey() error {
 		slog.Error("Failed to disable foreign keys before labels migration", "error", err)
 		return err
 	}
+	defer DB.Exec(`PRAGMA foreign_keys = ON`)
 	tx, err := DB.Begin()
 	if err != nil {
 		slog.Error("Failed to begin transaction for labels migration", "error", err)
@@ -383,10 +382,6 @@ func migrateLabelsAddProjectForeignKey() error {
 	}
 	if err := tx.Commit(); err != nil {
 		slog.Error("Failed to commit labels migration", "error", err)
-		return err
-	}
-	if _, err := DB.Exec(`PRAGMA foreign_keys = ON`); err != nil {
-		slog.Error("Failed to re-enable foreign keys after labels migration", "error", err)
 		return err
 	}
 	slog.Info("Migrated labels table: added ON DELETE CASCADE foreign key for project_id")
