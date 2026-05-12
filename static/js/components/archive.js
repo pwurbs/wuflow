@@ -124,7 +124,7 @@ async function performDropUpdate() {
   ];
 
   await Promise.all(updates);
-  if (refreshAppCallback) refreshAppCallback();
+  renderArchive();
 }
 
 export function setupArchiveView(refreshApp, openModal) {

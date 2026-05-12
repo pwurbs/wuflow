@@ -1,10 +1,12 @@
-import { state, isFilterActive } from '../state.js';
+import { state, isFilterActive, toggleBacklogReleaseFilter } from '../state.js';
 import { STATUS_OPEN, STATUS_TODO } from '../status-config.js';
-import { fetchOpenIssuesByProject } from '../api.js';
+import { fetchOpenIssuesByProject, updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
+import { getDraggedCard } from '../drag.js';
+import { escapeHtml } from '../utils.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
@@ -12,6 +14,94 @@ let openLoaded = false;
 
 export function resetOpenLoaded() {
   openLoaded = false;
+}
+
+function buildLaneCard(releaseId, name, count) {
+  const isChecked = state.filter.releaseFilterIds.includes(releaseId);
+  const card = document.createElement('div');
+  card.className = 'release-lane-card' + (isChecked ? ' active' : '');
+  card.innerHTML = `
+    <span class="release-lane-name">${escapeHtml(name)}</span>
+    <span class="release-lane-count">${count}</span>
+  `;
+
+  card.addEventListener('click', () => {
+    toggleBacklogReleaseFilter(releaseId);
+    renderBacklog();
+  });
+
+  card.addEventListener('dragover', (e) => {
+    if (getDraggedCard() && userCan(state.currentUser, ACTION_UPDATE_ISSUE)) {
+      e.preventDefault();
+      card.classList.add('drag-over');
+    }
+  });
+  card.addEventListener('dragenter', (e) => e.preventDefault());
+  card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+
+  card.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    card.classList.remove('drag-over');
+    if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
+    const draggedCard = getDraggedCard();
+    if (!draggedCard) return;
+    const issueId = Number.parseInt(draggedCard.dataset.id, 10);
+    const issue = state.issues.find(i => i.id === issueId);
+    if (!issue || issue.release_id === releaseId) return;
+    const updated = { ...issue, release_id: releaseId };
+    const result = await updateIssue(updated);
+    if (result.issue) {
+      Object.assign(issue, result.issue);
+      renderBacklog();
+    }
+  });
+
+  return card;
+}
+
+function renderBacklogReleaseLanes() {
+  const container = document.getElementById('backlog-release-lanes');
+  if (!container) return;
+
+  const openReleases = state.releases.filter(r => r.status === 'open')
+    .sort((a, b) => {
+      const da = a.release_date ? new Date(a.release_date) : null;
+      const db = b.release_date ? new Date(b.release_date) : null;
+      if (da && db) return da - db;
+      if (da) return -1;
+      if (db) return 1;
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
+
+  // Remove stale filter IDs; null (No Release) is always valid
+  const validIds = new Set([null, ...openReleases.map(r => r.id)]);
+  state.filter.releaseFilterIds = state.filter.releaseFilterIds.filter(id => validIds.has(id));
+
+  if (openReleases.length === 0) {
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  container.innerHTML = `
+    <div class="backlog-header">
+      <h2>Open Releases</h2>
+    </div>
+    <div class="release-lanes-list"></div>
+  `;
+  const list = container.querySelector('.release-lanes-list');
+
+  openReleases.forEach(rel => {
+    const count = state.issues.filter(i =>
+      i.release_id === rel.id && (i.status === STATUS_OPEN || i.status === STATUS_TODO)
+    ).length;
+    list.appendChild(buildLaneCard(rel.id, rel.name, count));
+  });
+
+  const unassignedCount = state.issues.filter(i =>
+    i.release_id === null && (i.status === STATUS_OPEN || i.status === STATUS_TODO)
+  ).length;
+  list.appendChild(buildLaneCard(null, 'No Release', unassignedCount));
 }
 
 export async function renderBacklog(refreshApp, openModal) {
@@ -30,6 +120,8 @@ export async function renderBacklog(refreshApp, openModal) {
     }
     openLoaded = true;
   }
+
+  renderBacklogReleaseLanes();
 
   const backlogList = document.getElementById('backlog-list');
   const moveToTodoList = document.getElementById('move-to-todo-list');
@@ -88,7 +180,7 @@ export function setupBacklogView(refreshApp, openModal) {
         ...getListUpdates('move-to-todo-list', STATUS_TODO)
       ];
       await Promise.all(updates);
-      if (refreshAppCallback) refreshAppCallback();
+      renderBacklog();
     }
   };
 

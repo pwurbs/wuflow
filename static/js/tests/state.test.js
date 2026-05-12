@@ -13,6 +13,8 @@ import {
   setFilterRelease,
   setFilterReleaseOwner,
   setFilterReleaseSearch,
+  toggleBacklogReleaseFilter,
+  clearBacklogReleaseFilter,
 } from '../state.js';
 
 describe('state', () => {
@@ -21,7 +23,7 @@ describe('state', () => {
     state.issues = [];
     state.releases = [];
     state.currentIssue = null;
-    state.filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null, releaseOwnerFilter: null, releaseSearch: '' };
+    state.filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null, releaseOwnerFilter: null, releaseSearch: '', releaseFilterIds: [] };
   });
 
   describe('setFilterLabel', () => {
@@ -230,6 +232,45 @@ describe('state', () => {
     it('should return false when release search is whitespace only', () => {
       state.filter.releaseSearch = '   ';
       expect(isFilterActive()).toBe(false);
+    });
+
+    it('should return true when releaseFilterIds is non-empty', () => {
+      state.filter.releaseFilterIds = [1];
+      expect(isFilterActive()).toBe(true);
+    });
+
+    it('should return false when releaseFilterIds is empty', () => {
+      state.filter.releaseFilterIds = [];
+      expect(isFilterActive()).toBe(false);
+    });
+  });
+
+  describe('toggleBacklogReleaseFilter', () => {
+    it('should add a release id when not present', () => {
+      toggleBacklogReleaseFilter(5);
+      expect(state.filter.releaseFilterIds).toContain(5);
+    });
+
+    it('should remove a release id when already present', () => {
+      state.filter.releaseFilterIds = [5, 10];
+      toggleBacklogReleaseFilter(5);
+      expect(state.filter.releaseFilterIds).not.toContain(5);
+      expect(state.filter.releaseFilterIds).toContain(10);
+    });
+
+    it('should support null as the No Release id', () => {
+      toggleBacklogReleaseFilter(null);
+      expect(state.filter.releaseFilterIds).toContain(null);
+      toggleBacklogReleaseFilter(null);
+      expect(state.filter.releaseFilterIds).not.toContain(null);
+    });
+  });
+
+  describe('clearBacklogReleaseFilter', () => {
+    it('should empty the releaseFilterIds array', () => {
+      state.filter.releaseFilterIds = [1, 2, null];
+      clearBacklogReleaseFilter();
+      expect(state.filter.releaseFilterIds).toHaveLength(0);
     });
   });
 });

@@ -2,7 +2,7 @@ import { updateIssue, archiveIssue } from './api.js';
 import { state } from './state.js';
 import { PRIORITY_NORMAL, PRIORITY_HIGH } from './domain-constants.js';
 import { STATUS_ARCHIVE } from './status-config.js';
-import { getDraggedCard, getDragAfterElement } from './drag.js';
+import { getDraggedCard, getDraggedCardOrigin, getDragAfterElement } from './drag.js';
 import { showNotification } from './utils.js';
 
 export async function handleMoveTop(issue, allIssuesInList, refreshCallback) {
@@ -131,6 +131,11 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
   section.addEventListener('dragleave', (e) => {
     if (!section.contains(e.relatedTarget) && list) {
       list.classList.remove('drag-over');
+      const draggedCard = getDraggedCard();
+      const origin = getDraggedCardOrigin();
+      if (draggedCard && origin?.parent) {
+        origin.parent.insertBefore(draggedCard, origin.nextSibling ?? null);
+      }
     }
   });
 

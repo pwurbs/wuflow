@@ -1,17 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderBacklog, setupBacklogView, resetOpenLoaded } from '../components/backlog.js'; // Adjust path as needed based on where test file is located
+import { renderBacklog, setupBacklogView, resetOpenLoaded } from '../components/backlog.js';
 import * as state from '../state.js';
 import * as card from '../components/card.js';
 import * as api from '../api.js';
+import * as dragModule from '../drag.js';
 
 // Mock dependencies
 vi.mock('../state.js', () => ({
   state: {
     issues: [],
-    filter: {},
+    releases: [],
+    filter: { releaseFilterIds: [] },
     currentUser: { role: 'admin' }
   },
   isFilterActive: vi.fn(),
+  toggleBacklogReleaseFilter: vi.fn(),
 }));
 
 vi.mock('../api.js', () => ({
@@ -55,6 +58,7 @@ vi.mock('../drag.js', () => ({
 describe('Backlog Component', () => {
   beforeEach(() => {
     document.body.innerHTML = `
+        <div id="backlog-release-lanes" class="hidden"></div>
         <div id="backlog-list"></div>
         <div id="move-to-todo-list"></div>
         <span id="backlog-count"></span>
@@ -199,6 +203,129 @@ describe('Backlog Component', () => {
     });
   });
 
+  describe('renderBacklogReleaseLanes', () => {
+    it('should hide the container when there are no open releases', async () => {
+      state.state.releases = [];
+      await renderBacklog(vi.fn(), vi.fn());
+      const container = document.getElementById('backlog-release-lanes');
+      expect(container.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should show release cards for each open release plus No Release', async () => {
+      state.state.releases = [
+        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+        { id: 2, name: 'v2.0', status: 'open', release_date: null, created_at: '2024-02-01' },
+        { id: 3, name: 'v3.0', status: 'closed', release_date: null, created_at: '2024-03-01' },
+      ];
+      state.state.issues = [];
+      await renderBacklog(vi.fn(), vi.fn());
+      const container = document.getElementById('backlog-release-lanes');
+      expect(container.classList.contains('hidden')).toBe(false);
+      const cards = container.querySelectorAll('.release-lane-card');
+      // 2 open releases + No Release card
+      expect(cards).toHaveLength(3);
+    });
+
+    it('should mark a lane card as active when its release id is in releaseFilterIds', async () => {
+      state.state.releases = [
+        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+      ];
+      state.state.filter.releaseFilterIds = [1];
+      state.state.issues = [];
+      await renderBacklog(vi.fn(), vi.fn());
+      const cards = document.querySelectorAll('.release-lane-card');
+      expect(cards[0].classList.contains('active')).toBe(true);
+    });
+
+    it('should display the correct issue count on each lane card', async () => {
+      state.state.releases = [
+        { id: 10, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+      ];
+      state.state.issues = [
+        { id: 1, title: 'A', status: 'Open', position: 0, release_id: 10 },
+        { id: 2, title: 'B', status: 'Todo', position: 1, release_id: 10 },
+        { id: 3, title: 'C', status: 'Open', position: 2, release_id: null },
+      ];
+      await renderBacklog(vi.fn(), vi.fn());
+      const cards = document.querySelectorAll('.release-lane-card');
+      // v1.0 card: 2 issues (Open + Board), No Release card: 1 issue
+      expect(cards[0].querySelector('.release-lane-count').textContent).toBe('2');
+      expect(cards[1].querySelector('.release-lane-count').textContent).toBe('1');
+    });
+
+    it('should sort open releases by release_date ascending', async () => {
+      state.state.releases = [
+        { id: 1, name: 'Far', status: 'open', release_date: '2025-12-01', created_at: '2024-01-01' },
+        { id: 2, name: 'Near', status: 'open', release_date: '2025-01-01', created_at: '2024-01-01' },
+      ];
+      state.state.issues = [];
+      await renderBacklog(vi.fn(), vi.fn());
+      const names = [...document.querySelectorAll('.release-lane-name')].map(el => el.textContent);
+      expect(names[0]).toBe('Near');
+      expect(names[1]).toBe('Far');
+    });
+
+    it('should toggle filter and re-render when a lane card is clicked', async () => {
+      state.state.releases = [
+        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+      ];
+      state.state.issues = [];
+      await renderBacklog(vi.fn(), vi.fn());
+      const card = document.querySelector('.release-lane-card');
+      card.click();
+      expect(state.toggleBacklogReleaseFilter).toHaveBeenCalledWith(1);
+    });
+
+    it('should assign a release to a dragged issue on drop', async () => {
+      state.state.releases = [
+        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+      ];
+      state.state.issues = [
+        { id: 99, title: 'Test', status: 'Open', position: 0, release_id: null },
+      ];
+      api.updateIssue.mockResolvedValueOnce({ issue: { id: 99, release_id: 1 } });
+
+      const mockCard = document.createElement('div');
+      mockCard.className = 'card';
+      mockCard.dataset.id = '99';
+      dragModule.getDraggedCard.mockReturnValue(mockCard);
+
+      await renderBacklog(vi.fn(), vi.fn());
+
+      const laneCard = document.querySelector('.release-lane-card');
+      const dropEvent = new Event('drop', { bubbles: false, cancelable: true });
+      laneCard.dispatchEvent(dropEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({ id: 99, release_id: 1 }));
+    });
+
+    it('should not call updateIssue if issue already has the target release', async () => {
+      state.state.releases = [
+        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+      ];
+      state.state.issues = [
+        { id: 99, title: 'Test', status: 'Open', position: 0, release_id: 1 },
+      ];
+
+      const mockCard = document.createElement('div');
+      mockCard.className = 'card';
+      mockCard.dataset.id = '99';
+      dragModule.getDraggedCard.mockReturnValue(mockCard);
+
+      await renderBacklog(vi.fn(), vi.fn());
+
+      const laneCard = document.querySelector('.release-lane-card');
+      const dropEvent = new Event('drop', { bubbles: false, cancelable: true });
+      laneCard.dispatchEvent(dropEvent);
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(api.updateIssue).not.toHaveBeenCalled();
+    });
+  });
+
   describe('setupBacklogView', () => {
     it('should setup event listeners including drag and drop', () => {
       // Create elements that setupBacklogView expects
@@ -297,7 +424,6 @@ describe('Backlog Component', () => {
         id: 1,
         position: 1
       }));
-      expect(refreshApp).toHaveBeenCalled();
     });
   });
 });

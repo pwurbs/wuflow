@@ -194,6 +194,39 @@ describe('filterIssues', () => {
       const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null };
       expect(filterIssues(issues, filter)).toHaveLength(2);
     });
+
+    it('should filter by releaseFilterIds (OR logic) matching any selected release', () => {
+      const issues = [
+        createIssue({ id: 1, release_id: 10 }),
+        createIssue({ id: 2, release_id: 20 }),
+        createIssue({ id: 3, release_id: 30 }),
+      ];
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [10, 20] };
+      const result = filterIssues(issues, filter);
+      expect(result).toHaveLength(2);
+      expect(result.map(i => i.id)).toEqual(expect.arrayContaining([1, 2]));
+    });
+
+    it('should include unassigned issues when null is in releaseFilterIds', () => {
+      const issues = [
+        createIssue({ id: 1, release_id: 10 }),
+        createIssue({ id: 2, release_id: null }),
+        createIssue({ id: 3, release_id: null }),
+      ];
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [null] };
+      const result = filterIssues(issues, filter);
+      expect(result).toHaveLength(2);
+      expect(result.every(i => i.release_id === null)).toBe(true);
+    });
+
+    it('should return all issues when releaseFilterIds is empty', () => {
+      const issues = [
+        createIssue({ id: 1, release_id: 10 }),
+        createIssue({ id: 2, release_id: null }),
+      ];
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [] };
+      expect(filterIssues(issues, filter)).toHaveLength(2);
+    });
   });
 
   describe('combined filters', () => {

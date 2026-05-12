@@ -50,6 +50,11 @@ export function filterIssues(issues, filter, currentUserId) {
     result = result.filter(issue => matchesRelease(issue, filter.releaseId));
   }
 
+  // Backlog lane multi-release filter (OR logic)
+  if (filter.releaseFilterIds?.length) {
+    result = result.filter(issue => matchesReleaseIds(issue, filter.releaseFilterIds));
+  }
+
   // Search filter (matches title or description)
   if (filter.search) {
     const term = filter.search.trim().toLowerCase();
@@ -67,6 +72,10 @@ export function filterIssues(issues, filter, currentUserId) {
 function matchesRelease(issue, releaseId) {
   if (releaseId === '__no_release__') return !issue.release_id;
   return issue.release_id === releaseId;
+}
+
+function matchesReleaseIds(issue, releaseFilterIds) {
+  return releaseFilterIds.includes(issue.release_id);
 }
 
 /**

@@ -13,6 +13,7 @@ export const state = {
     releaseId: null,
     releaseOwnerFilter: null,
     releaseSearch: '',
+    releaseFilterIds: [],
   },
 };
 
@@ -65,14 +66,26 @@ export function setFilterReleaseOwner(id) {
   state.filter.releaseOwnerFilter = id;
 }
 
+export function toggleBacklogReleaseFilter(releaseId) {
+  const ids = state.filter.releaseFilterIds;
+  const idx = ids.indexOf(releaseId);
+  if (idx === -1) ids.push(releaseId);
+  else ids.splice(idx, 1);
+}
+
+export function clearBacklogReleaseFilter() {
+  state.filter.releaseFilterIds = [];
+}
+
 export function setFilterReleaseSearch(term) {
   state.filter.releaseSearch = term;
 }
 
 export function isFilterActive() {
-  const { labelId, priority, assigneeId, search, releaseId, releaseOwnerFilter, releaseSearch } = state.filter;
+  const { labelId, priority, assigneeId, search, releaseId, releaseOwnerFilter, releaseSearch, releaseFilterIds } = state.filter;
   return !!(labelId !== null || priority !== null || assigneeId !== null || releaseId !== null ||
     releaseOwnerFilter !== null ||
     search.trim() !== '' ||
-    releaseSearch.trim() !== '');
+    releaseSearch.trim() !== '' ||
+    releaseFilterIds.length > 0);
 }

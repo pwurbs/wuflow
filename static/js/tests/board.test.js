@@ -69,6 +69,10 @@ vi.mock('../list-utils.js', () => ({
   handleAssignToMe:     vi.fn()
 }));
 
+vi.mock('../components/planning.js', () => ({
+  renderPlanningPanel: vi.fn()
+}));
+
 describe('Board Component', () => {
   beforeEach(() => {
     document.body.innerHTML = `<div class="board-columns"><aside class="sidebar"></aside></div>`;
@@ -330,7 +334,6 @@ describe('Board Component', () => {
           status: 'Stage2',
           position: 0
         }));
-        expect(refreshApp).toHaveBeenCalled();
       });
     });
 
@@ -411,6 +414,49 @@ describe('Board Component', () => {
       colContent.dispatchEvent(event);
 
       expect(drag.getDragAfterElement).not.toHaveBeenCalled();
+    });
+
+    it('should restore card to origin position on dragleave from column', () => {
+      setupBoardView(vi.fn(), vi.fn());
+      renderBoard();
+
+      const mockCard = document.createElement('div');
+      mockCard.classList.add('card');
+
+      const parent = document.createElement('div');
+      const sibling = document.createElement('div');
+      parent.appendChild(sibling);
+
+      drag.getDraggedCard.mockReturnValue(mockCard);
+      drag.getDraggedCardOrigin.mockReturnValue({ parent, nextSibling: sibling });
+
+      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const outsideEl = document.createElement('div');
+      document.body.appendChild(outsideEl);
+
+      const event = new MouseEvent('dragleave', { bubbles: true, cancelable: true, relatedTarget: outsideEl });
+      colContent.dispatchEvent(event);
+
+      expect(parent.firstChild).toBe(mockCard);
+      outsideEl.remove();
+    });
+
+    it('should re-render board without API call when user lacks update permission', async () => {
+      state.state.currentUser = null;
+      setupBoardView(vi.fn(), vi.fn());
+      renderBoard();
+
+      const mockCard = document.createElement('div');
+      mockCard.classList.add('card');
+      drag.getDraggedCard.mockReturnValue(mockCard);
+
+      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const event = new Event('drop', { bubbles: true, cancelable: true });
+      colContent.dispatchEvent(event);
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(api.updateIssue).not.toHaveBeenCalled();
     });
 
     it('should show notification and still call refreshApp on drop failure', async () => {

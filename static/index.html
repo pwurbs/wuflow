@@ -438,32 +438,40 @@
             </div>
 
             <div id="backlog-view" class="hidden">
-                <div id="backlog-todo-section" class="backlog-section">
-                    <div class="backlog-header" data-status="Todo">
-                        <h2>Board (Todo)</h2>
-                        <span class="count" id="todo-count">0</span>
+                <div class="backlog-layout">
+                    <div id="backlog-release-lanes" class="backlog-release-lanes backlog-section hidden">
+                        <!-- Release lane cards injected by backlog.js -->
                     </div>
-                    <div class="backlog-list" id="move-to-todo-list">
-                    </div>
-                </div>
 
-                <div class="flow-indicator flow-up" aria-hidden="true">
-                    <span class="flow-badge">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="18 15 12 9 6 15"></polyline>
-                        </svg>
-                        to Board
-                    </span>
-                </div>
+                    <div class="backlog-main">
+                        <div id="backlog-todo-section" class="backlog-section">
+                            <div class="backlog-header" data-status="Todo">
+                                <h2>Board (Todo)</h2>
+                                <span class="count" id="todo-count">0</span>
+                            </div>
+                            <div class="backlog-list" id="move-to-todo-list">
+                            </div>
+                        </div>
 
-                <div id="backlog-open-section" class="backlog-section">
-                    <div class="backlog-header" data-status="Open">
-                        <h2>Backlog (Open)</h2>
-                        <span class="count" id="backlog-count">0</span>
-                    </div>
-                    <div class="backlog-list" id="backlog-list">
-                        <!-- Backlog issues will be injected here -->
+                        <div class="flow-indicator flow-up" aria-hidden="true">
+                            <span class="flow-badge">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="18 15 12 9 6 15"></polyline>
+                                </svg>
+                                to Board
+                            </span>
+                        </div>
+
+                        <div id="backlog-open-section" class="backlog-section">
+                            <div class="backlog-header" data-status="Open">
+                                <h2>Backlog (Open)</h2>
+                                <span class="count" id="backlog-count">0</span>
+                            </div>
+                            <div class="backlog-list" id="backlog-list">
+                                <!-- Backlog issues will be injected here -->
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

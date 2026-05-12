@@ -11,7 +11,97 @@
   margin-bottom: 20px;
   display: flex;
   flex-direction: column;
+}
+
+#archive-view {
   gap: 20px;
+}
+
+.backlog-layout {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: flex-start;
+  flex: 1;
+  min-height: 0;
+}
+
+.backlog-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Release lanes sidebar ───────────────────────────────────── */
+.backlog-release-lanes {
+  width: 178px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+}
+
+.backlog-release-lanes.hidden {
+  display: none;
+}
+
+.release-lane-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--column-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.release-lane-card:hover {
+  border-color: var(--accent-blue);
+}
+
+.release-lane-card.active {
+  border-color: var(--accent-blue);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.release-lane-card.drag-over {
+  border-color: var(--accent-blue);
+  background: rgba(88, 166, 255, 0.18);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
+}
+
+.release-lanes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+.release-lane-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--header-text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-lane-count {
+  font-size: 11px;
+  color: var(--muted-text);
+  background: var(--column-bg);
+  border: 1px solid var(--card-border);
+  padding: 1px 5px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .backlog-section {

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, navigateTo, selectStatus } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, selectStatus } from './helpers/test-utils';
 
 test.describe('Backlog View', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -182,6 +182,137 @@ test.describe('Backlog View', () => {
     await expect(page.locator('#backlog-list .card:has-text("Alpha Backlog Issue")')).toBeVisible();
     await expect(page.locator('#backlog-list .card:has-text("Beta Backlog Issue")')).toBeHidden();
     await expect(page.locator('#backlog-list .card:has-text("Gamma Backlog Issue")')).toBeVisible();
+  });
+});
+
+test.describe('Backlog Release Lanes', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+  });
+
+  test('release lane cards are shown for open releases', async ({ page }) => {
+    const relName = `RL_${Date.now().toString().slice(-7)}`;
+
+    await navigateTo(page, 'releases');
+    await createRelease(page, { name: relName });
+
+    await navigateTo(page, 'backlog');
+
+    await expect(page.locator('#backlog-release-lanes')).toBeVisible();
+    await expect(
+      page.locator('#backlog-release-lanes .release-lane-card').filter({ hasText: relName })
+    ).toBeVisible();
+  });
+
+  test('dragging an issue onto a release lane card assigns the release', async ({ page }) => {
+    const relName = `RL_${Date.now().toString().slice(-7)}`;
+    const issueTitle = `DragRel_${Date.now().toString().slice(-7)}`;
+
+    await navigateTo(page, 'releases');
+    await createRelease(page, { name: relName });
+
+    await createIssue(page, { title: issueTitle }); // Open status → appears in backlog list
+
+    await navigateTo(page, 'backlog');
+
+    const laneCard = page.locator('#backlog-release-lanes .release-lane-card').filter({ hasText: relName });
+    await expect(laneCard.locator('.release-lane-count')).toHaveText('0');
+
+    const issueCard = page.locator('#backlog-list .card').filter({ hasText: issueTitle });
+
+    const putResponse = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
+    await issueCard.dragTo(laneCard);
+    await putResponse;
+
+    await expect(laneCard.locator('.release-lane-count')).toHaveText('1');
+  });
+
+  test('release lane count reflects the number of assigned backlog issues', async ({ page }) => {
+    const relName = `RL_${Date.now().toString().slice(-7)}`;
+    const issue1Title = `RLC1_${Date.now().toString().slice(-7)}`;
+    const issue2Title = `RLC2_${Date.now().toString().slice(-7)}`;
+
+    await navigateTo(page, 'releases');
+    await createRelease(page, { name: relName });
+
+    await createIssue(page, { title: issue1Title });
+    await createIssue(page, { title: issue2Title });
+
+    await navigateTo(page, 'backlog');
+
+    // Assign release to issue1 via the issue modal (auto-saves on change)
+    await page.locator('#backlog-list .card').filter({ hasText: issue1Title }).click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    const put1 = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
+    await page.click('#release-trigger');
+    await page.click(`#release-options .custom-option:has-text("${relName}")`);
+    await put1;
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    // Assign release to issue2
+    await page.locator('#backlog-list .card').filter({ hasText: issue2Title }).click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    const put2 = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
+    await page.click('#release-trigger');
+    await page.click(`#release-options .custom-option:has-text("${relName}")`);
+    await put2;
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    const laneCard = page.locator('#backlog-release-lanes .release-lane-card').filter({ hasText: relName });
+    await expect(laneCard.locator('.release-lane-count')).toHaveText('2');
+  });
+
+  test('clicking a release lane card filters the backlog to that release', async ({ page }) => {
+    const relName = `RL_${Date.now().toString().slice(-7)}`;
+    const assignedTitle = `WithRel_${Date.now().toString().slice(-7)}`;
+    const unassignedTitle = `NoRel_${Date.now().toString().slice(-7)}`;
+
+    await navigateTo(page, 'releases');
+    await createRelease(page, { name: relName });
+
+    await createIssue(page, { title: assignedTitle });
+    await createIssue(page, { title: unassignedTitle });
+
+    await navigateTo(page, 'backlog');
+
+    // Assign release to one issue via the modal
+    await page.locator('#backlog-list .card').filter({ hasText: assignedTitle }).click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    const putAssign = page.waitForResponse(r =>
+      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+    );
+    await page.click('#release-trigger');
+    await page.click(`#release-options .custom-option:has-text("${relName}")`);
+    await putAssign;
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    // Both issues visible before filtering
+    await expect(page.locator('#backlog-list .card').filter({ hasText: assignedTitle })).toBeVisible();
+    await expect(page.locator('#backlog-list .card').filter({ hasText: unassignedTitle })).toBeVisible();
+
+    // Click the release lane card to activate the filter
+    const laneCard = page.locator('#backlog-release-lanes .release-lane-card').filter({ hasText: relName });
+    await laneCard.click();
+
+    await expect(laneCard).toHaveClass(/active/);
+    await expect(page.locator('#backlog-list .card').filter({ hasText: assignedTitle })).toBeVisible();
+    await expect(page.locator('#backlog-list .card').filter({ hasText: unassignedTitle })).toBeHidden();
+
+    // Click again to deactivate — both issues return
+    await laneCard.click();
+
+    await expect(laneCard).not.toHaveClass(/active/);
+    await expect(page.locator('#backlog-list .card').filter({ hasText: assignedTitle })).toBeVisible();
+    await expect(page.locator('#backlog-list .card').filter({ hasText: unassignedTitle })).toBeVisible();
   });
 });
 

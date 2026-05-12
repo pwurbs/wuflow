@@ -23,6 +23,8 @@ vi.mock('../api.js', () => ({
   updateTask: vi.fn(),
   deleteIssue: vi.fn(),
   fetchLabelsByProject: vi.fn(),
+  fetchReleases: vi.fn().mockResolvedValue([]),
+  fetchStatusConfig: vi.fn().mockResolvedValue(null),
   fetchUsers: vi.fn(),
   fetchProjects: vi.fn(),
   fetchIssueById: vi.fn()

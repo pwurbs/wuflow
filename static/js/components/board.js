@@ -7,6 +7,7 @@ import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSucce
 import { filterIssues, sortByPosition } from '../filters.js';
 import { getBoardColumns, STATUS_OPEN } from '../status-config.js';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe } from '../list-utils.js';
+import { renderPlanningPanel } from './planning.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
@@ -146,7 +147,7 @@ function attachColumnDragListeners(colContent) {
 
     if (!draggedCard?.classList.contains('card')) return;
     if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) {
-      if (refreshAppCallback) refreshAppCallback();
+      renderBoard();
       return;
     }
 
@@ -155,7 +156,8 @@ function attachColumnDragListeners(colContent) {
     const updates = getBoardUpdates();
     try {
       await Promise.all(updates);
-      if (refreshAppCallback) refreshAppCallback();
+      renderBoard();
+      renderPlanningPanel();
     } catch (err) {
       showNotification(err.message, 'error');
       if (refreshAppCallback) refreshAppCallback();
