@@ -201,7 +201,7 @@ INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('projects', 2);
 -- ── Board status config ───────────────────────────────────────────────────────
 -- Project 1 row may already exist from the app's startup migration, so use REPLACE.
 INSERT OR REPLACE INTO project_status_config (project_id, stage1_name, stage2_name, stage3_name, stage4_name) VALUES
-  (1, 'Working', 'Testing', 'Release', ''),
+  (1, 'Working', 'Testing', 'Staging', ''),
   (2, 'Draft',     'Review',     '',        '');
 
 -- ── Labels ────────────────────────────────────────────────────────────────────

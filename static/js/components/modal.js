@@ -1355,7 +1355,7 @@ export function renderReleaseOptions(releases, currentReleaseId) {
   });
   optionsContainer.appendChild(noReleaseDiv);
 
-  (releases || []).forEach(release => {
+  [...(releases || [])].sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = release.name;
