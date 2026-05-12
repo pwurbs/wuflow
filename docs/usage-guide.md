@@ -50,12 +50,16 @@ An issue is a discrete unit of work that tracks a specific task, bug, or require
 
 ### Status and Lifecycle of an Issue
 The scheme is borrowed from the way how Jira handles issues, but simplified. The board column names are configurable per project in the Project Settings view.
-- An issue can have one of the following statuses: **OPEN, TODO, the configured board columns (default: PENDING, WORKING), DONE, ARCHIVED**. 
+- An issue can have one of the following statuses: **OPEN, TODO, the max. 4 configured board columns (default: PENDING, WORKING), DONE, ARCHIVED**. 
 - When an issue is created, it gets normally the **status OPEN and is placed in the Backlog**.
 - The Backlog view allows to organize the backlog (see below) and to **move selected issues from the Backlog to the current board** by changing the status from OPEN to TODO. 
-- On the Board, **only issues with status TODO, the configured board columns, and DONE are shown**. Drag the issues from left to right according to the progress of work.
+- On the Board, **only issues with status TODO, the max. 4 configured board columns, and DONE are shown**. Drag the issues from left to right according to the progress of work.
 - There will be a time, when too many issues are piling up in the DONE column. Then it's time to archive them. This is done in the **Archive view** (see below), where you can drag selected issues from the DONE to the ARCHIVE area. Issues can also be archived in the issue details view.
 - When an issue is **archived**, it's still there but **can't be edited anymore**. Users owning the Admin or Sysadmin role can Unarchive issues in special cases.
+- Issue states are assigned to the following categories. These categories are used to show the progress in the releases view:
+  * Not Started: Open, Todo
+  * In Progress: Max. 4 configurable columns (default: Pending, Working)
+  * Done: Done, Archived
 
 ### Creating Issues
 Click the **New Issue** button (plus sign) in the main menu to create a new issue. Each issue contains:
@@ -164,9 +168,6 @@ Archived issues are read-only. Users owning the Admin or Sysadmin role are entit
 Releases let you group issues into named, time-boxed deliveries and track their progress. The Releases view is accessible from the main menu and shows open releases at the top and closed (published) releases below a divider.
 
 ### Release Properties
-
-<img src="screenshots/release-details.png" alt="Release Details" width="300" align="right" style="margin-left: 20px; margin-bottom: 20px;">
-
 Each release has:
 - **Name**: A short identifier for the release (max 20 characters, required).
 - **Description**: An optional plain-text summary (max 200 characters).
@@ -175,9 +176,12 @@ Each release has:
 - **Owner**: An optional user responsible for the release. Shown as a user badge on the release card.
 
 ### The Release Card
-Each release is represented as a card in the list showing the release name, optional start and release dates, the owner badge (if set), and key progress information: the total number of assigned issues and a progress bar indicating how many of them are in Done status. Clicking on the card itself opens the release details modal, where the release properties can be viewed and edited (Admin/Sysadmin only) and the full list of assigned issues with their current statuses is shown. The card also provides two action buttons: a **Board** button that navigates directly to the board filtered by that release, and a **Release** button to publish the release (Admin/Sysadmin only).
+Each release is represented as a card in the list showing the release name, optional start and release dates, the owner badge (if set), and key progress information: the number of done vs. total assigned issues and a tri-state progress bar that visualises all three status categories — green for done, blue for issues actively being worked on (any configured stage column), and grey for issues not yet started. Clicking on the card itself opens the release details modal, where the release properties can be viewed and edited (Admin/Sysadmin only) and the full list of assigned issues with their current statuses is shown. The card also provides two action buttons: a **Board** button that navigates directly to the board filtered by that release, and a **Release** button to publish the release (Admin/Sysadmin only).
 
 ### Managing Releases
+
+<img src="screenshots/release-details.png" alt="Release Details" width="300" align="right" style="margin-left: 20px; margin-bottom: 20px;">
+
 Users with Admin or Sysadmin role can:
 - **Create** a release by clicking **+ Create Release** in the Open Releases section.
 - **View and Edit** an open release by clicking on its card. This opens the release details view including an overview of assigned issues and their status.

@@ -196,6 +196,7 @@
 }
 
 .release-progress-bar {
+    display: flex;
     width: 80px;
     height: 6px;
     background-color: var(--card-border);
@@ -204,11 +205,17 @@
     margin-left: 20px;
 }
 
-.release-progress-fill {
+.release-progress-seg {
     height: 100%;
-    background-color: var(--primary-color);
-    border-radius: 3px;
     transition: width 0.3s ease;
+}
+
+.seg-done {
+    background-color: var(--success-color, #4caf77);
+}
+
+.seg-inprogress {
+    background-color: var(--primary-color);
 }
 
 

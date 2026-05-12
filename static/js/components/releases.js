@@ -416,7 +416,9 @@ function buildReleaseRow(rel, isOpen, allIssues) {
   const issues = allIssues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === 'Done' || i.status === 'Archive').length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const inProgress = issues.filter(i => ['Stage1','Stage2','Stage3','Stage4'].includes(i.status)).length;
+  const donePct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const inProgPct = total > 0 ? Math.round((inProgress / total) * 100) : 0;
 
   const triggerHtml = isOpen && userCan(state.currentUser, ACTION_TRIGGER_RELEASE)
     ? `<button class="btn primary btn--sm release-trigger-btn" data-id="${rel.id}">Release</button>`
@@ -441,7 +443,10 @@ function buildReleaseRow(rel, isOpen, allIssues) {
         </div>
         <div class="backlog-card-right">
           ${datesHtml}
-          <div class="release-progress-bar"><div class="release-progress-fill" style="width:${pct}%"></div></div>
+          <div class="release-progress-bar">
+            <div class="release-progress-seg seg-done" style="width:${donePct}%"></div>
+            <div class="release-progress-seg seg-inprogress" style="width:${inProgPct}%"></div>
+          </div>
           <span class="release-count">${done}/${total}</span>
         </div>
       </div>
