@@ -6,6 +6,8 @@
 - Bumped Go to 1.25.10 (fixing high security issue in net package)
 - Fixed missing project_id constraint in labels database table and added migration code for existing databases
 - Added a clean reset of project-scoped fields label, release and status, when changing the issue project
+- Bumped golang.org/x/crypto to v0.51.0
+- Added a script to create a database containing demo data
 
 ## 1.2.1
 

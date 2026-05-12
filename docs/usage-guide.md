@@ -14,12 +14,13 @@ Only users having the sysadmin role are allowed to access the system settings vi
 wuFlow is built with a clearly arranged layout that combines all relevant information in one view:
 - **Main Menu**: In the left sidebar, you can switch between the different views of the application: New issue, Backlog, Board, Archive, Project Settings and System Settings
 - **Board** (Main view): Displays issues in the usual Kanban style with configurable columns. You can freely drag and drop issues between columns and change the order within one column. Click on an issue card to view and adapt details.
-- **Backlog / Archive View**: Switches the main area to a list-based layout for managing open issues (Backlog) or completed and archived issues (Archive).
-- **Releases View**: Shows all releases for the selected project, grouped into open and closed sections. Accessible to all users for team-wide visibility; creating and managing releases requires Admin or Sysadmin role. On this view, the filter bar shows an owner filter and a full text search over releases.
 - **Planning Sidebar**: Placed on the right, this simple calendar view allows you to plan issues by dragging them to a specific date. This allows you additionally to plan issues and tasks over the next 10 days, keeping an eye on upcoming deadlines.
 - **User Menu**: In the top right corner, there is the menu of the currently logged in user. Currently, password management and log out is available.
 - **Project Selection**: Select the project for which you want to see issues on the boards and in the planning sidebar.
 - **Filter Bar**: Placed above the board, this bar allows you to filter by label, priority, assignee, release, and full text search. The filter influences the shown issue cards and planning entries.
+- **Backlog / Archive View**: Switches the main area to a list-based layout for managing open issues (Backlog) or completed and archived issues (Archive).
+- **Releases View**: Shows all releases for the selected project, grouped into open and closed sections. Accessible to all users for team-wide visibility; creating and managing releases requires Admin or Sysadmin role. On this view, the filter bar shows an owner filter and a full text search over releases.
+- **Project and System Settings**: Accessible via the Main Menu in the left sidebar, provides project-scoped or system wide settings.
 
 <img src="screenshots/board.png" alt="Kanban Board">
 
@@ -157,9 +158,14 @@ Archived issues are read-only. Users owning the Admin or Sysadmin role are entit
 
 ## The Releases View
 
+<img src="screenshots/releases.png" alt="Releases" width="1000">
+
 Releases let you group issues into named, time-boxed deliveries and track their progress. The Releases view is accessible from the main menu and shows open releases at the top and closed (published) releases below a divider.
 
 ### Release Properties
+
+<img src="screenshots/release-details.png" alt="Release Details" width="300" align="right" style="margin-left: 20px; margin-bottom: 20px;">
+
 Each release has:
 - **Name**: A short identifier for the release (max 20 characters, required).
 - **Description**: An optional plain-text summary (max 200 characters).

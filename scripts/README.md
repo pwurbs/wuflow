@@ -4,6 +4,27 @@ This directory contains scripts for maintaining and testing the wuFlow applicati
 
 ## Scripts
 
+### `seed_demo_data.sh`
+A shell script that creates a fresh wuFlow SQLite database pre-loaded with realistic demo data. Use it to set up a demo environment or generate screenshots for the usage guide.
+
+**What it creates:**
+- 4 team members: one sysadmin, one admin, two regular users
+- 2 projects: *Development* (board: In Review / In Testing / Staging) and *Company Website* (board: Draft / Review)
+- Labels and releases per project, including closed releases
+- 31 issues spread across all board statuses (Open, Todo, In Review, In Testing, Staging, Done, Archive)
+- Subtasks for several issues with realistic done/pending progress
+- Deadlines clustered within the next 10 days; archived issues linked to the closed release
+
+All dates are relative to the day the script is run, so the data stays current whenever you use it.
+
+**Usage:**
+```bash
+./scripts/seed_demo_data.sh [db-path] [password]
+```
+The script prompts for the database path (default: `wuflow.db`) and the password to assign to all demo accounts if not provided as arguments. The target path must not exist — the script exits immediately if it does.
+
+**Requirements:** `sqlite3` and `python3` with the `bcrypt` package (`pip3 install bcrypt`).
+
 ### `generate_issues.mjs`
 A script to generate 1000 issues with random data for testing and performance evaluation.
 
