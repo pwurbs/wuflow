@@ -294,4 +294,50 @@ test.describe('Project change resets project-scoped fields', () => {
     await expect(page.locator('#status-text')).toContainText('Open');
     await page.click('#done-btn');
   });
+
+  test.describe('Deadline Warnings', () => {
+    test('overdue issue deadline shows red in edit modal', async ({ page }) => {
+      const title = `Overdue Modal ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo', deadline: '2020-01-01' });
+      await openIssueByTitle(page, title);
+
+      await expect(page.locator('#deadline-display')).toHaveClass(/overdue/);
+      await page.click('#done-btn');
+    });
+
+    test('warning toast shown when issue deadline is set past release date', async ({ page }) => {
+      // Use near-future dates so the issue lands in "this week" in planning, not "10+ days away".
+      const today = new Date();
+      const relDate = new Date(today); relDate.setDate(today.getDate() + 3);
+      const dlDate  = new Date(today); dlDate.setDate(today.getDate() + 6);
+      const relDateStr = relDate.toISOString().split('T')[0];
+      const dlDateStr  = dlDate.toISOString().split('T')[0];
+
+      const relName = `RI-${Date.now().toString().slice(-8)}`;
+      await navigateTo(page, 'releases');
+      await createRelease(page, { name: relName, releaseDate: relDateStr });
+
+      await navigateTo(page, 'board');
+      const title = `Issue Release Toast ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+      await openIssueByTitle(page, title);
+
+      // Assign the release
+      await page.click('#release-trigger');
+      await page.locator(`#release-options .custom-option:has-text("${relName}")`).waitFor({ state: 'visible' });
+      await page.click(`#release-options .custom-option:has-text("${relName}")`);
+      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+
+      // Set a deadline after the release date — should trigger amber warning toast
+      await page.fill('#deadline', dlDateStr, { force: true });
+      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+
+      const toast = page.locator('#notification-toast');
+      await expect(toast).toBeVisible();
+      await expect(toast).toHaveClass(/warning/);
+      await expect(toast).toContainText('Past release date!');
+
+      await page.click('#done-btn');
+    });
+  });
 });

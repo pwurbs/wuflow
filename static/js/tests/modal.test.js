@@ -51,7 +51,9 @@ vi.mock('../utils.js', () => ({
   getUserInitials: vi.fn(user => {
     if (!user) return '??';
     return ((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || '??';
-  })
+  }),
+  getDeadlineStatus: vi.fn(() => ({ late: false })),
+  getTaskDeadlineStatus: vi.fn(() => ({ late: false }))
 }));
 
 vi.mock('../markdown.js', () => ({

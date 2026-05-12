@@ -66,7 +66,7 @@ We developed this tool having the following goals in mind:
 - **Multi-user Support**: Built-in user management with role-based access, allowing safe concurrent editing of issues.
 - **Rich Text Markdown Editor**: Write readable issue descriptions using a built-in Markdown editor with formatting tools and live preview.
 - **Prioritization & Assignment**: Assign issues directly to specific users, flag important work with High Priority and order the issues per column.
-- **Backlog Management**: Use the backlog view to plan and prioritize your work.
+- **Backlog Management**: Use the backlog view to plan your work by sorting issues and assigning them to releases.
 - **Issue Archiving**: Keep your active board clean by archiving completed issues for later reference.
 - **No dependencies** on external services or libs during runtime. Allows for air-gapped deployments.
 - More features to cover core functions for agile teams are coming.

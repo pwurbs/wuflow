@@ -123,6 +123,10 @@
   gap: 4px;
 }
 
+.board-card-deadline.overdue {
+  color: var(--danger-color);
+}
+
 .board-task-info {
   display: flex;
   align-items: center;

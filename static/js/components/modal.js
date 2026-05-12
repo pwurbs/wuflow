@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
@@ -234,6 +234,7 @@ function setupEditModal(issue) {
   document.getElementById('deadline').value = issue.deadline ? new Date(issue.deadline).toISOString().slice(0, 10) : '';
 
   updateDateInputStyle(document.getElementById('deadline'));
+  document.getElementById('deadline-display')?.classList.toggle('overdue', getDeadlineStatus(issue).late);
 
   document.getElementById('tasks-section').classList.remove('hidden');
   document.getElementById('task-form-container').classList.toggle('hidden', isArchived);
@@ -289,6 +290,7 @@ function setupNewModal() {
   renderPlannedDateChips(null);
 
   updateDateInputStyle(document.getElementById('deadline'));
+  document.getElementById('deadline-display')?.classList.remove('overdue');
 
   document.getElementById('tasks-section').classList.add('hidden');
   document.getElementById('delete-issue-btn').classList.add('hidden');
@@ -443,7 +445,7 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
   // Update stored ETag with new value
   currentEtag = result.etag;
   hasSavedDuringSession = true;
-  showNotification(successMessage);
+  if (successMessage) showNotification(successMessage);
   if (refreshAppCallback) refreshAppCallback();
   return true;
 }
@@ -817,6 +819,28 @@ function checkRemoveUnloadListener() {
   }
 }
 
+async function handleDeadlineChange(rawValue) {
+  if (!state.currentIssue) return;
+  const dateVal = rawValue ? new Date(rawValue + 'T12:00:00') : null;
+  const updatedIssue = { ...state.currentIssue, deadline: dateVal };
+  try {
+    const saved = await saveIssueWithConflictCheck(updatedIssue, null);
+    if (!saved) return;
+    state.currentIssue.deadline = dateVal;
+    const dlStatus = getDeadlineStatus({ deadline: dateVal, release: state.currentIssue.release });
+    document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
+    const lateTaskCount = refreshTaskDeadlineStyles();
+    const taskSuffix = lateTaskCount === 1 ? '' : 's';
+    const taskWarning = lateTaskCount > 0 ? ` — ${lateTaskCount} task${taskSuffix} past deadline` : '';
+    showNotification(
+      dlStatus.late ? `Deadline updated — ${dlStatus.reason}${taskWarning}` : `Deadline updated${taskWarning}`,
+      dlStatus.late || lateTaskCount > 0 ? 'warning' : 'success'
+    );
+  } catch (err) {
+    showNotification(err.message, 'error');
+  }
+}
+
 function setupSidebarImmediateSave() {
 
   const deadlineInput = document.getElementById('deadline');
@@ -873,19 +897,7 @@ function setupSidebarImmediateSave() {
     });
   }
 
-  // Planned Date Input Listener REMOVED (Replaced by Chip Logic)
-  deadlineInput.addEventListener('change', async () => {
-    if (state.currentIssue) {
-      const dateVal = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
-      const updatedIssue = { ...state.currentIssue, deadline: dateVal };
-      try {
-        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Deadline updated');
-        if (saved) state.currentIssue.deadline = dateVal;
-      } catch (err) {
-        showNotification(err.message, 'error');
-      }
-    }
-  });
+  deadlineInput.addEventListener('change', () => handleDeadlineChange(deadlineInput.value));
   if (labelSelect) {
     labelSelect.addEventListener('change', async () => {
       if (state.currentIssue) {
@@ -915,6 +927,9 @@ function setupSidebarImmediateSave() {
           if (saved) {
             state.currentIssue.release_id = releaseId;
             state.currentIssue.release = release;
+            const dlStatus = getDeadlineStatus(state.currentIssue);
+            document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
+            if (dlStatus.late) showNotification(`Release updated — deadline is ${dlStatus.reason}`, 'warning');
           }
         } catch (err) {
           showNotification(err.message, 'error');
@@ -1178,6 +1193,22 @@ function setupEditorToolbar() {
 }
 
 // Task Logic Helpers
+function refreshTaskDeadlineStyles() {
+  let lateCount = 0;
+  document.querySelectorAll('#task-list .task-item').forEach(li => {
+    const input = li.querySelector('.task-deadline-input');
+    const display = li.querySelector('.task-deadline-display');
+    const container = li.querySelector('.task-deadline-container');
+    if (!input || !display || !container) return;
+    const deadline = input.value ? new Date(input.value + 'T12:00:00') : null;
+    const status = getTaskDeadlineStatus(deadline, state.currentIssue);
+    display.classList.toggle('overdue', status.late);
+    container.title = status.late ? status.reason : 'Set Deadline';
+    if (status.late) lateCount++;
+  });
+  return lateCount;
+}
+
 function resetTaskForm() {
   const title = document.getElementById('new-task-title');
   const deadline = document.getElementById('new-task-deadline');
@@ -1218,7 +1249,8 @@ async function handleTaskSubmit(e) {
       onTaskEditEnd: () => checkRemoveUnloadListener()
     });
     resetTaskForm();
-    showNotification('Task created');
+    const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
+    showNotification(taskDlStatus.late ? `Task created — ${taskDlStatus.reason}` : 'Task created', taskDlStatus.late ? 'warning' : 'success');
     if (refreshAppCallback) refreshAppCallback();
   } catch (err) {
     showNotification(err.message, 'error');

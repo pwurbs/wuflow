@@ -73,10 +73,6 @@ export function toggleBacklogReleaseFilter(releaseId) {
   else ids.splice(idx, 1);
 }
 
-export function clearBacklogReleaseFilter() {
-  state.filter.releaseFilterIds = [];
-}
-
 export function setFilterReleaseSearch(term) {
   state.filter.releaseSearch = term;
 }

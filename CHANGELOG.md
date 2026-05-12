@@ -9,6 +9,7 @@
 - Added a clean reset of project-scoped fields label, release and status, when changing the issue project
 - Bumped golang.org/x/crypto to v0.51.0
 - Added a script to create a database containing demo data
+- Improved due date checking for consistency (overdue, issue violates release date, task violates issue deadline) and added appropriate style / notication
 
 # 1.2.1
 

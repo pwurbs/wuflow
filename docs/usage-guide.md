@@ -142,10 +142,11 @@ To keep the board clean, only issues ready to work on should be on the board. IN
 
 Use the Backlog view to review your backlog and plan your work. Usually, a "Backlog Grooming" is held in the team to review the backlog, discuss and decide about priority and readiness for the board. 
 On the Backlog view, you can:
-- **Create** new issues by clicking the "New Issue" button.
+- **Create new issues** by clicking the "New Issue" button.
 - **Adapt Priority** by changing the order of the issues.
-- **Move** issues from the backlog to the board by dragging them to the TODO area. This makes them visible in the TODO column of the Board
-- **Filter** issues by label, priority, assignee or text search.
+- **Move issues** from the backlog to the board by dragging them to the TODO area. This makes them visible in the TODO column of the Board.
+- **Filter issues** by label, priority, assignee, releases or text search.
+- **Assign issues to Releases** by dragging them to one of the open release cards.
 
 ## The Archive View
 

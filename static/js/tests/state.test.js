@@ -14,7 +14,6 @@ import {
   setFilterReleaseOwner,
   setFilterReleaseSearch,
   toggleBacklogReleaseFilter,
-  clearBacklogReleaseFilter,
 } from '../state.js';
 
 describe('state', () => {
@@ -266,11 +265,4 @@ describe('state', () => {
     });
   });
 
-  describe('clearBacklogReleaseFilter', () => {
-    it('should empty the releaseFilterIds array', () => {
-      state.filter.releaseFilterIds = [1, 2, null];
-      clearBacklogReleaseFilter();
-      expect(state.filter.releaseFilterIds).toHaveLength(0);
-    });
-  });
 });

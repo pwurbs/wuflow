@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, openIssueByTitle, waitForToast } from './helpers/test-utils';
 
 test.describe('Task (Subtask) Management', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -209,6 +209,52 @@ test.describe('Task (Subtask) Management', () => {
     await openIssueByTitle(page, 'Task Edit Behavior Issue');
     const taskInput = page.locator('.task-title-input').first();
     await expect(taskInput).toHaveValue('Modified Task');
+  });
+
+  test.describe('Task Deadline Warnings', () => {
+    test('past task deadline shows red in modal', async ({ page }) => {
+      const title = `Task Overdue ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+      await openIssueByTitle(page, title);
+
+      await page.fill('#new-task-title', 'Overdue Task');
+      await page.fill('#new-task-deadline', '2020-01-01', { force: true });
+      await page.click('#add-task-btn');
+
+      const taskItem = page.locator('#task-list .task-item').filter({
+        has: page.locator('.task-title-input[value="Overdue Task"]'),
+      });
+      await expect(taskItem.locator('.task-deadline-display')).toHaveClass(/overdue/);
+    });
+
+    test('warning toast shown when creating a task with past deadline', async ({ page }) => {
+      const title = `Task Toast ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+      await openIssueByTitle(page, title);
+
+      await page.fill('#new-task-title', 'Late Task');
+      await page.fill('#new-task-deadline', '2020-06-01', { force: true });
+      await page.click('#add-task-btn');
+
+      await waitForToast(page, 'Overdue!');
+      await expect(page.locator('#notification-toast')).toHaveClass(/warning/);
+    });
+
+    test('task deadline after issue deadline shows red', async ({ page }) => {
+      const title = `Task After Issue DL ${Date.now()}`;
+      // Issue deadline: 2028-01-01; task deadline: 2029-01-01 (after issue)
+      await createIssue(page, { title, status: 'Todo', deadline: '2028-01-01' });
+      await openIssueByTitle(page, title);
+
+      await page.fill('#new-task-title', 'Late Task');
+      await page.fill('#new-task-deadline', '2029-01-01', { force: true });
+      await page.click('#add-task-btn');
+
+      const taskItem = page.locator('#task-list .task-item').filter({
+        has: page.locator('.task-title-input[value="Late Task"]'),
+      });
+      await expect(taskItem.locator('.task-deadline-display')).toHaveClass(/overdue/);
+    });
   });
 });
 

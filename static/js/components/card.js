@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, getUserInitials } from '../utils.js';
+import { escapeHtml, showNotification, getUserInitials, getDeadlineStatus } from '../utils.js';
 import { COLOR_REGEX } from '../validation-config.js';
 import { PRIORITY_HIGH } from '../domain-constants.js';
 import { STATUS_ARCHIVE } from '../status-config.js';
@@ -117,6 +117,9 @@ export function createCardElement(issue, isBoard = false, callbacks = {}) {
 
 function getBoardCardHTML(issue, openTasks) {
   const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
+  const deadlineStatus = getDeadlineStatus(issue);
+  const deadlineClass = deadlineStatus.late ? ' overdue' : '';
+  const deadlineTitle = deadlineStatus.late ? ` title="${deadlineStatus.reason}"` : '';
 
   return `
             <div class="board-card-title">${escapeHtml(issue.title)}</div>
@@ -130,7 +133,7 @@ function getBoardCardHTML(issue, openTasks) {
                   ${getAssigneeBadgeHTML(issue)}
                 </div>
                 <div class="board-card-meta-right">
-                    ${issue.deadline ? `<div class="board-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    ${issue.deadline ? `<div class="board-card-deadline${deadlineClass}"${deadlineTitle}>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
                     <div class="board-task-info">
                         <span class="board-task-icon">☐</span>
                         <span>${openTasks}</span>
@@ -155,6 +158,9 @@ function getBoardCardHTML(issue, openTasks) {
 
 function getBacklogCardHTML(issue, openTasks, totalTasks) {
   const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
+  const deadlineStatus = getDeadlineStatus(issue);
+  const deadlineClass = deadlineStatus.late ? ' overdue' : '';
+  const deadlineTitle = deadlineStatus.late ? ` title="${deadlineStatus.reason}"` : '';
 
   const taskTooltipHTML = openTasks > 0 ? `
     <div class="board-task-tooltip">
@@ -178,7 +184,7 @@ function getBacklogCardHTML(issue, openTasks, totalTasks) {
     <div class="backlog-card-spacer"></div>
     <div class="backlog-card-right">
         ${issue.label ? `<span class="label-chip" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
-        ${issue.deadline ? `<span class="backlog-card-deadline">📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
+        ${issue.deadline ? `<span class="backlog-card-deadline${deadlineClass}"${deadlineTitle}>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
         ${totalTasks > 0 ? `
         <div class="board-task-info">
             <span class="board-task-icon">☐</span>

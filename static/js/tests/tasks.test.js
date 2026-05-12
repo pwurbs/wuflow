@@ -14,7 +14,8 @@ vi.mock('../utils.js', () => ({
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => s),
   initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
-  countCodepoints: vi.fn(s => [...s].length)
+  countCodepoints: vi.fn(s => [...s].length),
+  getTaskDeadlineStatus: vi.fn(() => ({ late: false }))
 }));
 
 vi.mock('../drag.js', () => ({

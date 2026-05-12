@@ -34,3 +34,7 @@
   font-style: normal;
   padding: 12px 24px;
 }
+
+.notification-toast.warning {
+  background-color: #b45309;
+}

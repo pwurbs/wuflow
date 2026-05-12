@@ -1,5 +1,37 @@
 // Utility Functions
 
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// Returns { late: false } or { late: true, reason: string } for an issue deadline.
+export function getDeadlineStatus(issue) {
+  if (!issue?.deadline) return { late: false };
+  const today = startOfDay(new Date());
+  const deadline = startOfDay(issue.deadline);
+  if (deadline < today) return { late: true, reason: 'Overdue!' };
+  if (issue.release?.release_date) {
+    if (deadline > startOfDay(issue.release.release_date)) return { late: true, reason: 'Past release date!' };
+  }
+  return { late: false };
+}
+
+// Returns { late: false } or { late: true, reason: string } for a task deadline given its parent issue.
+export function getTaskDeadlineStatus(taskDeadline, issue) {
+  if (!taskDeadline) return { late: false };
+  const today = startOfDay(new Date());
+  const d = startOfDay(taskDeadline);
+  if (d < today) return { late: true, reason: 'Overdue!' };
+  if (issue?.deadline) {
+    if (d > startOfDay(issue.deadline)) return { late: true, reason: 'After issue deadline!' };
+  } else if (issue?.release?.release_date) {
+    if (d > startOfDay(issue.release.release_date)) return { late: true, reason: 'Past release date!' };
+  }
+  return { late: false };
+}
+
 export function escapeHtml(text) {
   if (!text) return '';
   return text

@@ -181,6 +181,10 @@ input:-webkit-autofill:active,
   color: var(--muted-text);
 }
 
+.custom-date-display.overdue {
+  color: var(--danger-color);
+}
+
 .custom-date-input input[type="date"] {
   position: absolute;
   top: 0;

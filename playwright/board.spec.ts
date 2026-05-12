@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, selectAssignee, openIssueByTitle, navigateTo } from './helpers/test-utils';
+import { createIssue, createRelease, selectAssignee, openIssueByTitle, navigateTo } from './helpers/test-utils';
 
 test.describe('Board Functionality', () => {
   test.beforeEach(async ({ login }) => {
@@ -230,6 +230,54 @@ test.describe('Board Functionality', () => {
       await page.locator(`#archive-done-list .card:has-text("${title}")`).click({ button: 'right' });
 
       await expect(page.locator('.card-context-menu')).toBeHidden();
+    });
+  });
+
+  test.describe('Deadline Styling', () => {
+    test('overdue deadline shows red on board card', async ({ page }) => {
+      const title = `Overdue Board ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo', deadline: '2020-01-01' });
+
+      const deadline = page.locator(`.board-card:has-text("${title}") .board-card-deadline`);
+      await expect(deadline).toBeVisible();
+      await expect(deadline).toHaveClass(/overdue/);
+    });
+
+    test('deadline past release date shows red on board card', async ({ page }) => {
+      // Use near-future dates so the issue lands in the planning panel's "this week"
+      // bucket, not "10+ days away", avoiding count interference with planning.spec.ts.
+      const today = new Date();
+      const relDate = new Date(today); relDate.setDate(today.getDate() + 3);
+      const dlDate  = new Date(today); dlDate.setDate(today.getDate() + 6);
+      const relDateStr = relDate.toISOString().split('T')[0];
+      const dlDateStr  = dlDate.toISOString().split('T')[0];
+
+      const relName = `RB-${Date.now().toString().slice(-8)}`;
+      await navigateTo(page, 'releases');
+      await createRelease(page, { name: relName, releaseDate: relDateStr });
+
+      await navigateTo(page, 'board');
+      const title = `Release Conflict ${Date.now()}`;
+      // Create issue without deadline first, then assign release and deadline via modal
+      await createIssue(page, { title, status: 'Todo' });
+      await openIssueByTitle(page, title);
+
+      // Assign the release
+      await page.click('#release-trigger');
+      await page.locator(`#release-options .custom-option:has-text("${relName}")`).waitFor({ state: 'visible' });
+      await page.click(`#release-options .custom-option:has-text("${relName}")`);
+      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+
+      // Set deadline after the release date (but < 10 days away to stay out of planning's "10+" bucket)
+      await page.fill('#deadline', dlDateStr, { force: true });
+      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+
+      await page.click('#done-btn');
+      await expect(page.locator('#issue-modal')).toBeHidden();
+
+      const deadline = page.locator(`.board-card:has-text("${title}") .board-card-deadline`);
+      await expect(deadline).toBeVisible();
+      await expect(deadline).toHaveClass(/overdue/);
     });
   });
 });

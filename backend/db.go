@@ -500,13 +500,12 @@ func CreateIssue(i *Issue) error {
 // issueSelectBase is the shared SELECT + JOIN used by all project-scoped issue queries.
 const issueSelectBase = `
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
-		       i.release_id,
 		       l.id, l.name, l.color,
 		       c.id, c.email, c.first_name, c.last_name,
 		       a.id, a.email, a.first_name, a.last_name,
 		       u.id, u.email, u.first_name, u.last_name,
 		       p.id, p.name, p.description,
-		       r.id, r.name, r.status
+		       r.id, r.name, r.status, r.release_date
 		FROM issues i
 		LEFT JOIN labels l ON i.label_id = l.id
 		LEFT JOIN users c ON i.creator_id = c.id
@@ -532,7 +531,7 @@ func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, er
 
 	var issues []Issue
 	for rows.Next() {
-		i, err := scanIssue(rows)
+		i, err := scanIssueRow(rows)
 		if err != nil {
 			slog.Error(dbErrPrefix+caller+" Scan", "error", err)
 			return nil, err
@@ -573,146 +572,14 @@ func GetOpenIssuesByProject(projectID int) ([]Issue, error) {
 
 // GetIssueByID retrieves a single issue by ID, including its associated tasks.
 func GetIssueByID(id int) (*Issue, error) {
-	row := DB.QueryRow(`
-		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
-		       l.id, l.name, l.color,
-		       c.id, c.email, c.first_name, c.last_name,
-		       a.id, a.email, a.first_name, a.last_name,
-		       u.id, u.email, u.first_name, u.last_name,
-		       p.id, p.name, p.description,
-		       r.id, r.name, r.status
-		FROM issues i
-		LEFT JOIN labels l ON i.label_id = l.id
-		LEFT JOIN users c ON i.creator_id = c.id
-		LEFT JOIN users a ON i.assignee_id = a.id
-		LEFT JOIN users u ON i.updated_by = u.id
-		LEFT JOIN projects p ON i.project_id = p.id
-		LEFT JOIN releases r ON i.release_id = r.id
-		WHERE i.id = ?`, id)
-
-	var issue Issue
-	var desc sql.NullString
-	var deadline sql.NullTime
-	var plannedDatesStr sql.NullString
-	var lID sql.NullInt64
-	var lName sql.NullString
-	var lColor sql.NullString
-	var priority sql.NullString
-
-	// Creator fields
-	var cID sql.NullInt64
-	var cEmail sql.NullString
-	var cFirstName sql.NullString
-	var cLastName sql.NullString
-
-	// Assignee fields
-	var aID sql.NullInt64
-	var aEmail sql.NullString
-	var aFirstName sql.NullString
-	var aLastName sql.NullString
-
-	// Updater fields
-	var uID sql.NullInt64
-	var uEmail sql.NullString
-	var uFirstName sql.NullString
-	var uLastName sql.NullString
-
-	// Project fields
-	var pID sql.NullInt64
-	var pName sql.NullString
-	var pDesc sql.NullString
-
-	var rID sql.NullInt64
-	var rName sql.NullString
-	var rStatus sql.NullString
-
-	err := row.Scan(&issue.ID, &issue.Title, &desc, &issue.Status, &issue.Position, &deadline, &plannedDatesStr, &priority, &issue.CreatedAt, &issue.UpdatedAt,
-		&lID, &lName, &lColor,
-		&cID, &cEmail, &cFirstName, &cLastName,
-		&aID, &aEmail, &aFirstName, &aLastName,
-		&uID, &uEmail, &uFirstName, &uLastName,
-		&pID, &pName, &pDesc,
-		&rID, &rName, &rStatus)
+	row := DB.QueryRow(issueSelectBase+` WHERE i.id = ?`, id)
+	issue, err := scanIssueRow(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		slog.Error("Database Error: GetIssueByID", "error", err)
 		return nil, err
-	}
-
-	issue.Description = desc.String
-
-	if priority.Valid {
-		issue.Priority = IssuePriority(priority.String)
-	} else {
-		issue.Priority = PriorityNormal
-	}
-	if deadline.Valid {
-		issue.Deadline = &deadline.Time
-	}
-	if plannedDatesStr.Valid {
-		if err := json.Unmarshal([]byte(plannedDatesStr.String), &issue.PlannedDates); err != nil {
-			slog.Error("Database Error: GetIssueByID parsing planned_dates", "id", issue.ID, "error", err)
-		}
-	}
-	if lID.Valid {
-		issue.Label = &Label{
-			ID:    int(lID.Int64),
-			Name:  lName.String,
-			Color: lColor.String,
-		}
-	}
-
-	if cID.Valid {
-		issue.CreatorID = int(cID.Int64)
-		issue.Creator = &User{
-			ID:        int(cID.Int64),
-			Email:     cEmail.String,
-			FirstName: cFirstName.String,
-			LastName:  cLastName.String,
-		}
-	}
-
-	if aID.Valid {
-		id := int(aID.Int64)
-		issue.AssigneeID = &id
-		issue.Assignee = &User{
-			ID:        id,
-			Email:     aEmail.String,
-			FirstName: aFirstName.String,
-			LastName:  aLastName.String,
-		}
-	}
-
-	if uID.Valid {
-		id := int(uID.Int64)
-		issue.UpdaterID = &id
-		issue.Updater = &User{
-			ID:        id,
-			Email:     uEmail.String,
-			FirstName: uFirstName.String,
-			LastName:  uLastName.String,
-		}
-	}
-
-	if pID.Valid {
-		issue.ProjectID = int(pID.Int64)
-		issue.Project = &Project{
-			ID:          int(pID.Int64),
-			Name:        pName.String,
-			Description: pDesc.String,
-		}
-	}
-
-	if rID.Valid {
-		id := int(rID.Int64)
-		issue.ReleaseID = &id
-		issue.Release = &Release{
-			ID:     id,
-			Name:   rName.String,
-			Status: ReleaseStatus(rStatus.String),
-		}
 	}
 
 	tasks, err := GetTasksByIssueID(issue.ID)
@@ -1188,54 +1055,43 @@ func CountIssuesByProject(projectID int) (int, error) {
 	return count, nil
 }
 
-func scanIssue(rows *sql.Rows) (Issue, error) {
+// issueScanner is satisfied by both *sql.Row and *sql.Rows, allowing a single
+// scan implementation to be shared between single-row and multi-row queries.
+type issueScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanIssueRow scans one issue row and hydrates all related fields.
+func scanIssueRow(s issueScanner) (Issue, error) {
 	var i Issue
 	var desc sql.NullString
 	var deadline sql.NullTime
 	var plannedDatesStr sql.NullString
 	var lID sql.NullInt64
-	var lName sql.NullString
-	var lColor sql.NullString
+	var lName, lColor sql.NullString
 	var priority sql.NullString
-
-	// Creator fields
 	var cID sql.NullInt64
-	var cEmail sql.NullString
-	var cFirstName sql.NullString
-	var cLastName sql.NullString
-
-	// Assignee fields
+	var cEmail, cFirstName, cLastName sql.NullString
 	var aID sql.NullInt64
-	var aEmail sql.NullString
-	var aFirstName sql.NullString
-	var aLastName sql.NullString
-
-	// Updater fields
+	var aEmail, aFirstName, aLastName sql.NullString
 	var uID sql.NullInt64
-	var uEmail sql.NullString
-	var uFirstName sql.NullString
-	var uLastName sql.NullString
-
-	// Project fields
+	var uEmail, uFirstName, uLastName sql.NullString
 	var pID sql.NullInt64
-	var pName sql.NullString
-	var pDesc sql.NullString
-
+	var pName, pDesc sql.NullString
 	var rID sql.NullInt64
-	var rName sql.NullString
-	var rStatus sql.NullString
-	var releaseIDCol sql.NullInt64
+	var rName, rStatus sql.NullString
+	var rReleaseDate sql.NullTime
 
-	if err := rows.Scan(&i.ID, &i.Title, &desc, &i.Status, &i.Position, &deadline, &plannedDatesStr, &priority, &i.CreatedAt, &i.UpdatedAt,
-		&releaseIDCol,
+	if err := s.Scan(&i.ID, &i.Title, &desc, &i.Status, &i.Position, &deadline, &plannedDatesStr, &priority, &i.CreatedAt, &i.UpdatedAt,
 		&lID, &lName, &lColor,
 		&cID, &cEmail, &cFirstName, &cLastName,
 		&aID, &aEmail, &aFirstName, &aLastName,
 		&uID, &uEmail, &uFirstName, &uLastName,
 		&pID, &pName, &pDesc,
-		&rID, &rName, &rStatus); err != nil {
+		&rID, &rName, &rStatus, &rReleaseDate); err != nil {
 		return Issue{}, err
 	}
+
 	i.Description = desc.String
 	if priority.Valid {
 		i.Priority = IssuePriority(priority.String)
@@ -1251,66 +1107,39 @@ func scanIssue(rows *sql.Rows) (Issue, error) {
 		}
 	}
 	if lID.Valid {
-		i.Label = &Label{
-			ID:    int(lID.Int64),
-			Name:  lName.String,
-			Color: lColor.String,
-		}
+		i.Label = &Label{ID: int(lID.Int64), Name: lName.String, Color: lColor.String}
 	}
-
 	if cID.Valid {
 		i.CreatorID = int(cID.Int64)
-		i.Creator = &User{
-			ID:        int(cID.Int64),
-			Email:     cEmail.String,
-			FirstName: cFirstName.String,
-			LastName:  cLastName.String,
-		}
+		i.Creator = &User{ID: int(cID.Int64), Email: cEmail.String, FirstName: cFirstName.String, LastName: cLastName.String}
 	}
-
 	if aID.Valid {
 		id := int(aID.Int64)
 		i.AssigneeID = &id
-		i.Assignee = &User{
-			ID:        id,
-			Email:     aEmail.String,
-			FirstName: aFirstName.String,
-			LastName:  aLastName.String,
-		}
+		i.Assignee = &User{ID: id, Email: aEmail.String, FirstName: aFirstName.String, LastName: aLastName.String}
 	}
-
 	if uID.Valid {
 		id := int(uID.Int64)
 		i.UpdaterID = &id
-		i.Updater = &User{
-			ID:        id,
-			Email:     uEmail.String,
-			FirstName: uFirstName.String,
-			LastName:  uLastName.String,
-		}
+		i.Updater = &User{ID: id, Email: uEmail.String, FirstName: uFirstName.String, LastName: uLastName.String}
 	}
-
 	if pID.Valid {
 		i.ProjectID = int(pID.Int64)
-		i.Project = &Project{
-			ID:          int(pID.Int64),
-			Name:        pName.String,
-			Description: pDesc.String,
-		}
+		i.Project = &Project{ID: int(pID.Int64), Name: pName.String, Description: pDesc.String}
 	}
-
 	if rID.Valid {
 		id := int(rID.Int64)
 		i.ReleaseID = &id
-		i.Release = &Release{
-			ID:     id,
-			Name:   rName.String,
-			Status: ReleaseStatus(rStatus.String),
+		rel := &Release{ID: id, Name: rName.String, Status: ReleaseStatus(rStatus.String)}
+		if rReleaseDate.Valid {
+			rel.ReleaseDate = &rReleaseDate.Time
 		}
+		i.Release = rel
 	}
 
 	return i, nil
 }
+
 
 // CreateUser inserts a new user into the database.
 func CreateUser(u *User) error {

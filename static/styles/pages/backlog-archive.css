@@ -219,6 +219,10 @@
   color: var(--muted-text);
 }
 
+.backlog-card-deadline.overdue {
+  color: var(--danger-color);
+}
+
 /* Subtask tooltip opens above the row */
 .backlog-list .board-task-tooltip {
   top: auto;

@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, showConfirm, initCharCounter } from '../utils.js';
+import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus } from '../utils.js';
 import { MAX_TITLE_LENGTH } from '../validation-config.js';
 import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.js';
@@ -19,14 +19,15 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
 
     // Coerce task.id to a safe integer before embedding in HTML attributes
     const taskId = Number.isInteger(task.id) ? task.id : Math.trunc(Number(task.id));
+    const dlStatus = getTaskDeadlineStatus(task.deadline, currentIssue);
     li.innerHTML = `
             <span class="task-drag-handle">⋮⋮</span>
             <input type="checkbox" id="task-check-${taskId}" name="task_check_${taskId}" ${task.done ? 'checked' : ''}>
             <div class="task-info">
                 <input type="text" id="task-title-${taskId}" name="task_title_${taskId}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
                 <div class="task-actions">
-                    <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="Set Deadline">
-                        <span class="task-deadline task-deadline-display">
+                    <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="${dlStatus.late ? dlStatus.reason : 'Set Deadline'}">
+                        <span class="task-deadline task-deadline-display${dlStatus.late ? ' overdue' : ''}">
                             ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅'}
                         </span>
                         <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : ''}">
@@ -175,10 +176,13 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         task.deadline = newDate;
         try {
           await updateTask(task);
-          showNotification('Task deadline updated');
           const display = li.querySelector('.task-deadline-display');
           display.textContent = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
           deadlineContainer.classList.toggle('no-deadline', !task.deadline);
+          const updatedStatus = getTaskDeadlineStatus(task.deadline, currentIssue);
+          display.classList.toggle('overdue', updatedStatus.late);
+          deadlineContainer.title = updatedStatus.late ? updatedStatus.reason : 'Set Deadline';
+          showNotification(updatedStatus.late ? `Task deadline updated — ${updatedStatus.reason}` : 'Task deadline updated', updatedStatus.late ? 'warning' : 'success');
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         } catch (err) {
           task.deadline = prevDeadline; // revert local state

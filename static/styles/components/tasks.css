@@ -139,6 +139,10 @@
   transition: background-color 0.2s;
 }
 
+.task-deadline-display.overdue {
+  color: var(--danger-color);
+}
+
 .task-deadline-display:hover {
   background-color: var(--hover-bg);
   color: var(--text-color);
