@@ -32,7 +32,7 @@ ask() {
 ask_password() {
   local prompt="$1" pw
   # Read without echo
-  if [ -t 0 ]; then
+  if [[ -t 0 ]]; then
     read -rsp "$prompt" pw
     echo >&2   # newline after hidden input
   else
@@ -46,20 +46,20 @@ ask_password() {
 DB="${1:-}"
 PASSWORD="${2:-}"
 
-if [ -z "$DB" ]; then
+if [[ -z "$DB" ]]; then
   DB=$(ask "Database path [wuflow.db]: " "wuflow.db")
 fi
 
-if [ -f "$DB" ]; then
+if [[ -f "$DB" ]]; then
   echo "Error: '$DB' already exists. Remove it first or choose a different path." >&2
   exit 1
 fi
 
-if [ -z "$PASSWORD" ]; then
+if [[ -z "$PASSWORD" ]]; then
   PASSWORD=$(ask_password "Password for demo users: ")
 fi
 
-if [ -z "$PASSWORD" ]; then
+if [[ -z "$PASSWORD" ]]; then
   echo "Error: password must not be empty." >&2
   exit 1
 fi
@@ -509,11 +509,12 @@ SQL
 echo ""
 echo "Demo data loaded successfully into '$DB'."
 echo ""
+USER_FMT="  %-35s %s\n"
 echo "Demo user accounts (password: the one you entered):"
-printf "  %-35s %s\n" "sarah.chen@wuflow.demo"    "(sysadmin)"
-printf "  %-35s %s\n" "marcus.weber@wuflow.demo"  "(admin)"
-printf "  %-35s %s\n" "lena.hoffmann@wuflow.demo" "(user)"
-printf "  %-35s %s\n" "tom.fischer@wuflow.demo"   "(user)"
+printf "$USER_FMT" "sarah.chen@wuflow.demo"    "(sysadmin)"
+printf "$USER_FMT" "marcus.weber@wuflow.demo"  "(admin)"
+printf "$USER_FMT" "lena.hoffmann@wuflow.demo" "(user)"
+printf "$USER_FMT" "tom.fischer@wuflow.demo"   "(user)"
 echo ""
 echo "Projects:"
 echo "  1 — Development   (board: In Review / In Testing / Staging)"

@@ -366,7 +366,8 @@ describe('releases', () => {
       document.getElementById('release-modal-delete').classList.remove('hidden');
       document.getElementById('release-modal-delete').click();
       await new Promise(process.nextTick);
-      // Modal should still close (editingReleaseId is null so rel is not found — button is a no-op)
+      // editingReleaseId is null so rel is not found — handler returns early
+      expect(api.deleteRelease).not.toHaveBeenCalled();
     });
 
     it('fires updateDateInputStyle when a date input changes', async () => {

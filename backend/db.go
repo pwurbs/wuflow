@@ -518,6 +518,7 @@ const (
 	queryActiveIssues   = issueSelectBase + ` WHERE i.status NOT IN (?, ?) AND i.project_id = ? ORDER BY i.position ASC`
 	queryArchivedIssues = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
 	queryOpenIssues     = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
+	queryIssueByID      = issueSelectBase + ` WHERE i.id = ?`
 )
 
 // queryIssuesByProject executes query, scans the results, and attaches tasks.
@@ -572,7 +573,7 @@ func GetOpenIssuesByProject(projectID int) ([]Issue, error) {
 
 // GetIssueByID retrieves a single issue by ID, including its associated tasks.
 func GetIssueByID(id int) (*Issue, error) {
-	row := DB.QueryRow(issueSelectBase+` WHERE i.id = ?`, id)
+	row := DB.QueryRow(queryIssueByID, id)
 	issue, err := scanIssueRow(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
