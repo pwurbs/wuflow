@@ -46,7 +46,7 @@ test.describe('Role Based Authorization', () => {
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
 
     // Verify creation
-    await expect(page.locator(`.user-row:has-text("${standardUserEmail}")`)).toBeVisible();
+    await expect(page.locator(`.settings-entry:has-text("${standardUserEmail}")`)).toBeVisible();
 
     // 3. Logout
     await page.click('#user-menu-btn');

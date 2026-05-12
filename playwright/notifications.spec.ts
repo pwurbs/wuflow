@@ -198,7 +198,7 @@ test.describe('Notifications', () => {
       await page.click('#user-modal-save');
       await expect(page.locator('#user-modal-overlay')).toBeHidden();
       // Edit the user
-      await page.locator(`.user-row:has-text("${email}")`).locator('.user-edit-btn').click();
+      await page.locator(`.settings-entry:has-text("${email}")`).click();
       await expect(page.locator('#user-modal-overlay')).toBeVisible();
       await page.fill('#user-first-name', 'Updated');
       await page.click('#user-modal-save');

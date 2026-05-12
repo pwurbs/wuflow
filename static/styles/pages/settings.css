@@ -250,3 +250,247 @@
     vertical-align: middle;
     cursor: help;
 }
+
+/* User & Project Cards */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.settings-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  min-height: 32px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.settings-entry:hover {
+  border-color: var(--accent-blue);
+}
+
+.settings-entry-info {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-entry-title {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.settings-entry-subtitle {
+  font-size: 13px;
+  color: var(--muted-text);
+}
+
+.settings-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-entry-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.settings-entry-badge.admin {
+  background-color: #4c1d95;
+  color: #f5f3ff;
+  border: 1px solid #7c3aed;
+  margin-left: 8px;
+}
+
+.settings-entry-badge.sysadmin {
+  background-color: #0e4f6e;
+  color: #e0f2fe;
+  border: 1px solid #0284c7;
+  margin-left: 8px;
+}
+
+.settings-entry.user-inactive .settings-entry-title,
+.settings-entry.user-inactive .settings-entry-subtitle {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.settings-entry--clickable {
+  cursor: pointer;
+  position: relative;
+}
+
+.settings-entry--clickable::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  transition-delay: 0.15s;
+  z-index: 10;
+}
+
+.settings-entry--clickable:hover::after {
+  opacity: 1;
+}
+
+/* User & Project Modals */
+#settings-modal-overlay.hidden,
+#project-modal-overlay.hidden {
+  display: none;
+}
+
+.settings-modal {
+  background-color: var(--column-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  width: 480px;
+  max-width: 90%;
+  padding: 0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.settings-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.settings-modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.settings-modal form {
+  padding: 20px 24px 24px;
+}
+
+.settings-modal .form-group {
+  margin-bottom: 16px;
+}
+
+.settings-modal .custom-select-trigger {
+  width: 100%;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted-text);
+}
+
+.settings-modal .form-actions {
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.btn.primary {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn.primary:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Fix autofill for user modal */
+.settings-modal input:-webkit-autofill,
+.settings-modal input:-webkit-autofill:hover,
+.settings-modal input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 30px rgb(16, 22, 35) inset !important;
+  -webkit-text-fill-color: var(--text-color) !important;
+  caret-color: var(--text-color);
+}
+
+/* User Modal Checkbox */
+.form-checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.form-checkbox label {
+  margin-bottom: 0;
+  cursor: pointer;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.user-options-row .role-group {
+  flex: 1;
+  margin-right: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 4px;
+}
+
+.user-options-row .active-group {
+  flex: 0 0 auto;
+  margin-bottom: 16px;
+  padding-bottom: 0;
+}
+
+.user-options-row {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.form-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--danger-color);
+  color: var(--danger-color);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}

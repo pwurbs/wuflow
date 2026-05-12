@@ -10,6 +10,7 @@
 - Bumped golang.org/x/crypto to v0.51.0
 - Added a script to create a database containing demo data
 - Improved due date checking for consistency (overdue, issue violates release date, task violates issue deadline) and added appropriate style / notication
+- Removed edit button for users and projects in system settings, edit dialog is now opened by clicking the card
 
 # 1.2.1
 

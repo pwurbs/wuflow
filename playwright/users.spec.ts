@@ -37,33 +37,33 @@ test.describe('User Management', () => {
     await page.click('#user-modal-save');
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
 
-    const userRow = page.locator(`.user-row:has-text("${testEmail}")`);
+    const userRow = page.locator(`.settings-entry:has-text("${testEmail}")`);
     await expect(userRow).toBeVisible();
 
     // 2. Edit User (Promote to Admin — not Sysadmin)
-    await userRow.locator('.user-edit-btn').click();
+    await userRow.click();
     await page.click('#user-role-trigger');
     await page.click('.custom-option[data-value="admin"]');
     await page.click('#user-modal-save');
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
     // Admin badge (not Sysadmin badge) is shown
-    await expect(userRow.locator('.user-role-badge.admin')).toBeVisible();
-    await expect(userRow.locator('.user-role-badge.sysadmin')).toBeHidden();
+    await expect(userRow.locator('.settings-entry-badge.admin')).toBeVisible();
+    await expect(userRow.locator('.settings-entry-badge.sysadmin')).toBeHidden();
 
     // 3. Deactivate User
-    await userRow.locator('.user-edit-btn').click();
+    await userRow.click();
     await page.uncheck('#user-active');
     await page.click('#user-modal-save');
     await expect(userRow).toHaveClass(/user-inactive/);
 
     // 4. Reactivate User
-    await userRow.locator('.user-edit-btn').click();
+    await userRow.click();
     await page.check('#user-active');
     await page.click('#user-modal-save');
     await expect(userRow).not.toHaveClass(/user-inactive/);
 
     // 5. Cleanup: Demote and Deactivate so it doesn't interfere with other tests
-    await userRow.locator('.user-edit-btn').click();
+    await userRow.click();
     await page.click('#user-role-trigger');
     await page.click('.custom-option[data-value="user"]');
     await page.uncheck('#user-active');
@@ -73,10 +73,10 @@ test.describe('User Management', () => {
 
   test('Sysadmin cannot deactivate the last active sysadmin', async ({ page }) => {
     // We expect the configured sysadmin to be the only active sysadmin here.
-    const sysadminRow = page.locator(`.user-row:has-text("${adminEmail}")`);
+    const sysadminRow = page.locator(`.settings-entry:has-text("${adminEmail}")`);
     await expect(sysadminRow).toBeVisible();
 
-    await sysadminRow.locator('.user-edit-btn').click();
+    await sysadminRow.click();
     await expect(page.locator('#user-modal-overlay')).toBeVisible();
 
     // Attempt Deactivate
@@ -178,10 +178,10 @@ test.describe('User Management', () => {
 
   test('Initial sysadmin has Sysadmin role badge', async ({ page }) => {
     // Already on System Settings page from beforeEach
-    const adminRow = page.locator(`.user-row:has-text("${adminEmail}")`);
+    const adminRow = page.locator(`.settings-entry:has-text("${adminEmail}")`);
     await expect(adminRow).toBeVisible();
-    await expect(adminRow.locator('.user-role-badge.sysadmin')).toBeVisible();
-    await expect(adminRow.locator('.user-role-badge.sysadmin')).toContainText('Sysadmin');
+    await expect(adminRow.locator('.settings-entry-badge.sysadmin')).toBeVisible();
+    await expect(adminRow.locator('.settings-entry-badge.sysadmin')).toContainText('Sysadmin');
   });
 
   test('Header User Menu displays badge and email correctly', async ({ page }) => {
@@ -203,7 +203,7 @@ test.describe('User Management', () => {
     await expect(page.locator('#users-list')).toBeVisible();
 
     // Find the row for the admin email
-    const adminRow = page.locator(`.user-row:has-text("${adminEmail}")`);
+    const adminRow = page.locator(`.settings-entry:has-text("${adminEmail}")`);
     await expect(adminRow).toBeVisible();
 
     // Check for badge in the list row
@@ -231,7 +231,7 @@ test.describe('User Management', () => {
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
 
     // Find the new row
-    const userRow = page.locator(`.user-row:has-text("${testEmail}")`);
+    const userRow = page.locator(`.settings-entry:has-text("${testEmail}")`);
     await expect(userRow).toBeVisible();
 
     // Check Badge Initials: Badge + Tester -> BT

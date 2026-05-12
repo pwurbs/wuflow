@@ -14,9 +14,9 @@ test.describe('Project Management', () => {
   });
 
   test('Default project is listed with a default badge', async ({ page }) => {
-    const defaultRow = page.locator('#projects-list .user-row:has-text("default")');
+    const defaultRow = page.locator('#projects-list .settings-entry:has-text("default")');
     await expect(defaultRow).toBeVisible();
-    await expect(defaultRow.locator('.user-role-badge')).toContainText('default');
+    await expect(defaultRow.locator('.settings-entry-badge')).toContainText('default');
   });
 
   test('Create a new project', async ({ page }) => {
@@ -58,8 +58,8 @@ test.describe('Project Management', () => {
     await expect(page.locator('#projects-list')).toContainText(originalName);
 
     // Edit the project
-    const projectRow = page.locator(`#projects-list .user-row:has-text("${originalName}")`);
-    await projectRow.locator('.project-edit-btn').click();
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${originalName}")`);
+    await projectRow.click();
     await expect(page.locator('#project-modal-overlay')).toBeVisible();
     await expect(page.locator('#project-modal-title')).toHaveText('Edit Project');
     await expect(page.locator('#project-name')).toHaveValue(originalName);
@@ -81,8 +81,8 @@ test.describe('Project Management', () => {
     await expect(page.locator('#projects-list')).toContainText(name);
 
     // Open edit and delete
-    const projectRow = page.locator(`#projects-list .user-row:has-text("${name}")`);
-    await projectRow.locator('.project-edit-btn').click();
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
+    await projectRow.click();
     await expect(page.locator('#project-modal-delete')).toBeVisible();
     await page.click('#project-modal-delete');
 
@@ -94,8 +94,8 @@ test.describe('Project Management', () => {
   });
 
   test('Default project cannot be deleted', async ({ page }) => {
-    const defaultRow = page.locator('#projects-list .user-row:has-text("default")');
-    await defaultRow.locator('.project-edit-btn').click();
+    const defaultRow = page.locator('#projects-list .settings-entry:has-text("default")');
+    await defaultRow.click();
     await expect(page.locator('#project-modal-overlay')).toBeVisible();
 
     // Delete button must be hidden for the default project
@@ -123,8 +123,8 @@ test.describe('Project Management', () => {
     await page.click('#project-modal-cancel');
 
     // Cleanup
-    const projectRow = page.locator(`#projects-list .user-row:has-text("${name}")`);
-    await projectRow.locator('.project-edit-btn').click();
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
+    await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
   });
@@ -172,8 +172,8 @@ test.describe('Project Selector', () => {
 
     // Cleanup
     await navigateTo(page, 'system-settings');
-    const projectRow = page.locator(`#projects-list .user-row:has-text("${name}")`);
-    await projectRow.locator('.project-edit-btn').click();
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
+    await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
   });
@@ -195,8 +195,8 @@ test.describe('Project Selector', () => {
 
     // Cleanup
     await navigateTo(page, 'system-settings');
-    const projectRow = page.locator(`#projects-list .user-row:has-text("${name}")`);
-    await projectRow.locator('.project-edit-btn').click();
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
+    await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
   });
@@ -255,8 +255,8 @@ test.describe('Issues with Projects', () => {
 
     // Cleanup — delete the new project (switch back to default first)
     await navigateTo(page, 'system-settings');
-    const projectRow = page.locator(`#projects-list .user-row:has-text("${projectName}")`);
-    await projectRow.locator('.project-edit-btn').click();
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${projectName}")`);
+    await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
   });

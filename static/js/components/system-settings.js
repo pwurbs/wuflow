@@ -215,28 +215,23 @@ async function renderProjectList(refreshCallback) {
 
     projects.forEach(project => {
       const row = document.createElement('div');
-      row.className = 'user-row';
+      row.className = 'settings-entry';
 
       const isDefault = project.id === 1;
       const desc = project.description ? escapeHtml(project.description) : '<em>No description</em>';
-      const editBtnHtml = userCan(state.currentUser, ACTION_UPDATE_PROJECT)
-        ? `<button class="btn secondary project-edit-btn" title="Edit Project">Edit</button>`
-        : '';
 
       row.innerHTML = `
-        <div class="user-info">
-          <span class="user-email">${escapeHtml(project.name)}</span>
-          ${isDefault ? '<span class="user-role-badge admin">default</span>' : ''}
-          <span class="user-name">${desc}</span>
-        </div>
-        <div class="user-meta">
-          ${editBtnHtml}
+        <div class="settings-entry-info">
+          <span class="settings-entry-title">${escapeHtml(project.name)}</span>
+          ${isDefault ? '<span class="settings-entry-badge admin">default</span>' : ''}
+          <span class="settings-entry-subtitle">${desc}</span>
         </div>
       `;
 
       if (userCan(state.currentUser, ACTION_UPDATE_PROJECT)) {
-        const editBtn = row.querySelector('.project-edit-btn');
-        editBtn?.addEventListener('click', () => openProjectModal(project));
+        row.classList.add('settings-entry--clickable');
+        row.dataset.tooltip = 'Edit Project';
+        row.addEventListener('click', () => openProjectModal(project));
       }
 
       projectsList.appendChild(row);
@@ -526,30 +521,24 @@ async function renderUserList(refreshCallback) {
 
     users.forEach(user => {
       const row = document.createElement('div');
-      row.className = user.active ? 'user-row' : 'user-row user-inactive';
+      row.className = user.active ? 'settings-entry' : 'settings-entry user-inactive';
 
-      const roleBadgeMap = { sysadmin: '<span class="user-role-badge sysadmin">Sysadmin</span>', admin: '<span class="user-role-badge admin">Admin</span>' };
+      const roleBadgeMap = { sysadmin: '<span class="settings-entry-badge sysadmin">Sysadmin</span>', admin: '<span class="settings-entry-badge admin">Admin</span>' };
       const adminBadge = roleBadgeMap[user.role] ?? '';
 
-      const editBtnHtml = userCan(state.currentUser, ACTION_UPDATE_USER)
-        ? '<button class="btn secondary user-edit-btn" title="Edit User">Edit</button>'
-        : '';
-
       row.innerHTML = `
-        <div class="user-info">
+        <div class="settings-entry-info">
           <div class="user-badge">${escapeHtml(getUserInitials(user))}</div>
-          <span class="user-email">${escapeHtml(user.email)}</span>
-          <span class="user-name">(${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)})</span>
+          <span class="settings-entry-title">${escapeHtml(user.email)}</span>
+          <span class="settings-entry-subtitle">(${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)})</span>
           ${adminBadge}
-        </div>
-        <div class="user-meta">
-          ${editBtnHtml}
         </div>
       `;
 
       if (userCan(state.currentUser, ACTION_UPDATE_USER)) {
-        const editBtn = row.querySelector('.user-edit-btn');
-        editBtn?.addEventListener('click', () => openUserModal(user));
+        row.classList.add('settings-entry--clickable');
+        row.dataset.tooltip = 'Edit User';
+        row.addEventListener('click', () => openUserModal(user));
       }
 
       usersList.appendChild(row);

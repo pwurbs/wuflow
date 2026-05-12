@@ -135,7 +135,7 @@ describe('system-settings.js component', () => {
       await renderSystemSettingsView();
 
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(false);
-      const rows = document.querySelectorAll('.user-row');
+      const rows = document.querySelectorAll('.settings-entry');
       expect(rows.length).toBe(3);
       // Users are sorted by email: admin < sysadmin < user
       expect(rows[0].textContent).toContain('admin@test.com');
@@ -183,8 +183,7 @@ describe('system-settings.js component', () => {
 
       await renderSystemSettingsView();
 
-      const editBtn = document.querySelector('.user-edit-btn');
-      editBtn.click();
+      document.querySelector('.settings-entry').click();
 
       expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
       expect(document.getElementById('user-modal-title').textContent).toBe('Edit User');
@@ -224,7 +223,7 @@ describe('system-settings.js component', () => {
       api.fetchUsers.mockResolvedValue([user]);
       setupSystemSettingsView();
       await renderSystemSettingsView();
-      document.querySelector('.user-edit-btn').click();
+      document.querySelector('.settings-entry').click();
 
       document.getElementById('user-first-name').value = 'Updated';
       api.updateUser.mockResolvedValue({});
@@ -604,8 +603,7 @@ describe('Project Management', () => {
       api.fetchProjects.mockResolvedValue([project]);
       await renderSystemSettingsView();
 
-      const editBtn = document.querySelector('.project-edit-btn');
-      editBtn.click();
+      document.querySelector('.settings-entry').click();
 
       expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
       expect(document.getElementById('project-modal-title').textContent).toBe('Edit Project');
@@ -618,7 +616,7 @@ describe('Project Management', () => {
       api.fetchProjects.mockResolvedValue([project]);
       await renderSystemSettingsView();
 
-      document.querySelector('.project-edit-btn').click();
+      document.querySelector('.settings-entry').click();
 
       expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(true);
     });
@@ -628,7 +626,7 @@ describe('Project Management', () => {
       api.fetchProjects.mockResolvedValue([project]);
       await renderSystemSettingsView();
 
-      document.querySelector('.project-edit-btn').click();
+      document.querySelector('.settings-entry').click();
 
       expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(false);
     });
@@ -683,7 +681,7 @@ describe('Project Management', () => {
       api.updateProject.mockResolvedValue({});
       await renderSystemSettingsView();
 
-      document.querySelector('.project-edit-btn').click();
+      document.querySelector('.settings-entry').click();
       document.getElementById('project-name').value = 'Updated';
       document.getElementById('project-form').dispatchEvent(new Event('submit'));
 
@@ -712,7 +710,7 @@ describe('Project Management', () => {
       api.deleteProject.mockResolvedValue({});
       await renderSystemSettingsView();
 
-      document.querySelector('.project-edit-btn').click();
+      document.querySelector('.settings-entry').click();
 
       document.getElementById('project-modal-delete').click();
 
@@ -733,7 +731,7 @@ describe('Project Management', () => {
       api.fetchProjects.mockResolvedValue([project]);
       await renderSystemSettingsView();
 
-      document.querySelector('.project-edit-btn').click();
+      document.querySelector('.settings-entry').click();
       document.getElementById('project-modal-delete').click();
 
       document.getElementById('confirm-cancel-btn').click();
@@ -748,7 +746,7 @@ describe('Project Management', () => {
       api.deleteProject.mockRejectedValue(new Error('Delete failed'));
       await renderSystemSettingsView();
 
-      document.querySelector('.project-edit-btn').click();
+      document.querySelector('.settings-entry').click();
       document.getElementById('project-modal-delete').click();
       document.getElementById('confirm-ok-btn').click();
 
@@ -776,7 +774,7 @@ describe('Project Management', () => {
       api.fetchProjects.mockResolvedValue(projects);
       await renderSystemSettingsView();
 
-      const rows = document.querySelectorAll('#projects-list .user-row');
+      const rows = document.querySelectorAll('#projects-list .settings-entry');
       expect(rows.length).toBe(2);
       expect(rows[0].textContent).toContain('default');
       expect(rows[1].textContent).toContain('Alpha');
@@ -786,7 +784,7 @@ describe('Project Management', () => {
       api.fetchProjects.mockResolvedValue([{ id: 1, name: 'default', description: '' }]);
       await renderSystemSettingsView();
 
-      const row = document.querySelector('#projects-list .user-row');
+      const row = document.querySelector('#projects-list .settings-entry');
       expect(row.textContent).toContain('default');
       expect(row.innerHTML).toContain('admin');
     });
