@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import crypto from 'node:crypto';
 import {
   createIssue, createRelease, triggerRelease, openIssueByTitle, navigateTo,
-  selectPriority, waitForToast,
+  selectPriority, waitForToast, waitForToastHidden,
 } from './helpers/test-utils';
 
 function generatePassword(): string {
@@ -95,6 +95,8 @@ test.describe('Notifications', () => {
     test('Done shows no notification when no changes were made', async ({ page }) => {
       const title = `Notif Done No Change ${Date.now()}`;
       await createIssue(page, { title, status: 'Todo' });
+      // Wait for the "created" toast from createIssue to clear before proceeding
+      await waitForToastHidden(page);
       await openIssueByTitle(page, title);
       await page.click('#done-btn');
       await expect(page.locator('#issue-modal')).toBeHidden();

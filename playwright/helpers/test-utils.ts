@@ -125,6 +125,13 @@ export async function waitForToast(page: Page, expectedText?: string): Promise<v
 }
 
 /**
+ * Waits for the notification toast to be hidden (auto-dismissed or never shown)
+ */
+export async function waitForToastHidden(page: Page): Promise<void> {
+  await expect(page.locator('#notification-toast')).toBeHidden({ timeout: 10000 });
+}
+
+/**
  * Gets the count of cards in a specific column
  * Card class is 'card' or 'board-card', not 'issue-card'
  */

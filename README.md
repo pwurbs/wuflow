@@ -167,17 +167,16 @@ For deeper technical insights, architecture overviews, and detailed functional d
 We plan to add the following features in the future:
 - Dependencies between Issues
 - Links between issues
-- User assignment to projects
+- Comments and activity in issues
+- Helm Chart
+- Light mode
+- Private Issues
 - Postgres support
 - Horizontal scalability
 - OIDC support
-- Add comments in issues
-- More roles
+- Project-scoped roles
 - File Upload
-- Helm Chart
 - Prometheus metrics
-- Light mode
-- Private Issues
 - ...
 
 ## Feedback
