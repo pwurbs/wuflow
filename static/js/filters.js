@@ -55,11 +55,12 @@ export function filterIssues(issues, filter, currentUserId) {
     result = result.filter(issue => matchesReleaseIds(issue, filter.releaseFilterIds));
   }
 
-  // Search filter (matches title or description)
+  // Search filter (matches id, title or description)
   if (filter.search) {
     const term = filter.search.trim().toLowerCase();
     if (term) {
       result = result.filter(issue =>
+        String(issue.id).includes(term) ||
         issue.title.toLowerCase().includes(term) ||
         issue.description?.toLowerCase().includes(term)
       );

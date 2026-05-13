@@ -12,6 +12,7 @@
 - Improved due date checking for consistency (overdue, issue violates release date, task violates issue deadline) and added appropriate style / notication
 - Removed edit button for users and projects in system settings, edit dialog is now opened by clicking the card
 - Bumped dompurify to 3.4.3
+- Issue id is now covered by the text-based search filter
 
 ## 1.2.1
 

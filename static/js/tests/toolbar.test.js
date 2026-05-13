@@ -159,6 +159,12 @@ describe('filterIssues', () => {
       const filter = { labelId: null, priority: null, assigneeId: null, search: 'test' };
       expect(filterIssues(issues, filter)).toHaveLength(1);
     });
+
+    it('should search by issue id', () => {
+      const filter = { labelId: null, priority: null, assigneeId: null, search: '3' };
+      const result = filterIssues(mockIssues, filter);
+      expect(result.some(i => i.id === 3)).toBe(true);
+    });
   });
 
   describe('release filter', () => {
