@@ -247,6 +247,12 @@ async function renderProjectList(refreshCallback) {
 // --- User Management ---
 
 let editingUserId = null;
+let editingUserOriginalRole = null;
+
+const ROLE_RANK = { user: 0, admin: 1, sysadmin: 2 };
+function isRolePromotion(fromRole, toRole) {
+  return (ROLE_RANK[toRole] ?? -1) > (ROLE_RANK[fromRole] ?? -1);
+}
 
 function setupUserModal(refreshCallback) {
   const addUserBtn = document.getElementById('add-user-btn');
@@ -301,6 +307,7 @@ function openUserModal(user) {
 
   if (user) {
     editingUserId = user.id;
+    editingUserOriginalRole = user.role;
     modalTitle.textContent = 'Edit User';
     emailInput.value = user.email;
     firstNameInput.value = user.first_name;
@@ -314,12 +321,14 @@ function openUserModal(user) {
     // ... existing code ...
 
     // Password logic for Edit Mode
+    passwordInput.value = '';
     passwordInput.placeholder = '';
     passwordInput.required = false;
     passwordHint.textContent = HINT_EDIT_USER;
     passwordHint.classList.remove('hidden');
   } else {
     editingUserId = null;
+    editingUserOriginalRole = null;
     modalTitle.textContent = 'New User';
     userForm.reset();
     activeInput.checked = true; // Default to active
@@ -347,6 +356,7 @@ function closeUserModal() {
   const overlay = document.getElementById('user-modal-overlay');
   overlay.classList.add('hidden');
   editingUserId = null;
+  editingUserOriginalRole = null;
 }
 
 async function handleUserSubmit(refreshCallback) {
@@ -380,13 +390,7 @@ async function handleUserSubmit(refreshCallback) {
     if (!userCan(state.currentUser, action)) return;
 
     if (isEditing) {
-      await updateUser(editingUserId, userData);
-      const isSelf = editingUserId === state.currentUser?.id;
-      const sessionInvalidated = userData.password || userData.role !== state.currentUser?.role;
-      if (isSelf && sessionInvalidated) {
-        logout();
-        return;
-      }
+      if (!await applyUserUpdate(userData)) return;
     } else {
       await createUser(userData);
     }
@@ -397,6 +401,67 @@ async function handleUserSubmit(refreshCallback) {
   } catch (err) {
     showUserError(errorDisplay, err.message);
   }
+}
+
+async function applyUserUpdate(userData) {
+  if (userData.password || isRolePromotion(editingUserOriginalRole, userData.role)) {
+    const adminPassword = await promptAdminPasswordConfirmation();
+    if (adminPassword === null) return false;
+    userData.admin_password = adminPassword;
+  }
+  await updateUser(editingUserId, userData);
+  const isSelf = editingUserId === state.currentUser?.id;
+  if (isSelf && (userData.password || userData.role !== state.currentUser?.role)) {
+    logout();
+    return false;
+  }
+  return true;
+}
+
+function promptAdminPasswordConfirmation() {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('admin-confirm-modal');
+    const input = document.getElementById('admin-confirm-password');
+    const errorDiv = document.getElementById('admin-confirm-error');
+    const okBtn = document.getElementById('admin-confirm-ok-btn');
+    const cancelBtn = document.getElementById('admin-confirm-cancel-btn');
+
+    input.value = '';
+    errorDiv.textContent = '';
+    errorDiv.classList.add('hidden');
+    modal.classList.remove('hidden');
+    input.focus();
+
+    function cleanup() {
+      modal.classList.add('hidden');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKeydown);
+    }
+
+    function onOk() {
+      if (!input.value) {
+        errorDiv.textContent = 'Password is required.';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+      cleanup();
+      resolve(input.value);
+    }
+
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+
+    function onKeydown(e) {
+      if (e.key === 'Enter') onOk();
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKeydown);
+  });
 }
 
 function validateUserInput(userData, errorDisplay) {

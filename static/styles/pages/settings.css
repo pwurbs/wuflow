@@ -418,6 +418,16 @@
   margin-top: 4px;
 }
 
+.admin-confirm-body {
+  padding: 20px 24px 24px;
+}
+
+.admin-confirm-body p {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--muted-text);
+}
+
 .btn.primary {
   background-color: var(--primary-color);
   color: white;

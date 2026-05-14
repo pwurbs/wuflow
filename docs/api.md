@@ -90,6 +90,24 @@ Retrieves the authenticated user's details.
 - **Errors**:
   - `401 Unauthorized` - Not authenticated
 
+### Change Own Password
+Allows the authenticated user to change their own password. All existing sessions are revoked on success.
+- **PUT** `/auth/me`
+- **Body**:
+  ```json
+  {
+    "password": "NewSecurePass123!",
+    "current_password": "OldPassword123!"
+  }
+  ```
+- **Notes**:
+  - `current_password` is required when `password` is provided — prevents session-hijacking attacks
+  - On success, all sessions for the user are revoked and the user is logged out
+- **Response**: Updated user object
+- **Errors**:
+  - `400 Bad Request` - Password policy violation or `current_password` missing/incorrect
+  - `401 Unauthorized` - Not authenticated
+
 ### List Users
 Retrieves all users. Accessible to all authenticated users.
 - **GET** `/users`
@@ -135,17 +153,19 @@ Updates an existing user (Sysadmin only).
     "email": "updated@example.com",
     "first_name": "Jane",
     "last_name": "Smith",
-    "password": "",
+    "password": "NewSecurePass123!",
+    "admin_password": "YourOwnPassword123!",
     "role": "admin",
     "active": false
   }
   ```
 - **Notes**:
-  - Password is optional; leave empty to keep current password
+  - `password` is optional; leave empty to keep current password
+  - `admin_password` is required when `password` is non-empty **or** when the role is being promoted (`user→admin`, `user→sysadmin`, `admin→sysadmin`) — the requesting sysadmin must confirm their own current password to authorise the change
   - Cannot deactivate or demote the last active sysadmin
 - **Response**: Updated user object
 - **Errors**:
-  - `400 Bad Request` - Validation failed or trying to deactivate last sysadmin
+  - `400 Bad Request` - Validation failed, trying to deactivate last sysadmin, or `admin_password` missing/incorrect
   - `404 Not Found` - User doesn't exist
   - `409 Conflict` - Email already in use
   - `401 Unauthorized` - Not authenticated

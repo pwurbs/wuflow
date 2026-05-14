@@ -23,7 +23,7 @@ test.describe('User Management', () => {
     await page.click('#nav-system-settings');
   });
 
-  test('Sysadmin can create, edit, and manage users', async ({ page }) => {
+  test('Sysadmin can create, edit, and manage users', async ({ page, workerServer }) => {
     // 1. Create User
     await page.click('#add-user-btn');
     const timestamp = Date.now();
@@ -45,6 +45,10 @@ test.describe('User Management', () => {
     await page.click('#user-role-trigger');
     await page.click('.custom-option[data-value="admin"]');
     await page.click('#user-modal-save');
+    // Role promotion requires admin password confirmation
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
     // Admin badge (not Sysadmin badge) is shown
     await expect(userRow.locator('.settings-entry-badge.admin')).toBeVisible();
@@ -238,6 +242,125 @@ test.describe('User Management', () => {
     const badge = userRow.locator('.user-badge');
     await expect(badge).toBeVisible();
     await expect(badge).toHaveText('BT');
+  });
+
+  test('Admin confirmation dialog is required when changing a user password', async ({ page, workerServer }) => {
+    // Create a test user to edit
+    await page.click('#add-user-btn');
+    const testEmail = `confirm_pw_${Date.now()}@example.com`;
+    await page.fill('#user-email', testEmail);
+    await page.fill('#user-first-name', 'Confirm');
+    await page.fill('#user-last-name', 'Test');
+    await page.fill('#user-password', generatePassword());
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    const userRow = page.locator(`.settings-entry:has-text("${testEmail}")`);
+
+    // Cancel aborts the save — user modal stays open
+    await userRow.click();
+    await page.fill('#user-password', generatePassword());
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.click('#admin-confirm-cancel-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-overlay')).toBeVisible();
+    await page.click('#user-modal-cancel');
+
+    // Wrong admin password → confirm modal closes, backend rejects, error in user modal
+    await userRow.click();
+    await page.fill('#user-password', generatePassword());
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', 'WrongAdminPass123!');
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-error')).toBeVisible();
+    await page.click('#user-modal-cancel');
+
+    // Correct admin password → success, user modal closes
+    await userRow.click();
+    await page.fill('#user-password', generatePassword());
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+  });
+
+  test('Admin confirmation dialog is required for role promotion but not demotion', async ({ page, workerServer }) => {
+    // Create a test user
+    await page.click('#add-user-btn');
+    const testEmail = `confirm_role_${Date.now()}@example.com`;
+    await page.fill('#user-email', testEmail);
+    await page.fill('#user-first-name', 'Role');
+    await page.fill('#user-last-name', 'Confirm');
+    await page.fill('#user-password', generatePassword());
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    const userRow = page.locator(`.settings-entry:has-text("${testEmail}")`);
+
+    // Promotion (user → admin) requires confirmation
+    await userRow.click();
+    await page.click('#user-role-trigger');
+    await page.click('.custom-option[data-value="admin"]');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+    await expect(userRow.locator('.settings-entry-badge.admin')).toBeVisible();
+
+    // Demotion (admin → user) does NOT require confirmation
+    await userRow.click();
+    await page.click('#user-role-trigger');
+    await page.click('.custom-option[data-value="user"]');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+  });
+
+  test('Self-service password change requires the current password', async ({ page }) => {
+    // Wrong current password is rejected (test as sysadmin, no actual change)
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-password');
+    await expect(page.locator('#password-modal')).toBeVisible();
+    await page.fill('#current-password', 'WrongCurrentPass123!');
+    await page.fill('#new-password', generatePassword());
+    await page.locator('#password-form button[type="submit"]').click();
+    await expect(page.locator('#password-modal-error')).toBeVisible();
+    await page.click('#password-cancel-btn');
+
+    // Correct current password succeeds and logs the user out
+    // Use a dedicated test user to avoid invalidating the sysadmin session
+    await page.click('#add-user-btn');
+    const testEmail = `self_pw_${Date.now()}@example.com`;
+    const testPassword = generatePassword();
+    await page.fill('#user-email', testEmail);
+    await page.fill('#user-first-name', 'SelfPw');
+    await page.fill('#user-last-name', 'Test');
+    await page.fill('#user-password', testPassword);
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    // Log out and in as the test user
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+    await page.fill('#login-email', testEmail);
+    await page.fill('#login-password', testPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+
+    // Change own password with correct current password → success, redirected to login
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-password');
+    await expect(page.locator('#password-modal')).toBeVisible();
+    await page.fill('#current-password', testPassword);
+    await page.fill('#new-password', generatePassword());
+    await page.locator('#password-form button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/login/);
   });
 
 });

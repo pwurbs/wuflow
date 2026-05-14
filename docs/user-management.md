@@ -31,7 +31,7 @@ Three roles are available, ordered from least to most privileged:
 | Access System Settings view | — | — | ✓ |
 
 > **Notes**:
-- The `/api/auth/me` endpoint (Get Current User / Update Self) is available to **all authenticated users** regardless of role. Any user can view and update their own profile (e.g. change password).
+- The `/api/auth/me` endpoint (Get Current User / Update Self) is available to **all authenticated users** regardless of role. Any user can view and update their own profile (e.g. change password). Changing the password requires the user to supply their **current password** for confirmation.
 - **Admin and sysadmin** users see the Project Settings navigation item (label management, scoped per project).
 - Only **sysadmin** users see the System Settings navigation item (user management, projects).
 - The **Releases view** is accessible to all authenticated users to support team-wide visibility into planned and completed deliveries. However, only **admin and sysadmin** users can create, edit, delete, publish, or reopen releases — regular users have read-only access.
@@ -207,10 +207,13 @@ The key should be a long, random string (32+ characters recommended).
 ## User Lifecycle
 
 - Sysadmins can create, edit, activate, and deactivate users via the System Settings view.
-- **Inactive users** cannot log in. 
+- **Inactive users** cannot log in.
+- **Sensitive action confirmation**: To prevent a stolen session from being weaponised, certain sysadmin actions require the requesting sysadmin to confirm their **own current password** (`admin_password`):
+  - Changing another user's password
+  - Promoting a user's role (`user→admin`, `user→sysadmin`, `admin→sysadmin`)
 - **Session Revocation**: The following actions trigger immediate revocation of **all** user sessions (Family Revocation):
   - Deactivating a user
-  - Changing a user's password
-  - **Changing a user's role** (e.g. Admin -> User)
+  - Changing a user's password (self-service or admin-initiated)
+  - **Changing a user's role** (any direction)
   - Detecting **Token Reuse** (suspected theft)
 - **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401), causing the application to log the user out.

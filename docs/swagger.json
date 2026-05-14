@@ -180,7 +180,11 @@
           },
           "password": {
             "type": "string",
-            "description": "Optional"
+            "description": "Optional. Leave empty to keep current password."
+          },
+          "admin_password": {
+            "type": "string",
+            "description": "Required when 'password' is provided or the role is being promoted (user→admin, user→sysadmin, admin→sysadmin). The requesting sysadmin's own current password for confirmation."
           },
           "role": {
             "type": "string",
@@ -192,6 +196,19 @@
           },
           "active": {
             "type": "boolean"
+          }
+        }
+      },
+      "SelfUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "New password."
+          },
+          "current_password": {
+            "type": "string",
+            "description": "Required when 'password' is provided. The user's current password for confirmation."
           }
         }
       },
@@ -563,6 +580,41 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "summary": "Change own password",
+        "description": "Allows the authenticated user to change their own password. Requires the current password for confirmation. All sessions are revoked on success.",
+        "tags": [
+          "Authentication"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelfUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - password policy violation or current_password missing/incorrect"
           },
           "401": {
             "description": "Unauthorized"

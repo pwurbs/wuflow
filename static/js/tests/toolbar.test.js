@@ -745,6 +745,7 @@ describe('User Menu', () => {
       </div>
       <div id="password-modal" class="hidden">
         <form id="password-form">
+          <input type="password" id="current-password">
           <input type="password" id="new-password">
           <div id="password-modal-error" class="hidden"></div>
           <button type="button" id="password-cancel-btn">Cancel</button>
@@ -824,6 +825,7 @@ describe('User Menu', () => {
     showNotification.mockClear();
 
     setupUserMenu(mockUser);
+    document.getElementById('current-password').value = 'CurrentPass123!';
     document.getElementById('new-password').value = TEST_PW_VALID;
     document.getElementById('password-form').dispatchEvent(new Event('submit'));
 

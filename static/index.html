@@ -354,7 +354,7 @@
                         <div class="form-group">
                             <label for="user-password">Password</label>
                             <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
-                            <input type="password" id="user-password" maxlength="128" autocomplete="new-password">
+                            <input type="password" id="user-password" maxlength="128" autocomplete="off">
                             <small id="user-password-hint" class="form-hint">Leave empty to keep current password (edit
                                 only)</small>
                         </div>
@@ -797,6 +797,26 @@
         </div>
     </div>
 
+    <!-- Admin Password Confirmation Modal (for changing another user's password) -->
+    <div id="admin-confirm-modal" class="modal hidden">
+        <div class="settings-modal">
+            <div class="settings-modal-header">
+                <h2>Confirm Your Password</h2>
+            </div>
+            <div class="admin-confirm-body">
+                <p>Enter your own password to authorize this change.</p>
+                <div class="form-group">
+                    <input type="password" id="admin-confirm-password" required placeholder="Enter your password" maxlength="128" autocomplete="off">
+                    <div id="admin-confirm-error" class="form-error hidden" role="alert"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="admin-confirm-cancel-btn" class="btn secondary">Cancel</button>
+                    <button type="button" id="admin-confirm-ok-btn" class="btn primary">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Password Change Modal -->
     <div id="password-modal" class="modal hidden">
         <div class="settings-modal">
@@ -804,6 +824,10 @@
                 <h2>Change Password</h2>
             </div>
             <form id="password-form">
+                <div class="form-group">
+                    <label for="current-password">Current Password</label>
+                    <input type="password" id="current-password" required placeholder="Enter your current password" maxlength="128" autocomplete="off">
+                </div>
                 <div class="form-group">
                     <label for="new-password">New Password</label>
                     <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->

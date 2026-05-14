@@ -14,6 +14,9 @@
 - Bumped dompurify to 3.4.3
 - Issue id is now covered by the text-based search filter
 - General refactor in frontend and backend: eliminate duplicate patterns, fix inefficiencies, and replace stringly-typed code with existing constants
+- Improved handling of session revocation failure on refresh token mismatch
+- Added a password legitimation step when user with admin role wants to change password or promote the role of another user
+- User must now enter the current password when setting a new own password
 
 # 1.2.1
 

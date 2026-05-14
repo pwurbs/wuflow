@@ -4,10 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -522,14 +520,18 @@ const (
 
 // getTasksForIssues fetches tasks for the given issues, keyed by issue ID.
 func getTasksForIssues(issues []Issue) (map[int][]Task, error) {
-	ids := make([]string, len(issues))
+	ids := make([]int, len(issues))
 	for i, iss := range issues {
-		ids[i] = strconv.Itoa(iss.ID)
+		ids[i] = iss.ID
 	}
-	rows, err := DB.Query(fmt.Sprintf(
-		"SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id IN (%s) ORDER BY position ASC",
-		strings.Join(ids, ","),
-	))
+	jsonIDs, err := json.Marshal(ids)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := DB.Query(
+		"SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id IN (SELECT value FROM json_each(?)) ORDER BY position ASC",
+		string(jsonIDs),
+	)
 	if err != nil {
 		return nil, err
 	}

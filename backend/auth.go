@@ -435,10 +435,15 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 	// 4. Verify Hash (Reuse Detection)
 	expected := computeTokenMAC([]byte(secret))
 	if !hmac.Equal([]byte(expected), []byte(session.TokenHash)) {
-		if err := RevokeUserSessions(session.UserID); err != nil {
-			slog.Warn("failed to revoke sessions after HMAC mismatch", "user_id", session.UserID, "err", err)
+		revokeErr := RevokeUserSessions(session.UserID)
+		if revokeErr != nil {
+			revokeErr = RevokeUserSessions(session.UserID) // one retry for transient DB failures
 		}
-		return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_id=%d, revoking all sessions (possible token reuse or server restart without WF_SECRET_KEY)", session.UserID, sessionID)
+		if revokeErr != nil {
+			// Sessions may remain active — operators should monitor for this error.
+			return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_id=%d AND session revocation failed after retry (sessions may remain active): %w", session.UserID, sessionID, revokeErr)
+		}
+		return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_id=%d, all sessions revoked (possible token reuse or server restart without WF_SECRET_KEY)", session.UserID, sessionID)
 	}
 
 	// 5. Fetch User

@@ -1578,29 +1578,38 @@ func TestHandlePutIssueUnarchive(t *testing.T) {
 func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
+
+	const adminPass = "AdminPassword123!"
+	adminHash, _ := HashPassword(adminPass)
+	admin := &User{Email: "admin@t.com", PasswordHash: adminHash, Active: true, Role: RoleSysAdmin}
+	CreateUser(admin)
+
 	hash, _ := HashPassword("oldpass")
 	user := &User{Email: "t@t.com", PasswordHash: hash, Active: true, Role: RoleUser}
 	CreateUser(user)
 	path := apiUsersBase + strconv.Itoa(user.ID)
 
-	// Update with new password
+	// Update with new password, including admin_password for confirmation
 	updateBody := map[string]interface{}{
-		"email":      "t@t.com",
-		"first_name": "Test",
-		"last_name":  "User",
-		"password":   testPassword,
-		"role":       "user",
-		"active":     true,
+		"email":          "t@t.com",
+		"first_name":     "Test",
+		"last_name":      "User",
+		"password":       testPassword,
+		"admin_password": adminPass,
+		"role":           "user",
+		"active":         true,
 	}
 	body, _ := json.Marshal(updateBody)
 	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
+	ctx = context.WithValue(ctx, contextKeyEmail, admin.Email)
+	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
 	HandleUser(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Errorf("Expected 200 OK, got %d", rr.Code)
+		t.Errorf("Expected 200 OK, got %d: %s", rr.Code, rr.Body.String())
 	}
 
 	updated, _ := GetUserByID(user.ID)
@@ -1613,20 +1622,24 @@ func TestHandleUpdateSelf(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	const oldPass = "OldPassword123!"
+	oldHash, _ := HashPassword(oldPass)
+
 	// Create a user
 	user := &User{
 		Email:        "self@example.com",
 		FirstName:    "Self",
 		LastName:     "Updater",
-		PasswordHash: "oldhash",
+		PasswordHash: oldHash,
 		Role:         RoleUser,
 		Active:       true,
 	}
 	CreateUser(user)
 
-	// Prepare update request (change password)
+	// Prepare update request (change password, including current_password)
 	updateData := map[string]string{
-		"password": "CorrectHorseBatteryStaple!2026",
+		"password":         "CorrectHorseBatteryStaple!2026",
+		"current_password": oldPass,
 	}
 	body, _ := json.Marshal(updateData)
 
@@ -1842,11 +1855,14 @@ func TestHandleUpdateSelfValidationFailure(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	user := &User{Email: testEmail, Role: RoleUser, Active: true}
+	const currentPass = "CurrentPassword123!"
+	hash, _ := HashPassword(currentPass)
+	user := &User{Email: testEmail, Role: RoleUser, Active: true, PasswordHash: hash}
 	CreateUser(user)
 
-	// "password" is a common password in the blacklist
-	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{"password":"password12345"}`))
+	// "password12345" is a common password in the blacklist; current_password is correct
+	body := `{"password":"password12345","current_password":"` + currentPass + `"}`
+	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(body))
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
 	rr := httptest.NewRecorder()
 	HandleCurrentUser(rr, req.WithContext(ctx))
@@ -2123,8 +2139,8 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 	taskBody, _ := json.Marshal(&Task{Title: testTaskTitleNew, IssueID: issue.ID})
 	labelBody, _ := json.Marshal(&Label{Name: "New Label", Color: "#FFF"})
 	loginBody, _ := json.Marshal(loginRequest{Email: adminEmail, Password: "password"})
-	userBody, _ := json.Marshal(createUserRequest{Email: "new@test.local", FirstName: "N", LastName: "U", Role: RoleUser, Active: true, Password: "pass"})
-	updateSelfBody, _ := json.Marshal(createUserRequest{Password: "newpass"}) // Only password for self update
+	userBody, _ := json.Marshal(userRequest{Email: "new@test.local", FirstName: "N", LastName: "U", Role: RoleUser, Active: true, Password: "pass"})
+	updateSelfBody, _ := json.Marshal(userRequest{Password: "newpass"}) // Only password for self update
 
 	tests := []struct {
 		name    string

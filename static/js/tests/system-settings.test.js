@@ -19,7 +19,8 @@ vi.mock('../api.js', () => ({
   fetchProjects: vi.fn(),
   createProject: vi.fn(),
   updateProject: vi.fn(),
-  deleteProject: vi.fn()
+  deleteProject: vi.fn(),
+  logout: vi.fn()
 }));
 
 vi.mock('../utils.js', () => ({
@@ -97,6 +98,14 @@ describe('system-settings.js component', () => {
           <button type="button" id="user-modal-cancel"></button>
           <button type="submit" id="user-modal-save"></button>
         </form>
+      </div>
+
+      <!-- Admin Confirm Modal -->
+      <div id="admin-confirm-modal" class="hidden">
+        <input type="password" id="admin-confirm-password">
+        <div id="admin-confirm-error" class="hidden"></div>
+        <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+        <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
       </div>
     `;
 
@@ -410,6 +419,14 @@ describe('Additional Coverage', () => {
             <button type="submit" id="user-modal-save"></button>
           </form>
         </div>
+
+        <!-- Admin Confirm Modal -->
+        <div id="admin-confirm-modal" class="hidden">
+          <input type="password" id="admin-confirm-password">
+          <div id="admin-confirm-error" class="hidden"></div>
+          <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+          <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+        </div>
       `;
       state.currentUser = { role: 'admin' };
       setupSystemSettingsView();
@@ -500,6 +517,204 @@ describe('Additional Coverage', () => {
       expect(isLight('FFFFFF')).toBe(true);
       expect(isLight('#000000')).toBe(false);
     });
+  });
+});
+
+const ADMIN_CONFIRM_MODAL = `
+  <div id="admin-confirm-modal" class="hidden">
+    <input type="password" id="admin-confirm-password">
+    <div id="admin-confirm-error" class="hidden"></div>
+    <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+    <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+  </div>
+`;
+
+const USER_MODAL = `
+  <div id="user-modal-overlay" class="modal-overlay hidden">
+    <h2 id="user-modal-title"></h2>
+    <form id="user-form">
+      <input type="text" id="user-email">
+      <input type="text" id="user-first-name">
+      <input type="text" id="user-last-name">
+      <input type="password" id="user-password">
+      <small id="user-password-hint"></small>
+      <div id="user-role-dropdown">
+        <input type="hidden" id="user-role">
+        <button type="button" id="user-role-trigger"><span id="user-role-text"></span></button>
+        <div id="user-role-options" class="hidden">
+          <div class="custom-option" data-value="user">User</div>
+          <div class="custom-option" data-value="admin">Admin</div>
+          <div class="custom-option" data-value="sysadmin">Sysadmin</div>
+        </div>
+      </div>
+      <div id="user-active-options" class="hidden"></div>
+      <input type="checkbox" id="user-active">
+      <div id="user-modal-error" class="hidden"></div>
+      <button type="button" id="user-modal-cancel"></button>
+      <button type="submit" id="user-modal-save"></button>
+    </form>
+  </div>
+`;
+
+describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="system-settings-view">
+        <div id="user-management-section">
+          <button id="add-user-btn"></button>
+          <div id="users-list"></div>
+        </div>
+      </div>
+      ${USER_MODAL}
+      ${ADMIN_CONFIRM_MODAL}
+    `;
+    vi.clearAllMocks();
+    api.fetchUsers.mockResolvedValue([]);
+    permissions.userCan.mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.currentUser = { id: 99, role: 'sysadmin' };
+    setupSystemSettingsView();
+  });
+
+  it('shows modal and resolves with password when OK clicked', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    api.updateUser.mockResolvedValue({});
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-password').value = generateRandomPassword();
+    const submitPromise = new Promise(resolve => {
+      const origUpdate = api.updateUser.getMockImplementation();
+      api.updateUser.mockImplementation(async (...args) => {
+        resolve();
+        return origUpdate ? origUpdate(...args) : {};
+      });
+    });
+
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    const modal = document.getElementById('admin-confirm-modal');
+    expect(modal.classList.contains('hidden')).toBe(false);
+
+    document.getElementById('admin-confirm-password').value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+
+    await submitPromise;
+    expect(modal.classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ admin_password: 'AdminPass123!' }));
+  });
+
+  it('shows error when OK clicked with empty password', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-password').value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    document.getElementById('admin-confirm-password').value = '';
+    document.getElementById('admin-confirm-ok-btn').click();
+
+    const errorDiv = document.getElementById('admin-confirm-error');
+    expect(errorDiv.textContent).toBe('Password is required.');
+    expect(errorDiv.classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+  });
+
+  it('submits when Enter is pressed in the password input', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    api.updateUser.mockResolvedValue({});
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-password').value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    const modal = document.getElementById('admin-confirm-modal');
+    expect(modal.classList.contains('hidden')).toBe(false);
+
+    document.getElementById('admin-confirm-password').value = 'AdminPass123!';
+    document.getElementById('admin-confirm-password').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await new Promise(process.nextTick);
+
+    expect(modal.classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ admin_password: 'AdminPass123!' }));
+  });
+
+  it('resolves null and closes modal when Cancel clicked', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-password').value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+
+    document.getElementById('admin-confirm-cancel-btn').click();
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('requires confirmation for role promotion', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    // Promote user → admin (no password change)
+    document.getElementById('user-role').value = 'admin';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    document.getElementById('admin-confirm-cancel-btn').click();
+    expect(api.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does not require confirmation for role demotion', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'admin', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    api.updateUser.mockResolvedValue({});
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    // Demote admin → user (no password change)
+    document.getElementById('user-role').value = 'user';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalled();
+  });
+
+  it('logs out when sysadmin changes their own password', async () => {
+    const { logout } = await import('../api.js');
+    const self = { id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true };
+    api.fetchUsers.mockResolvedValue([self]);
+    api.updateUser.mockResolvedValue({});
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-password').value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    document.getElementById('admin-confirm-password').value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(logout).toHaveBeenCalled();
   });
 });
 

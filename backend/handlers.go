@@ -1036,9 +1036,9 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 		return
 	}
 
-	// We reuse the createUserRequest structure but ignore role/active fields for self-update
-	var req createUserRequest
-	if !decodeAndValidate(w, r, &req, func(r *createUserRequest) error { return nil }) {
+	// Ignore role/active from the request — users cannot self-promote or self-deactivate.
+	var req userRequest
+	if !decodeAndValidate(w, r, &req, func(r *userRequest) error { return nil }) {
 		return
 	}
 
@@ -1047,6 +1047,11 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 	// For now, we'll only process password updates if provided.
 
 	if req.Password != "" {
+		if req.CurrentPassword == "" || !CheckPassword(existing.PasswordHash, req.CurrentPassword) {
+			slog.Warn("UpdateSelf: current password confirmation failed", "user_id", userID)
+			http.Error(w, "Current password is incorrect", http.StatusBadRequest)
+			return
+		}
 		if err := updateUserPassword(existing, req.Password); err != nil {
 			slog.Error("UpdateSelf: password error", "error", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1081,20 +1086,22 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 // User Management Handlers
 // -----------------------------------------------------------------------------
 
-// createUserRequest represents the expected JSON body for creating/updating a user.
-type createUserRequest struct {
-	Email     string   `json:"email"`
-	FirstName string   `json:"first_name"`
-	LastName  string   `json:"last_name"`
-	Password  string   `json:"password,omitempty"`
-	Role      UserRole `json:"role"`
-	Active    bool     `json:"active"`
+// userRequest represents the expected JSON body for creating/updating a user.
+type userRequest struct {
+	Email           string   `json:"email"`
+	FirstName       string   `json:"first_name"`
+	LastName        string   `json:"last_name"`
+	Password        string   `json:"password,omitempty"`
+	AdminPassword   string   `json:"admin_password,omitempty"`
+	CurrentPassword string   `json:"current_password,omitempty"`
+	Role            UserRole `json:"role"`
+	Active          bool     `json:"active"`
 }
 
-// validateCreateUserRequest validates the DTO fields (email, name, role).
+// validateUserRequest validates the DTO fields (email, name, role).
 // Password policy is checked separately in the handler because it depends on
 // the resolved email and is only required on creation.
-func validateCreateUserRequest(req *createUserRequest) error {
+func validateUserRequest(req *userRequest) error {
 	req.Email = strings.TrimSpace(req.Email)
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
@@ -1155,13 +1162,13 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	userEmail := GetEmailFromContext(r.Context())
 
-	var req createUserRequest
-	if !decodeAndValidate(w, r, &req, validateCreateUserRequest) {
+	var req userRequest
+	if !decodeAndValidate(w, r, &req, validateUserRequest) {
 		return
 	}
 
 	user := &User{
-		Email:     req.Email, // already trimmed by validateCreateUserRequest
+		Email:     req.Email, // already trimmed by validateUserRequest
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
 		Role:      req.Role,
@@ -1273,8 +1280,8 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	var req createUserRequest
-	if !decodeAndValidate(w, r, &req, validateCreateUserRequest) {
+	var req userRequest
+	if !decodeAndValidate(w, r, &req, validateUserRequest) {
 		return
 	}
 
@@ -1316,7 +1323,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 	}
 }
 
-func validateAndPrepareUserUpdate(existing *User, req createUserRequest, userEmail string) (bool, error) {
+func validateAndPrepareUserUpdate(existing *User, req userRequest, userEmail string) (bool, error) {
 	existing.Email = strings.TrimSpace(req.Email)
 	existing.FirstName = strings.TrimSpace(req.FirstName)
 	existing.LastName = strings.TrimSpace(req.LastName)
@@ -1341,6 +1348,17 @@ func validateAndPrepareUserUpdate(existing *User, req createUserRequest, userEma
 	revokeSessions := false
 	if !req.Active || req.Password != "" || originalRole != req.Role {
 		revokeSessions = true
+	}
+
+	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) {
+		adminUser, err := GetUserByEmail(userEmail)
+		if err != nil || adminUser == nil {
+			return false, errAdminCheckDB
+		}
+		if req.AdminPassword == "" || !CheckPassword(adminUser.PasswordHash, req.AdminPassword) {
+			slog.Warn("UpdateUser: admin password confirmation failed", "admin_email", userEmail, "target_id", existing.ID)
+			return false, errors.New("admin password confirmation required")
+		}
 	}
 
 	if err := updateUserPassword(existing, req.Password); err != nil {

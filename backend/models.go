@@ -136,6 +136,20 @@ const (
 	RoleUser UserRole = "user"
 )
 
+// roleRank returns a numeric rank for a role so promotions can be detected by comparing ranks.
+func roleRank(r UserRole) int {
+	switch r {
+	case RoleUser:
+		return 0
+	case RoleAdmin:
+		return 1
+	case RoleSysAdmin:
+		return 2
+	default:
+		return -1
+	}
+}
+
 // User represents an authenticated user of the application.
 type User struct {
 	ID           int       `json:"id"`

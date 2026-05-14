@@ -452,6 +452,7 @@ function setupPasswordModal(user) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const currentPassword = document.getElementById('current-password').value;
     const newPassword = document.getElementById('new-password').value;
 
     try {
@@ -460,7 +461,7 @@ function setupPasswordModal(user) {
         throw new Error(pwError);
       }
 
-      await updateCurrentUser({ password: newPassword });
+      await updateCurrentUser({ password: newPassword, current_password: currentPassword });
       showNotification('Password updated successfully. Logging out...');
       modal.classList.add('hidden');
       form.reset();
@@ -491,6 +492,6 @@ function openPasswordModal() {
     }
 
     modal.classList.remove('hidden');
-    document.getElementById('new-password').focus();
+    document.getElementById('current-password').focus();
   }
 }
