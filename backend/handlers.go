@@ -296,13 +296,21 @@ func handleGetIssue(w http.ResponseWriter, id int) {
 	}
 }
 
-// handleArchiveIssue sets an issue's status to Archive.
-func handleArchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
+type archiveToggleOpts struct {
+	valid      func(IssueStatus) bool
+	newStatus  IssueStatus
+	badMsg     string
+	logAction  string
+	respondMsg string
+}
+
+// handleIssueArchiveToggle is the shared implementation for archive and unarchive.
+func handleIssueArchiveToggle(w http.ResponseWriter, r *http.Request, id int, opts archiveToggleOpts) {
 	userEmail := GetEmailFromContext(r.Context())
 
 	current, err := GetIssueByID(id)
 	if err != nil {
-		slog.Error("GetIssueByID failed for archive", "id", id, "error", err, "user_email", userEmail)
+		slog.Error("GetIssueByID failed for "+opts.logAction, "id", id, "error", err, "user_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
@@ -310,46 +318,40 @@ func handleArchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
 		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 		return
 	}
-	if current.Status == StatusArchive {
-		slog.Warn("Issue already archived", "id", id, "user_email", userEmail)
-		http.Error(w, "Issue is already archived", http.StatusBadRequest)
+	if !opts.valid(current.Status) {
+		slog.Warn(opts.badMsg, "id", id, "user_email", userEmail)
+		http.Error(w, opts.badMsg, http.StatusBadRequest)
 		return
 	}
-	current.Status = StatusArchive
+	current.Status = opts.newStatus
 	if err := UpdateIssue(current); err != nil {
-		slog.Error("UpdateIssue failed for archive", "id", id, "error", err, "user_email", userEmail)
+		slog.Error("UpdateIssue failed for "+opts.logAction, "id", id, "error", err, "user_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
-	respondWithUpdatedIssue(w, id, "Issue archived", userEmail)
+	respondWithUpdatedIssue(w, id, opts.respondMsg, userEmail)
+}
+
+// handleArchiveIssue sets an issue's status to Archive.
+func handleArchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
+	handleIssueArchiveToggle(w, r, id, archiveToggleOpts{
+		valid:      func(s IssueStatus) bool { return s != StatusArchive },
+		newStatus:  StatusArchive,
+		badMsg:     "Issue is already archived",
+		logAction:  "archive",
+		respondMsg: "Issue archived",
+	})
 }
 
 // handleUnarchiveIssue moves an archived issue back to Done status.
 func handleUnarchiveIssue(w http.ResponseWriter, r *http.Request, id int) {
-	userEmail := GetEmailFromContext(r.Context())
-
-	current, err := GetIssueByID(id)
-	if err != nil {
-		slog.Error("GetIssueByID failed for unarchive", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if current == nil {
-		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
-		return
-	}
-	if current.Status != StatusArchive {
-		slog.Warn("Issue not archived during unarchive request", "id", id, "user_email", userEmail)
-		http.Error(w, "Issue is not archived", http.StatusBadRequest)
-		return
-	}
-	current.Status = StatusDone
-	if err := UpdateIssue(current); err != nil {
-		slog.Error("UpdateIssue failed for unarchive", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	respondWithUpdatedIssue(w, id, "Issue unarchived", userEmail)
+	handleIssueArchiveToggle(w, r, id, archiveToggleOpts{
+		valid:      func(s IssueStatus) bool { return s == StatusArchive },
+		newStatus:  StatusDone,
+		badMsg:     "Issue is not archived",
+		logAction:  "unarchive",
+		respondMsg: "Issue unarchived",
+	})
 }
 
 // issueContentHash serializes all meaningful issue fields into a comparable string.
@@ -422,7 +424,7 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 	// Check If-Match header for optimistic locking
 	ifMatch := r.Header.Get("If-Match")
 	if ifMatch != "" {
-		if checkIfMatchConflict(w, id, ifMatch) {
+		if checkIfMatchConflict(w, current, ifMatch) {
 			return
 		}
 	}
@@ -468,20 +470,10 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, id int) {
 
 // checkIfMatchConflict verifies if the client's If-Match header matches the current issue's ETag.
 // Returns true if a conflict is detected (and sends 409 response), false otherwise.
-func checkIfMatchConflict(w http.ResponseWriter, id int, ifMatch string) bool {
-	current, err := GetIssueByID(id)
-	if err != nil {
-		slog.Error("GetIssueByID failed for If-Match check", "id", id, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return true
-	}
-	if current == nil {
-		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
-		return true
-	}
+func checkIfMatchConflict(w http.ResponseWriter, current *Issue, ifMatch string) bool {
 	currentEtag := `"` + current.UpdatedAt.UTC().Format(time.RFC3339Nano) + `"`
 	if ifMatch != currentEtag {
-		slog.Info("Conflict detected", "id", id)
+		slog.Info("Conflict detected", "id", current.ID)
 		http.Error(w, "Issue has been modified by another user", http.StatusConflict)
 		return true
 	}

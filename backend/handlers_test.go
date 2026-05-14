@@ -1297,29 +1297,19 @@ func TestCheckIfMatchConflict(t *testing.T) {
 
 	// 1. No Conflict (Match)
 	rr := httptest.NewRecorder()
-	conflict := checkIfMatchConflict(rr, issue.ID, originalEtag)
+	conflict := checkIfMatchConflict(rr, issue, originalEtag)
 	if conflict {
 		t.Error("Expected no conflict, got true")
 	}
 
 	// 2. Conflict (Mismatch)
 	rr = httptest.NewRecorder()
-	conflict = checkIfMatchConflict(rr, issue.ID, "\"old-etag\"")
+	conflict = checkIfMatchConflict(rr, issue, "\"old-etag\"")
 	if !conflict {
 		t.Error("Expected conflict, got false")
 	}
 	if rr.Code != http.StatusConflict {
 		t.Errorf("Expected 409 Conflict, got %d", rr.Code)
-	}
-
-	// 3. Issue Not Found
-	rr = httptest.NewRecorder()
-	conflict = checkIfMatchConflict(rr, 999, originalEtag)
-	if !conflict {
-		t.Error("Expected conflict (as true) for not found, got false") // Logic returns true to stop processing
-	}
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("Expected 404 Not Found, got %d", rr.Code)
 	}
 }
 

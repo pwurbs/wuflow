@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -390,49 +392,46 @@ func migrateLabelsAddProjectForeignKey() error {
 
 // UserExistsAndActive checks if a user exists and is active.
 func UserExistsAndActive(id int) (bool, error) {
-	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE id = ? AND active = 1", id).Scan(&count)
-	if err != nil {
-		slog.Error("Database Error: UserExistsAndActive", "id", id, "error", err)
-		return false, err
-	}
-	return count > 0, nil
+	return existsQuery("SELECT COUNT(*) FROM users WHERE id = ? AND active = 1", id)
 }
 
 // UserExists checks if a user exists, regardless of active status.
 func UserExists(id int) (bool, error) {
-	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE id = ?", id).Scan(&count)
-	if err != nil {
-		slog.Error("Database Error: UserExists", "id", id, "error", err)
-		return false, err
-	}
-	return count > 0, nil
+	return existsQuery("SELECT COUNT(*) FROM users WHERE id = ?", id)
 }
 
 // LabelExistsInProject checks if a label exists and belongs to the given project.
 func LabelExistsInProject(labelID, projectID int) (bool, error) {
-	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM labels WHERE id = ? AND project_id = ?", labelID, projectID).Scan(&count)
-	if err != nil {
-		slog.Error("Database Error: LabelExistsInProject", "label_id", labelID, "project_id", projectID, "error", err)
-		return false, err
-	}
-	return count > 0, nil
+	return existsQuery("SELECT COUNT(*) FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
 }
 
 // ProjectExists checks if a project exists.
 func ProjectExists(id int) (bool, error) {
+	return existsQuery("SELECT COUNT(*) FROM projects WHERE id = ?", id)
+}
+
+// existsQuery runs a SELECT COUNT(*) query and returns true if count > 0.
+func existsQuery(query string, args ...any) (bool, error) {
 	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM projects WHERE id = ?", id).Scan(&count)
-	if err != nil {
-		slog.Error("Database Error: ProjectExists", "id", id, "error", err)
+	if err := DB.QueryRow(query, args...).Scan(&count); err != nil {
+		slog.Error("Database Error: existence check", "error", err)
 		return false, err
 	}
 	return count > 0, nil
 }
 
-// Helper functions for DB operations
+// checkRowsAffected inspects res and returns notFoundErr when zero rows were affected.
+func checkRowsAffected(res sql.Result, caller string, notFoundErr error) error {
+	rows, err := res.RowsAffected()
+	if err != nil {
+		slog.Error("Database Error: "+caller+" RowsAffected", "error", err)
+		return err
+	}
+	if rows == 0 {
+		return notFoundErr
+	}
+	return nil
+}
 
 // CreateIssue inserts a new issue into the database.
 func CreateIssue(i *Issue) error {
@@ -521,6 +520,32 @@ const (
 	queryIssueByID      = issueSelectBase + ` WHERE i.id = ?`
 )
 
+// getTasksForIssues fetches tasks for the given issues, keyed by issue ID.
+func getTasksForIssues(issues []Issue) (map[int][]Task, error) {
+	ids := make([]string, len(issues))
+	for i, iss := range issues {
+		ids[i] = strconv.Itoa(iss.ID)
+	}
+	rows, err := DB.Query(fmt.Sprintf(
+		"SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id IN (%s) ORDER BY position ASC",
+		strings.Join(ids, ","),
+	))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int][]Task)
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		result[t.IssueID] = append(result[t.IssueID], t)
+	}
+	return result, rows.Err()
+}
+
 // queryIssuesByProject executes query, scans the results, and attaches tasks.
 func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, error) {
 	rows, err := DB.Query(query, args...)
@@ -544,13 +569,15 @@ func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, er
 		return nil, err
 	}
 
-	tasksByIssue, err := GetAllTasks()
-	if err != nil {
-		slog.Error(dbErrPrefix+caller+" GetAllTasks", "error", err)
-		return nil, err
-	}
-	for idx := range issues {
-		issues[idx].Tasks = tasksByIssue[issues[idx].ID]
+	if len(issues) > 0 {
+		tasksByIssue, err := getTasksForIssues(issues)
+		if err != nil {
+			slog.Error(dbErrPrefix+caller+" GetTasks", "error", err)
+			return nil, err
+		}
+		for idx := range issues {
+			issues[idx].Tasks = tasksByIssue[issues[idx].ID]
+		}
 	}
 
 	return issues, nil
@@ -632,15 +659,7 @@ func UpdateIssue(i *Issue) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: UpdateIssue RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrIssueNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "UpdateIssue", ErrIssueNotFound)
 }
 
 // UpdateIssuePosition updates only the position of an issue without modifying
@@ -651,15 +670,7 @@ func UpdateIssuePosition(id, position int) error {
 		slog.Error("Database Error: UpdateIssuePosition", "error", err)
 		return err
 	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: UpdateIssuePosition RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrIssueNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "UpdateIssuePosition", ErrIssueNotFound)
 }
 
 // DeleteIssue removes an issue from the database by its ID.
@@ -670,15 +681,7 @@ func DeleteIssue(id int) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: DeleteIssue RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrIssueNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "DeleteIssue", ErrIssueNotFound)
 }
 
 // CreateTask inserts a new task into the database.
@@ -690,9 +693,7 @@ func CreateTask(t *Task) error {
 	}
 	defer stmt.Close()
 
-	// Check if issue exists
-	var exists bool
-	err = DB.QueryRow("SELECT EXISTS(SELECT 1 FROM issues WHERE id = ?)", t.IssueID).Scan(&exists)
+	exists, err := existsQuery("SELECT COUNT(*) FROM issues WHERE id = ?", t.IssueID)
 	if err != nil {
 		slog.Error("Database Error: CreateTask CheckIssue", "error", err)
 		return err
@@ -726,8 +727,20 @@ func CreateTask(t *Task) error {
 	return nil
 }
 
+// scanTaskRow scans one task row from any sql.Row or sql.Rows scanner.
+func scanTaskRow(s issueScanner) (Task, error) {
+	var t Task
+	var deadline sql.NullTime
+	if err := s.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		return Task{}, err
+	}
+	if deadline.Valid {
+		t.Deadline = &deadline.Time
+	}
+	return t, nil
+}
+
 // GetAllTasks retrieves all tasks from the database, grouped by issue_id.
-// This eliminates the N+1 query problem when fetching issues with their tasks.
 func GetAllTasks() (map[int][]Task, error) {
 	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks ORDER BY issue_id, position ASC")
 	if err != nil {
@@ -738,14 +751,10 @@ func GetAllTasks() (map[int][]Task, error) {
 
 	result := make(map[int][]Task)
 	for rows.Next() {
-		var t Task
-		var deadline sql.NullTime
-		if err := rows.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		t, err := scanTaskRow(rows)
+		if err != nil {
 			slog.Error("Database Error: GetAllTasks Scan", "error", err)
 			return nil, err
-		}
-		if deadline.Valid {
-			t.Deadline = &deadline.Time
 		}
 		result[t.IssueID] = append(result[t.IssueID], t)
 	}
@@ -767,14 +776,10 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 
 	var tasks []Task
 	for rows.Next() {
-		var t Task
-		var deadline sql.NullTime
-		if err := rows.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		t, err := scanTaskRow(rows)
+		if err != nil {
 			slog.Error("Database Error: GetTasksByIssueID Scan", "error", err)
 			return nil, err
-		}
-		if deadline.Valid {
-			t.Deadline = &deadline.Time
 		}
 		tasks = append(tasks, t)
 	}
@@ -788,19 +793,13 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 // GetTaskByID retrieves a single task by its ID.
 func GetTaskByID(id int) (*Task, error) {
 	row := DB.QueryRow("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE id = ?", id)
-
-	var t Task
-	var deadline sql.NullTime
-	err := row.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt)
+	t, err := scanTaskRow(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		slog.Error("Database Error: GetTaskByID", "error", err)
 		return nil, err
-	}
-	if deadline.Valid {
-		t.Deadline = &deadline.Time
 	}
 	return &t, nil
 }
@@ -821,15 +820,7 @@ func UpdateTask(t *Task) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: UpdateTask RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrTaskNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "UpdateTask", ErrTaskNotFound)
 }
 
 // DeleteTask removes a task from the database by its ID.
@@ -840,15 +831,7 @@ func DeleteTask(id int) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: DeleteTask RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrTaskNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "DeleteTask", ErrTaskNotFound)
 }
 
 // CreateLabel inserts a new label into the database.
@@ -908,15 +891,7 @@ func DeleteLabel(labelID, projectID int) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: DeleteLabel RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrLabelNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "DeleteLabel", ErrLabelNotFound)
 }
 
 // -----------------------------------------------------------------------------
@@ -1015,15 +990,7 @@ func UpdateProject(p *Project) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: UpdateProject RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrProjectNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "UpdateProject", ErrProjectNotFound)
 }
 
 // DeleteProject removes a project from the database by its ID.
@@ -1034,15 +1001,7 @@ func DeleteProject(id int) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: DeleteProject RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrProjectNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "DeleteProject", ErrProjectNotFound)
 }
 
 // CountIssuesByProject counts how many issues reference a given project.
@@ -1242,15 +1201,7 @@ func UpdateUser(u *User) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: UpdateUser RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrUserNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "UpdateUser", ErrUserNotFound)
 }
 
 // CountUsers returns the total number of users in the database.
@@ -1339,15 +1290,7 @@ func UpdateSession(s *Session) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: UpdateSession RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrSessionNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "UpdateSession", ErrSessionNotFound)
 }
 
 // DeleteSession removes a session from the database by its ID.
@@ -1358,15 +1301,7 @@ func DeleteSession(id int) error {
 		return err
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: DeleteSession RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrSessionNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "DeleteSession", ErrSessionNotFound)
 }
 
 // DeleteSessionsByUserID removes all sessions for a specific user.
@@ -1543,15 +1478,7 @@ func UpdateRelease(r *Release) error {
 		slog.Error("Database Error: UpdateRelease", "id", r.ID, "error", err)
 		return err
 	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: UpdateRelease RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrReleaseNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "UpdateRelease", ErrReleaseNotFound)
 }
 
 // DeleteRelease removes a release. The FK ON DELETE SET NULL clears release_id on issues.
@@ -1561,15 +1488,7 @@ func DeleteRelease(id int) error {
 		slog.Error("Database Error: DeleteRelease", "id", id, "error", err)
 		return err
 	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: DeleteRelease RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrReleaseNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "DeleteRelease", ErrReleaseNotFound)
 }
 
 // ReopenRelease sets a release status back to 'open'. Already archived issues are not changed.
@@ -1582,15 +1501,7 @@ func ReopenRelease(id int) error {
 		slog.Error("Database Error: ReopenRelease", "id", id, "error", err)
 		return err
 	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: ReopenRelease RowsAffected", "error", err)
-		return err
-	}
-	if rowsAffected == 0 {
-		return ErrReleaseNotFound
-	}
-	return nil
+	return checkRowsAffected(res, "ReopenRelease", ErrReleaseNotFound)
 }
 
 // TriggerRelease sets a release status to 'closed' and optionally archives all Done issues in it.
@@ -1603,13 +1514,8 @@ func TriggerRelease(id int, archiveDone bool) error {
 		slog.Error("Database Error: TriggerRelease", "id", id, "error", err)
 		return err
 	}
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		slog.Error("Database Error: TriggerRelease RowsAffected", "error", err)
+	if err := checkRowsAffected(res, "TriggerRelease", ErrReleaseNotFound); err != nil {
 		return err
-	}
-	if rowsAffected == 0 {
-		return ErrReleaseNotFound
 	}
 	if archiveDone {
 		if _, err := DB.Exec(
@@ -1625,13 +1531,7 @@ func TriggerRelease(id int, archiveDone bool) error {
 
 // ReleaseExistsInProject checks if a release exists and belongs to the given project.
 func ReleaseExistsInProject(releaseID, projectID int) (bool, error) {
-	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM releases WHERE id = ? AND project_id = ?", releaseID, projectID).Scan(&count)
-	if err != nil {
-		slog.Error("Database Error: ReleaseExistsInProject", "release_id", releaseID, "project_id", projectID, "error", err)
-		return false, err
-	}
-	return count > 0, nil
+	return existsQuery("SELECT COUNT(*) FROM releases WHERE id = ? AND project_id = ?", releaseID, projectID)
 }
 
 func scanRelease(rows *sql.Rows) (Release, error) {

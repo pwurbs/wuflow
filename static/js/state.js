@@ -66,6 +66,10 @@ export function setFilterReleaseOwner(id) {
   state.filter.releaseOwnerFilter = id;
 }
 
+export function pruneReleaseFilterIds(validIds) {
+  state.filter.releaseFilterIds = state.filter.releaseFilterIds.filter(id => validIds.has(id));
+}
+
 export function toggleBacklogReleaseFilter(releaseId) {
   const ids = state.filter.releaseFilterIds;
   const idx = ids.indexOf(releaseId);

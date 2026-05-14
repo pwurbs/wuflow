@@ -3,7 +3,8 @@ import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateI
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
 import { state } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
-import { getStatusLabel } from '../status-config.js';
+import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE } from '../status-config.js';
+import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 
 let refreshCallback = null;
 let editingReleaseId = null;
@@ -165,7 +166,7 @@ export async function renderReleasesView(forceRefresh = false) {
     }
     return true;
   });
-  const openReleases = releases.filter(r => r.status === 'open')
+  const openReleases = releases.filter(r => r.status === RELEASE_STATUS_OPEN)
     .sort((a, b) => {
       const da = a.release_date ? new Date(a.release_date) : null;
       const db = b.release_date ? new Date(b.release_date) : null;
@@ -174,11 +175,11 @@ export async function renderReleasesView(forceRefresh = false) {
       if (db) return 1;
       return new Date(a.created_at) - new Date(b.created_at);
     });
-  const closedReleases = releases.filter(r => r.status === 'closed')
+  const closedReleases = releases.filter(r => r.status === RELEASE_STATUS_CLOSED)
     .sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
 
-  const totalOpen = state.releases.filter(r => r.status === 'open').length;
-  const totalClosed = state.releases.filter(r => r.status === 'closed').length;
+  const totalOpen = state.releases.filter(r => r.status === RELEASE_STATUS_OPEN).length;
+  const totalClosed = state.releases.filter(r => r.status === RELEASE_STATUS_CLOSED).length;
 
   container.innerHTML = '';
   container.appendChild(buildReleasesSection('Open Releases', openReleases, true, allIssues, totalOpen));
@@ -305,7 +306,7 @@ function openReleaseModal(release) {
   if (!overlay) return;
 
   editingReleaseId = release ? release.id : null;
-  const isClosed = release?.status === 'closed';
+  const isClosed = release?.status === RELEASE_STATUS_CLOSED;
 
   const title = document.getElementById('release-modal-title');
   if (title) title.textContent = release ? 'Release Details' : 'New Release';
@@ -346,7 +347,7 @@ function closeReleaseModal() {
 
 async function handleReleaseSubmit() {
   const rel = editingReleaseId ? state.releases.find(r => r.id === editingReleaseId) : null;
-  if (rel?.status === 'closed') { closeReleaseModal(); return; }
+  if (rel?.status === RELEASE_STATUS_CLOSED) { closeReleaseModal(); return; }
 
   const name = document.getElementById('release-modal-name')?.value.trim();
   const desc = document.getElementById('release-modal-desc')?.value.trim() ?? '';
@@ -384,14 +385,14 @@ async function handleReleaseSubmit() {
 }
 
 function buildReleaseDateRange(rel) {
-  if (rel.status === 'closed' && rel.closed_at) {
+  if (rel.status === RELEASE_STATUS_CLOSED && rel.closed_at) {
     return `<span class="release-dates">Released on ${new Date(rel.closed_at).toLocaleDateString(navigator.language)}</span>`;
   }
   const startStr = rel.start_date ? new Date(rel.start_date).toLocaleDateString(navigator.language) : '';
   const releaseDate = rel.release_date ? new Date(rel.release_date) : null;
   const relStr = releaseDate ? releaseDate.toLocaleDateString(navigator.language) : '';
   if (!startStr && !relStr) return '';
-  const isOverdue = releaseDate && releaseDate < new Date() && rel.status === 'open';
+  const isOverdue = releaseDate && releaseDate < new Date() && rel.status === RELEASE_STATUS_OPEN;
   let relFormatted = '';
   if (relStr) relFormatted = isOverdue ? `<span class="release-dates--overdue">${relStr}</span>` : relStr;
   return `<span class="release-dates">${startStr} → ${relFormatted}</span>`;
@@ -415,8 +416,8 @@ function renderModalStats(release) {
 function buildReleaseRow(rel, isOpen, allIssues) {
   const issues = allIssues.filter(i => i.release_id === rel.id);
   const total = issues.length;
-  const done = issues.filter(i => i.status === 'Done' || i.status === 'Archive').length;
-  const inProgress = issues.filter(i => ['Stage1','Stage2','Stage3','Stage4'].includes(i.status)).length;
+  const done = issues.filter(i => i.status === STATUS_DONE || i.status === STATUS_ARCHIVE).length;
+  const inProgress = issues.filter(i => i.status === STATUS_STAGE1 || i.status === STATUS_STAGE2 || i.status === STATUS_STAGE3 || i.status === STATUS_STAGE4).length;
   const donePct = total > 0 ? Math.round((done / total) * 100) : 0;
   const inProgPct = total > 0 ? Math.round((inProgress / total) * 100) : 0;
 
@@ -482,8 +483,8 @@ async function handleTriggerReleaseDialog(rel) {
   if (!cachedAllIssues) await refreshIssueCache();
   const issues = cachedAllIssues.filter(i => i.release_id === rel.id);
   const total = issues.length;
-  const done = issues.filter(i => i.status === 'Done').length;
-  const notDone = issues.filter(i => i.status !== 'Done' && i.status !== 'Archive').length;
+  const done = issues.filter(i => i.status === STATUS_DONE).length;
+  const notDone = issues.filter(i => i.status !== STATUS_DONE && i.status !== STATUS_ARCHIVE).length;
 
   return new Promise(resolve => {
     const overlay = document.createElement('div');
@@ -543,7 +544,7 @@ async function handleTriggerReleaseDialog(rel) {
   });
 }
 
-const STATUS_ORDER = ['Open', 'Todo', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Done', 'Archive'];
+const STATUS_ORDER = [STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE];
 
 function buildStatusBreakdown(issues) {
   if (issues.length === 0) return '';

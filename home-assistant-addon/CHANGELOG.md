@@ -13,6 +13,7 @@
 - Removed edit button for users and projects in system settings, edit dialog is now opened by clicking the card
 - Bumped dompurify to 3.4.3
 - Issue id is now covered by the text-based search filter
+- General refactor in frontend and backend: eliminate duplicate patterns, fix inefficiencies, and replace stringly-typed code with existing constants
 
 ## 1.2.1
 

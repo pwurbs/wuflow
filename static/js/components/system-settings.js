@@ -2,6 +2,7 @@ import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updat
 import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state } from '../state.js';
+import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
@@ -308,7 +309,7 @@ function openUserModal(user) {
 
     // Set role dropdown value
     roleInput.value = user.role;
-    roleText.textContent = { sysadmin: 'Sysadmin', admin: 'Admin', user: 'User' }[user.role] ?? 'User';
+    roleText.textContent = ROLE_DISPLAY_NAMES[user.role] ?? 'User';
 
     // ... existing code ...
 

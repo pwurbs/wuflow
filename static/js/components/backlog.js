@@ -1,5 +1,6 @@
-import { state, isFilterActive, toggleBacklogReleaseFilter } from '../state.js';
+import { state, isFilterActive, toggleBacklogReleaseFilter, pruneReleaseFilterIds } from '../state.js';
 import { STATUS_OPEN, STATUS_TODO } from '../status-config.js';
+import { RELEASE_STATUS_OPEN } from '../domain-constants.js';
 import { fetchOpenIssuesByProject, updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
@@ -63,7 +64,8 @@ function renderBacklogReleaseLanes() {
   const container = document.getElementById('backlog-release-lanes');
   if (!container) return;
 
-  const openReleases = state.releases.filter(r => r.status === 'open')
+  const openReleases = state.releases
+    .filter(r => r.status === RELEASE_STATUS_OPEN)
     .sort((a, b) => {
       const da = a.release_date ? new Date(a.release_date) : null;
       const db = b.release_date ? new Date(b.release_date) : null;
@@ -72,10 +74,6 @@ function renderBacklogReleaseLanes() {
       if (db) return 1;
       return new Date(a.created_at) - new Date(b.created_at);
     });
-
-  // Remove stale filter IDs; null (No Release) is always valid
-  const validIds = new Set([null, ...openReleases.map(r => r.id)]);
-  state.filter.releaseFilterIds = state.filter.releaseFilterIds.filter(id => validIds.has(id));
 
   if (openReleases.length === 0) {
     container.innerHTML = '';
@@ -91,17 +89,18 @@ function renderBacklogReleaseLanes() {
   `;
   const list = container.querySelector('.release-lanes-list');
 
-  openReleases.forEach(rel => {
-    const count = state.issues.filter(i =>
-      i.release_id === rel.id && (i.status === STATUS_OPEN || i.status === STATUS_TODO)
-    ).length;
-    list.appendChild(buildLaneCard(rel.id, rel.name, count));
+  const countsByRelease = {};
+  state.issues.forEach(i => {
+    if (i.status === STATUS_OPEN || i.status === STATUS_TODO) {
+      const key = i.release_id ?? null;
+      countsByRelease[key] = (countsByRelease[key] || 0) + 1;
+    }
   });
 
-  const unassignedCount = state.issues.filter(i =>
-    i.release_id === null && (i.status === STATUS_OPEN || i.status === STATUS_TODO)
-  ).length;
-  list.appendChild(buildLaneCard(null, 'No Release', unassignedCount));
+  openReleases.forEach(rel => {
+    list.appendChild(buildLaneCard(rel.id, rel.name, countsByRelease[rel.id] || 0));
+  });
+  list.appendChild(buildLaneCard(null, 'No Release', countsByRelease[null] || 0));
 }
 
 export async function renderBacklog(refreshApp, openModal) {
@@ -121,6 +120,8 @@ export async function renderBacklog(refreshApp, openModal) {
     openLoaded = true;
   }
 
+  const validReleaseIds = new Set([null, ...state.releases.filter(r => r.status === RELEASE_STATUS_OPEN).map(r => r.id)]);
+  pruneReleaseFilterIds(validReleaseIds);
   renderBacklogReleaseLanes();
 
   const backlogList = document.getElementById('backlog-list');
@@ -159,8 +160,15 @@ export async function renderBacklog(refreshApp, openModal) {
     moveToTodoList.appendChild(createCardElement(issue, false, makeCardCallbacks(issue, todoIssues)));
   });
 
-  backlogCount.textContent = isFilterActive() ? `${openIssues.length}/${state.issues.filter(i => i.status === STATUS_OPEN).length}` : openIssues.length;
-  todoCount.textContent = isFilterActive() ? `${todoIssues.length}/${state.issues.filter(i => i.status === STATUS_TODO).length}` : todoIssues.length;
+  if (isFilterActive()) {
+    const totalOpen = state.issues.filter(i => i.status === STATUS_OPEN).length;
+    const totalTodo = state.issues.filter(i => i.status === STATUS_TODO).length;
+    backlogCount.textContent = `${openIssues.length}/${totalOpen}`;
+    todoCount.textContent = `${todoIssues.length}/${totalTodo}`;
+  } else {
+    backlogCount.textContent = openIssues.length;
+    todoCount.textContent = todoIssues.length;
+  }
 }
 
 

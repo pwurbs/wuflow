@@ -4,6 +4,38 @@ import { logout, updateCurrentUser } from '../api.js';
 import { showNotification, getUserInitials } from '../utils.js';
 import { validatePasswordPolicy } from './system-settings.js';
 
+// Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
+function updateFilterButtonState(btn, defaultText, selectedText, clearHandler) {
+  btn.innerHTML = '';
+  if (selectedText == null) {
+    const textSpan = document.createElement('span');
+    textSpan.textContent = defaultText;
+    btn.appendChild(textSpan);
+
+    const arrowIcon = document.createElement('span');
+    arrowIcon.className = 'toolbar-icon-arrow';
+    arrowIcon.innerHTML = '▼';
+    btn.appendChild(arrowIcon);
+    btn.classList.remove('has-selection');
+  } else {
+    const textSpan = document.createElement('span');
+    textSpan.textContent = selectedText;
+    btn.appendChild(textSpan);
+
+    const clearIcon = document.createElement('span');
+    clearIcon.className = 'toolbar-icon-clear';
+    clearIcon.innerHTML = '&times;';
+    clearIcon.title = 'Clear filter';
+    clearIcon.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearHandler();
+    });
+
+    btn.appendChild(clearIcon);
+    btn.classList.add('has-selection');
+  }
+}
+
 // ─── Label Filter ──────────────────────────────────────────────────────────────
 
 let labelFilterContainer;
@@ -43,45 +75,15 @@ export function updateLabelFilterOptions(labels) {
     labelFilterOptions.appendChild(option);
   });
 
-  labelFilterBtn.innerHTML = '';
-  if (currentVal !== null && currentVal !== undefined) {
-    let labelText = 'Unknown';
-    if (currentVal === '__no_label__') {
-      labelText = 'No Label';
-    } else {
-      const found = labels.find(l => l.id === currentVal);
-      if (found) labelText = found.name;
-    }
-
-    const textSpan = document.createElement('span');
-    textSpan.textContent = `Label: ${labelText}`;
-    labelFilterBtn.appendChild(textSpan);
-
-    const clearIcon = document.createElement('span');
-    clearIcon.className = 'toolbar-icon-clear';
-    clearIcon.innerHTML = '&times;';
-    clearIcon.title = 'Clear filter';
-
-    clearIcon.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setFilterLabel(null);
-      if (labelRefreshCallback) labelRefreshCallback();
-    });
-
-    labelFilterBtn.appendChild(clearIcon);
-    labelFilterBtn.classList.add('has-selection');
-  } else {
-    const textSpan = document.createElement('span');
-    textSpan.textContent = 'Label';
-    labelFilterBtn.appendChild(textSpan);
-
-    const arrowIcon = document.createElement('span');
-    arrowIcon.className = 'toolbar-icon-arrow';
-    arrowIcon.innerHTML = '▼';
-
-    labelFilterBtn.appendChild(arrowIcon);
-    labelFilterBtn.classList.remove('has-selection');
+  let labelSelectedText = null;
+  if (currentVal != null) {
+    const labelText = currentVal === '__no_label__' ? 'No Label' : (labels.find(l => l.id === currentVal)?.name ?? 'Unknown');
+    labelSelectedText = `Label: ${labelText}`;
   }
+  updateFilterButtonState(labelFilterBtn, 'Label', labelSelectedText, () => {
+    setFilterLabel(null);
+    if (labelRefreshCallback) labelRefreshCallback();
+  });
 }
 
 function createLabelOption(text, value) {
@@ -140,38 +142,11 @@ export function updatePriorityFilterOptions() {
     priorityFilterOptions.appendChild(option);
   });
 
-  priorityFilterBtn.innerHTML = '';
-  if (currentVal) {
-    const textSpan = document.createElement('span');
-    textSpan.textContent = `Priority: ${currentVal}`;
-    priorityFilterBtn.appendChild(textSpan);
-
-    const clearIcon = document.createElement('span');
-    clearIcon.className = 'toolbar-icon-clear';
-    clearIcon.innerHTML = '&times;';
-    clearIcon.title = 'Clear filter';
-
-    clearIcon.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setFilterPriority(null);
-      updatePriorityFilterOptions();
-      if (priorityRefreshCallback) priorityRefreshCallback();
-    });
-
-    priorityFilterBtn.appendChild(clearIcon);
-    priorityFilterBtn.classList.add('has-selection');
-  } else {
-    const textSpan = document.createElement('span');
-    textSpan.textContent = 'Priority';
-    priorityFilterBtn.appendChild(textSpan);
-
-    const arrowIcon = document.createElement('span');
-    arrowIcon.className = 'toolbar-icon-arrow';
-    arrowIcon.innerHTML = '▼';
-
-    priorityFilterBtn.appendChild(arrowIcon);
-    priorityFilterBtn.classList.remove('has-selection');
-  }
+  updateFilterButtonState(priorityFilterBtn, 'Priority', currentVal ? `Priority: ${currentVal}` : null, () => {
+    setFilterPriority(null);
+    updatePriorityFilterOptions();
+    if (priorityRefreshCallback) priorityRefreshCallback();
+  });
 }
 
 function createPriorityOption(text, value) {
@@ -244,38 +219,13 @@ export function updateUserFilterOptions(users, context = 'issues') {
     userFilterOptions.appendChild(option);
   });
 
-  userFilterBtn.innerHTML = '';
-  if (currentVal !== null && currentVal !== undefined) {
-    const userName = resolveFilterLabel(currentVal, users, myLabel, unassignedLabel);
-    const textSpan = document.createElement('span');
-    textSpan.textContent = `${buttonLabel}: ${userName}`;
-    userFilterBtn.appendChild(textSpan);
-
-    const clearIcon = document.createElement('span');
-    clearIcon.className = 'toolbar-icon-clear';
-    clearIcon.innerHTML = '&times;';
-    clearIcon.title = 'Clear filter';
-
-    clearIcon.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setFilter(null);
-      if (userRefreshCallback) userRefreshCallback();
-    });
-
-    userFilterBtn.appendChild(clearIcon);
-    userFilterBtn.classList.add('has-selection');
-  } else {
-    const textSpan = document.createElement('span');
-    textSpan.textContent = buttonLabel;
-    userFilterBtn.appendChild(textSpan);
-
-    const arrowIcon = document.createElement('span');
-    arrowIcon.className = 'toolbar-icon-arrow';
-    arrowIcon.innerHTML = '▼';
-
-    userFilterBtn.appendChild(arrowIcon);
-    userFilterBtn.classList.remove('has-selection');
-  }
+  const userSelectedText = currentVal == null
+    ? null
+    : `${buttonLabel}: ${resolveFilterLabel(currentVal, users, myLabel, unassignedLabel)}`;
+  updateFilterButtonState(userFilterBtn, buttonLabel, userSelectedText, () => {
+    setFilter(null);
+    if (userRefreshCallback) userRefreshCallback();
+  });
 }
 
 function createUserOption(text, value, setFilter) {
@@ -332,43 +282,15 @@ export function updateReleaseFilterOptions(releases) {
     releaseFilterOptions.appendChild(option);
   });
 
-  releaseFilterBtn.innerHTML = '';
-  if (currentVal !== null && currentVal !== undefined) {
-    let releaseText = 'Unknown';
-    if (currentVal === '__no_release__') {
-      releaseText = 'No Release';
-    } else {
-      const found = releases.find(r => r.id === currentVal);
-      if (found) releaseText = found.name;
-    }
-
-    const textSpan = document.createElement('span');
-    textSpan.textContent = `Release: ${releaseText}`;
-    releaseFilterBtn.appendChild(textSpan);
-
-    const clearIcon = document.createElement('span');
-    clearIcon.className = 'toolbar-icon-clear';
-    clearIcon.innerHTML = '&times;';
-    clearIcon.title = 'Clear filter';
-    clearIcon.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setFilterRelease(null);
-      if (releaseRefreshCallback) releaseRefreshCallback();
-    });
-
-    releaseFilterBtn.appendChild(clearIcon);
-    releaseFilterBtn.classList.add('has-selection');
-  } else {
-    const textSpan = document.createElement('span');
-    textSpan.textContent = 'Release';
-    releaseFilterBtn.appendChild(textSpan);
-
-    const arrowIcon = document.createElement('span');
-    arrowIcon.className = 'toolbar-icon-arrow';
-    arrowIcon.innerHTML = '▼';
-    releaseFilterBtn.appendChild(arrowIcon);
-    releaseFilterBtn.classList.remove('has-selection');
+  let releaseSelectedText = null;
+  if (currentVal != null) {
+    const releaseText = currentVal === '__no_release__' ? 'No Release' : (releases.find(r => r.id === currentVal)?.name ?? 'Unknown');
+    releaseSelectedText = `Release: ${releaseText}`;
   }
+  updateFilterButtonState(releaseFilterBtn, 'Release', releaseSelectedText, () => {
+    setFilterRelease(null);
+    if (releaseRefreshCallback) releaseRefreshCallback();
+  });
 }
 
 function createReleaseOption(text, value) {

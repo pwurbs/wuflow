@@ -15,6 +15,7 @@ vi.mock('../state.js', () => ({
   },
   isFilterActive: vi.fn(),
   toggleBacklogReleaseFilter: vi.fn(),
+  pruneReleaseFilterIds: vi.fn(),
 }));
 
 vi.mock('../api.js', () => ({

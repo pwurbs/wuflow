@@ -50,6 +50,14 @@ vi.mock('../permissions.js', () => ({
 
 vi.mock('../status-config.js', () => ({
   getStatusLabel: vi.fn(s => s),
+  STATUS_OPEN:    'Open',
+  STATUS_TODO:    'Todo',
+  STATUS_STAGE1:  'Stage1',
+  STATUS_STAGE2:  'Stage2',
+  STATUS_STAGE3:  'Stage3',
+  STATUS_STAGE4:  'Stage4',
+  STATUS_DONE:    'Done',
+  STATUS_ARCHIVE: 'Archive',
 }));
 
 import { state } from '../state.js';
