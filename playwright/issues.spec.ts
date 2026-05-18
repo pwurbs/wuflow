@@ -51,7 +51,7 @@ test.describe('Issue CRUD Operations', () => {
 
     // Blur to trigger autosave (title saves on blur)
     const savePromise = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#modal-title');
     await savePromise;
@@ -131,7 +131,7 @@ test.describe('Issue CRUD Operations', () => {
 
     // Verify assignee selection (using the new "Me" option)
     const updatePromise = page.waitForResponse(response =>
-      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+      response.url().includes('/issues/') && response.request().method() === 'PUT'
     );
     await selectAssignee(page, 'Assign to me');
     await updatePromise;
@@ -155,7 +155,7 @@ test.describe('Issue CRUD Operations', () => {
 
     // Blur to trigger autosave
     const savePromise = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#modal-title');
     await savePromise;
@@ -194,7 +194,7 @@ test.describe('Issue CRUD Operations', () => {
     const cardB = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleB}")`);
     const putPromises: Promise<void>[] = [];
     page.on('response', r => {
-      if (r.url().includes('/api/issues/') && r.request().method() === 'PUT') {
+      if (r.url().includes('/issues/') && r.request().method() === 'PUT') {
         putPromises.push(r.finished().then(() => {}));
       }
     });

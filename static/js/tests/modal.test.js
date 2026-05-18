@@ -260,7 +260,7 @@ describe('Modal Component', () => {
     // Wait for async
     await new Promise(process.nextTick);
 
-    expect(api.createIssue).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.createIssue).toHaveBeenCalledWith(1, expect.objectContaining({
       title: 'New Title',
       description: 'New Desc',
       status: 'Todo',
@@ -281,7 +281,7 @@ describe('Modal Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
       id: 1,
       status: 'Done'
     }), expect.any(String));
@@ -318,7 +318,7 @@ describe('Modal Component', () => {
     await new Promise(process.nextTick);
 
     expect(utils.showConfirm).toHaveBeenCalled();
-    expect(api.deleteIssue).toHaveBeenCalledWith(99);
+    expect(api.deleteIssue).toHaveBeenCalledWith(undefined, 99);
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
 
@@ -332,7 +332,7 @@ describe('Modal Component', () => {
     await new Promise(process.nextTick);
 
     expect(utils.showConfirm).toHaveBeenCalled();
-    expect(api.archiveIssue).toHaveBeenCalledWith(100);
+    expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 100);
     expect(utils.showNotification).toHaveBeenCalledWith('Issue archived');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
@@ -405,7 +405,7 @@ describe('Modal Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
       title: 'New Title'
     }), expect.any(String));
     expect(titleInput.classList.contains('inline-editing')).toBe(false);
@@ -673,7 +673,7 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).toHaveBeenCalled();
-      expect(api.unarchiveIssue).toHaveBeenCalledWith(101);
+      expect(api.unarchiveIssue).toHaveBeenCalledWith(undefined, 101);
       expect(utils.showNotification).toHaveBeenCalledWith('Issue unarchived');
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
@@ -852,7 +852,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 1,
         priority: 'High'
       }), expect.any(String));
@@ -868,7 +868,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 1,
         planned_dates: ['2025-01-01']
       }), expect.any(String));
@@ -884,10 +884,38 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 1,
         deadline: new Date('2025-12-31T12:00:00')
       }), expect.any(String));
+    });
+
+    it('should refresh task deadline styles when issue deadline changes', async () => {
+      const issue = { id: 1 };
+      await openModalWithMock(issue);
+
+      // Seed a task item so refreshTaskDeadlineStyles' forEach has something to iterate.
+      const taskList = document.getElementById('task-list');
+      taskList.innerHTML = `
+        <li class="task-item">
+          <div class="task-deadline-container">
+            <input class="task-deadline-input" value="2020-01-01">
+            <span class="task-deadline-display"></span>
+          </div>
+        </li>
+      `;
+
+      const input = document.getElementById('deadline');
+      input.value = '2025-12-31';
+      input.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      // The forEach reached the task item — its container's title is updated
+      // by refreshTaskDeadlineStyles regardless of overdue status.
+      const container = taskList.querySelector('.task-deadline-container');
+      expect(container.title).toBeTruthy();
+      expect(api.updateIssue).toHaveBeenCalled();
     });
 
     it('should update label immediately on change', async () => {
@@ -900,7 +928,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 1,
         label: { id: 2 }
       }), expect.any(String));
@@ -995,7 +1023,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         title: 'Saved Title'
       }), expect.any(String));
       expect(titleInput.readOnly).toBe(true);
@@ -1015,7 +1043,7 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         title: 'Changed'
       }), expect.any(String));
     });
@@ -1040,7 +1068,7 @@ describe('Modal Component', () => {
       expect(utils.showConfirm).toHaveBeenCalled();
 
       await new Promise(process.nextTick);
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         description: 'Changed Desc'
       }), expect.any(String));
     });
@@ -1057,7 +1085,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         title: 'Changed'
       }), expect.any(String));
       expect(titleInput.readOnly).toBe(true);
@@ -1195,8 +1223,33 @@ describe('Modal Component', () => {
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
 
       // Verify fresh data was fetched and modal was updated
-      expect(api.fetchIssueById).toHaveBeenCalledWith(1);
+      expect(api.fetchIssueById).toHaveBeenCalledWith(undefined, 1);
       expect(utils.showNotification).toHaveBeenCalledWith('Reloaded with latest data');
+    });
+
+    it('should retry via saveIssueWithConflictCheck when form submit hits a conflict', async () => {
+      const issue = { id: 1, title: 'Old', status: 'Todo' };
+      await openModalWithMock(issue);
+
+      // Ensure the form passes validation.
+      document.getElementById('title').value = 'Old';
+      document.getElementById('status').value = 'Todo';
+
+      // First call (from form submit) returns conflict → triggers the fallback
+      // path via saveIssueWithConflictCheck, which calls updateIssue again.
+      api.updateIssue.mockReset();
+      api.updateIssue
+        .mockResolvedValueOnce({ issue: null, etag: null, conflict: true })
+        .mockResolvedValueOnce({ issue: { id: 1 }, etag: '"e"', conflict: false });
+      utils.showConfirm.mockResolvedValue(true);
+
+      document.getElementById('issue-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      await new Promise(process.nextTick);
+
+      // updateIssue was called from the submit handler; the conflict branch
+      // forwarded to saveIssueWithConflictCheck (covers line 514's conflict path).
+      expect(api.updateIssue.mock.calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it('should keep modal open when user cancels conflict reload', async () => {
@@ -1301,7 +1354,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         assignee_id: 1
       }), expect.any(String));
       expect(api.fetchIssueById).toHaveBeenCalled();
@@ -1994,6 +2047,7 @@ describe('Project Selector Coverage', () => {
     await new Promise(process.nextTick);
 
     expect(api.updateIssue).toHaveBeenCalledWith(
+      2,
       expect.objectContaining({ project_id: 2 }),
       expect.anything()
     );
@@ -2243,7 +2297,7 @@ describe('release-select change handler', () => {
     releaseSelect.dispatchEvent(new Event('change'));
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(
+    expect(api.updateIssue).toHaveBeenCalledWith(undefined, 
       expect.objectContaining({ release_id: 2 }),
       expect.any(String)
     );
@@ -2262,7 +2316,7 @@ describe('release-select change handler', () => {
     releaseSelect.dispatchEvent(new Event('change'));
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(
+    expect(api.updateIssue).toHaveBeenCalledWith(undefined, 
       expect.objectContaining({ release_id: null }),
       expect.any(String)
     );

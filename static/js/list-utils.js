@@ -41,7 +41,7 @@ export async function handleTogglePriority(issue, refreshCallback) {
   const originalPriority = issue.priority;
   issue.priority = issue.priority === PRIORITY_HIGH ? PRIORITY_NORMAL : PRIORITY_HIGH;
   try {
-    await updateIssue(issue);
+    await updateIssue(issue.project_id, issue);
     if (refreshCallback) refreshCallback();
   } catch (err) {
     issue.priority = originalPriority;
@@ -56,7 +56,7 @@ export async function handleAssignToMe(issue, currentUser, refreshCallback) {
   issue.assignee_id = currentUser.id;
   issue.assignee = currentUser;
   try {
-    await updateIssue(issue);
+    await updateIssue(issue.project_id, issue);
     if (refreshCallback) refreshCallback();
   } catch (err) {
     issue.assignee_id = originalAssigneeId;
@@ -71,7 +71,7 @@ export async function updatePositions(orderedIssues, refreshCallback) {
   orderedIssues.forEach((issue, index) => {
     if (issue.position !== index) {
       issue.position = index;
-      updates.push(updateIssue(issue));
+      updates.push(updateIssue(issue.project_id, issue));
     }
   });
 
@@ -97,10 +97,10 @@ export function getListUpdates(listId, targetStatus) {
       if (statusChanged || positionChanged) {
         issue.status = targetStatus;
         if (targetStatus === STATUS_ARCHIVE) {
-          updates.push(archiveIssue(issue.id));
+          updates.push(archiveIssue(issue.project_id, issue.id));
         } else {
           issue.position = index;
-          updates.push(updateIssue(issue));
+          updates.push(updateIssue(issue.project_id, issue));
         }
       }
     }
@@ -160,10 +160,10 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
     issue.status = targetStatus;
     try {
       if (targetStatus === STATUS_ARCHIVE) {
-        await archiveIssue(issue.id);
+        await archiveIssue(issue.project_id, issue.id);
       } else {
         issue.planned_dates = [];
-        await updateIssue(issue);
+        await updateIssue(issue.project_id, issue);
       }
       if (refreshApp) refreshApp();
       if (onDrop) onDrop(issue);

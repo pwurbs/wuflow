@@ -299,7 +299,43 @@ describe('Backlog Component', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({ id: 99, release_id: 1 }));
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ id: 99, release_id: 1 }));
+    });
+
+    it('should add drag-over class on dragover when a card is being dragged', async () => {
+      state.state.releases = [
+        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+      ];
+      state.state.issues = [];
+
+      const mockCard = document.createElement('div');
+      mockCard.className = 'card';
+      mockCard.dataset.id = '99';
+      dragModule.getDraggedCard.mockReturnValue(mockCard);
+
+      await renderBacklog(vi.fn(), vi.fn());
+
+      const laneCard = document.querySelector('.release-lane-card');
+      const dragoverEvent = new Event('dragover', { bubbles: false, cancelable: true });
+      laneCard.dispatchEvent(dragoverEvent);
+
+      expect(laneCard.classList.contains('drag-over')).toBe(true);
+      expect(dragoverEvent.defaultPrevented).toBe(true);
+    });
+
+    it('should show filtered counts when a filter is active', async () => {
+      state.isFilterActive.mockReturnValue(true);
+      state.state.issues = [
+        { id: 1, title: 'A', status: 'Open', position: 0 },
+        { id: 2, title: 'B', status: 'Open', position: 1 },
+        { id: 3, title: 'C', status: 'Todo', position: 0 },
+      ];
+
+      await renderBacklog(vi.fn(), vi.fn());
+
+      // filterIssues mock is pass-through, so filtered == total — counts render as "n/n".
+      expect(document.getElementById('backlog-count').textContent).toBe('2/2');
+      expect(document.getElementById('todo-count').textContent).toBe('1/1');
     });
 
     it('should not call updateIssue if issue already has the target release', async () => {
@@ -371,7 +407,7 @@ describe('Backlog Component', () => {
       // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 99,
         status: 'Open',
         planned_dates: []
@@ -417,11 +453,11 @@ describe('Backlog Component', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(api.updateIssue).toHaveBeenCalledTimes(2);
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 2,
         position: 0
       }));
-      expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 1,
         position: 1
       }));

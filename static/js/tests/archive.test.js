@@ -137,7 +137,7 @@ describe('Archive Component', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.archiveIssue).toHaveBeenCalledWith(99);
+      expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 99);
       expect(refreshApp).toHaveBeenCalled();
     });
 
@@ -166,7 +166,7 @@ describe('Archive Component', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.archiveIssue).toHaveBeenCalledWith(100);
+      expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 100);
       expect(refreshApp).toHaveBeenCalled();
     });
   });

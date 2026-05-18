@@ -89,7 +89,7 @@ test.describe('Board Functionality', () => {
 
     // Wait for the update request that's triggered by selecting assignee
     const updatePromise = page.waitForResponse(response =>
-      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+      response.url().includes('/issues/') && response.request().method() === 'PUT'
     );
     await selectAssignee(page, 'Assign to me');
     await updatePromise;
@@ -163,7 +163,7 @@ test.describe('Board Functionality', () => {
 
       const cardB = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleB}")`);
       const updateDone = page.waitForResponse(r =>
-        r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+        r.url().includes('/issues/') && r.request().method() === 'PUT'
       );
       await cardB.click({ button: 'right' });
       await page.locator('.card-context-menu-item:has-text("Move to top")').click();
@@ -180,7 +180,7 @@ test.describe('Board Functionality', () => {
       const card = page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`);
 
       const updateDone = page.waitForResponse(r =>
-        r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+        r.url().includes('/issues/') && r.request().method() === 'PUT'
       );
       await card.click({ button: 'right' });
       await page.locator('.card-context-menu-item:has-text("Set high priority")').click();
@@ -200,7 +200,7 @@ test.describe('Board Functionality', () => {
       const card = page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`);
 
       const updateDone = page.waitForResponse(r =>
-        r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+        r.url().includes('/issues/') && r.request().method() === 'PUT'
       );
       await card.click({ button: 'right' });
       await page.locator('.card-context-menu-item:has-text("Assign to me")').click();
@@ -266,11 +266,11 @@ test.describe('Board Functionality', () => {
       await page.click('#release-trigger');
       await page.locator(`#release-options .custom-option:has-text("${relName}")`).waitFor({ state: 'visible' });
       await page.click(`#release-options .custom-option:has-text("${relName}")`);
-      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+      await page.waitForResponse(r => r.url().includes('/issues/') && r.request().method() === 'PUT');
 
       // Set deadline after the release date (but < 10 days away to stay out of planning's "10+" bucket)
       await page.fill('#deadline', dlDateStr, { force: true });
-      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+      await page.waitForResponse(r => r.url().includes('/issues/') && r.request().method() === 'PUT');
 
       await page.click('#done-btn');
       await expect(page.locator('#issue-modal')).toBeHidden();

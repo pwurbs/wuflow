@@ -184,7 +184,7 @@
           },
           "admin_password": {
             "type": "string",
-            "description": "Required when 'password' is provided or the role is being promoted (user→admin, user→sysadmin, admin→sysadmin). The requesting sysadmin's own current password for confirmation."
+            "description": "Required when 'password' is provided or the role is being promoted (user\u2192admin, user\u2192sysadmin, admin\u2192sysadmin). The requesting sysadmin's own current password for confirmation."
           },
           "role": {
             "type": "string",
@@ -429,7 +429,10 @@
           },
           "status": {
             "type": "string",
-            "enum": ["open", "closed"]
+            "enum": [
+              "open",
+              "closed"
+            ]
           },
           "start_date": {
             "type": "string",
@@ -475,13 +478,13 @@
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Optional. Year must be 2000–2100."
+            "description": "Optional. Year must be 2000\u20132100."
           },
           "release_date": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Optional. Must not be before start_date. Year must be 2000–2100."
+            "description": "Optional. Must not be before start_date. Year must be 2000\u20132100."
           },
           "owner_id": {
             "type": "integer",
@@ -489,7 +492,9 @@
             "description": "Optional. ID of the user responsible for this release."
           }
         },
-        "required": ["name"]
+        "required": [
+          "name"
+        ]
       }
     }
   },
@@ -777,7 +782,7 @@
         }
       }
     },
-    "/issues": {
+    "/projects/{pId}/issues": {
       "post": {
         "summary": "Create a new issue",
         "tags": [
@@ -803,12 +808,33 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found in this project"
           }
         }
-      }
-    },
-    "/issues/{id}": {
+      },
       "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ]
+    },
+    "/projects/{pId}/issues/{id}": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
         {
           "name": "id",
           "in": "path",
@@ -833,6 +859,9 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found in this project"
           }
         }
       },
@@ -867,6 +896,9 @@
           },
           "403": {
             "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found in this project"
           }
         }
       },
@@ -883,12 +915,23 @@
           },
           "403": {
             "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found in this project"
           }
         }
       }
     },
-    "/issues/{id}/archive": {
+    "/projects/{pId}/issues/{id}/archive": {
       "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
         {
           "name": "id",
           "in": "path",
@@ -928,8 +971,16 @@
         }
       }
     },
-    "/issues/{id}/unarchive": {
+    "/projects/{pId}/issues/{id}/unarchive": {
       "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
         {
           "name": "id",
           "in": "path",
@@ -1417,13 +1468,13 @@
         }
       ],
       "get": {
-        "summary": "Get active issues for a project (Todo, Stage1–Stage4, Done)",
+        "summary": "Get active issues for a project (Todo, Stage1\u2013Stage4, Done)",
         "tags": [
           "Issues"
         ],
         "responses": {
           "200": {
-            "description": "List of active issues for the project (status Todo, Stage1–Stage4, or Done; excludes Open and Archive)",
+            "description": "List of active issues for the project (status Todo, Stage1\u2013Stage4, or Done; excludes Open and Archive)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1536,7 +1587,9 @@
       ],
       "get": {
         "summary": "List releases for a project",
-        "tags": ["Releases"],
+        "tags": [
+          "Releases"
+        ],
         "responses": {
           "200": {
             "description": "List of releases for the project",
@@ -1551,15 +1604,21 @@
               }
             }
           },
-          "401": { "description": "Unauthorized" },
-          "404": { "description": "Project not found" }
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project not found"
+          }
         }
       },
       "post": {
         "summary": "Create a release for a project",
         "description": "Requires admin or sysadmin role.",
         "x-required-role": "admin",
-        "tags": ["Releases"],
+        "tags": [
+          "Releases"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1581,15 +1640,31 @@
               }
             }
           },
-          "400": { "description": "Bad Request - validation failed" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Project not found" }
+          "400": {
+            "description": "Bad Request - validation failed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Project not found"
+          }
         }
       }
     },
-    "/releases/{id}": {
+    "/projects/{pId}/releases/{id}": {
       "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
         {
           "name": "id",
           "in": "path",
@@ -1601,7 +1676,9 @@
       ],
       "get": {
         "summary": "Get release details",
-        "tags": ["Releases"],
+        "tags": [
+          "Releases"
+        ],
         "responses": {
           "200": {
             "description": "Release details",
@@ -1613,15 +1690,21 @@
               }
             }
           },
-          "401": { "description": "Unauthorized" },
-          "404": { "description": "Not Found" }
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       },
       "put": {
         "summary": "Update a release",
         "description": "Requires admin or sysadmin role. Closed releases are read-only.",
         "x-required-role": "admin",
-        "tags": ["Releases"],
+        "tags": [
+          "Releases"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1643,27 +1726,53 @@
               }
             }
           },
-          "400": { "description": "Bad Request - validation failed" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden - not admin, or release is closed" },
-          "404": { "description": "Not Found" }
+          "400": {
+            "description": "Bad Request - validation failed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not admin, or release is closed"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       },
       "delete": {
         "summary": "Delete a release",
         "description": "Requires admin or sysadmin role. Issues assigned to the release are unlinked but not deleted.",
         "x-required-role": "admin",
-        "tags": ["Releases"],
+        "tags": [
+          "Releases"
+        ],
         "responses": {
-          "200": { "description": "Release deleted" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Not Found" }
+          "200": {
+            "description": "Release deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       }
     },
-    "/releases/{id}/release": {
+    "/projects/{pId}/releases/{id}/release": {
       "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
         {
           "name": "id",
           "in": "path",
@@ -1677,7 +1786,9 @@
         "summary": "Publish (close) a release",
         "description": "Requires admin or sysadmin role. Closes the release and archives all Done issues assigned to it.",
         "x-required-role": "admin",
-        "tags": ["Releases"],
+        "tags": [
+          "Releases"
+        ],
         "responses": {
           "200": {
             "description": "Published release",
@@ -1689,15 +1800,31 @@
               }
             }
           },
-          "400": { "description": "Bad Request - release is already closed" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Not Found" }
+          "400": {
+            "description": "Bad Request - release is already closed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       }
     },
-    "/releases/{id}/reopen": {
+    "/projects/{pId}/releases/{id}/reopen": {
       "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer"
+          }
+        },
         {
           "name": "id",
           "in": "path",
@@ -1711,7 +1838,9 @@
         "summary": "Reopen a closed release",
         "description": "Requires admin or sysadmin role. Issues archived during publishing are not automatically unarchived.",
         "x-required-role": "admin",
-        "tags": ["Releases"],
+        "tags": [
+          "Releases"
+        ],
         "responses": {
           "200": {
             "description": "Reopened release",
@@ -1723,10 +1852,18 @@
               }
             }
           },
-          "400": { "description": "Bad Request - release is not closed" },
-          "401": { "description": "Unauthorized" },
-          "403": { "description": "Forbidden" },
-          "404": { "description": "Not Found" }
+          "400": {
+            "description": "Bad Request - release is not closed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
         }
       }
     },

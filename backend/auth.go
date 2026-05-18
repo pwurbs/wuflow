@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -60,14 +59,14 @@ func InitSecretKey(secret string) {
 	var rawKey []byte
 	if secret != "" {
 		rawKey = []byte(secret)
-		slog.Info("Secret key initialized from configuration")
+		LogInfo("Secret key initialized from configuration")
 	} else {
 		rawKey = make([]byte, 32)
 		if _, err := rand.Read(rawKey); err != nil {
-			slog.Error("Failed to generate random secret key", "error", err)
+			LogError("Failed to generate random secret key", "error", err)
 			panic(fmt.Sprintf("CRITICAL: Failed to generate random secret key: %v", err))
 		}
-		slog.Warn("Secret key not configured — a random key was generated; all sessions will become invalid. Set WF_SECRET_KEY for persistent sessions.")
+		LogWarn("Secret key not configured — a random key was generated; all sessions will become invalid. Set WF_SECRET_KEY for persistent sessions.")
 	}
 
 	// Derive both operational keys from rawKey using domain-separated HMAC-KDF.
@@ -193,7 +192,7 @@ func ValidateToken(tokenString string) (*CustomClaims, error) {
 	if len(tokenString) > MaxAccessTokenLength {
 		return nil, fmt.Errorf("token too long")
 	}
-	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (any, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -201,14 +200,14 @@ func ValidateToken(tokenString string) (*CustomClaims, error) {
 		return jwtSecret, nil
 	})
 	if err != nil {
-		slog.Warn("Invalid JWT token", "error", err)
+		LogWarn("Invalid JWT token", "error", err)
 		return nil, err
 	}
 
 	claims, ok := token.Claims.(*CustomClaims)
 	if !ok || !token.Valid {
 		err := fmt.Errorf("invalid token claims")
-		slog.Warn("Invalid JWT token", "error", err)
+		LogWarn("Invalid JWT token", "error", err)
 		return nil, jwt.ErrTokenInvalidClaims
 	}
 	return claims, nil
@@ -248,13 +247,13 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(cookieAccessToken)
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			http.Error(w, errMsgUnauthorized, http.StatusUnauthorized)
 			return
 		}
 
 		claims, err := ValidateToken(cookie.Value)
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			http.Error(w, errMsgUnauthorized, http.StatusUnauthorized)
 			return
 		}
 
@@ -324,7 +323,7 @@ func EnsureInitialAdmin(initialAdminEmail, initialAdminPassword string) error {
 		return err
 	}
 
-	slog.Info("Created initial admin user", "email", admin.Email)
+	LogInfo("Created initial admin user", "email", admin.Email)
 	return nil
 }
 
@@ -332,19 +331,19 @@ func EnsureInitialAdmin(initialAdminEmail, initialAdminPassword string) error {
 func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
 	refreshTokenCookie, err := r.Cookie(cookieRefreshToken)
 	if err != nil || refreshTokenCookie.Value == "" {
-		slog.Info("Refresh token cookie missing (static)")
+		LogInfo("Refresh token cookie missing (static)")
 		return false
 	}
 
 	// Use shared RefreshSession logic
 	user, newAccessToken, newRefreshToken, err := RefreshSession(refreshTokenCookie.Value)
 	if err != nil {
-		slog.Info("Session refresh failed, redirecting to login", "reason", strings.ReplaceAll(err.Error(), "\n", ""))
+		LogInfo("Session refresh failed, redirecting to login", "reason", err.Error())
 		return false
 	}
 
 	SetAuthCookies(w, newAccessToken, newRefreshToken)
-	slog.Info("Token refresh successful (static)", "email", user.Email)
+	LogInfo("Token refresh successful (static)", "email", user.Email)
 	return true
 }
 
@@ -375,7 +374,7 @@ func CreateUserSession(user *User) (*Session, string, string, error) {
 	refreshToken, tokenHash, err := GenerateRefreshToken(session.ID)
 	if err != nil {
 		if derr := DeleteSession(session.ID); derr != nil {
-			slog.Warn("failed to cleanup session after refresh token error", "session_id", session.ID, "err", derr)
+			LogWarn("failed to cleanup session after refresh token error", "session_id", session.ID, "err", derr)
 		}
 		return nil, "", "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
@@ -384,7 +383,7 @@ func CreateUserSession(user *User) (*Session, string, string, error) {
 	session.TokenHash = tokenHash
 	if err := UpdateSession(session); err != nil {
 		if derr := DeleteSession(session.ID); derr != nil {
-			slog.Warn("failed to cleanup orphaned session after hash update error", "session_id", session.ID, "err", derr)
+			LogWarn("failed to cleanup orphaned session after hash update error", "session_id", session.ID, "err", derr)
 		}
 		return nil, "", "", fmt.Errorf("failed to update session hash: %w", err)
 	}
@@ -404,7 +403,7 @@ func RevokeUserSessions(userID int) error {
 
 func deleteSessionSafe(sessionID int, msg string) {
 	if err := DeleteSession(sessionID); err != nil {
-		slog.Warn(msg, "session_id", strconv.Itoa(sessionID), "err", err)
+		LogWarn(msg, "session_id", strconv.Itoa(sessionID), "err", err)
 	}
 }
 

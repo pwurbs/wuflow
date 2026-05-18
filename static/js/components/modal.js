@@ -120,7 +120,7 @@ export async function openModal(issue = null) {
 
     // Fetch fresh data from server to ensure we have latest version
     try {
-      const { issue: freshIssue, etag } = await fetchIssueById(issue.id);
+      const { issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id);
 
       modalContent.classList.remove('loading-state');
 
@@ -194,6 +194,7 @@ function renderModalDropdowns(issue) {
   // Project Dropdown
   const projectInput = document.getElementById('project-select');
   const projectText = document.getElementById('project-text');
+  const projectTrigger = document.getElementById('project-trigger');
   if (projectInput && projectText) {
     const storedProjectId = issue ? null : localStorage.getItem('wuflow_selectedProjectId');
     projectInput.value = issue?.project_id ?? (storedProjectId ? Number.parseInt(storedProjectId) : 1);
@@ -205,6 +206,15 @@ function renderModalDropdowns(issue) {
       const found = projects.find(p => p.id === currentId);
       if (found) projectText.textContent = found.name;
     }).catch(err => console.error('Failed to load projects', err));
+
+    // Project moves are not supported via PUT (URL pins the project; backend
+    // returns 404 if URL and current project differ). Disable the selector
+    // when editing an existing issue. A dedicated move endpoint is planned —
+    // see TODO in tests/issue_edits.spec.ts (changing project ... defaults).
+    if (projectTrigger) {
+      projectTrigger.disabled = !!issue;
+      projectTrigger.title = issue ? 'Project cannot be changed after issue creation' : '';
+    }
   }
 
   // Release Dropdown
@@ -417,7 +427,7 @@ export function closeModal() {
  * Returns true if save succeeded, false if conflict occurred.
  */
 async function saveIssueWithConflictCheck(issue, successMessage) {
-  const result = await updateIssue(issue, currentEtag);
+  const result = await updateIssue(issue.project_id, issue, currentEtag);
 
   if (result.conflict) {
     const shouldReload = await showConfirm(
@@ -429,7 +439,7 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
     );
     if (shouldReload) {
       // Reload data in-place without closing modal
-      const { issue: freshIssue, etag } = await fetchIssueById(issue.id);
+      const { issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id);
       if (freshIssue) {
         currentEtag = etag;
         setCurrentIssue(freshIssue);
@@ -501,13 +511,13 @@ async function handleIssueSubmit(e) {
     if (state.currentIssue) {
       if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
       issueData.id = state.currentIssue.id;
-      const result = await updateIssue(issueData, currentEtag);
+      const result = await updateIssue(issueData.project_id, issueData, currentEtag);
       if (result.conflict) {
         await saveIssueWithConflictCheck(issueData, 'Issue updated');
       }
     } else {
       if (!userCan(state.currentUser, ACTION_CREATE_ISSUE)) return;
-      const newIssue = await createIssue(issueData);
+      const newIssue = await createIssue(issueData.project_id, issueData);
       showNotification(`Issue #${newIssue.id} created successfully`);
     }
     closeModal();
@@ -522,7 +532,7 @@ async function handleDeleteIssue() {
   if (!userCan(state.currentUser, ACTION_DELETE_ISSUE)) return;
   if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
     try {
-      await deleteIssue(state.currentIssue.id);
+      await deleteIssue(state.currentIssue.project_id, state.currentIssue.id);
       closeModal();
       showNotification('Issue deleted');
     } catch (err) {
@@ -543,7 +553,7 @@ async function handleArchiveIssue() {
 
   if (await showConfirm('Archive Issue', `Archive "${state.currentIssue.title}"?`, 'Archive', 'Cancel', 'primary')) {
     try {
-      const updated = await archiveIssue(state.currentIssue.id);
+      const updated = await archiveIssue(state.currentIssue.project_id, state.currentIssue.id);
       if (updated?.id) {
         closeModal();
         showNotification('Issue archived');
@@ -559,7 +569,7 @@ async function handleUnarchiveIssue() {
   if (!userCan(state.currentUser, ACTION_UNARCHIVE_ISSUE)) return;
   if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
     try {
-      const updated = await unarchiveIssue(state.currentIssue.id);
+      const updated = await unarchiveIssue(state.currentIssue.project_id, state.currentIssue.id);
       if (updated?.id) {
         closeModal();
         showNotification('Issue unarchived');
@@ -642,7 +652,7 @@ function setupInlineEditing() {
 
         // Fetch fresh copy to ensure frontend model exactly matches backend 
         // sanitization (e.g. stripped HTML tags / null bytes in Title).
-        const { issue: freshIssue } = await fetchIssueById(state.currentIssue.id);
+        const { issue: freshIssue } = await fetchIssueById(state.currentIssue.project_id, state.currentIssue.id);
         if (freshIssue) {
           state.currentIssue.title = freshIssue.title;
           if (titleInput.value !== freshIssue.title) {
@@ -887,7 +897,7 @@ function setupSidebarImmediateSave() {
           if (saved) {
             state.currentIssue.assignee_id = assigneeID;
             // Re-fetch issue to get the populated assignee object for UI
-            const { issue: freshIssue } = await fetchIssueById(state.currentIssue.id);
+            const { issue: freshIssue } = await fetchIssueById(state.currentIssue.project_id, state.currentIssue.id);
             if (freshIssue) state.currentIssue.assignee = freshIssue.assignee;
           }
         } catch (err) {

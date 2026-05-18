@@ -16,7 +16,7 @@ describe('handleTogglePriority', () => {
     api.updateIssue.mockResolvedValue({});
     await handleTogglePriority(issue, vi.fn());
     expect(issue.priority).toBe('Normal');
-    expect(api.updateIssue).toHaveBeenCalledWith(issue);
+    expect(api.updateIssue).toHaveBeenCalledWith(undefined, issue);
   });
 
   it('toggles Normal to High', async () => {

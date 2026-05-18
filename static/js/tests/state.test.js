@@ -14,6 +14,7 @@ import {
   setFilterReleaseOwner,
   setFilterReleaseSearch,
   toggleBacklogReleaseFilter,
+  pruneReleaseFilterIds,
 } from '../state.js';
 
 describe('state', () => {
@@ -241,6 +242,14 @@ describe('state', () => {
     it('should return false when releaseFilterIds is empty', () => {
       state.filter.releaseFilterIds = [];
       expect(isFilterActive()).toBe(false);
+    });
+  });
+
+  describe('pruneReleaseFilterIds', () => {
+    it('should drop ids that are not in the valid set', () => {
+      state.filter.releaseFilterIds = [1, 2, 3, null];
+      pruneReleaseFilterIds(new Set([2, null]));
+      expect(state.filter.releaseFilterIds).toEqual([2, null]);
     });
   });
 

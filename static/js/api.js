@@ -95,9 +95,9 @@ export async function fetchOpenIssuesByProject(projectId) {
 /**
  * Fetch a single issue by ID. Returns { issue, etag } or { issue: null } if not found.
  */
-export async function fetchIssueById(id) {
+export async function fetchIssueById(projectId, id) {
   try {
-    const res = await authFetch(`${API_URL}/issues/${id}`);
+    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`);
     if (res.status === 404) {
       return { issue: null, etag: null };
     }
@@ -112,8 +112,8 @@ export async function fetchIssueById(id) {
   }
 }
 
-export async function createIssue(issue) {
-  const res = await authFetch(`${API_URL}/issues`, {
+export async function createIssue(projectId, issue) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(issue)
@@ -126,13 +126,13 @@ export async function createIssue(issue) {
  * Update an issue. If etag is provided, uses If-Match header for conflict detection.
  * Returns { issue, etag, conflict } where conflict is true if 409 was returned.
  */
-export async function updateIssue(issue, etag = null) {
+export async function updateIssue(projectId, issue, etag = null) {
   const headers = { 'Content-Type': 'application/json' };
   if (etag) {
     headers['If-Match'] = etag;
   }
 
-  const res = await authFetch(`${API_URL}/issues/${issue.id}`, {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issue.id}`, {
     method: 'PUT',
     headers,
     body: JSON.stringify(issue)
@@ -149,8 +149,8 @@ export async function updateIssue(issue, etag = null) {
   return { issue: updatedIssue, etag: newEtag, conflict: false };
 }
 
-export async function archiveIssue(id) {
-  const res = await authFetch(`${API_URL}/issues/${id}/archive`, {
+export async function archiveIssue(projectId, id) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}/archive`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}'
@@ -159,8 +159,8 @@ export async function archiveIssue(id) {
   return await res.json();
 }
 
-export async function unarchiveIssue(id) {
-  const res = await authFetch(`${API_URL}/issues/${id}/unarchive`, {
+export async function unarchiveIssue(projectId, id) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}/unarchive`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}'
@@ -194,8 +194,8 @@ export async function deleteTask(id) {
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete task');
 }
 
-export async function deleteIssue(id) {
-  const res = await authFetch(`${API_URL}/issues/${id}`, { method: 'DELETE' });
+export async function deleteIssue(projectId, id) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete issue');
 }
 
@@ -404,8 +404,8 @@ export async function createRelease(projectId, data) {
   return await res.json();
 }
 
-export async function updateRelease(id, data) {
-  const res = await authFetch(`${API_URL}/releases/${id}`, {
+export async function updateRelease(projectId, id, data) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -417,8 +417,8 @@ export async function updateRelease(id, data) {
   return await res.json();
 }
 
-export async function deleteRelease(id) {
-  const res = await authFetch(`${API_URL}/releases/${id}`, {
+export async function deleteRelease(projectId, id) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}`, {
     method: 'DELETE'
   });
   if (!res.ok) {
@@ -427,8 +427,8 @@ export async function deleteRelease(id) {
   }
 }
 
-export async function reopenRelease(id) {
-  const res = await authFetch(`${API_URL}/releases/${id}/reopen`, {
+export async function reopenRelease(projectId, id) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}/reopen`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({})
@@ -440,8 +440,8 @@ export async function reopenRelease(id) {
   return await res.json();
 }
 
-export async function triggerRelease(id, archiveDone) {
-  const res = await authFetch(`${API_URL}/releases/${id}/release`, {
+export async function triggerRelease(projectId, id, archiveDone) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}/release`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ archive_done: archiveDone })

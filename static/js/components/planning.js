@@ -322,7 +322,7 @@ function createPlanningItem(issue, dateStr) {
       if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
       issue.planned_dates = issue.planned_dates.filter(d => d !== dateStr);
       try {
-        await updateIssue(issue);
+        await updateIssue(issue.project_id, issue);
         if (refreshAppCallback) refreshAppCallback();
       } catch (err) {
         issue.planned_dates = prevDates; // revert local state
@@ -538,7 +538,7 @@ export async function processDroppedCard(draggedCard, targetDateStr) {
     newDates.push(targetDateStr);
     newDates.sort((a, b) => a.localeCompare(b));
     issue.planned_dates = newDates;
-    await updateIssue(issue);
+    await updateIssue(issue.project_id, issue);
     if (refreshAppCallback) refreshAppCallback();
   }
 }

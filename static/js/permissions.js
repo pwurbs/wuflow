@@ -36,6 +36,7 @@ export const ACTION_DELETE_PROJECT  = 'project:delete';
 export const ACTION_GET_STATUS_CONFIG    = 'statusconfig:get';
 export const ACTION_UPDATE_STATUS_CONFIG = 'statusconfig:update';
 export const ACTION_LIST_RELEASES   = 'release:list';
+export const ACTION_GET_RELEASE     = 'release:get';
 export const ACTION_CREATE_RELEASE  = 'release:create';
 export const ACTION_UPDATE_RELEASE  = 'release:update';
 export const ACTION_DELETE_RELEASE  = 'release:delete';
@@ -80,6 +81,7 @@ const rolePermissions = {
     [ACTION_UPDATE_STATUS_CONFIG]: [ROLE_SYSADMIN, ROLE_ADMIN],
     // Releases
     [ACTION_LIST_RELEASES]:   [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_GET_RELEASE]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     [ACTION_CREATE_RELEASE]:  [ROLE_SYSADMIN, ROLE_ADMIN],
     [ACTION_UPDATE_RELEASE]:  [ROLE_SYSADMIN, ROLE_ADMIN],
     [ACTION_DELETE_RELEASE]:  [ROLE_SYSADMIN, ROLE_ADMIN],

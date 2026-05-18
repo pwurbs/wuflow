@@ -40,7 +40,7 @@ test.describe('Archive View', () => {
 
     // 4. Drag to the Archive section heading — targeting the heading ensures the drop
     // lands on the section background (not on #archive-list), so the correct
-    // setupSectionDrop handler fires and POST /api/issues/:id/archive is called.
+    // setupSectionDrop handler fires and POST /api/projects/{pId}/issues/{id}/archive is called.
     const archiveSectionHeading = page.locator('#archive-archive-section h2');
     await expect(archiveSectionHeading).toBeVisible();
     await card.dragTo(archiveSectionHeading);
@@ -305,7 +305,7 @@ test.describe('Archive View', () => {
     // 2. Verify deletion via API is blocked (403)
     const issueId = await page.inputValue('#issue-id');
     const deleteResponse = await page.evaluate(async (id) => {
-      const resp = await fetch(`/api/issues/${id}`, { method: 'DELETE' });
+      const resp = await fetch(`/api/projects/1/issues/${id}`, { method: 'DELETE' });
       return resp.status;
     }, issueId);
 

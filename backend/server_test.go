@@ -284,45 +284,45 @@ func TestServerRoutes(t *testing.T) {
 		expectedStatus int
 	}{
 		{
-			name:           "GET /api/issues (Method Not Allowed)",
+			name:           "GET /api/projects/1/issues (Method Not Allowed)",
 			method:         "GET",
-			path:           "/api/issues",
-			handler:        HandleCreateIssue, // Handler for /api/issues
+			path:           "/api/projects/1/issues",
+			handler:        nil,
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
-			name:           "POST /api/issues (Success)",
+			name:           "POST /api/projects/1/issues (Success)",
 			method:         "POST",
-			path:           "/api/issues",
-			handler:        HandleCreateIssue, // Handler for /api/issues
+			path:           "/api/projects/1/issues",
+			handler:        nil,
 			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:           "GET /api/projects/1/issues/active",
 			method:         "GET",
 			path:           "/api/projects/1/issues/active",
-			handler:        HandleProject,
+			handler:        nil,
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "GET /api/projects/1/issues/archived",
 			method:         "GET",
 			path:           "/api/projects/1/issues/archived",
-			handler:        HandleProject,
+			handler:        nil,
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "GET /api/projects/1/issues/open",
 			method:         "GET",
 			path:           "/api/projects/1/issues/open",
-			handler:        HandleProject,
+			handler:        nil,
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "GET /api/projects/1/labels",
 			method:         "GET",
 			path:           "/api/projects/1/labels",
-			handler:        HandleProject,
+			handler:        nil,
 			expectedStatus: http.StatusOK,
 		},
 	}
@@ -342,13 +342,41 @@ func TestServerRoutes(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 
-			tt.handler(rr, req)
+			testAPI.ServeHTTP(rr, req)
 
 			if status := rr.Code; status != tt.expectedStatus {
 				t.Errorf(wrongStatusCodeMsg,
 					status, tt.expectedStatus)
 			}
 		})
+	}
+}
+
+// TestAPIMux exercises the public APIMux() constructor (and therefore its
+// commonAPI / authAPI middleware-wrapping closures) — production code paths
+// that the bareAPIMux-based tests would otherwise miss.
+func TestAPIMux(t *testing.T) {
+	mux := APIMux("test-version")
+	if mux == nil {
+		t.Fatal("APIMux returned nil")
+	}
+
+	// /api/auth/me is wrapped with authAPI: missing access cookie → 401
+	// (AuthMiddleware short-circuits before any handler/DB access).
+	req := httptest.NewRequest("GET", "/api/auth/me", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("authAPI route should reject missing auth with 401, got %d", rr.Code)
+	}
+
+	// commonAPI wiring: POST /api/auth/login without Content-Type → 415
+	// (RequireJSONMiddleware in commonAPI rejects before handler runs).
+	req = httptest.NewRequest("POST", "/api/auth/login", bytes.NewBufferString(`{}`))
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("commonAPI should enforce JSON Content-Type with 415, got %d", rr.Code)
 	}
 }
 
@@ -545,7 +573,7 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 
 func dummyTestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost || r.Method == http.MethodPut {
-		var dummy map[string]interface{}
+		var dummy map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&dummy); err != nil {
 			if strings.Contains(err.Error(), "http: request body too large") {
 				http.Error(w, "Body too large", http.StatusRequestEntityTooLarge)

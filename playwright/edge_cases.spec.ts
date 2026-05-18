@@ -276,7 +276,7 @@ test.describe('Edge Cases and Validation', () => {
 
   test('strict validation: rejects query parameters', async ({ page }) => {
     // Make an API request with query parameters
-    const response = await page.request.get('/api/issues?foo=bar');
+    const response = await page.request.get('/api/projects/1/issues/active?foo=bar');
 
     // Expect 400 Bad Request
     expect(response.status()).toBe(400);

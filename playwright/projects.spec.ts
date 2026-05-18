@@ -1,5 +1,12 @@
 import { test, expect } from './fixtures';
-import { navigateTo, createIssue } from './helpers/test-utils';
+import {
+  navigateTo,
+  createIssue,
+  createProjectViaAPI,
+  createIssueViaAPI,
+  createReleaseViaAPI,
+  createLabelViaAPI,
+} from './helpers/test-utils';
 
 test.describe('Project Management', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -259,5 +266,146 @@ test.describe('Issues with Projects', () => {
     await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// API-level cross-project isolation
+//
+// The UI tests above prove users don't *see* leakage. These tests prove the
+// back door is also closed: an authenticated admin who hand-crafts a request
+// against the wrong project URL must be rejected. The defence lives in the
+// SQL WHERE clauses of GetIssueByIDInProject / GetReleaseByIDInProject /
+// DeleteLabel — these tests exercise it end-to-end.
+// ---------------------------------------------------------------------------
+
+test.describe('Project-scoped API isolation', () => {
+  // Shared fixture: an admin session with a "default" project (id=1) and a
+  // separate `pOther` project. One resource of each kind is created in
+  // project 1; every test attempts to access it via the pOther URL.
+  let pOther: number;
+  let issueId: number;
+  let releaseId: number;
+  let labelId: number;
+
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+    const ctx = page.request;
+    pOther = await createProjectViaAPI(ctx, `iso_${Date.now().toString().slice(-6)}`);
+    issueId = await createIssueViaAPI(ctx, 1, `IsoIssue_${Date.now()}`);
+    releaseId = await createReleaseViaAPI(ctx, 1, `IsoRel_${Date.now().toString().slice(-6)}`);
+    labelId = await createLabelViaAPI(ctx, 1, `IsoLbl${Date.now().toString().slice(-4)}`);
+  });
+
+  // --- Issue boundary ------------------------------------------------------
+
+  test('GET issue via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.get(`/api/projects/${pOther}/issues/${issueId}`);
+    expect(res.status()).toBe(404);
+  });
+
+  test('PUT issue via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.put(`/api/projects/${pOther}/issues/${issueId}`, {
+      data: { title: 'hacked', status: 'Open', priority: 'Normal' },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('DELETE issue via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.delete(`/api/projects/${pOther}/issues/${issueId}`);
+    expect(res.status()).toBe(404);
+  });
+
+  test('POST issue archive via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.post(`/api/projects/${pOther}/issues/${issueId}/archive`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: {},
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('POST issue unarchive via wrong project URL returns 404', async ({ page }) => {
+    // Archive in the correct project first so unarchive is a valid operation.
+    const arch = await page.request.post(`/api/projects/1/issues/${issueId}/archive`, {
+      headers: { 'Content-Type': 'application/json' }, data: {},
+    });
+    expect(arch.status()).toBe(200);
+
+    const res = await page.request.post(`/api/projects/${pOther}/issues/${issueId}/unarchive`, {
+      headers: { 'Content-Type': 'application/json' }, data: {},
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  // --- Release boundary ----------------------------------------------------
+
+  test('GET release via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.get(`/api/projects/${pOther}/releases/${releaseId}`);
+    expect(res.status()).toBe(404);
+  });
+
+  test('PUT release via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.put(`/api/projects/${pOther}/releases/${releaseId}`, {
+      data: { name: 'hacked', description: '' },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('DELETE release via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.delete(`/api/projects/${pOther}/releases/${releaseId}`);
+    expect(res.status()).toBe(404);
+  });
+
+  test('POST release (trigger) via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.post(`/api/projects/${pOther}/releases/${releaseId}/release`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { archive_done: false },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test('POST release reopen via wrong project URL returns 404', async ({ page }) => {
+    // Close the release in the correct project so reopen is a valid operation.
+    const close = await page.request.post(`/api/projects/1/releases/${releaseId}/release`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { archive_done: false },
+    });
+    expect(close.status()).toBe(200);
+
+    const res = await page.request.post(`/api/projects/${pOther}/releases/${releaseId}/reopen`, {
+      headers: { 'Content-Type': 'application/json' }, data: {},
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  // --- Label boundary ------------------------------------------------------
+
+  test('DELETE label via wrong project URL returns 404', async ({ page }) => {
+    const res = await page.request.delete(`/api/projects/${pOther}/labels/${labelId}`);
+    expect(res.status()).toBe(404);
+  });
+
+  // --- URL-pins-project invariant -----------------------------------------
+
+  test('POST create issue: URL project_id wins over body project_id', async ({ page }) => {
+    const res = await page.request.post(`/api/projects/1/issues`, {
+      data: { title: `BodyOverride_${Date.now()}`, status: 'Open', priority: 'Normal', project_id: pOther },
+    });
+    expect(res.status()).toBe(201);
+    const issue = await res.json();
+    expect(issue.project_id).toBe(1);
+  });
+
+  test('PUT update issue: URL project_id wins over body project_id', async ({ page }) => {
+    const res = await page.request.put(`/api/projects/1/issues/${issueId}`, {
+      data: { title: 'still-in-1', status: 'Open', priority: 'Normal', project_id: pOther },
+    });
+    expect(res.status()).toBe(200);
+
+    // Re-fetch via the original (correct) project URL — must still be there.
+    const check = await page.request.get(`/api/projects/1/issues/${issueId}`);
+    expect(check.status()).toBe(200);
+    const issue = await check.json();
+    expect(issue.project_id).toBe(1);
   });
 });

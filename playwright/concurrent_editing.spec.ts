@@ -15,7 +15,7 @@ test.describe('Concurrent Editing', () => {
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Mock the PUT response to return 409 Conflict
-    await page.route('**/api/issues/*', async route => {
+    await page.route('**/issues/*', async route => {
       if (route.request().method() === 'PUT') {
         await route.fulfill({
           status: 409,
@@ -36,7 +36,7 @@ test.describe('Concurrent Editing', () => {
     await expect(page.locator('#confirm-message')).toContainText('modified by another user');
 
     // Unroute to allow GET request for fresh data
-    await page.unroute('**/api/issues/*');
+    await page.unroute('**/issues/*');
 
     // Click Reload button
     await page.click('#confirm-ok-btn');
@@ -58,7 +58,7 @@ test.describe('Concurrent Editing', () => {
 
     // Wait for PUT and GET responses (normal flow)
     const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
       page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
@@ -86,7 +86,7 @@ test.describe('Concurrent Editing', () => {
 
     // Intercept the PUT request to verify If-Match header
     let ifMatchHeader: string | null = null;
-    await page.route('**/api/issues/*', async route => {
+    await page.route('**/issues/*', async route => {
       if (route.request().method() === 'PUT') {
         ifMatchHeader = route.request().headers()['if-match'];
         await route.continue();
@@ -99,7 +99,7 @@ test.describe('Concurrent Editing', () => {
     await selectPriority(page, 'High');
 
     // Wait for the request to complete
-    await page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT');
+    await page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
 
     // Verify If-Match header was sent
     expect(ifMatchHeader).not.toBeNull();

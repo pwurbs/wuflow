@@ -32,7 +32,7 @@ func TestRateLimiterNotBlockedInitially(t *testing.T) {
 
 func TestRateLimiterIPBlockedAfterThreshold(t *testing.T) {
 	rl := newTestLimiter()
-	for i := 0; i < ipMaxFailures; i++ {
+	for i := range ipMaxFailures {
 		if rl.checkIP(testIP1) {
 			t.Fatalf("should not be blocked after %d failures (threshold is %d)", i, ipMaxFailures)
 		}
@@ -56,7 +56,7 @@ func TestRateLimiterFlow(t *testing.T) {
 	rl := newTestLimiter()
 
 	// 1) Test email limits
-	for i := 0; i < emailMaxFailures; i++ {
+	for i := range emailMaxFailures {
 		if rl.checkIPAndEmail(testIP1, testEmail1) {
 			t.Fatalf("blocked too early on IP+email at iteration %d", i)
 		}
@@ -81,7 +81,7 @@ func TestRateLimiterFlow(t *testing.T) {
 
 func TestRateLimiterResetOnSuccess(t *testing.T) {
 	rl := newTestLimiter()
-	for i := 0; i < ipMaxFailures; i++ {
+	for range ipMaxFailures {
 		rl.recordFailure(testIP1, testEmail1)
 	}
 	if !rl.checkIP(testIP1) {
@@ -101,7 +101,7 @@ func TestRateLimiterResetOnSuccess(t *testing.T) {
 func TestRateLimiterIndependentKeys(t *testing.T) {
 	rl := newTestLimiter()
 	// Exhaust IP testIP1 but not testIP2
-	for i := 0; i < ipMaxFailures; i++ {
+	for range ipMaxFailures {
 		rl.recordFailure(testIP1, testEmail3)
 	}
 	if !rl.checkIP(testIP1) {
@@ -115,7 +115,7 @@ func TestRateLimiterIndependentKeys(t *testing.T) {
 func TestRateLimiterNoDoS(t *testing.T) {
 	rl := newTestLimiter()
 	// Exhaust IP testIP1 for testEmail1
-	for i := 0; i < emailMaxFailures; i++ {
+	for range emailMaxFailures {
 		rl.recordFailure(testIP1, testEmail1)
 	}
 	if !rl.checkIPAndEmail(testIP1, testEmail1) {
@@ -135,7 +135,7 @@ func newTestRequestLimiter() *requestLimiter {
 
 func TestRequestLimiterAllowsUnderLimit(t *testing.T) {
 	rl := newTestRequestLimiter()
-	for i := 0; i < apiMaxRequests; i++ {
+	for i := range apiMaxRequests {
 		if !rl.allow(1) {
 			t.Fatalf("should be allowed at request %d (limit %d)", i+1, apiMaxRequests)
 		}
@@ -144,7 +144,7 @@ func TestRequestLimiterAllowsUnderLimit(t *testing.T) {
 
 func TestRequestLimiterBlocksAtLimit(t *testing.T) {
 	rl := newTestRequestLimiter()
-	for i := 0; i < apiMaxRequests; i++ {
+	for range apiMaxRequests {
 		rl.allow(1)
 	}
 	if rl.allow(1) {
@@ -162,7 +162,7 @@ func TestRequestLimiterWindowExpiry(t *testing.T) {
 
 func TestRequestLimiterIndependentUsers(t *testing.T) {
 	rl := newTestRequestLimiter()
-	for i := 0; i <= apiMaxRequests; i++ {
+	for range apiMaxRequests + 1 {
 		rl.allow(1)
 	}
 	if !rl.allow(2) {

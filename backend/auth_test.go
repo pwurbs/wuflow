@@ -496,7 +496,7 @@ func TestHandleLoginInvalidJSON(t *testing.T) {
 func TestHandleLoginMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("GET", apiAuthLogin, nil)
 	rr := httptest.NewRecorder()
-	HandleLogin(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -527,7 +527,7 @@ func TestHandleLogoutSuccess(t *testing.T) {
 func TestHandleLogoutMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("GET", apiAuthLogout, nil)
 	rr := httptest.NewRecorder()
-	HandleLogout(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -628,7 +628,7 @@ func TestHandleRefreshInactiveUser(t *testing.T) {
 func TestHandleRefreshMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("GET", apiAuthRefresh, nil)
 	rr := httptest.NewRecorder()
-	HandleRefresh(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -637,7 +637,7 @@ func TestHandleRefreshMethodNotAllowed(t *testing.T) {
 
 // --- Current User Handler ---
 
-func TestHandleCurrentUser(t *testing.T) {
+func TestHandleGetCurrentUser(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 	InitSecretKey("")
@@ -648,7 +648,7 @@ func TestHandleCurrentUser(t *testing.T) {
 	req := httptest.NewRequest("GET", apiAuthMe, nil)
 	ctx := context.WithValue(req.Context(), contextKeyUserID, 1)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	HandleGetCurrentUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -668,7 +668,7 @@ func TestHandleCurrentUserNotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", apiAuthMe, nil)
 	ctx := context.WithValue(req.Context(), contextKeyUserID, 999)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	HandleGetCurrentUser(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -679,7 +679,7 @@ func TestHandleCurrentUserMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("POST", apiAuthMe, nil)
 	ctx := context.WithValue(req.Context(), contextKeyUserID, 1)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -783,7 +783,7 @@ func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
 
 	// 3. Admin updates Target's role to RoleUser
 	// Prepare request body
-	bodyMap := map[string]interface{}{
+	bodyMap := map[string]any{
 		"email":      target.Email,
 		"first_name": target.FirstName,
 		"last_name":  target.LastName,
@@ -794,20 +794,20 @@ func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
 
 	// Add Admin Context
 	// Note: We need to use a request that will be routed correctly if we were using a router.
-	// Since HandleUser parses the URL path, we need to construct a valid path.
+	// Since nil parses the URL path, we need to construct a valid path.
 	targetURL := apiUsersBase + strconv.Itoa(target.ID)
 
 	rr := httptest.NewRecorder()
 
-	// Create a fresh request with correct path for HandleUser parsing
+	// Create a fresh request with correct path for nil parsing
 	req := httptest.NewRequest("PUT", targetURL, bytes.NewBuffer(body))
 	// Add Admin Context
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
 
-	HandleUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("HandleUser update failed: code %d, body %s", rr.Code, rr.Body.String())
+		t.Fatalf("nil update failed: code %d, body %s", rr.Code, rr.Body.String())
 	}
 
 	// 4. Verify Session is Revoked
@@ -1006,7 +1006,7 @@ func TestHandleUsersGetList(t *testing.T) {
 	req := httptest.NewRequest("GET", apiUsers, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -1023,7 +1023,7 @@ func TestHandleUsersCreateSuccess(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
 		"first_name": "Test",
 		"last_name":  "User",
@@ -1036,7 +1036,7 @@ func TestHandleUsersCreateSuccess(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUsers(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf(wrongStatusCode+"\nbody: %s", rr.Code, http.StatusCreated, rr.Body.String())
@@ -1050,7 +1050,7 @@ func TestHandleUsersCreateDuplicateEmail(t *testing.T) {
 	hash, _ := HashPassword(testPassword)
 	CreateUser(&User{Email: testEmail, FirstName: "A", LastName: "B", PasswordHash: hash, Role: RoleUser, Active: true})
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
 		"first_name": "C",
 		"last_name":  "D",
@@ -1063,7 +1063,7 @@ func TestHandleUsersCreateDuplicateEmail(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUsers(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusConflict {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
@@ -1075,7 +1075,7 @@ func TestHandleUsersCreateInvalidJSON(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUsers(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1083,7 +1083,7 @@ func TestHandleUsersCreateInvalidJSON(t *testing.T) {
 }
 
 func TestHandleUsersCreateMissingPassword(t *testing.T) {
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
 		"first_name": "Test",
 		"last_name":  "User",
@@ -1096,7 +1096,7 @@ func TestHandleUsersCreateMissingPassword(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUsers(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1104,7 +1104,7 @@ func TestHandleUsersCreateMissingPassword(t *testing.T) {
 }
 
 func TestHandleUsersCreateWeakPassword(t *testing.T) {
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
 		"first_name": "Test",
 		"last_name":  "User",
@@ -1117,7 +1117,7 @@ func TestHandleUsersCreateWeakPassword(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUsers(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1125,7 +1125,7 @@ func TestHandleUsersCreateWeakPassword(t *testing.T) {
 }
 
 func TestHandleUsersCreateInvalidEmail(t *testing.T) {
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      "invalid",
 		"first_name": "Test",
 		"last_name":  "User",
@@ -1138,7 +1138,7 @@ func TestHandleUsersCreateInvalidEmail(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUsers(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1148,14 +1148,14 @@ func TestHandleUsersCreateInvalidEmail(t *testing.T) {
 func TestHandleUsersMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("DELETE", apiUsers, nil)
 	rr := httptest.NewRecorder()
-	HandleUsers(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
 	}
 }
 
-// --- HandleUser (GET/PUT by ID) ---
+// --- nil (GET/PUT by ID) ---
 
 func TestHandleUserGetSuccess(t *testing.T) {
 	setupTestDB()
@@ -1168,7 +1168,7 @@ func TestHandleUserGetSuccess(t *testing.T) {
 	req := httptest.NewRequest("GET", apiUsersBase+strconv.Itoa(user.ID), nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -1182,7 +1182,7 @@ func TestHandleUserGetNotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", apiUsersBase+"999", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -1192,7 +1192,7 @@ func TestHandleUserGetNotFound(t *testing.T) {
 func TestHandleUserInvalidID(t *testing.T) {
 	req := httptest.NewRequest("GET", apiUsersBase+"invalid", nil)
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1207,7 +1207,7 @@ func TestHandleUserPutSuccess(t *testing.T) {
 	user := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true}
 	CreateUser(user)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
 		"first_name": "Updated",
 		"last_name":  "Name",
@@ -1220,7 +1220,7 @@ func TestHandleUserPutSuccess(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode+"\nbody: %s", rr.Code, http.StatusOK, rr.Body.String())
@@ -1236,7 +1236,7 @@ func TestHandleUserPutNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
 		"first_name": "T",
 		"last_name":  "U",
@@ -1248,7 +1248,7 @@ func TestHandleUserPutNotFound(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -1266,7 +1266,7 @@ func TestHandleUserPutInvalidJSON(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1281,7 +1281,7 @@ func TestHandleUserPutLastSysAdminProtection(t *testing.T) {
 	CreateUser(&User{Email: testEmail, FirstName: "Admin", LastName: "User", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
 
 	// Try to demote the only sysadmin
-	body, _ := json.Marshal(map[string]interface{}{
+	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
 		"first_name": "Admin",
 		"last_name":  "User",
@@ -1293,7 +1293,7 @@ func TestHandleUserPutLastSysAdminProtection(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-	HandleUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1303,7 +1303,7 @@ func TestHandleUserPutLastSysAdminProtection(t *testing.T) {
 func TestHandleUserMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("DELETE", apiUsers1, nil)
 	rr := httptest.NewRecorder()
-	HandleUser(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -1397,7 +1397,7 @@ func TestAuthHandlersDBError(t *testing.T) {
 		req := httptest.NewRequest("GET", apiAuthMe, nil)
 		ctx := context.WithValue(req.Context(), contextKeyUserID, 1)
 		rr := httptest.NewRecorder()
-		HandleCurrentUser(rr, req.WithContext(ctx))
+		HandleGetCurrentUser(rr, req.WithContext(ctx))
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 		}
@@ -1407,7 +1407,7 @@ func TestAuthHandlersDBError(t *testing.T) {
 		req := httptest.NewRequest("GET", apiUsers, nil)
 		req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 		rr := httptest.NewRecorder()
-		HandleUsers(rr, req)
+		testAPI.ServeHTTP(rr, req)
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 		}
@@ -1417,21 +1417,21 @@ func TestAuthHandlersDBError(t *testing.T) {
 		req := httptest.NewRequest("GET", apiUsers1, nil)
 		req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 		rr := httptest.NewRecorder()
-		HandleUser(rr, req)
+		testAPI.ServeHTTP(rr, req)
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 		}
 	})
 
 	t.Run("HandleUser_PUT_DBError", func(t *testing.T) {
-		body, _ := json.Marshal(map[string]interface{}{
+		body, _ := json.Marshal(map[string]any{
 			"email": testEmail, "first_name": "T", "last_name": "U", "role": "user", "active": true,
 		})
 		req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBuffer(body))
 		rr := httptest.NewRecorder()
 
 		ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
-		HandleUser(rr, req.WithContext(ctx))
+		testAPI.ServeHTTP(rr, req.WithContext(ctx))
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 		}
@@ -1595,4 +1595,32 @@ func TestCreateUserSessionDBError(t *testing.T) {
 	if err == nil {
 		t.Error("expected error with closed DB, got nil")
 	}
+}
+
+// TestTryRefreshSessionInvalidToken covers the "Session refresh failed" branch
+// (tryRefreshSession when the cookie carries a non-empty but bogus token).
+func TestTryRefreshSessionInvalidToken(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitSecretKey("")
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: "not-a-valid-token"})
+	rr := httptest.NewRecorder()
+	if tryRefreshSession(rr, req) {
+		t.Error("expected false for invalid refresh token cookie")
+	}
+}
+
+// TestDeleteSessionSafeError covers the warning-log branch when DeleteSession fails.
+func TestDeleteSessionSafeError(t *testing.T) {
+	oldDB := DB
+	defer func() { DB = oldDB }()
+
+	closedDB, _ := sql.Open("sqlite3", sqliteMemoryDSN)
+	closedDB.Close()
+	DB = closedDB
+
+	// Must not panic; simply logs a warning.
+	deleteSessionSafe(123, "test cleanup failure")
 }

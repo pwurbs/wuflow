@@ -244,7 +244,7 @@ test.describe('Authentication Security', () => {
     expect(loginPage.status()).toBe(200);
 
     // API endpoint (unauthenticated → 401, but headers must still be set)
-    const apiResp = await request.get('/api/issues');
+    const apiResp = await request.get('/api/projects/1/issues/active');
     expect(apiResp.status()).toBe(401);
 
     for (const response of [loginPage, apiResp]) {
@@ -377,9 +377,9 @@ test.describe('Authentication Security', () => {
     await page.goto('/index.html');
     await expect(page).toHaveURL(/\/login/);
 
-    // 4. Protected API Endpoint (/api/issues) -> Should return 401 Unauthorized
+    // 4. Protected API Endpoint -> Should return 401 Unauthorized
     //    (Using request context which shares cookies - i.e., none)
-    const apiResponse = await request.get('/api/issues');
+    const apiResponse = await request.get('/api/projects/1/issues/active');
     expect(apiResponse.status()).toBe(401);
 
     // 5. Protected Static Asset (/js/app.js) -> Should Redirect to Login
@@ -503,7 +503,7 @@ test.describe('Authentication Rate Limiting', () => {
     if (fs.existsSync(logPath)) {
       const logs = fs.readFileSync(logPath, 'utf8');
       expect(logs).toContain('GetClientIP: invalid IP in header, falling back to RemoteAddr');
-      expect(logs).toContain('value=not-an-ip');
+      expect(logs).toContain('"value":"not-an-ip"');
     }
   });
 

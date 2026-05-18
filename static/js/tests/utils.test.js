@@ -5,7 +5,66 @@ import {
   showNotification, showConfirm,
   updateDateInputStyle, initCharCounter,
   getUnusedColor,
+  getDeadlineStatus, getTaskDeadlineStatus,
 } from '../utils.js';
+
+describe('getDeadlineStatus', () => {
+  it('returns not-late for missing issue or missing deadline', () => {
+    expect(getDeadlineStatus(null).late).toBe(false);
+    expect(getDeadlineStatus({}).late).toBe(false);
+  });
+
+  it('flags past deadlines as Overdue', () => {
+    const res = getDeadlineStatus({ deadline: '2000-01-01' });
+    expect(res).toEqual({ late: true, reason: 'Overdue!' });
+  });
+
+  it('flags deadline after the release date', () => {
+    const res = getDeadlineStatus({
+      deadline: '2999-12-31',
+      release: { release_date: '2999-01-01' },
+    });
+    expect(res).toEqual({ late: true, reason: 'Past release date!' });
+  });
+
+  it('returns not-late for a future deadline before the release date', () => {
+    const res = getDeadlineStatus({
+      deadline: '2999-01-01',
+      release: { release_date: '2999-12-31' },
+    });
+    expect(res.late).toBe(false);
+  });
+});
+
+describe('getTaskDeadlineStatus', () => {
+  it('returns not-late when no task deadline is set', () => {
+    expect(getTaskDeadlineStatus(null, {}).late).toBe(false);
+  });
+
+  it('flags a past task deadline as Overdue', () => {
+    expect(getTaskDeadlineStatus('2000-01-01', {})).toEqual({
+      late: true,
+      reason: 'Overdue!',
+    });
+  });
+
+  it('flags a task deadline after the issue deadline', () => {
+    const res = getTaskDeadlineStatus('2999-12-31', { deadline: '2999-01-01' });
+    expect(res).toEqual({ late: true, reason: 'After issue deadline!' });
+  });
+
+  it('falls back to release date when issue has no deadline', () => {
+    const res = getTaskDeadlineStatus('2999-12-31', {
+      release: { release_date: '2999-01-01' },
+    });
+    expect(res).toEqual({ late: true, reason: 'Past release date!' });
+  });
+
+  it('returns not-late for a task deadline within bounds', () => {
+    const res = getTaskDeadlineStatus('2999-06-01', { deadline: '2999-12-31' });
+    expect(res.late).toBe(false);
+  });
+});
 
 describe('escapeHtml', () => {
   it('should return empty string for null input', () => {

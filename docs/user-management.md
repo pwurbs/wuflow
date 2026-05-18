@@ -23,7 +23,8 @@ Three roles are available, ordered from least to most privileged:
 | Create / delete labels | — | ✓ | ✓ |
 | Configure board columns | — | ✓ | ✓ |
 | Access Project Settings view | — | ✓ | ✓ |
-| View releases | ✓ | ✓ | ✓ |
+| List releases | ✓ | ✓ | ✓ |
+| View a single release | ✓ | ✓ | ✓ |
 | Create / edit / delete releases | — | ✓ | ✓ |
 | Publish / reopen a release | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |

@@ -119,6 +119,20 @@ func TestGetClientIP(t *testing.T) {
 	}
 }
 
+// TestSetLogLevelAndHelpers exercises SetLogLevel and the LogDebug helper,
+// which are otherwise only hit by StartServer (and so go uncovered in tests).
+func TestSetLogLevelAndHelpers(t *testing.T) {
+	orig := safeLogger
+	defer func() { safeLogger = orig }()
+
+	SetLogLevel(slog.LevelDebug)
+	if safeLogger == nil {
+		t.Fatal("SetLogLevel left safeLogger nil")
+	}
+	// Must not panic.
+	LogDebug("debug message", "k", "v")
+}
+
 // GetAllActiveIssues is a test helper that fetches all non-archived issues
 // across all projects. Production code uses GetActiveIssuesByProject instead.
 func GetAllActiveIssues() ([]Issue, error) {

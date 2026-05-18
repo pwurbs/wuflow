@@ -145,24 +145,24 @@ describe('api', () => {
     it('returns issue and etag on success', async () => {
       const issue = { id: 10, title: 'Bug' };
       fetch.mockResolvedValue(makeResponse(200, issue, { ETag: '"abc123"' }));
-      const result = await fetchIssueById(10);
+      const result = await fetchIssueById(1, 10);
       expect(result.issue).toEqual(issue);
       expect(result.etag).toBe('"abc123"');
     });
 
     it('returns null issue on 404', async () => {
       fetch.mockResolvedValue(makeResponse(404, ''));
-      expect(await fetchIssueById(99)).toEqual({ issue: null, etag: null });
+      expect(await fetchIssueById(1, 99)).toEqual({ issue: null, etag: null });
     });
 
     it('returns null issue on non-ok response', async () => {
       fetch.mockResolvedValue(makeResponse(500, ''));
-      expect(await fetchIssueById(1)).toEqual({ issue: null, etag: null });
+      expect(await fetchIssueById(1, 1)).toEqual({ issue: null, etag: null });
     });
 
     it('returns null issue on network error', async () => {
       fetch.mockRejectedValue(new Error('fail'));
-      expect(await fetchIssueById(1)).toEqual({ issue: null, etag: null });
+      expect(await fetchIssueById(1, 1)).toEqual({ issue: null, etag: null });
     });
   });
 
@@ -170,14 +170,14 @@ describe('api', () => {
     it('posts issue and returns created data', async () => {
       const created = { id: 5, title: 'New' };
       fetch.mockResolvedValue(makeResponse(201, created));
-      const result = await createIssue({ title: 'New' });
+      const result = await createIssue(1, { title: 'New' });
       expect(result).toEqual(created);
       expect(fetch.mock.calls[0][1].method).toBe('POST');
     });
 
     it('throws with server message on failure', async () => {
       fetch.mockResolvedValue(makeResponse(400, 'Title required'));
-      await expect(createIssue({ title: '' })).rejects.toThrow('Title required');
+      await expect(createIssue(1, { title: '' })).rejects.toThrow('Title required');
     });
   });
 
@@ -185,53 +185,53 @@ describe('api', () => {
     it('returns updated issue and etag on success', async () => {
       const updated = { id: 1, title: 'Updated' };
       fetch.mockResolvedValue(makeResponse(200, updated, { ETag: '"v2"' }));
-      const result = await updateIssue({ id: 1, title: 'Updated' });
+      const result = await updateIssue(1, { id: 1, title: 'Updated' });
       expect(result).toEqual({ issue: updated, etag: '"v2"', conflict: false });
     });
 
     it('includes If-Match header when etag is provided', async () => {
       fetch.mockResolvedValue(makeResponse(200, { id: 1 }));
-      await updateIssue({ id: 1 }, '"v1"');
+      await updateIssue(1, { id: 1 }, '"v1"');
       expect(fetch.mock.calls[0][1].headers['If-Match']).toBe('"v1"');
     });
 
     it('returns conflict flag on 409', async () => {
       fetch.mockResolvedValue(makeResponse(409, ''));
-      const result = await updateIssue({ id: 1 });
+      const result = await updateIssue(1, { id: 1 });
       expect(result).toEqual({ issue: null, etag: null, conflict: true });
     });
 
     it('throws on other failures', async () => {
       fetch.mockResolvedValue(makeResponse(500, 'Internal error'));
-      await expect(updateIssue({ id: 1 })).rejects.toThrow('Internal error');
+      await expect(updateIssue(1, { id: 1 })).rejects.toThrow('Internal error');
     });
   });
 
   describe('archiveIssue', () => {
     it('posts to archive endpoint and returns data', async () => {
       fetch.mockResolvedValue(makeResponse(200, { id: 1, status: 'archived' }));
-      const result = await archiveIssue(1);
+      const result = await archiveIssue(1, 1);
       expect(result).toEqual({ id: 1, status: 'archived' });
-      expect(fetch.mock.calls[0][0]).toContain('/issues/1/archive');
+      expect(fetch.mock.calls[0][0]).toContain('/projects/1/issues/1/archive');
     });
 
     it('throws on failure', async () => {
       fetch.mockResolvedValue(makeResponse(403, 'Forbidden'));
-      await expect(archiveIssue(1)).rejects.toThrow('Forbidden');
+      await expect(archiveIssue(1, 1)).rejects.toThrow('Forbidden');
     });
   });
 
   describe('unarchiveIssue', () => {
     it('posts to unarchive endpoint and returns data', async () => {
       fetch.mockResolvedValue(makeResponse(200, { id: 1 }));
-      const result = await unarchiveIssue(1);
+      const result = await unarchiveIssue(1, 1);
       expect(result).toEqual({ id: 1 });
-      expect(fetch.mock.calls[0][0]).toContain('/issues/1/unarchive');
+      expect(fetch.mock.calls[0][0]).toContain('/projects/1/issues/1/unarchive');
     });
 
     it('throws on failure', async () => {
       fetch.mockResolvedValue(makeResponse(500, 'error'));
-      await expect(unarchiveIssue(1)).rejects.toThrow();
+      await expect(unarchiveIssue(1, 1)).rejects.toThrow();
     });
   });
 
@@ -428,7 +428,7 @@ describe('api', () => {
     it('puts release and returns updated data', async () => {
       const release = { id: 1, name: 'v1.1' };
       fetch.mockResolvedValue(makeResponse(200, release));
-      const result = await updateRelease(1, { name: 'v1.1' });
+      const result = await updateRelease(1, 1, { name: 'v1.1' });
       expect(result).toEqual(release);
       expect(fetch.mock.calls[0][1].method).toBe('PUT');
       expect(fetch.mock.calls[0][0]).toContain('/releases/1');
@@ -436,20 +436,20 @@ describe('api', () => {
 
     it('throws with server message on failure', async () => {
       fetch.mockResolvedValue(makeResponse(500, 'Internal error'));
-      await expect(updateRelease(1, {})).rejects.toThrow('Internal error');
+      await expect(updateRelease(1, 1, {})).rejects.toThrow('Internal error');
     });
   });
 
   describe('deleteRelease', () => {
     it('sends DELETE and resolves on success', async () => {
       fetch.mockResolvedValue(makeResponse(200, ''));
-      await expect(deleteRelease(1)).resolves.not.toThrow();
+      await expect(deleteRelease(1, 1)).resolves.not.toThrow();
       expect(fetch.mock.calls[0][1].method).toBe('DELETE');
     });
 
     it('throws with server message on failure', async () => {
       fetch.mockResolvedValue(makeResponse(403, 'No permission'));
-      await expect(deleteRelease(1)).rejects.toThrow('No permission');
+      await expect(deleteRelease(1, 1)).rejects.toThrow('No permission');
     });
   });
 
@@ -457,14 +457,14 @@ describe('api', () => {
     it('posts to reopen endpoint and returns data', async () => {
       const release = { id: 1, status: 'open' };
       fetch.mockResolvedValue(makeResponse(200, release));
-      const result = await reopenRelease(1);
+      const result = await reopenRelease(1, 1);
       expect(result).toEqual(release);
       expect(fetch.mock.calls[0][0]).toContain('/releases/1/reopen');
     });
 
     it('throws with server message on failure', async () => {
       fetch.mockResolvedValue(makeResponse(400, 'Cannot reopen'));
-      await expect(reopenRelease(1)).rejects.toThrow('Cannot reopen');
+      await expect(reopenRelease(1, 1)).rejects.toThrow('Cannot reopen');
     });
   });
 
@@ -472,7 +472,7 @@ describe('api', () => {
     it('posts to release endpoint and returns data', async () => {
       const release = { id: 1, status: 'closed' };
       fetch.mockResolvedValue(makeResponse(200, release));
-      const result = await triggerRelease(1, true);
+      const result = await triggerRelease(1, 1, true);
       expect(result).toEqual(release);
       expect(fetch.mock.calls[0][0]).toContain('/releases/1/release');
       expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ archive_done: true });
@@ -480,7 +480,7 @@ describe('api', () => {
 
     it('throws with server message on failure', async () => {
       fetch.mockResolvedValue(makeResponse(500, 'Failed to trigger release'));
-      await expect(triggerRelease(1, false)).rejects.toThrow('Failed to trigger release');
+      await expect(triggerRelease(1, 1, false)).rejects.toThrow('Failed to trigger release');
     });
   });
 });

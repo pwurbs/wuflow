@@ -196,3 +196,62 @@ export async function triggerRelease(page: Page, releaseName: string, archiveDon
   await page.click('#release-dialog-confirm');
 }
 
+
+// -----------------------------------------------------------------------------
+// API helpers — bypass the UI and hit the backend directly. Useful for setting
+// up multi-project fixtures and for testing the URL boundary itself.
+// -----------------------------------------------------------------------------
+
+import type { APIRequestContext } from '@playwright/test';
+
+/** Creates a project via API and returns its id. */
+export async function createProjectViaAPI(request: APIRequestContext, name: string): Promise<number> {
+  const res = await request.post('/api/projects', { data: { name, description: '' } });
+  expect(res.status()).toBe(201);
+  const body = await res.json();
+  return body.id;
+}
+
+/** Creates an issue inside the given project via API; returns its id. */
+export async function createIssueViaAPI(
+  request: APIRequestContext,
+  projectId: number,
+  title: string,
+  extra: Record<string, unknown> = {},
+): Promise<number> {
+  const res = await request.post(`/api/projects/${projectId}/issues`, {
+    data: { title, status: 'Open', priority: 'Normal', ...extra },
+  });
+  expect(res.status()).toBe(201);
+  const body = await res.json();
+  return body.id;
+}
+
+/** Creates a release inside the given project via API; returns its id. */
+export async function createReleaseViaAPI(
+  request: APIRequestContext,
+  projectId: number,
+  name: string,
+): Promise<number> {
+  const res = await request.post(`/api/projects/${projectId}/releases`, {
+    data: { name, description: '' },
+  });
+  expect(res.status()).toBe(201);
+  const body = await res.json();
+  return body.id;
+}
+
+/** Creates a label inside the given project via API; returns its id. */
+export async function createLabelViaAPI(
+  request: APIRequestContext,
+  projectId: number,
+  name: string,
+  color = '#ff0000',
+): Promise<number> {
+  const res = await request.post(`/api/projects/${projectId}/labels`, {
+    data: { name, color },
+  });
+  expect(res.status()).toBe(201);
+  const body = await res.json();
+  return body.id;
+}

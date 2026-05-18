@@ -82,7 +82,7 @@ test.describe('Notifications', () => {
       await openIssueByTitle(page, title);
       // Trigger an auto-save by changing a field
       const savePromise = page.waitForResponse(
-        r => r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+        r => r.url().includes('/issues/') && r.request().method() === 'PUT'
       );
       await selectPriority(page, 'High');
       await savePromise;

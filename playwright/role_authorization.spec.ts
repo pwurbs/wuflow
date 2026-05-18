@@ -122,19 +122,19 @@ test.describe('Role Based Authorization', () => {
     }
 
 
-    // 3. Attempt DELETE /api/issues/{id}
-    const deleteResp = await page.request.delete(`/api/issues/${issueId}`);
+    // 3. Attempt DELETE /api/projects/1/issues/{id}
+    const deleteResp = await page.request.delete(`/api/projects/1/issues/${issueId}`);
     expect(deleteResp.status()).toBe(403);
 
-    // 4. Attempt POST /api/issues/{id}/archive
-    const archiveResp = await page.request.post(`/api/issues/${issueId}/archive`, {
+    // 4. Attempt POST /api/projects/1/issues/{id}/archive
+    const archiveResp = await page.request.post(`/api/projects/1/issues/${issueId}/archive`, {
       headers: { 'Content-Type': 'application/json' },
       data: {}
     });
     expect(archiveResp.status()).toBe(403);
 
-    // 5. Attempt POST /api/issues/{id}/unarchive
-    const unarchiveResp = await page.request.post(`/api/issues/${issueId}/unarchive`, {
+    // 5. Attempt POST /api/projects/1/issues/{id}/unarchive
+    const unarchiveResp = await page.request.post(`/api/projects/1/issues/${issueId}/unarchive`, {
       headers: { 'Content-Type': 'application/json' },
       data: {}
     });

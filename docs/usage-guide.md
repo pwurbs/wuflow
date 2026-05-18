@@ -251,7 +251,8 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | Create / delete labels | — | ✓ | ✓ |
 | Configure board columns | — | ✓ | ✓ |
 | Access Project Settings view | — | ✓ | ✓ |
-| View releases | ✓ | ✓ | ✓ |
+| List releases | ✓ | ✓ | ✓ |
+| View a single release | ✓ | ✓ | ✓ |
 | Create / edit / delete releases | — | ✓ | ✓ |
 | Publish / reopen a release | — | ✓ | ✓ |
 | Create / edit / deactivate users | — | — | ✓ |

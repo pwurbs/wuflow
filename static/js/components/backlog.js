@@ -50,7 +50,7 @@ function buildLaneCard(releaseId, name, count) {
     const issue = state.issues.find(i => i.id === issueId);
     if (!issue || issue.release_id === releaseId) return;
     const updated = { ...issue, release_id: releaseId };
-    const result = await updateIssue(updated);
+    const result = await updateIssue(updated.project_id, updated);
     if (result.issue) {
       Object.assign(issue, result.issue);
       renderBacklog();

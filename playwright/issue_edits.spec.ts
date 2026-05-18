@@ -123,7 +123,7 @@ test.describe('Issue Edit Operations', () => {
 
     // Wait for the PUT request (save) and GET request (refresh)
     const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
       page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
@@ -162,7 +162,7 @@ test.describe('Issue Edit Operations', () => {
 
     // Wait for save and refresh
     const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
       page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
@@ -202,7 +202,7 @@ test.describe('Issue Edit Operations', () => {
 
     // Clear the deadline
     const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
       page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
 
@@ -227,7 +227,13 @@ test.describe('Project change resets project-scoped fields', () => {
     await login();
   });
 
-  test('changing project resets label, release and status to defaults', async ({ page }) => {
+  // TODO(move-endpoint): The project-select dropdown is disabled for existing
+  // issues — the project-scoped routing refactor moved ownership into the URL,
+  // so PUT can no longer move an issue between projects. Re-enable this test
+  // once a dedicated `POST /api/projects/{pId}/issues/{id}/move` endpoint
+  // exists; the test will need to drive that move via the frontend handler
+  // (or directly via the API) instead of mutating project-select.
+  test.skip('changing project resets label, release and status to defaults', async ({ page }) => {
     // Create a second project
     await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
@@ -326,11 +332,11 @@ test.describe('Project change resets project-scoped fields', () => {
       await page.click('#release-trigger');
       await page.locator(`#release-options .custom-option:has-text("${relName}")`).waitFor({ state: 'visible' });
       await page.click(`#release-options .custom-option:has-text("${relName}")`);
-      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+      await page.waitForResponse(r => /\/api\/projects\/\d+\/issues\/\d+/.test(r.url()) && r.request().method() === 'PUT');
 
       // Set a deadline after the release date — should trigger amber warning toast
       await page.fill('#deadline', dlDateStr, { force: true });
-      await page.waitForResponse(r => r.url().includes('/api/issues/') && r.request().method() === 'PUT');
+      await page.waitForResponse(r => /\/api\/projects\/\d+\/issues\/\d+/.test(r.url()) && r.request().method() === 'PUT');
 
       const toast = page.locator('#notification-toast');
       await expect(toast).toBeVisible();

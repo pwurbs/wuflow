@@ -61,7 +61,7 @@ export async function setupReleasesView(callback) {
       if (!confirmed) return;
       closeReleaseModal();
       try {
-        await reopenRelease(rel.id);
+        await reopenRelease(rel.project_id, rel.id);
         showNotification('Release reopened', 'success');
         if (refreshCallback) refreshCallback();
       } catch (err) {
@@ -369,7 +369,7 @@ async function handleReleaseSubmit() {
     const projectId = state.selectedProjectId ?? 1;
     const isEdit = !!editingReleaseId;
     if (isEdit) {
-      await updateRelease(editingReleaseId, payload);
+      await updateRelease(projectId, editingReleaseId, payload);
     } else {
       await createRelease(projectId, payload);
     }
@@ -471,7 +471,7 @@ async function handleDeleteRelease(rel) {
   );
   if (!confirmed) return;
   try {
-    await deleteRelease(rel.id);
+    await deleteRelease(rel.project_id, rel.id);
     showNotification('Release deleted', 'success');
     if (refreshCallback) refreshCallback();
   } catch (err) {
@@ -533,7 +533,7 @@ async function handleTriggerReleaseDialog(rel) {
       const archiveDone = overlay.querySelector('#release-archive-done').checked;
       overlay.remove();
       try {
-        await triggerRelease(rel.id, archiveDone);
+        await triggerRelease(rel.project_id, rel.id, archiveDone);
         showNotification('Release closed', 'success');
         if (refreshCallback) refreshCallback();
       } catch (err) {

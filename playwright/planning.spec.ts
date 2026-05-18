@@ -234,7 +234,7 @@ test.describe('Planning Panel', () => {
 
     // Set planned date via modal
     const savePromise = page.waitForResponse(response =>
-      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+      response.url().includes('/issues/') && response.request().method() === 'PUT'
     );
     await page.fill('#planned-date-picker', dateStr, { force: true });
     await savePromise;
@@ -317,7 +317,7 @@ test.describe('Planning Panel', () => {
 
     // Set planned date via modal
     const savePromise = page.waitForResponse(response =>
-      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+      response.url().includes('/issues/') && response.request().method() === 'PUT'
     );
     await page.fill('#planned-date-picker', dateStr, { force: true });
     await savePromise;
@@ -413,7 +413,7 @@ test.describe('Planning Panel', () => {
     const dateStr1 = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
     const savePromise1 = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
       page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
     await page.fill('#deadline', dateStr1);
@@ -425,7 +425,7 @@ test.describe('Planning Panel', () => {
     const dateStr2 = `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
 
     const savePromise2 = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/api/issues/') && resp.request().method() === 'PUT'),
+      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
       page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
     ]);
     await page.fill('#planned-date-picker', dateStr2, { force: true });
@@ -700,7 +700,7 @@ test.describe('Planning Panel', () => {
 
     // Wait for the update request
     const updatePromise = page.waitForResponse(response =>
-      response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+      response.url().includes('/issues/') && response.request().method() === 'PUT'
     );
     await selectAssignee(page, 'Assign to me');
     await updatePromise;
@@ -736,7 +736,7 @@ test.describe('Planning Panel', () => {
 
     // Wait for the PUT request that persists the status change
     await page.waitForResponse(
-      response => response.url().includes('/api/issues/') && response.request().method() === 'PUT'
+      response => response.url().includes('/issues/') && response.request().method() === 'PUT'
     );
 
     // The planning item should still be visible but styled as done (faded + strikethrough)

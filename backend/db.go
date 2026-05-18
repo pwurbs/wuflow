@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -53,7 +52,7 @@ const dbErrPrefix = "Database Error: "
 // InitDB initializes the database connection and creates tables if they don't exist.
 func InitDB(dataSourceName string) error {
 	if _, err := os.Stat(dataSourceName); os.IsNotExist(err) {
-		slog.Info("Creating new database", "path", dataSourceName)
+		LogInfo("Creating new database", "path", dataSourceName)
 	}
 
 	dsn := dataSourceName
@@ -66,17 +65,17 @@ func InitDB(dataSourceName string) error {
 	var err error
 	DB, err = sql.Open("sqlite3", dsn)
 	if err != nil {
-		slog.Error("Failed to open database", "error", err)
+		LogError("Failed to open database", "error", err)
 		return err
 	}
 
 	if err = DB.Ping(); err != nil {
-		slog.Error("Failed to ping database", "error", err)
+		LogError("Failed to ping database", "error", err)
 		return err
 	}
 
 	if _, err := DB.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		slog.Error("Failed to set WAL mode", "error", err)
+		LogError("Failed to set WAL mode", "error", err)
 		return err
 	}
 
@@ -97,13 +96,13 @@ func createTables() error {
 		description TEXT NOT NULL DEFAULT ''
 	);`
 	if _, err := DB.Exec(createProjectsTable); err != nil {
-		slog.Error("Failed to create projects table", "error", err)
+		LogError("Failed to create projects table", "error", err)
 		return err
 	}
 
 	// Seed the default project (id=1)
 	if _, err := DB.Exec(`INSERT OR IGNORE INTO projects(id, name, description) VALUES(1, 'default', 'Default project')`); err != nil {
-		slog.Error("Failed to seed default project", "error", err)
+		LogError("Failed to seed default project", "error", err)
 		return err
 	}
 
@@ -125,7 +124,7 @@ func createTables() error {
 		UNIQUE(project_id, name)
 	);`
 	if _, err := DB.Exec(createReleasesTable); err != nil {
-		slog.Error("Failed to create releases table", "error", err)
+		LogError("Failed to create releases table", "error", err)
 		return err
 	}
 
@@ -169,12 +168,12 @@ func createTables() error {
 	);`
 
 	if _, err := DB.Exec(createIssuesTable); err != nil {
-		slog.Error("Failed to create issues table", "error", err)
+		LogError("Failed to create issues table", "error", err)
 		return err
 	}
 
 	if _, err := DB.Exec(createTasksTable); err != nil {
-		slog.Error("Failed to create tasks table", "error", err)
+		LogError("Failed to create tasks table", "error", err)
 		return err
 	}
 
@@ -187,7 +186,7 @@ func createTables() error {
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
 	if _, err := DB.Exec(createLabelsTable); err != nil {
-		slog.Error("Failed to create labels table", "error", err)
+		LogError("Failed to create labels table", "error", err)
 		return err
 	}
 
@@ -201,7 +200,7 @@ func createTables() error {
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
 	if _, err := DB.Exec(createStatusConfigTable); err != nil {
-		slog.Error("Failed to create project_status_config table", "error", err)
+		LogError("Failed to create project_status_config table", "error", err)
 		return err
 	}
 
@@ -218,7 +217,7 @@ func createTables() error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 	if _, err := DB.Exec(createUsersTable); err != nil {
-		slog.Error("Failed to create users table", "error", err)
+		LogError("Failed to create users table", "error", err)
 		return err
 	}
 
@@ -232,12 +231,12 @@ func createTables() error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
 	if _, err := DB.Exec(createSessionsTable); err != nil {
-		slog.Error("Failed to create sessions table", "error", err)
+		LogError("Failed to create sessions table", "error", err)
 		return err
 	}
 	// Create index on user_id to speed up session revocation by user (e.g., logout all devices)
 	if _, err := DB.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
-		slog.Error("Failed to create index on sessions(user_id)", "error", err)
+		LogError("Failed to create index on sessions(user_id)", "error", err)
 		return err
 	}
 
@@ -274,17 +273,17 @@ func runMigrations() error {
 func migrateLabelsAddProjectIDColumn() error {
 	var count int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&count); err != nil {
-		slog.Error("Failed to check for project_id column in labels", "error", err)
+		LogError("Failed to check for project_id column in labels", "error", err)
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
 	if _, err := DB.Exec(`ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
-		slog.Error("Failed to add project_id column to labels", "error", err)
+		LogError("Failed to add project_id column to labels", "error", err)
 		return err
 	}
-	slog.Info("Migrated labels table: added project_id column (existing labels assigned to project 1)")
+	LogInfo("Migrated labels table: added project_id column (existing labels assigned to project 1)")
 	return nil
 }
 
@@ -292,19 +291,19 @@ func migrateLabelsAddProjectIDColumn() error {
 // and seeds default status config for projects that don't have one yet.
 func migrateIssueStatusValues() error {
 	if res, err := DB.Exec(`UPDATE issues SET status = 'Stage1' WHERE status = 'Pending'`); err != nil {
-		slog.Error("Failed to migrate Pending -> Stage1", "error", err)
+		LogError("Failed to migrate Pending -> Stage1", "error", err)
 		return err
 	} else if n, _ := res.RowsAffected(); n > 0 {
-		slog.Info("Migrated issues: Pending -> Stage1", "count", n)
+		LogInfo("Migrated issues: Pending -> Stage1", "count", n)
 	}
 	if res, err := DB.Exec(`UPDATE issues SET status = 'Stage2' WHERE status = 'Working'`); err != nil {
-		slog.Error("Failed to migrate Working -> Stage2", "error", err)
+		LogError("Failed to migrate Working -> Stage2", "error", err)
 		return err
 	} else if n, _ := res.RowsAffected(); n > 0 {
-		slog.Info("Migrated issues: Working -> Stage2", "count", n)
+		LogInfo("Migrated issues: Working -> Stage2", "count", n)
 	}
 	if _, err := DB.Exec(`INSERT OR IGNORE INTO project_status_config (project_id) SELECT id FROM projects`); err != nil {
-		slog.Error("Failed to seed project_status_config", "error", err)
+		LogError("Failed to seed project_status_config", "error", err)
 		return err
 	}
 	return nil
@@ -314,17 +313,17 @@ func migrateIssueStatusValues() error {
 func migrateIssuesAddReleaseIDColumn() error {
 	var count int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('issues') WHERE name='release_id'`).Scan(&count); err != nil {
-		slog.Error("Failed to check for release_id column in issues", "error", err)
+		LogError("Failed to check for release_id column in issues", "error", err)
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
 	if _, err := DB.Exec(`ALTER TABLE issues ADD COLUMN release_id INTEGER REFERENCES releases(id) ON DELETE SET NULL`); err != nil {
-		slog.Error("Failed to add release_id column to issues", "error", err)
+		LogError("Failed to add release_id column to issues", "error", err)
 		return err
 	}
-	slog.Info("Migrated issues table: added release_id column")
+	LogInfo("Migrated issues table: added release_id column")
 	return nil
 }
 
@@ -332,30 +331,30 @@ func migrateIssuesAddReleaseIDColumn() error {
 func migrateLabelsAddProjectForeignKey() error {
 	var count int
 	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_list('labels') WHERE "table" = 'projects'`).Scan(&count); err != nil {
-		slog.Error("Failed to check foreign key on labels.project_id", "error", err)
+		LogError("Failed to check foreign key on labels.project_id", "error", err)
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
 	if _, err := DB.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
-		slog.Error("Failed to disable foreign keys before labels migration", "error", err)
+		LogError("Failed to disable foreign keys before labels migration", "error", err)
 		return err
 	}
 	defer DB.Exec(`PRAGMA foreign_keys = ON`)
 	tx, err := DB.Begin()
 	if err != nil {
-		slog.Error("Failed to begin transaction for labels migration", "error", err)
+		LogError("Failed to begin transaction for labels migration", "error", err)
 		return err
 	}
 	res, err := tx.Exec(`DELETE FROM labels WHERE project_id NOT IN (SELECT id FROM projects)`)
 	if err != nil {
 		_ = tx.Rollback()
-		slog.Error("Failed to delete orphaned labels before FK migration", "error", err)
+		LogError("Failed to delete orphaned labels before FK migration", "error", err)
 		return err
 	}
 	if n, _ := res.RowsAffected(); n > 0 {
-		slog.Warn("Migrated labels table: deleted orphaned labels with no matching project", "count", n)
+		LogWarn("Migrated labels table: deleted orphaned labels with no matching project", "count", n)
 	}
 
 	steps := []struct {
@@ -376,15 +375,15 @@ func migrateLabelsAddProjectForeignKey() error {
 	for _, s := range steps {
 		if _, err := tx.Exec(s.sql); err != nil {
 			_ = tx.Rollback()
-			slog.Error("Failed to "+s.desc, "error", err)
+			LogError("Failed to "+s.desc, "error", err)
 			return err
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		slog.Error("Failed to commit labels migration", "error", err)
+		LogError("Failed to commit labels migration", "error", err)
 		return err
 	}
-	slog.Info("Migrated labels table: added ON DELETE CASCADE foreign key for project_id")
+	LogInfo("Migrated labels table: added ON DELETE CASCADE foreign key for project_id")
 	return nil
 }
 
@@ -403,6 +402,29 @@ func LabelExistsInProject(labelID, projectID int) (bool, error) {
 	return existsQuery("SELECT COUNT(*) FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
 }
 
+// GetIssueByIDInProject returns the issue only if it belongs to the given project.
+// The (id, project_id) pair is filtered in the SQL WHERE clause, so an issue
+// living in a different project is indistinguishable from "no such issue" — the
+// helper returns nil so the caller can respond 404 uniformly.
+func GetIssueByIDInProject(id, projectID int) (*Issue, error) {
+	row := DB.QueryRow(queryIssueByIDInProject, id, projectID)
+	issue, err := scanIssueRow(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		LogError("Database Error: GetIssueByIDInProject", "id", id, "project_id", projectID, "error", err)
+		return nil, err
+	}
+	tasks, err := GetTasksByIssueID(issue.ID)
+	if err != nil {
+		LogError("Database Error: GetIssueByIDInProject GetTasksByIssueID", "id", id, "error", err)
+		return nil, err
+	}
+	issue.Tasks = tasks
+	return &issue, nil
+}
+
 // ProjectExists checks if a project exists.
 func ProjectExists(id int) (bool, error) {
 	return existsQuery("SELECT COUNT(*) FROM projects WHERE id = ?", id)
@@ -412,7 +434,7 @@ func ProjectExists(id int) (bool, error) {
 func existsQuery(query string, args ...any) (bool, error) {
 	var count int
 	if err := DB.QueryRow(query, args...).Scan(&count); err != nil {
-		slog.Error("Database Error: existence check", "error", err)
+		LogError("Database Error: existence check", "error", err)
 		return false, err
 	}
 	return count > 0, nil
@@ -422,7 +444,7 @@ func existsQuery(query string, args ...any) (bool, error) {
 func checkRowsAffected(res sql.Result, caller string, notFoundErr error) error {
 	rows, err := res.RowsAffected()
 	if err != nil {
-		slog.Error("Database Error: "+caller+" RowsAffected", "error", err)
+		LogError("Database Error: "+caller+" RowsAffected", "error", err)
 		return err
 	}
 	if rows == 0 {
@@ -438,7 +460,7 @@ func CreateIssue(i *Issue) error {
 	}
 	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, creator_id, assignee_id, updated_by, project_id, release_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		slog.Error("Database Error: CreateIssue Prepare", "error", err)
+		LogError("Database Error: CreateIssue Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -447,7 +469,7 @@ func CreateIssue(i *Issue) error {
 	var maxPos sql.NullInt64
 	err = DB.QueryRow("SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
 	if err != nil && err != sql.ErrNoRows {
-		slog.Error("Database Error: CreateIssue MaxPos", "error", err)
+		LogError("Database Error: CreateIssue MaxPos", "error", err)
 		return err
 	}
 	i.Position = int(maxPos.Int64) + 1
@@ -473,7 +495,7 @@ func CreateIssue(i *Issue) error {
 	if i.PlannedDates != nil {
 		b, err := json.Marshal(i.PlannedDates)
 		if err != nil {
-			slog.Error("Database Error: CreateIssue Marshal Dates", "error", err)
+			LogError("Database Error: CreateIssue Marshal Dates", "error", err)
 			return err
 		}
 		plannedDatesJSON = string(b)
@@ -481,13 +503,13 @@ func CreateIssue(i *Issue) error {
 
 	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt)
 	if err != nil {
-		slog.Error("Database Error: CreateIssue Exec", "error", err)
+		LogError("Database Error: CreateIssue Exec", "error", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("Database Error: CreateIssue LastInsertId", "error", err)
+		LogError("Database Error: CreateIssue LastInsertId", "error", err)
 		return err
 	}
 	i.ID = int(id)
@@ -516,6 +538,7 @@ const (
 	queryArchivedIssues = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
 	queryOpenIssues     = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
 	queryIssueByID      = issueSelectBase + ` WHERE i.id = ?`
+	queryIssueByIDInProject = issueSelectBase + ` WHERE i.id = ? AND i.project_id = ?`
 )
 
 // getTasksForIssues fetches tasks for the given issues, keyed by issue ID.
@@ -552,7 +575,7 @@ func getTasksForIssues(issues []Issue) (map[int][]Task, error) {
 func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, error) {
 	rows, err := DB.Query(query, args...)
 	if err != nil {
-		slog.Error(dbErrPrefix+caller, "error", err)
+		LogError(dbErrPrefix+caller, "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -561,20 +584,20 @@ func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, er
 	for rows.Next() {
 		i, err := scanIssueRow(rows)
 		if err != nil {
-			slog.Error(dbErrPrefix+caller+" Scan", "error", err)
+			LogError(dbErrPrefix+caller+" Scan", "error", err)
 			return nil, err
 		}
 		issues = append(issues, i)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error(dbErrPrefix+caller+" Rows", "error", err)
+		LogError(dbErrPrefix+caller+" Rows", "error", err)
 		return nil, err
 	}
 
 	if len(issues) > 0 {
 		tasksByIssue, err := getTasksForIssues(issues)
 		if err != nil {
-			slog.Error(dbErrPrefix+caller+" GetTasks", "error", err)
+			LogError(dbErrPrefix+caller+" GetTasks", "error", err)
 			return nil, err
 		}
 		for idx := range issues {
@@ -608,13 +631,13 @@ func GetIssueByID(id int) (*Issue, error) {
 		return nil, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetIssueByID", "error", err)
+		LogError("Database Error: GetIssueByID", "error", err)
 		return nil, err
 	}
 
 	tasks, err := GetTasksByIssueID(issue.ID)
 	if err != nil {
-		slog.Error("Database Error: GetIssueByID GetTasksByIssueID", "error", err)
+		LogError("Database Error: GetIssueByID GetTasksByIssueID", "error", err)
 		return nil, err
 	}
 	issue.Tasks = tasks
@@ -627,7 +650,7 @@ func UpdateIssue(i *Issue) error {
 
 	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, assignee_id = ?, updated_by = ?, project_id = ?, release_id = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
-		slog.Error("Database Error: UpdateIssue Prepare", "error", err)
+		LogError("Database Error: UpdateIssue Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -644,7 +667,7 @@ func UpdateIssue(i *Issue) error {
 	if i.PlannedDates != nil {
 		b, err := json.Marshal(i.PlannedDates)
 		if err != nil {
-			slog.Error("Database Error: UpdateIssue Marshal Dates", "error", err)
+			LogError("Database Error: UpdateIssue Marshal Dates", "error", err)
 			return err
 		}
 		plannedDatesJSON = string(b)
@@ -657,7 +680,7 @@ func UpdateIssue(i *Issue) error {
 
 	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt, i.ID)
 	if err != nil {
-		slog.Error("Database Error: UpdateIssue Exec", "error", err)
+		LogError("Database Error: UpdateIssue Exec", "error", err)
 		return err
 	}
 
@@ -669,7 +692,7 @@ func UpdateIssue(i *Issue) error {
 func UpdateIssuePosition(id, position int) error {
 	res, err := DB.Exec("UPDATE issues SET position = ? WHERE id = ?", position, id)
 	if err != nil {
-		slog.Error("Database Error: UpdateIssuePosition", "error", err)
+		LogError("Database Error: UpdateIssuePosition", "error", err)
 		return err
 	}
 	return checkRowsAffected(res, "UpdateIssuePosition", ErrIssueNotFound)
@@ -679,7 +702,7 @@ func UpdateIssuePosition(id, position int) error {
 func DeleteIssue(id int) error {
 	res, err := DB.Exec("DELETE FROM issues WHERE id = ?", id)
 	if err != nil {
-		slog.Error("Database Error: DeleteIssue", "error", err)
+		LogError("Database Error: DeleteIssue", "error", err)
 		return err
 	}
 
@@ -690,14 +713,14 @@ func DeleteIssue(id int) error {
 func CreateTask(t *Task) error {
 	stmt, err := DB.Prepare("INSERT INTO tasks(issue_id, title, done, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		slog.Error("Database Error: CreateTask Prepare", "error", err)
+		LogError("Database Error: CreateTask Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
 
 	exists, err := existsQuery("SELECT COUNT(*) FROM issues WHERE id = ?", t.IssueID)
 	if err != nil {
-		slog.Error("Database Error: CreateTask CheckIssue", "error", err)
+		LogError("Database Error: CreateTask CheckIssue", "error", err)
 		return err
 	}
 	if !exists {
@@ -708,7 +731,7 @@ func CreateTask(t *Task) error {
 	var maxPos sql.NullInt64
 	err = DB.QueryRow("SELECT MAX(position) FROM tasks WHERE issue_id = ?", t.IssueID).Scan(&maxPos)
 	if err != nil && err != sql.ErrNoRows {
-		slog.Error("Database Error: CreateTask MaxPos", "error", err)
+		LogError("Database Error: CreateTask MaxPos", "error", err)
 		return err
 	}
 	t.Position = int(maxPos.Int64) + 1
@@ -716,13 +739,13 @@ func CreateTask(t *Task) error {
 
 	res, err := stmt.Exec(t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt)
 	if err != nil {
-		slog.Error("Database Error: CreateTask Exec", "error", err)
+		LogError("Database Error: CreateTask Exec", "error", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("Database Error: CreateTask LastInsertId", "error", err)
+		LogError("Database Error: CreateTask LastInsertId", "error", err)
 		return err
 	}
 	t.ID = int(id)
@@ -746,7 +769,7 @@ func scanTaskRow(s issueScanner) (Task, error) {
 func GetAllTasks() (map[int][]Task, error) {
 	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks ORDER BY issue_id, position ASC")
 	if err != nil {
-		slog.Error("Database Error: GetAllTasks", "error", err)
+		LogError("Database Error: GetAllTasks", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -755,13 +778,13 @@ func GetAllTasks() (map[int][]Task, error) {
 	for rows.Next() {
 		t, err := scanTaskRow(rows)
 		if err != nil {
-			slog.Error("Database Error: GetAllTasks Scan", "error", err)
+			LogError("Database Error: GetAllTasks Scan", "error", err)
 			return nil, err
 		}
 		result[t.IssueID] = append(result[t.IssueID], t)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetAllTasks Rows", "error", err)
+		LogError("Database Error: GetAllTasks Rows", "error", err)
 		return nil, err
 	}
 	return result, nil
@@ -771,7 +794,7 @@ func GetAllTasks() (map[int][]Task, error) {
 func GetTasksByIssueID(issueID int) ([]Task, error) {
 	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id = ? ORDER BY position ASC", issueID)
 	if err != nil {
-		slog.Error("Database Error: GetTasksByIssueID", "error", err)
+		LogError("Database Error: GetTasksByIssueID", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -780,13 +803,13 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 	for rows.Next() {
 		t, err := scanTaskRow(rows)
 		if err != nil {
-			slog.Error("Database Error: GetTasksByIssueID Scan", "error", err)
+			LogError("Database Error: GetTasksByIssueID Scan", "error", err)
 			return nil, err
 		}
 		tasks = append(tasks, t)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetTasksByIssueID Rows", "error", err)
+		LogError("Database Error: GetTasksByIssueID Rows", "error", err)
 		return nil, err
 	}
 	return tasks, nil
@@ -800,7 +823,7 @@ func GetTaskByID(id int) (*Task, error) {
 		return nil, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetTaskByID", "error", err)
+		LogError("Database Error: GetTaskByID", "error", err)
 		return nil, err
 	}
 	return &t, nil
@@ -810,7 +833,7 @@ func GetTaskByID(id int) (*Task, error) {
 func UpdateTask(t *Task) error {
 	stmt, err := DB.Prepare("UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
-		slog.Error("Database Error: UpdateTask Prepare", "error", err)
+		LogError("Database Error: UpdateTask Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -818,7 +841,7 @@ func UpdateTask(t *Task) error {
 	t.UpdatedAt = time.Now().UTC()
 	res, err := stmt.Exec(t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID)
 	if err != nil {
-		slog.Error("Database Error: UpdateTask Exec", "error", err)
+		LogError("Database Error: UpdateTask Exec", "error", err)
 		return err
 	}
 
@@ -829,7 +852,7 @@ func UpdateTask(t *Task) error {
 func DeleteTask(id int) error {
 	res, err := DB.Exec("DELETE FROM tasks WHERE id = ?", id)
 	if err != nil {
-		slog.Error("Database Error: DeleteTask", "error", err)
+		LogError("Database Error: DeleteTask", "error", err)
 		return err
 	}
 
@@ -840,20 +863,20 @@ func DeleteTask(id int) error {
 func CreateLabel(l *Label) error {
 	stmt, err := DB.Prepare("INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)")
 	if err != nil {
-		slog.Error("Database Error: CreateLabel Prepare", "error", err)
+		LogError("Database Error: CreateLabel Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
 
 	res, err := stmt.Exec(l.Name, l.Color, l.ProjectID)
 	if err != nil {
-		slog.Error("Database Error: CreateLabel Exec", "error", err)
+		LogError("Database Error: CreateLabel Exec", "error", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("Database Error: CreateLabel LastInsertId", "error", err)
+		LogError("Database Error: CreateLabel LastInsertId", "error", err)
 		return err
 	}
 	l.ID = int(id)
@@ -864,7 +887,7 @@ func CreateLabel(l *Label) error {
 func GetLabelsByProject(projectID int) ([]Label, error) {
 	rows, err := DB.Query("SELECT id, name, color, project_id FROM labels WHERE project_id = ? ORDER BY name ASC", projectID)
 	if err != nil {
-		slog.Error("Database Error: GetLabelsByProject", "project_id", projectID, "error", err)
+		LogError("Database Error: GetLabelsByProject", "project_id", projectID, "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -873,13 +896,13 @@ func GetLabelsByProject(projectID int) ([]Label, error) {
 	for rows.Next() {
 		var l Label
 		if err := rows.Scan(&l.ID, &l.Name, &l.Color, &l.ProjectID); err != nil {
-			slog.Error("Database Error: GetLabelsByProject Scan", "error", err)
+			LogError("Database Error: GetLabelsByProject Scan", "error", err)
 			return nil, err
 		}
 		labels = append(labels, l)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetLabelsByProject Rows", "error", err)
+		LogError("Database Error: GetLabelsByProject Rows", "error", err)
 		return nil, err
 	}
 	return labels, nil
@@ -889,7 +912,7 @@ func GetLabelsByProject(projectID int) ([]Label, error) {
 func DeleteLabel(labelID, projectID int) error {
 	res, err := DB.Exec("DELETE FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
 	if err != nil {
-		slog.Error("Database Error: DeleteLabel", "error", err)
+		LogError("Database Error: DeleteLabel", "error", err)
 		return err
 	}
 
@@ -904,7 +927,7 @@ func DeleteLabel(labelID, projectID int) error {
 func CreateProject(p *Project) error {
 	stmt, err := DB.Prepare("INSERT INTO projects(name, description) VALUES(?, ?)")
 	if err != nil {
-		slog.Error("Database Error: CreateProject Prepare", "error", err)
+		LogError("Database Error: CreateProject Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -914,20 +937,20 @@ func CreateProject(p *Project) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
 		}
-		slog.Error("Database Error: CreateProject Exec", "error", err)
+		LogError("Database Error: CreateProject Exec", "error", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("Database Error: CreateProject LastInsertId", "error", err)
+		LogError("Database Error: CreateProject LastInsertId", "error", err)
 		return err
 	}
 	p.ID = int(id)
 
 	// Seed default column/status config for the new project.
 	if _, err := DB.Exec(`INSERT OR IGNORE INTO project_status_config (project_id) VALUES (?)`, p.ID); err != nil {
-		slog.Error("Database Error: CreateProject seed status config", "error", err)
+		LogError("Database Error: CreateProject seed status config", "error", err)
 		return err
 	}
 	return nil
@@ -937,7 +960,7 @@ func CreateProject(p *Project) error {
 func GetAllProjects() ([]Project, error) {
 	rows, err := DB.Query("SELECT id, name, description FROM projects ORDER BY id ASC")
 	if err != nil {
-		slog.Error("Database Error: GetAllProjects", "error", err)
+		LogError("Database Error: GetAllProjects", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -946,13 +969,13 @@ func GetAllProjects() ([]Project, error) {
 	for rows.Next() {
 		var p Project
 		if err := rows.Scan(&p.ID, &p.Name, &p.Description); err != nil {
-			slog.Error("Database Error: GetAllProjects Scan", "error", err)
+			LogError("Database Error: GetAllProjects Scan", "error", err)
 			return nil, err
 		}
 		projects = append(projects, p)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetAllProjects Rows", "error", err)
+		LogError("Database Error: GetAllProjects Rows", "error", err)
 		return nil, err
 	}
 	return projects, nil
@@ -968,7 +991,7 @@ func GetProjectByID(id int) (*Project, error) {
 		return nil, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetProjectByID", "error", err)
+		LogError("Database Error: GetProjectByID", "error", err)
 		return nil, err
 	}
 	return &p, nil
@@ -978,7 +1001,7 @@ func GetProjectByID(id int) (*Project, error) {
 func UpdateProject(p *Project) error {
 	stmt, err := DB.Prepare("UPDATE projects SET name = ?, description = ? WHERE id = ?")
 	if err != nil {
-		slog.Error("Database Error: UpdateProject Prepare", "error", err)
+		LogError("Database Error: UpdateProject Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -988,7 +1011,7 @@ func UpdateProject(p *Project) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
 		}
-		slog.Error("Database Error: UpdateProject Exec", "error", err)
+		LogError("Database Error: UpdateProject Exec", "error", err)
 		return err
 	}
 
@@ -999,7 +1022,7 @@ func UpdateProject(p *Project) error {
 func DeleteProject(id int) error {
 	res, err := DB.Exec("DELETE FROM projects WHERE id = ?", id)
 	if err != nil {
-		slog.Error("Database Error: DeleteProject", "error", err)
+		LogError("Database Error: DeleteProject", "error", err)
 		return err
 	}
 
@@ -1011,7 +1034,7 @@ func CountIssuesByProject(projectID int) (int, error) {
 	var count int
 	err := DB.QueryRow("SELECT COUNT(*) FROM issues WHERE project_id = ?", projectID).Scan(&count)
 	if err != nil {
-		slog.Error("Database Error: CountIssuesByProject", "project_id", projectID, "error", err)
+		LogError("Database Error: CountIssuesByProject", "project_id", projectID, "error", err)
 		return 0, err
 	}
 	return count, nil
@@ -1065,7 +1088,7 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 	}
 	if plannedDatesStr.Valid {
 		if err := json.Unmarshal([]byte(plannedDatesStr.String), &i.PlannedDates); err != nil {
-			slog.Error("Database Error: parsing planned_dates", "id", i.ID, "error", err)
+			LogError("Database Error: parsing planned_dates", "id", i.ID, "error", err)
 		}
 	}
 	if lID.Valid {
@@ -1107,7 +1130,7 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 func CreateUser(u *User) error {
 	stmt, err := DB.Prepare("INSERT INTO users(email, first_name, last_name, password_hash, role, active, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		slog.Error("Database Error: CreateUser Prepare", "error", err)
+		LogError("Database Error: CreateUser Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -1118,13 +1141,13 @@ func CreateUser(u *User) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateEmail
 		}
-		slog.Error("Database Error: CreateUser Exec", "error", err)
+		LogError("Database Error: CreateUser Exec", "error", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("Database Error: CreateUser LastInsertId", "error", err)
+		LogError("Database Error: CreateUser LastInsertId", "error", err)
 		return err
 	}
 	u.ID = int(id)
@@ -1141,7 +1164,7 @@ func GetUserByEmail(email string) (*User, error) {
 		return nil, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetUserByEmail", "error", err)
+		LogError("Database Error: GetUserByEmail", "error", err)
 		return nil, err
 	}
 	return &u, nil
@@ -1157,7 +1180,7 @@ func GetUserByID(id int) (*User, error) {
 		return nil, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetUserByID", "error", err)
+		LogError("Database Error: GetUserByID", "error", err)
 		return nil, err
 	}
 	return &u, nil
@@ -1167,7 +1190,7 @@ func GetUserByID(id int) (*User, error) {
 func GetAllUsers() ([]User, error) {
 	rows, err := DB.Query("SELECT id, email, first_name, last_name, role, active, created_at, updated_at FROM users ORDER BY id ASC")
 	if err != nil {
-		slog.Error("Database Error: GetAllUsers", "error", err)
+		LogError("Database Error: GetAllUsers", "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -1176,7 +1199,7 @@ func GetAllUsers() ([]User, error) {
 	for rows.Next() {
 		var u User
 		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt); err != nil {
-			slog.Error("Database Error: GetAllUsers Scan", "error", err)
+			LogError("Database Error: GetAllUsers Scan", "error", err)
 			return nil, err
 		}
 		users = append(users, u)
@@ -1188,7 +1211,7 @@ func GetAllUsers() ([]User, error) {
 func UpdateUser(u *User) error {
 	stmt, err := DB.Prepare("UPDATE users SET email = ?, first_name = ?, last_name = ?, password_hash = ?, role = ?, active = ?, updated_at = ? WHERE id = ?")
 	if err != nil {
-		slog.Error("Database Error: UpdateUser Prepare", "error", err)
+		LogError("Database Error: UpdateUser Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -1199,7 +1222,7 @@ func UpdateUser(u *User) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateEmail
 		}
-		slog.Error("Database Error: UpdateUser Exec", "error", err)
+		LogError("Database Error: UpdateUser Exec", "error", err)
 		return err
 	}
 
@@ -1211,7 +1234,7 @@ func CountUsers() (int, error) {
 	var count int
 	err := DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
-		slog.Error("Database Error: CountUsers", "error", err)
+		LogError("Database Error: CountUsers", "error", err)
 		return 0, err
 	}
 	return count, nil
@@ -1222,7 +1245,7 @@ func CountActiveSysAdmins() (int, error) {
 	var count int
 	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = ? AND active = 1", RoleSysAdmin).Scan(&count)
 	if err != nil {
-		slog.Error("Database Error: CountActiveSysAdmins", "error", err)
+		LogError("Database Error: CountActiveSysAdmins", "error", err)
 		return 0, err
 	}
 	return count, nil
@@ -1236,7 +1259,7 @@ func CountActiveSysAdmins() (int, error) {
 func CreateSession(s *Session) error {
 	stmt, err := DB.Prepare("INSERT INTO sessions(user_id, token_hash, expires_at, created_at) VALUES(?, ?, ?, ?)")
 	if err != nil {
-		slog.Error("Database Error: CreateSession Prepare", "error", err)
+		LogError("Database Error: CreateSession Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
@@ -1248,13 +1271,13 @@ func CreateSession(s *Session) error {
 
 	res, err := stmt.Exec(s.UserID, s.TokenHash, s.ExpiresAt, s.CreatedAt)
 	if err != nil {
-		slog.Error("Database Error: CreateSession Exec", "error", err)
+		LogError("Database Error: CreateSession Exec", "error", err)
 		return err
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("Database Error: CreateSession LastInsertId", "error", err)
+		LogError("Database Error: CreateSession LastInsertId", "error", err)
 		return err
 	}
 	s.ID = int(id)
@@ -1271,7 +1294,7 @@ func GetSessionByID(id int) (*Session, error) {
 		return nil, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetSessionByID", "error", err)
+		LogError("Database Error: GetSessionByID", "error", err)
 		return nil, err
 	}
 	return &s, nil
@@ -1281,14 +1304,14 @@ func GetSessionByID(id int) (*Session, error) {
 func UpdateSession(s *Session) error {
 	stmt, err := DB.Prepare("UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?")
 	if err != nil {
-		slog.Error("Database Error: UpdateSession Prepare", "error", err)
+		LogError("Database Error: UpdateSession Prepare", "error", err)
 		return err
 	}
 	defer stmt.Close()
 
 	res, err := stmt.Exec(s.TokenHash, s.ExpiresAt, s.ID)
 	if err != nil {
-		slog.Error("Database Error: UpdateSession Exec", "error", err)
+		LogError("Database Error: UpdateSession Exec", "error", err)
 		return err
 	}
 
@@ -1299,7 +1322,7 @@ func UpdateSession(s *Session) error {
 func DeleteSession(id int) error {
 	res, err := DB.Exec("DELETE FROM sessions WHERE id = ?", id)
 	if err != nil {
-		slog.Error("Database Error: DeleteSession", "error", err)
+		LogError("Database Error: DeleteSession", "error", err)
 		return err
 	}
 
@@ -1310,7 +1333,7 @@ func DeleteSession(id int) error {
 func DeleteSessionsByUserID(userID int) error {
 	_, err := DB.Exec("DELETE FROM sessions WHERE user_id = ?", userID)
 	if err != nil {
-		slog.Error("Database Error: DeleteSessionsByUserID", "error", err)
+		LogError("Database Error: DeleteSessionsByUserID", "error", err)
 		return err
 	}
 	return nil
@@ -1321,13 +1344,13 @@ func DeleteExpiredSessions() (int64, error) {
 	// Use time.Now() so the driver formats it consistently with how sessions were inserted
 	res, err := DB.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now().UTC())
 	if err != nil {
-		slog.Error("Database Error: DeleteExpiredSessions", "error", err)
+		LogError("Database Error: DeleteExpiredSessions", "error", err)
 		return 0, err
 	}
 
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		slog.Error("Database Error: DeleteExpiredSessions RowsAffected", "error", err)
+		LogError("Database Error: DeleteExpiredSessions RowsAffected", "error", err)
 		return 0, err
 	}
 	return rowsAffected, nil
@@ -1347,7 +1370,7 @@ func GetStatusConfig(projectID int) (*StatusConfig, error) {
 		return cfg, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetStatusConfig", "project_id", projectID, "error", err)
+		LogError("Database Error: GetStatusConfig", "project_id", projectID, "error", err)
 		return nil, err
 	}
 	return cfg, nil
@@ -1370,12 +1393,12 @@ func CreateRelease(r *Release) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateReleaseName
 		}
-		slog.Error("Database Error: CreateRelease", "error", err)
+		LogError("Database Error: CreateRelease", "error", err)
 		return err
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		slog.Error("Database Error: CreateRelease LastInsertId", "error", err)
+		LogError("Database Error: CreateRelease LastInsertId", "error", err)
 		return err
 	}
 	r.ID = int(id)
@@ -1392,7 +1415,7 @@ func GetReleasesByProject(projectID int) ([]Release, error) {
 		 WHERE r.project_id = ? ORDER BY r.created_at DESC`, projectID,
 	)
 	if err != nil {
-		slog.Error("Database Error: GetReleasesByProject", "project_id", projectID, "error", err)
+		LogError("Database Error: GetReleasesByProject", "project_id", projectID, "error", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -1401,13 +1424,13 @@ func GetReleasesByProject(projectID int) ([]Release, error) {
 	for rows.Next() {
 		r, err := scanRelease(rows)
 		if err != nil {
-			slog.Error("Database Error: GetReleasesByProject Scan", "error", err)
+			LogError("Database Error: GetReleasesByProject Scan", "error", err)
 			return nil, err
 		}
 		releases = append(releases, r)
 	}
 	if err := rows.Err(); err != nil {
-		slog.Error("Database Error: GetReleasesByProject Rows", "error", err)
+		LogError("Database Error: GetReleasesByProject Rows", "error", err)
 		return nil, err
 	}
 	return releases, nil
@@ -1459,7 +1482,7 @@ func GetReleaseByID(id int) (*Release, error) {
 		return nil, nil
 	}
 	if err != nil {
-		slog.Error("Database Error: GetReleaseByID", "id", id, "error", err)
+		LogError("Database Error: GetReleaseByID", "id", id, "error", err)
 		return nil, err
 	}
 	hydrateRelease(&r, f)
@@ -1477,7 +1500,7 @@ func UpdateRelease(r *Release) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateReleaseName
 		}
-		slog.Error("Database Error: UpdateRelease", "id", r.ID, "error", err)
+		LogError("Database Error: UpdateRelease", "id", r.ID, "error", err)
 		return err
 	}
 	return checkRowsAffected(res, "UpdateRelease", ErrReleaseNotFound)
@@ -1487,7 +1510,7 @@ func UpdateRelease(r *Release) error {
 func DeleteRelease(id int) error {
 	res, err := DB.Exec(`DELETE FROM releases WHERE id = ?`, id)
 	if err != nil {
-		slog.Error("Database Error: DeleteRelease", "id", id, "error", err)
+		LogError("Database Error: DeleteRelease", "id", id, "error", err)
 		return err
 	}
 	return checkRowsAffected(res, "DeleteRelease", ErrReleaseNotFound)
@@ -1500,7 +1523,7 @@ func ReopenRelease(id int) error {
 		ReleaseStatusOpen, now, id, ReleaseStatusClosed,
 	)
 	if err != nil {
-		slog.Error("Database Error: ReopenRelease", "id", id, "error", err)
+		LogError("Database Error: ReopenRelease", "id", id, "error", err)
 		return err
 	}
 	return checkRowsAffected(res, "ReopenRelease", ErrReleaseNotFound)
@@ -1513,7 +1536,7 @@ func TriggerRelease(id int, archiveDone bool) error {
 		ReleaseStatusClosed, now, now, id, ReleaseStatusOpen,
 	)
 	if err != nil {
-		slog.Error("Database Error: TriggerRelease", "id", id, "error", err)
+		LogError("Database Error: TriggerRelease", "id", id, "error", err)
 		return err
 	}
 	if err := checkRowsAffected(res, "TriggerRelease", ErrReleaseNotFound); err != nil {
@@ -1524,7 +1547,7 @@ func TriggerRelease(id int, archiveDone bool) error {
 			`UPDATE issues SET status = ?, updated_at = ? WHERE release_id = ? AND status = ?`,
 			StatusArchive, now, id, StatusDone,
 		); err != nil {
-			slog.Error("Database Error: TriggerRelease archive done issues", "id", id, "error", err)
+			LogError("Database Error: TriggerRelease archive done issues", "id", id, "error", err)
 			return err
 		}
 	}
@@ -1532,8 +1555,36 @@ func TriggerRelease(id int, archiveDone bool) error {
 }
 
 // ReleaseExistsInProject checks if a release exists and belongs to the given project.
+// Used by checkRelease to validate that a release referenced from an issue body lives
+// in the same project as the issue.
 func ReleaseExistsInProject(releaseID, projectID int) (bool, error) {
 	return existsQuery("SELECT COUNT(*) FROM releases WHERE id = ? AND project_id = ?", releaseID, projectID)
+}
+
+// GetReleaseByIDInProject returns the release only if it belongs to the given project.
+// Filtered in the SQL WHERE clause; same nil-on-not-in-project contract as
+// GetIssueByIDInProject.
+func GetReleaseByIDInProject(id, projectID int) (*Release, error) {
+	row := DB.QueryRow(
+		`SELECT r.id, r.project_id, r.name, r.description, r.start_date, r.release_date, r.closed_at, r.status, r.created_at, r.updated_at,
+		        o.id, o.first_name, o.last_name, o.email
+		 FROM releases r
+		 LEFT JOIN users o ON r.owner_id = o.id
+		 WHERE r.id = ? AND r.project_id = ?`, id, projectID,
+	)
+	var r Release
+	var f releaseNullFields
+	err := row.Scan(&r.ID, &r.ProjectID, &r.Name, &r.Description, &f.startDate, &f.releaseDate, &f.closedAt, &r.Status, &r.CreatedAt, &r.UpdatedAt,
+		&f.ownerID, &f.ownerFirst, &f.ownerLast, &f.ownerEmail)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		LogError("Database Error: GetReleaseByIDInProject", "id", id, "project_id", projectID, "error", err)
+		return nil, err
+	}
+	hydrateRelease(&r, f)
+	return &r, nil
 }
 
 func scanRelease(rows *sql.Rows) (Release, error) {
@@ -1556,7 +1607,7 @@ func UpsertStatusConfig(cfg *StatusConfig) error {
 		cfg.ProjectID, cfg.Stage1Name, cfg.Stage2Name, cfg.Stage3Name, cfg.Stage4Name,
 	)
 	if err != nil {
-		slog.Error("Database Error: UpsertStatusConfig", "project_id", cfg.ProjectID, "error", err)
+		LogError("Database Error: UpsertStatusConfig", "project_id", cfg.ProjectID, "error", err)
 	}
 	return err
 }

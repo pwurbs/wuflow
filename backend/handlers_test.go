@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	apiIssues            = "/api/issues"
-	apiIssuesBase        = "/api/issues/"
+	apiIssues            = "/api/projects/1/issues"
+	apiIssuesBase        = "/api/projects/1/issues/"
 	apiIssues1           = apiIssuesBase + "1"
 	archiveSuffix        = "/archive"
 	unarchiveSuffix      = "/unarchive"
@@ -63,9 +63,8 @@ func TestHandleActiveIssuesGet(t *testing.T) {
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode,
@@ -96,9 +95,8 @@ func TestHandleCreateIssuePost(t *testing.T) {
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
 		t.Errorf(wrongStatusCode,
@@ -130,8 +128,7 @@ func TestHandleCreateIssueInvalidAssignee(t *testing.T) {
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateIssue)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -152,8 +149,7 @@ func TestHandleCreateIssueInvalidLabel(t *testing.T) {
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateIssue)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -174,8 +170,7 @@ func TestHandleCreateIssueInvalidPosition(t *testing.T) {
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateIssue)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -197,8 +192,7 @@ func TestHandleCreateIssueInvalidDeadline(t *testing.T) {
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateIssue)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -223,9 +217,8 @@ func TestHandleIssuePut(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode,
@@ -258,9 +251,8 @@ func TestHandleIssueDelete(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNoContent {
 		t.Errorf(wrongStatusCode,
@@ -287,9 +279,8 @@ func TestHandleIssueGet(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode, status, http.StatusOK)
@@ -322,9 +313,8 @@ func TestHandleIssueGetNotFound(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, status, http.StatusNotFound)
@@ -352,9 +342,8 @@ func TestHandleIssuePutConflict(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusConflict {
 		t.Errorf(wrongStatusCode, status, http.StatusConflict)
@@ -372,7 +361,7 @@ func TestHandleIssuePutWithValidEtag(t *testing.T) {
 	getReq, _ := http.NewRequest("GET", apiIssues1, nil)
 	getReq = getReq.WithContext(context.WithValue(getReq.Context(), contextKeyRole, RoleAdmin))
 	getRr := httptest.NewRecorder()
-	HandleIssue(getRr, getReq)
+	testAPI.ServeHTTP(getRr, getReq)
 	validEtag := getRr.Header().Get("ETag")
 
 	// Now update with valid ETag
@@ -387,9 +376,8 @@ func TestHandleIssuePutWithValidEtag(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode, status, http.StatusOK)
@@ -420,9 +408,8 @@ func TestHandleCreateTaskPost(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
 		t.Errorf(wrongStatusCode,
@@ -454,9 +441,8 @@ func TestHandleTaskPut(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode,
@@ -485,9 +471,8 @@ func TestHandleTaskDelete(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNoContent {
 		t.Errorf(wrongStatusCode,
@@ -501,6 +486,9 @@ func TestHandleTaskDelete(t *testing.T) {
 }
 
 func TestHandleActiveIssuesPostInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req, err := http.NewRequest("POST", apiIssues, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -508,9 +496,8 @@ func TestHandleActiveIssuesPostInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode,
@@ -519,15 +506,17 @@ func TestHandleActiveIssuesPostInvalidJSON(t *testing.T) {
 }
 
 func TestHandleIssueInvalidID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req, err := http.NewRequest("GET", apiIssuesBase+"invalid", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode,
@@ -549,9 +538,8 @@ func TestHandleIssuePutInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode,
@@ -567,9 +555,8 @@ func TestHandleCreateTaskPostInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode,
@@ -589,9 +576,8 @@ func TestHandleCreateTaskMissingIssueID(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode,
@@ -606,9 +592,8 @@ func TestHandleTaskInvalidID(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode,
@@ -624,9 +609,8 @@ func TestHandleTaskPutInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode,
@@ -635,16 +619,21 @@ func TestHandleTaskPutInvalidJSON(t *testing.T) {
 }
 
 func TestHandleActiveIssuesMethodNotAllowed(t *testing.T) {
-	req, err := http.NewRequest("DELETE", apiProjects1IssuesActive, nil)
+	setupTestDB()
+	defer teardownTestDB()
+
+	// PATCH is not registered for any route under /api/projects/{pId}/issues/active,
+	// so the mux returns 405. (DELETE would fall through to the wildcard /{id}
+	// route and produce 400 instead.)
+	req, err := http.NewRequest("PATCH", apiProjects1IssuesActive, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode,
@@ -659,9 +648,8 @@ func TestHandleIssueMethodNotAllowed(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode,
@@ -676,9 +664,8 @@ func TestHandleCreateTaskMethodNotAllowed(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode,
@@ -693,9 +680,8 @@ func TestHandleTaskMethodNotAllowed(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTask)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode,
@@ -719,9 +705,8 @@ func TestHandleLabelsGet(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode, status, http.StatusOK)
@@ -751,8 +736,7 @@ func TestHandleProjectPost(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
 		t.Errorf(wrongStatusCode, status, http.StatusCreated)
@@ -782,8 +766,7 @@ func TestHandleProjectPostAdmin(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
 		t.Errorf(wrongStatusCode, status, http.StatusCreated)
@@ -791,6 +774,9 @@ func TestHandleProjectPostAdmin(t *testing.T) {
 }
 
 func TestHandleProjectPostInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req, err := http.NewRequest("POST", apiLabels, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -798,8 +784,7 @@ func TestHandleProjectPostInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -813,9 +798,8 @@ func TestHandleLabelsMethodNotAllowed(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, status, http.StatusMethodNotAllowed)
@@ -836,9 +820,8 @@ func TestHandleLabelDelete(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNoContent {
 		t.Errorf(wrongStatusCode, status, http.StatusNoContent)
@@ -851,15 +834,17 @@ func TestHandleLabelDelete(t *testing.T) {
 }
 
 func TestHandleLabelInvalidID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req, err := http.NewRequest("DELETE", "/api/projects/1/labels/invalid", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -873,9 +858,8 @@ func TestHandleLabelMethodNotAllowed(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, status, http.StatusMethodNotAllowed)
@@ -912,16 +896,16 @@ func TestHandlersDBError(t *testing.T) {
 		body    []byte
 		handler http.HandlerFunc
 	}{
-		{"HandleActiveIssues_GET", "GET", apiProjects1IssuesActive, nil, HandleProject},
-		{"HandleActiveIssues_POST", "POST", apiIssues, issueBody, HandleCreateIssue},
-		{"HandleIssue_PUT", "PUT", apiIssues1, issueBody, HandleIssue},
-		{"HandleIssue_DELETE", "DELETE", apiIssues1, nil, HandleIssue},
-		{"HandleCreateTask_POST", "POST", apiTasks, taskBody, HandleCreateTask},
-		{"HandleTask_PUT", "PUT", apiTasks1, taskBody, HandleTask},
-		{"HandleTask_DELETE", "DELETE", apiTasks1, nil, HandleTask},
-		{"HandleProject_GET", "GET", apiLabels, nil, HandleProject},
-		{"HandleProject_POST", "POST", apiLabels, labelBody, HandleProject},
-		{"HandleProject_DELETE", "DELETE", apiLabels1, nil, HandleProject},
+		{"HandleActiveIssues_GET", "GET", apiProjects1IssuesActive, nil, nil},
+		{"HandleActiveIssues_POST", "POST", apiIssues, issueBody, nil},
+		{"HandleIssue_PUT", "PUT", apiIssues1, issueBody, nil},
+		{"HandleIssue_DELETE", "DELETE", apiIssues1, nil, nil},
+		{"HandleCreateTask_POST", "POST", apiTasks, taskBody, nil},
+		{"HandleTask_PUT", "PUT", apiTasks1, taskBody, nil},
+		{"HandleTask_DELETE", "DELETE", apiTasks1, nil, nil},
+		{"HandleProject_GET", "GET", apiLabels, nil, nil},
+		{"HandleProject_POST", "POST", apiLabels, labelBody, nil},
+		{"HandleProject_DELETE", "DELETE", apiLabels1, nil, nil},
 	}
 
 	for _, tt := range tests {
@@ -929,7 +913,7 @@ func TestHandlersDBError(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.url, bytes.NewBuffer(tt.body))
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 			rr := httptest.NewRecorder()
-			tt.handler(rr, req)
+			testAPI.ServeHTTP(rr, req)
 			if rr.Code != http.StatusInternalServerError {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 			}
@@ -947,8 +931,7 @@ func TestHandleIssueRefOnNonExistentID(t *testing.T) {
 	req, _ := http.NewRequest("PUT", invalidIssuePath, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleIssue)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf("PUT %s: "+wrongStatusCode,
@@ -959,7 +942,7 @@ func TestHandleIssueRefOnNonExistentID(t *testing.T) {
 	req, _ = http.NewRequest("DELETE", invalidIssuePath, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf("DELETE %s: "+wrongStatusCode,
@@ -968,6 +951,9 @@ func TestHandleIssueRefOnNonExistentID(t *testing.T) {
 }
 
 func TestHandleCreateIssueInvalidInput(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	tests := []struct {
 		name  string
 		issue Issue
@@ -983,8 +969,7 @@ func TestHandleCreateIssueInvalidInput(t *testing.T) {
 			req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 			rr := httptest.NewRecorder()
-			handle := http.HandlerFunc(HandleCreateIssue)
-			handle.ServeHTTP(rr, req)
+			testAPI.ServeHTTP(rr, req)
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 			}
@@ -999,14 +984,16 @@ func TestHandleTaskInvalidInput(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handle := http.HandlerFunc(HandleCreateTask)
-	handle.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
 }
 
 func TestHandleProjectInvalidInput(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	tests := []struct {
 		name  string
 		label Label
@@ -1021,8 +1008,7 @@ func TestHandleProjectInvalidInput(t *testing.T) {
 			req, _ := http.NewRequest("POST", apiLabels, bytes.NewBuffer(body))
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 			rr := httptest.NewRecorder()
-			handle := http.HandlerFunc(HandleProject)
-			handle.ServeHTTP(rr, req)
+			testAPI.ServeHTTP(rr, req)
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 			}
@@ -1040,8 +1026,7 @@ func TestHandleTaskRefOnNonExistentID(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiTasksBase+"999", bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleTask)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf("PUT "+apiTasksBase+"999: "+wrongStatusCode,
@@ -1052,7 +1037,7 @@ func TestHandleTaskRefOnNonExistentID(t *testing.T) {
 	req, _ = http.NewRequest("DELETE", apiTasksBase+"999", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf("DELETE "+apiTasksBase+"999: "+wrongStatusCode,
@@ -1070,8 +1055,7 @@ func TestHandleCreateTaskWithNonExistentIssueID(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCreateTask)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf("POST /api/tasks (issue_id=999): "+wrongStatusCode,
@@ -1087,8 +1071,7 @@ func TestHandleDeleteLabelWithNonExistentID(t *testing.T) {
 	req, _ := http.NewRequest("DELETE", "/api/projects/1/labels/999", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusNotFound {
 		t.Errorf("DELETE /api/projects/1/labels/999: "+wrongStatusCode,
@@ -1111,7 +1094,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	req, _ := http.NewRequest("PUT", archivedIssuePath, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("PUT %s: expected 403 Forbidden, got %v", archivedIssuePath, rr.Code)
 	}
@@ -1121,7 +1104,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	req, _ = http.NewRequest("POST", unarchivePath, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Errorf("POST %s: expected 200 OK, got %v", unarchivePath, rr.Code)
 	}
@@ -1130,7 +1113,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	archivedIssue2 := &Issue{Title: "Archived with Tasks", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(archivedIssue2)
 	task := &Task{IssueID: archivedIssue2.ID, Title: "Task"}
-	// Bypass HandleCreateTask to create a task for an archived issue for testing
+	// Bypass nil to create a task for an archived issue for testing
 	CreateTask(task)
 	taskPath := apiTasksBase + strconv.Itoa(task.ID)
 
@@ -1140,7 +1123,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	req, _ = http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	HandleCreateTask(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("POST /api/tasks: expected 403 Forbidden, got %v", rr.Code)
 	}
@@ -1151,7 +1134,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	req, _ = http.NewRequest("PUT", taskPath, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	HandleTask(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("PUT %s: expected 403 Forbidden, got %v", taskPath, rr.Code)
 	}
@@ -1160,7 +1143,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	req, _ = http.NewRequest("DELETE", taskPath, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	HandleTask(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("DELETE %s: expected 403 Forbidden, got %v", taskPath, rr.Code)
 	}
@@ -1173,7 +1156,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	req, _ = http.NewRequest("PUT", archivedIssue3Path, bytes.NewBufferString(`{"title":"Bypass"}`))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	// 9. Try to delete archived issue (blocked even for admin — business rule in handler)
 	archivedIssue4 := &Issue{Title: "Archived 4", Status: StatusArchive, ProjectID: 1}
 	CreateIssue(archivedIssue4)
@@ -1182,7 +1165,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	req, _ = http.NewRequest("DELETE", archivedDeletePath, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("DELETE %s: expected 403 Forbidden, got %v", archivedDeletePath, rr.Code)
 	}
@@ -1212,20 +1195,33 @@ func TestHandlersDBErrors(t *testing.T) {
 		body    string
 		handler http.HandlerFunc
 	}{
-		{"HandleActiveIssues", "GET", apiProjects1IssuesActive, "", HandleProject},
-		{"HandleCreateIssue", "POST", apiIssues, validIssue, HandleCreateIssue},
-		{"HandleArchivedIssues", "GET", apiProjects1IssuesArchived, "", HandleProject},
-		{"HandleIssue_GET", "GET", apiIssues1, "", HandleIssue},
-		{"HandleIssue_PUT", "PUT", apiIssues1, validIssue, HandleIssue},
-		{"HandleIssue_DELETE", "DELETE", apiIssues1, "", HandleIssue},
-		{"HandleIssue_archive", "POST", apiIssues1Archive, "", HandleIssue},
-		{"HandleIssue_unarchive", "POST", apiIssues1Unarchive, "", HandleIssue},
-		{"HandleCreateTask", "POST", apiTasks, validTask, HandleCreateTask},
-		{"HandleTask_PUT", "PUT", apiTasks1, validTaskUpdate, HandleTask},
-		{"HandleTask_DELETE", "DELETE", apiTasks1, "", HandleTask},
-		{"HandleProject_GET", "GET", apiLabels, "", HandleProject},
-		{"HandleProject_POST", "POST", apiLabels, validLabel, HandleProject},
-		{"HandleProject_DELETE", "DELETE", apiLabels1, "", HandleProject},
+		{"HandleActiveIssues", "GET", apiProjects1IssuesActive, "", nil},
+		{"nil", "POST", apiIssues, validIssue, nil},
+		{"HandleArchivedIssues", "GET", apiProjects1IssuesArchived, "", nil},
+		{"HandleIssue_GET", "GET", apiIssues1, "", nil},
+		{"HandleIssue_PUT", "PUT", apiIssues1, validIssue, nil},
+		{"HandleIssue_DELETE", "DELETE", apiIssues1, "", nil},
+		{"HandleIssue_archive", "POST", apiIssues1Archive, "", nil},
+		{"HandleIssue_unarchive", "POST", apiIssues1Unarchive, "", nil},
+		{"nil", "POST", apiTasks, validTask, nil},
+		{"HandleTask_PUT", "PUT", apiTasks1, validTaskUpdate, nil},
+		{"HandleTask_DELETE", "DELETE", apiTasks1, "", nil},
+		{"HandleProject_GET", "GET", apiLabels, "", nil},
+		{"HandleProject_POST", "POST", apiLabels, validLabel, nil},
+		{"HandleProject_DELETE", "DELETE", apiLabels1, "", nil},
+		{"HandleListReleases", "GET", apiProjectReleases, "", nil},
+		{"HandleCreateRelease", "POST", apiProjectReleases, `{"name":"R1"}`, nil},
+		{"HandleGetRelease", "GET", apiReleases + "1", "", nil},
+		{"HandlePutRelease", "PUT", apiReleases + "1", `{"name":"R1"}`, nil},
+		{"HandleDeleteRelease", "DELETE", apiReleases + "1", "", nil},
+		{"HandleTriggerRelease", "POST", apiReleases + "1/release", `{"archive_done":false}`, nil},
+		{"HandleReopenRelease", "POST", apiReleases + "1/reopen", "", nil},
+		{"HandleGetStatusConfig", "GET", apiStatusConfig, "", nil},
+		{"HandleUpdateStatusConfig", "PUT", apiStatusConfig, `{"stage1_name":"Pending","stage2_name":"Working","stage3_name":"","stage4_name":""}`, nil},
+		{"HandleUpdateProject", "PUT", apiProjects1, `{"name":"P1"}`, nil},
+		{"HandleDeleteProject", "DELETE", apiProjectsBase + "2", "", nil},
+		{"HandleListUsers", "GET", apiUsers, "", nil},
+		{"HandleGetUser", "GET", apiUsers1, "", nil},
 	}
 
 	for _, tt := range tests {
@@ -1243,7 +1239,7 @@ func TestHandlersDBErrors(t *testing.T) {
 			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 			rr := httptest.NewRecorder()
-			tt.handler.ServeHTTP(rr, req)
+			testAPI.ServeHTTP(rr, req)
 
 			if rr.Code != http.StatusInternalServerError {
 				t.Errorf("%s: handler returned wrong status code: got %v want %v",
@@ -1323,7 +1319,7 @@ func TestHandlePutIssueReadOnlyArchived(t *testing.T) {
 	path := apiIssuesBase + strconv.Itoa(issue.ID)
 
 	// Try to update title (not allowed)
-	updateBody := map[string]interface{}{
+	updateBody := map[string]any{
 		"title":    "Updated Title",
 		"status":   "Archive",
 		"priority": "Normal",
@@ -1333,7 +1329,7 @@ func TestHandlePutIssueReadOnlyArchived(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 Forbidden for editing archived issue, got %d", rr.Code)
@@ -1352,7 +1348,7 @@ func TestHandleArchiveIssue(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK for archiving issue, got %d", rr.Code)
@@ -1374,7 +1370,7 @@ func TestHandleArchiveIssueNotFound(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("Expected 404 for archiving non-existent issue, got %d", rr.Code)
@@ -1393,7 +1389,7 @@ func TestHandleArchiveIssueAlready(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 for archiving already-archived issue, got %d", rr.Code)
@@ -1412,7 +1408,7 @@ func TestHandleUnarchiveIssue(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK for unarchiving issue, got %d", rr.Code)
@@ -1438,7 +1434,7 @@ func TestHandleUnarchiveIssueNotArchived(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 for unarchiving non-archived issue, got %d", rr.Code)
@@ -1458,7 +1454,7 @@ func TestHandleDeleteIssueArchived(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 Forbidden for deleting archived issue, got %d", rr.Code)
@@ -1476,7 +1472,7 @@ func TestHandleUpdateUserLastSysAdminProtection(t *testing.T) {
 	path := apiUsersBase + strconv.Itoa(user.ID)
 
 	// Try to demote the only sysadmin
-	updateBody := map[string]interface{}{
+	updateBody := map[string]any{
 		"email":      "admin@local",
 		"first_name": "Admin",
 		"last_name":  "User",
@@ -1488,7 +1484,7 @@ func TestHandleUpdateUserLastSysAdminProtection(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleUser(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 Bad Request for last sysadmin demotion, got %d", rr.Code)
@@ -1505,7 +1501,7 @@ func TestHandlePutTaskArchivedIssue(t *testing.T) {
 	CreateTask(task)
 	path := apiTasksBase + strconv.Itoa(task.ID)
 
-	updateBody := map[string]interface{}{
+	updateBody := map[string]any{
 		"title":    "Updated Task",
 		"issue_id": issue.ID,
 		"done":     true,
@@ -1515,7 +1511,7 @@ func TestHandlePutTaskArchivedIssue(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleTask(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 Forbidden for updating task of archived issue, got %d", rr.Code)
@@ -1536,7 +1532,7 @@ func TestHandleDeleteTaskArchivedIssue(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleTask(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("Expected 403 Forbidden for deleting task of archived issue, got %d", rr.Code)
@@ -1557,7 +1553,7 @@ func TestHandlePutIssueUnarchive(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK for unarchiving issue, got %d. Body: %s", rr.Code, rr.Body.String())
@@ -1590,7 +1586,7 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	path := apiUsersBase + strconv.Itoa(user.ID)
 
 	// Update with new password, including admin_password for confirmation
-	updateBody := map[string]interface{}{
+	updateBody := map[string]any{
 		"email":          "t@t.com",
 		"first_name":     "Test",
 		"last_name":      "User",
@@ -1606,7 +1602,7 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
-	HandleUser(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK, got %d: %s", rr.Code, rr.Body.String())
@@ -1653,9 +1649,8 @@ func TestHandleUpdateSelf(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleCurrentUser)
 
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode, status, http.StatusOK)
@@ -1668,7 +1663,7 @@ func TestHandleUpdateSelf(t *testing.T) {
 	}
 
 	// Verify we can't change role or active status via self-update
-	maliciousUpdate := map[string]interface{}{
+	maliciousUpdate := map[string]any{
 		"role":   RoleAdmin,
 		"active": false,
 	}
@@ -1676,7 +1671,7 @@ func TestHandleUpdateSelf(t *testing.T) {
 	req, _ = http.NewRequest("PUT", apiAuthMe, bytes.NewBuffer(body))
 	req = req.WithContext(ctx)
 	rr = httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	updatedUser, _ = GetUserByID(user.ID)
 	if updatedUser.Role != RoleUser {
@@ -1690,7 +1685,7 @@ func TestHandleUpdateSelf(t *testing.T) {
 func TestHandleCurrentUserUnauthorized(t *testing.T) {
 	req := httptest.NewRequest("GET", apiAuthMe, nil)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
@@ -1704,7 +1699,7 @@ func TestHandleUpdateSelfUserNotFound(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{"password":"NewPassword123!"}`))
 	ctx := context.WithValue(req.Context(), contextKeyUserID, 999)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -1844,7 +1839,7 @@ func TestHandleUpdateSelfInvalidJSON(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{invalid json}`))
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1865,7 +1860,7 @@ func TestHandleUpdateSelfValidationFailure(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(body))
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -1887,7 +1882,7 @@ func TestHandleUpdateSelfDBError(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{"password":"ValidPassword123!"}`))
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -1905,7 +1900,7 @@ func TestHandleUpdateSelfNoPassword(t *testing.T) {
 	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{}`))
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
 	rr := httptest.NewRecorder()
-	HandleCurrentUser(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -1932,9 +1927,7 @@ func TestHandleCreateIssueSetsCreator(t *testing.T) {
 	// Inject UserID and role into context (simulating AuthMiddleware)
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
 	ctx = context.WithValue(ctx, contextKeyRole, RoleAdmin)
-
-	handler := http.HandlerFunc(HandleCreateIssue)
-	handler.ServeHTTP(rr, req.WithContext(ctx))
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("Expected 201 Created, got %d", rr.Code)
@@ -1972,9 +1965,7 @@ func TestHandleIssueUpdateAssignee(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-
-	handler := http.HandlerFunc(HandleIssue)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected 200 OK, got %d", rr.Code)
@@ -2005,9 +1996,7 @@ func TestHandleIssueCreatorReadOnly(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-
-	handler := http.HandlerFunc(HandleIssue)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	updated, _ := GetIssueByID(issue.ID)
 	if updated.CreatorID != creator.ID {
@@ -2027,65 +2016,63 @@ func TestHandlersForbidden(t *testing.T) {
 		handler http.HandlerFunc
 	}{
 		// Admin+Sysadmin actions: RoleUser must be denied
-		{"DeleteIssue/user", "DELETE", apiIssues1, RoleUser, HandleIssue},
-		{"ArchiveIssue/user", "POST", apiIssues1Archive, RoleUser, HandleIssue},
-		{"UnarchiveIssue/user", "POST", apiIssues1Unarchive, RoleUser, HandleIssue},
+		{"DeleteIssue/user", "DELETE", apiIssues1, RoleUser, nil},
+		{"ArchiveIssue/user", "POST", apiIssues1Archive, RoleUser, nil},
+		{"UnarchiveIssue/user", "POST", apiIssues1Unarchive, RoleUser, nil},
 
 		// Admin-only actions: RoleUser must be denied
-		{"CreateLabel/user", "POST", apiLabels, RoleUser, HandleProject},
-		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, HandleProject},
-		{"CreateUser/user", "POST", apiUsers, RoleUser, HandleUsers},
-		{"UpdateUser/user", "PUT", apiUsers1, RoleUser, HandleUser},
+		{"CreateLabel/user", "POST", apiLabels, RoleUser, nil},
+		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, nil},
+		{"CreateUser/user", "POST", apiUsers, RoleUser, nil},
+		{"UpdateUser/user", "PUT", apiUsers1, RoleUser, nil},
 
 		// Sysadmin-only actions: RoleAdmin must also be denied
-		{"CreateUser/admin", "POST", apiUsers, RoleAdmin, HandleUsers},
-		{"UpdateUser/admin", "PUT", apiUsers1, RoleAdmin, HandleUser},
+		{"CreateUser/admin", "POST", apiUsers, RoleAdmin, nil},
+		{"UpdateUser/admin", "PUT", apiUsers1, RoleAdmin, nil},
 
 		// All role-gated actions: no role must be denied
-		{"ListIssues/noRole", "GET", apiProjects1IssuesActive, "", HandleProject},
-		{"ListArchivedIssues/noRole", "GET", apiProjects1IssuesArchived, "", HandleProject},
-		{"GetIssue/noRole", "GET", apiIssues1, "", HandleIssue},
-		{"UpdateIssue/noRole", "PUT", apiIssues1, "", HandleIssue},
-		{"DeleteIssue/noRole", "DELETE", apiIssues1, "", HandleIssue},
-		{"ArchiveIssue/noRole", "POST", apiIssues1Archive, "", HandleIssue},
-		{"UnarchiveIssue/noRole", "POST", apiIssues1Unarchive, "", HandleIssue},
-		{"CreateIssue/noRole", "POST", apiIssues, "", HandleCreateIssue},
-		{"CreateTask/noRole", "POST", apiTasks, "", HandleCreateTask},
-		{"UpdateTask/noRole", "PUT", apiTasks1, "", HandleTask},
-		{"DeleteTask/noRole", "DELETE", apiTasks1, "", HandleTask},
-		{"ListLabels/noRole", "GET", apiLabels, "", HandleProject},
-		{"CreateLabel/noRole", "POST", apiLabels, "", HandleProject},
-		{"DeleteLabel/noRole", "DELETE", apiLabels1, "", HandleProject},
-		{"ListUsers/noRole", "GET", apiUsers, "", HandleUsers},
-		{"CreateUser/noRole", "POST", apiUsers, "", HandleUsers},
-		{"GetUser/noRole", "GET", apiUsers1, "", HandleUser},
-		{"UpdateUser/noRole", "PUT", apiUsers1, "", HandleUser},
+		{"ListIssues/noRole", "GET", apiProjects1IssuesActive, "", nil},
+		{"ListArchivedIssues/noRole", "GET", apiProjects1IssuesArchived, "", nil},
+		{"GetIssue/noRole", "GET", apiIssues1, "", nil},
+		{"UpdateIssue/noRole", "PUT", apiIssues1, "", nil},
+		{"DeleteIssue/noRole", "DELETE", apiIssues1, "", nil},
+		{"ArchiveIssue/noRole", "POST", apiIssues1Archive, "", nil},
+		{"UnarchiveIssue/noRole", "POST", apiIssues1Unarchive, "", nil},
+		{"CreateIssue/noRole", "POST", apiIssues, "", nil},
+		{"CreateTask/noRole", "POST", apiTasks, "", nil},
+		{"UpdateTask/noRole", "PUT", apiTasks1, "", nil},
+		{"DeleteTask/noRole", "DELETE", apiTasks1, "", nil},
+		{"ListLabels/noRole", "GET", apiLabels, "", nil},
+		{"CreateLabel/noRole", "POST", apiLabels, "", nil},
+		{"DeleteLabel/noRole", "DELETE", apiLabels1, "", nil},
+		{"ListUsers/noRole", "GET", apiUsers, "", nil},
+		{"CreateUser/noRole", "POST", apiUsers, "", nil},
+		{"GetUser/noRole", "GET", apiUsers1, "", nil},
+		{"UpdateUser/noRole", "PUT", apiUsers1, "", nil},
 
 		// Sysadmin-only project mutations: RoleUser must be denied
-		{"CreateProject/user", "POST", apiProjects, RoleUser, HandleProjects},
-		{"UpdateProject/user", "PUT", apiProjects1, RoleUser, HandleProject},
-		{"DeleteProject/user", "DELETE", apiProjects1, RoleUser, HandleProject},
+		{"CreateProject/user", "POST", apiProjects, RoleUser, nil},
+		{"UpdateProject/user", "PUT", apiProjects1, RoleUser, nil},
+		{"DeleteProject/user", "DELETE", apiProjects1, RoleUser, nil},
 
 		// Sysadmin-only project mutations: RoleAdmin must also be denied
-		{"CreateProject/admin", "POST", apiProjects, RoleAdmin, HandleProjects},
-		{"UpdateProject/admin", "PUT", apiProjects1, RoleAdmin, HandleProject},
-		{"DeleteProject/admin", "DELETE", apiProjects1, RoleAdmin, HandleProject},
+		{"CreateProject/admin", "POST", apiProjects, RoleAdmin, nil},
+		{"UpdateProject/admin", "PUT", apiProjects1, RoleAdmin, nil},
+		{"DeleteProject/admin", "DELETE", apiProjects1, RoleAdmin, nil},
 
 		// Project actions: no role must deny everything
-		{"ListProjects/noRole", "GET", apiProjects, "", HandleProjects},
-		{"CreateProject/noRole", "POST", apiProjects, "", HandleProjects},
-		{"UpdateProject/noRole", "PUT", apiProjects1, "", HandleProject},
-		{"DeleteProject/noRole", "DELETE", apiProjects1, "", HandleProject},
+		{"ListProjects/noRole", "GET", apiProjects, "", nil},
+		{"CreateProject/noRole", "POST", apiProjects, "", nil},
+		{"UpdateProject/noRole", "PUT", apiProjects1, "", nil},
+		{"DeleteProject/noRole", "DELETE", apiProjects1, "", nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.url, nil)
-			if tt.role != "" {
-				req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, tt.role))
-			}
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, tt.role))
 			rr := httptest.NewRecorder()
-			tt.handler(rr, req)
+			testAPI.ServeHTTP(rr, req)
 			if rr.Code != http.StatusForbidden {
 				t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
 			}
@@ -2152,11 +2139,11 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 	}{
 		// --- Issue Handlers ---
 		{
-			name:    "HandleCreateIssue",
+			name:    "nil",
 			method:  "POST",
 			url:     apiIssues,
 			body:    issueBody,
-			handler: HandleCreateIssue,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				// We need UserID in context for creator
 				ctx := context.WithValue(r.Context(), contextKeyRole, RoleAdmin)
@@ -2168,7 +2155,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleActiveIssues",
 			method:  "GET",
 			url:     apiProjects1IssuesActive,
-			handler: HandleProject,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2177,7 +2164,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleArchivedIssues",
 			method:  "GET",
 			url:     apiProjects1IssuesArchived,
-			handler: HandleProject,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2186,7 +2173,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleIssue_GET",
 			method:  "GET",
 			url:     fmt.Sprintf("/api/issues/%d", issue.ID),
-			handler: HandleIssue,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2196,7 +2183,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			method:  "PUT",
 			url:     fmt.Sprintf("/api/issues/%d", issue.ID),
 			body:    issueBody,
-			handler: HandleIssue,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				ctx := context.WithValue(r.Context(), contextKeyRole, RoleAdmin)
 				ctx = context.WithValue(ctx, contextKeyUserID, admin.ID) // For updater ID
@@ -2207,7 +2194,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleIssue_Archive",
 			method:  "POST",
 			url:     fmt.Sprintf("/api/issues/%d/archive", issue.ID),
-			handler: HandleIssue,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2216,7 +2203,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleIssue_Unarchive",
 			method:  "POST",
 			url:     fmt.Sprintf("/api/issues/%d/unarchive", archivedIssue.ID),
-			handler: HandleIssue,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2224,11 +2211,11 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 
 		// --- Task Handlers ---
 		{
-			name:    "HandleCreateTask",
+			name:    "nil",
 			method:  "POST",
 			url:     "/api/tasks",
 			body:    taskBody,
-			handler: HandleCreateTask,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2238,7 +2225,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			method:  "PUT",
 			url:     fmt.Sprintf("/api/tasks/%d", task.ID),
 			body:    taskBody,
-			handler: HandleTask,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2249,7 +2236,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleProject_GET",
 			method:  "GET",
 			url:     apiLabels,
-			handler: HandleProject,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2259,7 +2246,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			method:  "POST",
 			url:     apiLabels,
 			body:    labelBody,
-			handler: HandleProject,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2300,7 +2287,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleCurrentUser_GET",
 			method:  "GET",
 			url:     apiAuthMe,
-			handler: HandleCurrentUser,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(context.WithValue(r.Context(), contextKeyUserID, admin.ID))
 			},
@@ -2310,7 +2297,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			method:  "PUT",
 			url:     apiAuthMe,
 			body:    updateSelfBody,
-			handler: HandleCurrentUser,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(context.WithValue(r.Context(), contextKeyUserID, admin.ID))
 			},
@@ -2321,7 +2308,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleUsers_GET",
 			method:  "GET",
 			url:     "/api/users",
-			handler: HandleUsers,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2331,7 +2318,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			method:  "POST",
 			url:     "/api/users",
 			body:    userBody,
-			handler: HandleUsers,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2340,7 +2327,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			name:    "HandleUser_GET",
 			method:  "GET",
 			url:     fmt.Sprintf("/api/users/%d", admin.ID),
-			handler: HandleUser,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2350,7 +2337,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			method:  "PUT",
 			url:     fmt.Sprintf("/api/users/%d", admin.ID),
 			body:    userBody,
-			handler: HandleUser,
+			handler: nil,
 			setup: func(r *http.Request) *http.Request {
 				return r.WithContext(adminCtx(r.Context()))
 			},
@@ -2378,7 +2365,7 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 			// Wrap the recorder with our failWriter to intercept Write and return error
 			fw := &failWriter{ResponseWriter: rr}
 
-			tt.handler(fw, req)
+			testAPI.ServeHTTP(fw, req)
 
 			// We expect the handler to have tried to write the JSON response, failed, and logged an error.
 			// Since we mock Write returning error, we check if the code completed without panic.
@@ -2581,49 +2568,6 @@ func TestCheckLabelDBError(t *testing.T) {
 
 func ptrInt(i int) *int { return &i }
 
-func TestCheckProject(t *testing.T) {
-	setupTestDB()
-	defer teardownTestDB()
-
-	p := &Project{Name: "P1"}
-	if err := CreateProject(p); err != nil {
-		t.Fatalf("Failed to create project: %v", err)
-	}
-
-	tests := []struct {
-		name         string
-		issue        *Issue
-		expectedRes  bool
-		expectedCode int
-	}{
-		{
-			name:         "Existent Project",
-			issue:        &Issue{ProjectID: p.ID},
-			expectedRes:  true,
-			expectedCode: http.StatusOK,
-		},
-		{
-			name:         "Non-existent Project",
-			issue:        &Issue{ProjectID: 999},
-			expectedRes:  false,
-			expectedCode: http.StatusBadRequest,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rr := httptest.NewRecorder()
-			res := checkProject(rr, tt.issue, testAssigneeEmail)
-			if res != tt.expectedRes {
-				t.Errorf(expectedResMsg, tt.expectedRes, res)
-			}
-			if !tt.expectedRes && rr.Code != tt.expectedCode {
-				t.Errorf(expectedCodeMsg, tt.expectedCode, rr.Code)
-			}
-		})
-	}
-}
-
 func TestHandleListProjects(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
@@ -2632,8 +2576,7 @@ func TestHandleListProjects(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", apiProjects, nil)
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(handleListProjects)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode, status, http.StatusOK)
@@ -2657,8 +2600,7 @@ func TestHandleCreateProject(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(handleCreateProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusCreated {
 		t.Errorf(wrongStatusCode, status, http.StatusCreated)
@@ -2687,8 +2629,7 @@ func TestHandleProjectUpdate(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode, status, http.StatusOK)
@@ -2708,8 +2649,7 @@ func TestHandleProjectDelete(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
 		t.Errorf(wrongStatusCode, status, http.StatusOK)
@@ -2731,8 +2671,7 @@ func TestHandleProjectDeleteDefaultBlocked(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -2753,8 +2692,7 @@ func TestHandleProjectDeleteWithIssuesBlocked(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(HandleProject)
-	handler.ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
@@ -2765,7 +2703,7 @@ func TestHandleProjectsMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("PATCH", apiProjects, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProjects(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
 	}
@@ -2775,17 +2713,20 @@ func TestHandleProjectMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
 	}
 }
 
 func TestHandleProjectInvalidID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req := httptest.NewRequest("PUT", apiProjectsBase+"abc", nil)
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
@@ -2845,7 +2786,7 @@ func TestHandleUpdateProjectInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
@@ -2863,7 +2804,7 @@ func TestHandleUpdateProjectValidationFailure(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
@@ -2878,7 +2819,7 @@ func TestHandleUpdateProjectNotFound(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
 	}
@@ -2897,7 +2838,7 @@ func TestHandleUpdateProjectDuplicateName(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusConflict {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
 	}
@@ -2916,7 +2857,7 @@ func TestHandleDeleteProjectNotFound(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
 	}
@@ -2933,7 +2874,7 @@ func TestHandleProjectActiveIssuesGet(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -2957,7 +2898,7 @@ func TestHandleProjectArchivedIssuesGet(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesArchived, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -2975,7 +2916,7 @@ func TestHandleProjectIssuesInvalidID(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/projects/abc/issues/active", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
@@ -2988,7 +2929,7 @@ func TestHandleProjectIssuesNotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/projects/999/issues/active", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
 	}
@@ -2998,7 +2939,7 @@ func TestHandleProjectIssuesActiveMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("POST", apiProjects1IssuesActive, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
 	}
@@ -3011,7 +2952,7 @@ func TestHandleProjectIssuesForbidden(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, ""))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
 	}
@@ -3019,27 +2960,35 @@ func TestHandleProjectIssuesForbidden(t *testing.T) {
 
 // ── line 367: checkProject failure path in handlePutIssue ────────────────────
 
-func TestHandleUpdateIssueInvalidProject(t *testing.T) {
+// PUT /api/projects/{otherPID}/issues/{id} where the issue belongs to a
+// different project must return 404 — the withProjectResource ownership check
+// prevents cross-project mutation.
+func TestHandleUpdateIssueCrossProject404(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	p2 := &Project{Name: "P2"}
+	if err := CreateProject(p2); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
 	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
 	CreateIssue(issue)
 
-	updated := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 999}
+	updated := &Issue{Title: "Updated", Status: StatusOpen, ProjectID: 1}
 	body, _ := json.Marshal(updated)
 
-	req := httptest.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
+	url := "/api/projects/" + strconv.Itoa(p2.ID) + "/issues/" + strconv.Itoa(issue.ID)
+	req := httptest.NewRequest("PUT", url, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleIssue(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
 	}
 }
 
-// ── lines 1347, 1353: HandleProjects dispatcher success paths ────────────────
+// ── lines 1347, 1353: nil dispatcher success paths ────────────────
 
 func TestHandleProjectsGetDispatch(t *testing.T) {
 	setupTestDB()
@@ -3048,7 +2997,7 @@ func TestHandleProjectsGetDispatch(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProjects(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3064,7 +3013,7 @@ func TestHandleProjectsPostDispatch(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProjects(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusCreated)
@@ -3139,13 +3088,13 @@ func TestHandleCreateProjectEncodeError(t *testing.T) {
 	handleCreateProject(&failWriter{ResponseWriter: httptest.NewRecorder()}, req)
 }
 
-// ── lines 1425-1426: HandleProject unknown sub-resource ──────────────────────
+// ── lines 1425-1426: nil unknown sub-resource ──────────────────────
 
 func TestHandleProjectUnknownSubResource(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjectsBase+"1/unknown", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -3167,7 +3116,7 @@ func TestHandleProjectActiveIssuesDBError(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -3180,7 +3129,7 @@ func TestHandleProjectArchivedIssuesMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("POST", apiProjects1IssuesArchived, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -3196,7 +3145,7 @@ func TestHandleProjectArchivedIssuesNotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/projects/999/issues/archived", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -3217,7 +3166,7 @@ func TestHandleProjectArchivedIssuesDBError(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesArchived, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -3240,7 +3189,7 @@ func TestHandleProjectOpenIssuesSuccess(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjectsBase+strconv.Itoa(project.ID)+"/issues/open", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3261,7 +3210,7 @@ func TestHandleProjectOpenIssuesMethodNotAllowed(t *testing.T) {
 	req := httptest.NewRequest("POST", apiProjects1IssuesOpen, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
 	}
@@ -3274,7 +3223,7 @@ func TestHandleProjectOpenIssuesForbidden(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, ""))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
 	}
@@ -3287,7 +3236,7 @@ func TestHandleProjectOpenIssuesNotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/projects/999/issues/open", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
 	}
@@ -3304,7 +3253,7 @@ func TestHandleProjectOpenIssuesDBError(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 	}
@@ -3322,7 +3271,7 @@ func TestHandleProjectOpenIssuesProjectExistsDBError(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 	}
@@ -3342,7 +3291,7 @@ func TestHandleProjectOpenIssuesTasksDBError(t *testing.T) {
 	req := httptest.NewRequest("GET", apiProjects1IssuesOpen, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 	}
@@ -3395,7 +3344,7 @@ func TestHandleUpdateProjectDBError(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -3436,7 +3385,7 @@ func TestHandleDeleteProjectCountDBError(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -3462,7 +3411,7 @@ func TestHandleDeleteProjectGenericDBError(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
-	HandleProject(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -3531,7 +3480,7 @@ func TestHandleProjectStatusConfigGet(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3558,7 +3507,7 @@ func TestHandleProjectStatusConfigGetCustomValues(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3573,14 +3522,18 @@ func TestHandleProjectStatusConfigGetCustomValues(t *testing.T) {
 }
 
 func TestHandleProjectStatusConfigGetForbidden(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req, err := http.NewRequest("GET", apiStatusConfig, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// No role in context → denied
+	// Empty UserRole → no permissions → 403
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, UserRole("")))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
@@ -3600,7 +3553,7 @@ func TestHandleProjectStatusConfigGetDBError(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -3623,7 +3576,7 @@ func TestHandleProjectStatusConfigPut(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3651,7 +3604,7 @@ func TestHandleProjectStatusConfigPutForbiddenUser(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
@@ -3659,6 +3612,9 @@ func TestHandleProjectStatusConfigPutForbiddenUser(t *testing.T) {
 }
 
 func TestHandleProjectStatusConfigPutInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req, err := http.NewRequest("PUT", apiStatusConfig, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -3666,7 +3622,7 @@ func TestHandleProjectStatusConfigPutInvalidJSON(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -3687,7 +3643,7 @@ func TestHandleProjectStatusConfigPutValidationFails(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -3712,7 +3668,7 @@ func TestHandleProjectStatusConfigPutDBError(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -3727,7 +3683,7 @@ func TestHandleProjectStatusConfigMethodNotAllowed(t *testing.T) {
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -3739,7 +3695,7 @@ func TestHandleProjectStatusConfigMethodNotAllowed(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 const (
-	apiReleases       = "/api/releases/"
+	apiReleases       = "/api/projects/1/releases/"
 	apiProjectReleases = "/api/projects/1/releases"
 )
 
@@ -3760,7 +3716,7 @@ func TestHandleProjectReleasesGet(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiProjectReleases, nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3783,7 +3739,7 @@ func TestHandleProjectReleasesPost(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusCreated)
@@ -3808,7 +3764,7 @@ func TestHandleProjectReleasesPostDuplicate(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusConflict {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
@@ -3820,7 +3776,7 @@ func TestHandleProjectReleasesPostForbidden(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
@@ -3831,7 +3787,7 @@ func TestHandleProjectReleasesMethodNotAllowed(t *testing.T) {
 	req, _ := http.NewRequest("DELETE", apiProjectReleases, nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -3850,7 +3806,7 @@ func TestHandleReleaseGet(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiReleases+strconv.Itoa(rel.ID), nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3871,7 +3827,7 @@ func TestHandleReleaseGetNotFound(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiReleases+"9999", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -3879,10 +3835,13 @@ func TestHandleReleaseGetNotFound(t *testing.T) {
 }
 
 func TestHandleReleaseGetInvalidID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
 	req, _ := http.NewRequest("GET", apiReleases+"abc", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -3903,7 +3862,7 @@ func TestHandleReleasePut(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -3925,7 +3884,7 @@ func TestHandleReleasePutNotFound(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+"9999", bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -3949,7 +3908,7 @@ func TestHandleReleasePutClosedForbidden(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
@@ -3968,7 +3927,7 @@ func TestHandleReleaseDelete(t *testing.T) {
 	req, _ := http.NewRequest("DELETE", apiReleases+strconv.Itoa(rel.ID), nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNoContent {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNoContent)
@@ -3982,7 +3941,7 @@ func TestHandleReleaseDeleteNotFound(t *testing.T) {
 	req, _ := http.NewRequest("DELETE", apiReleases+"9999", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -4002,7 +3961,7 @@ func TestHandleReleaseTrigger(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/release", bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -4024,7 +3983,7 @@ func TestHandleReleaseTriggerNotFound(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+"9999/release", bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -4043,7 +4002,7 @@ func TestHandleReleaseTriggerInvalidBody(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/release", bytes.NewBufferString("not-json"))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -4065,7 +4024,7 @@ func TestHandleReleaseReopen(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/reopen", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -4086,7 +4045,7 @@ func TestHandleReleaseReopenNotFound(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+"9999/reopen", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
@@ -4105,7 +4064,7 @@ func TestHandleReleaseSubpathMethodNotAllowed(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiReleases+strconv.Itoa(rel.ID)+"/release", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -4121,13 +4080,14 @@ func TestHandleReleaseSubpathUnknown(t *testing.T) {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
+	// Unknown sub-action on a release path doesn't match any route → mux 404.
 	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/unknown", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusMethodNotAllowed {
-		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
 	}
 }
 
@@ -4143,7 +4103,7 @@ func TestHandleReleaseMethodNotAllowed(t *testing.T) {
 	req, _ := http.NewRequest("PATCH", apiReleases+strconv.Itoa(rel.ID), nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
@@ -4183,7 +4143,7 @@ func TestHandleCreateIssueWithValidRelease(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleCreateIssue).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusCreated)
@@ -4201,7 +4161,7 @@ func TestHandleCreateIssueWithInvalidRelease(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiIssues, bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleCreateIssue).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -4258,7 +4218,7 @@ func TestHandleIssuePutWithReleaseID(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiIssuesBase+strconv.Itoa(issue.ID), bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleIssue).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
@@ -4271,7 +4231,7 @@ func TestHandleProjectReleasesGetUnknownRoleForbidden(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiProjectReleases, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, unknownRole))
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
@@ -4289,7 +4249,7 @@ func TestHandleProjectReleasesGetDBError(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiProjectReleases, nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -4305,7 +4265,7 @@ func TestHandleProjectReleasesPostInvalidJSON(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBufferString(invalidJSON))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -4324,14 +4284,14 @@ func TestHandleProjectReleasesPostDBError(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiProjectReleases, bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleProject).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 	}
 }
 
-// --- HandleRelease sub-path forbidden (lines 1702-1705) ---
+// --- nil sub-path forbidden (lines 1702-1705) ---
 
 func TestHandleReleaseTriggerForbidden(t *testing.T) {
 	setupTestDB()
@@ -4346,14 +4306,14 @@ func TestHandleReleaseTriggerForbidden(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+strconv.Itoa(rel.ID)+"/release", bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
 	}
 }
 
-// --- HandleRelease GET forbidden (lines 1719-1722) ---
+// --- nil GET forbidden (lines 1719-1722) ---
 
 func TestHandleReleaseGetForbidden(t *testing.T) {
 	setupTestDB()
@@ -4367,14 +4327,14 @@ func TestHandleReleaseGetForbidden(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiReleases+strconv.Itoa(rel.ID), nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, unknownRole))
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
 	}
 }
 
-// --- HandleRelease PUT forbidden (lines 1725-1728) ---
+// --- nil PUT forbidden (lines 1725-1728) ---
 
 func TestHandleReleasePutForbidden(t *testing.T) {
 	setupTestDB()
@@ -4390,14 +4350,14 @@ func TestHandleReleasePutForbidden(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
 	}
 }
 
-// --- HandleRelease DELETE forbidden (lines 1731-1734) ---
+// --- nil DELETE forbidden (lines 1731-1734) ---
 
 func TestHandleReleaseDeleteForbidden(t *testing.T) {
 	setupTestDB()
@@ -4411,7 +4371,7 @@ func TestHandleReleaseDeleteForbidden(t *testing.T) {
 	req, _ := http.NewRequest("DELETE", apiReleases+strconv.Itoa(rel.ID), nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
@@ -4429,7 +4389,7 @@ func TestHandleReleaseGetDBError(t *testing.T) {
 	req, _ := http.NewRequest("GET", apiReleases+"1", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -4450,7 +4410,7 @@ func TestHandleReleasePutInvalidJSON(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBufferString(invalidJSON))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
@@ -4469,7 +4429,7 @@ func TestHandleReleasePutGetDBError(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+"1", bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -4495,7 +4455,7 @@ func TestHandleReleasePutDuplicateName(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(r2.ID), bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusConflict {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusConflict)
@@ -4520,7 +4480,7 @@ func TestHandleReleasePutUpdateDBError(t *testing.T) {
 	req, _ := http.NewRequest("PUT", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -4538,7 +4498,7 @@ func TestHandleReleaseDeleteDBError(t *testing.T) {
 	req, _ := http.NewRequest("DELETE", apiReleases+"1", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -4557,7 +4517,7 @@ func TestHandleReleaseTriggerDBError(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+"1/release", bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
@@ -4575,9 +4535,83 @@ func TestHandleReleaseReopenDBError(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiReleases+"1/reopen", nil)
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
-	http.HandlerFunc(HandleRelease).ServeHTTP(rr, req)
+	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Project-scoped routing: factory + ownership tests
+// -----------------------------------------------------------------------------
+
+// TestCheckProjectAccess covers the helper's three exit paths via the mux:
+// invalid pId → 400, unknown project → 404, valid project → handler runs.
+func TestCheckProjectAccess(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	tests := []struct {
+		name       string
+		pId        string
+		wantStatus int
+	}{
+		{"invalid pId", "abc", http.StatusBadRequest},
+		{"unknown project", "9999", http.StatusNotFound},
+		{"valid project", "1", http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/projects/"+tt.pId+"/issues/active", nil)
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+			rr := httptest.NewRecorder()
+			testAPI.ServeHTTP(rr, req)
+			if rr.Code != tt.wantStatus {
+				t.Errorf("status: got %d want %d", rr.Code, tt.wantStatus)
+			}
+		})
+	}
+}
+
+// TestReleaseCrossProject404 ensures a release in project A is 404 when
+// requested under project B's URL.
+func TestReleaseCrossProject404(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	p2 := &Project{Name: "P2"}
+	if err := CreateProject(p2); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(rel); err != nil {
+		t.Fatalf("CreateRelease: %v", err)
+	}
+
+	url := "/api/projects/" + strconv.Itoa(p2.ID) + "/releases/" + strconv.Itoa(rel.ID)
+	req := httptest.NewRequest("GET", url, nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("status: got %d want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+// TestMethodNotAllowedFromMux exercises Go 1.22's automatic 405 dispatch:
+// PATCH on /api/projects/1/issues/1 has no matching method registration.
+func TestMethodNotAllowedFromMux(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	CreateIssue(&Issue{Title: "T", Status: StatusOpen, ProjectID: 1})
+
+	req := httptest.NewRequest("PATCH", "/api/projects/1/issues/1", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status: got %d want %d", rr.Code, http.StatusMethodNotAllowed)
 	}
 }

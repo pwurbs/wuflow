@@ -130,7 +130,7 @@ test.describe('Backlog View', () => {
 
     // Blur to trigger autosave
     const savePromise = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#modal-title');
     await savePromise;
@@ -221,7 +221,7 @@ test.describe('Backlog Release Lanes', () => {
     const issueCard = page.locator('#backlog-list .card').filter({ hasText: issueTitle });
 
     const putResponse = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await issueCard.dragTo(laneCard);
     await putResponse;
@@ -246,7 +246,7 @@ test.describe('Backlog Release Lanes', () => {
     await page.locator('#backlog-list .card').filter({ hasText: issue1Title }).click();
     await expect(page.locator('#issue-modal')).toBeVisible();
     const put1 = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#release-trigger');
     await page.click(`#release-options .custom-option:has-text("${relName}")`);
@@ -258,7 +258,7 @@ test.describe('Backlog Release Lanes', () => {
     await page.locator('#backlog-list .card').filter({ hasText: issue2Title }).click();
     await expect(page.locator('#issue-modal')).toBeVisible();
     const put2 = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#release-trigger');
     await page.click(`#release-options .custom-option:has-text("${relName}")`);
@@ -287,7 +287,7 @@ test.describe('Backlog Release Lanes', () => {
     await page.locator('#backlog-list .card').filter({ hasText: assignedTitle }).click();
     await expect(page.locator('#issue-modal')).toBeVisible();
     const putAssign = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#release-trigger');
     await page.click(`#release-options .custom-option:has-text("${relName}")`);

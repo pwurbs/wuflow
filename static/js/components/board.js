@@ -182,7 +182,7 @@ function getBoardUpdates() {
       if (issue && (issue.status !== status || issue.position !== index)) {
         issue.status = status;
         issue.position = index;
-        updates.push(updateIssue(issue));
+        updates.push(updateIssue(issue.project_id, issue));
       }
     });
   });

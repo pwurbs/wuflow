@@ -329,7 +329,7 @@ describe('Board Component', () => {
 
       // Wait for async operations (Promise.all)
       await vi.waitFor(() => {
-        expect(api.updateIssue).toHaveBeenCalledWith(expect.objectContaining({
+        expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
           id: 1,
           status: 'Stage2',
           position: 0

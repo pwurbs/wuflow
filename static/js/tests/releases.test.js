@@ -483,7 +483,7 @@ describe('releases', () => {
       document.getElementById('release-modal-name').value = 'v2.1';
       document.getElementById('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
-      expect(api.updateRelease).toHaveBeenCalledWith(10, expect.objectContaining({ name: 'v2.1' }));
+      expect(api.updateRelease).toHaveBeenCalledWith(1, 10, expect.objectContaining({ name: 'v2.1' }));
       expect(callback).toHaveBeenCalled();
     });
 
@@ -519,7 +519,7 @@ describe('releases', () => {
       document.getElementById('release-modal-delete').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
-      expect(api.deleteRelease).toHaveBeenCalledWith(10);
+      expect(api.deleteRelease).toHaveBeenCalledWith(undefined, 10);
       expect(callback).toHaveBeenCalled();
     });
 
@@ -596,7 +596,7 @@ describe('releases', () => {
       await new Promise(process.nextTick);
       document.getElementById('release-dialog-confirm').click();
       await new Promise(process.nextTick);
-      expect(api.triggerRelease).toHaveBeenCalledWith(10, false);
+      expect(api.triggerRelease).toHaveBeenCalledWith(undefined, 10, false);
       expect(callback).toHaveBeenCalled();
     });
 
@@ -651,7 +651,7 @@ describe('releases', () => {
       document.getElementById('release-modal-reopen').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
-      expect(api.reopenRelease).toHaveBeenCalledWith(11);
+      expect(api.reopenRelease).toHaveBeenCalledWith(undefined, 11);
       expect(callback).toHaveBeenCalled();
     });
 

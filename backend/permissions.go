@@ -1,5 +1,7 @@
 package backend
 
+import "slices"
+
 // Action represents a discrete operation subject to authorization.
 // Action constants must be kept in sync with the frontend permissions.js module.
 type Action string
@@ -42,6 +44,7 @@ const (
 
 	// Release actions
 	ActionListReleases   Action = "release:list"
+	ActionGetRelease     Action = "release:get"
 	ActionCreateRelease  Action = "release:create"
 	ActionUpdateRelease  Action = "release:update"
 	ActionDeleteRelease  Action = "release:delete"
@@ -94,6 +97,7 @@ var rolePermissions = map[Action][]UserRole{
 
 	// Releases
 	ActionListReleases:   {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionGetRelease:     {RoleSysAdmin, RoleAdmin, RoleUser},
 	ActionCreateRelease:  {RoleSysAdmin, RoleAdmin},
 	ActionUpdateRelease:  {RoleSysAdmin, RoleAdmin},
 	ActionDeleteRelease:  {RoleSysAdmin, RoleAdmin},
@@ -107,10 +111,5 @@ func Can(role UserRole, action Action) bool {
 	if !exists {
 		return false
 	}
-	for _, r := range allowed {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowed, role)
 }

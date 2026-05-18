@@ -19,7 +19,7 @@ test.describe('Issue Edit Modal Behavior', () => {
 
     // Blur by clicking outside — triggers autosave, no popup
     const savePromise = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#modal-title');
     await savePromise;
@@ -48,7 +48,7 @@ test.describe('Issue Edit Modal Behavior', () => {
 
     // Done autosaves the title (no confirm popup) and closes the modal
     const savePromise = page.waitForResponse(r =>
-      r.url().includes('/api/issues/') && r.request().method() === 'PUT'
+      r.url().includes('/issues/') && r.request().method() === 'PUT'
     );
     await page.click('#done-btn');
     await savePromise;
