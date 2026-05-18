@@ -458,16 +458,9 @@ func CreateIssue(i *Issue) error {
 	if i.Priority == "" {
 		i.Priority = PriorityNormal
 	}
-	stmt, err := DB.Prepare("INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, creator_id, assignee_id, updated_by, project_id, release_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		LogError("Database Error: CreateIssue Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
 	// Get max position for the status to append to the end
 	var maxPos sql.NullInt64
-	err = DB.QueryRow("SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
+	err := DB.QueryRow("SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
 	if err != nil && err != sql.ErrNoRows {
 		LogError("Database Error: CreateIssue MaxPos", "error", err)
 		return err
@@ -501,9 +494,12 @@ func CreateIssue(i *Issue) error {
 		plannedDatesJSON = string(b)
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt)
+	res, err := DB.Exec(
+		"INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, creator_id, assignee_id, updated_by, project_id, release_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt,
+	)
 	if err != nil {
-		LogError("Database Error: CreateIssue Exec", "error", err)
+		LogError("Database Error: CreateIssue", "error", err)
 		return err
 	}
 
@@ -647,14 +643,6 @@ func GetIssueByID(id int) (*Issue, error) {
 
 // UpdateIssue updates an existing issue in the database.
 func UpdateIssue(i *Issue) error {
-
-	stmt, err := DB.Prepare("UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, assignee_id = ?, updated_by = ?, project_id = ?, release_id = ?, updated_at = ? WHERE id = ?")
-	if err != nil {
-		LogError("Database Error: UpdateIssue Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
 	i.UpdatedAt = time.Now().UTC()
 
 	var labelID *int
@@ -678,9 +666,12 @@ func UpdateIssue(i *Issue) error {
 		updaterID = i.UpdaterID
 	}
 
-	res, err := stmt.Exec(i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt, i.ID)
+	res, err := DB.Exec(
+		"UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, assignee_id = ?, updated_by = ?, project_id = ?, release_id = ?, updated_at = ? WHERE id = ?",
+		i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt, i.ID,
+	)
 	if err != nil {
-		LogError("Database Error: UpdateIssue Exec", "error", err)
+		LogError("Database Error: UpdateIssue", "error", err)
 		return err
 	}
 
@@ -711,13 +702,6 @@ func DeleteIssue(id int) error {
 
 // CreateTask inserts a new task into the database.
 func CreateTask(t *Task) error {
-	stmt, err := DB.Prepare("INSERT INTO tasks(issue_id, title, done, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		LogError("Database Error: CreateTask Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
 	exists, err := existsQuery("SELECT COUNT(*) FROM issues WHERE id = ?", t.IssueID)
 	if err != nil {
 		LogError("Database Error: CreateTask CheckIssue", "error", err)
@@ -737,9 +721,12 @@ func CreateTask(t *Task) error {
 	t.Position = int(maxPos.Int64) + 1
 	t.UpdatedAt = time.Now().UTC()
 
-	res, err := stmt.Exec(t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt)
+	res, err := DB.Exec(
+		"INSERT INTO tasks(issue_id, title, done, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)",
+		t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt,
+	)
 	if err != nil {
-		LogError("Database Error: CreateTask Exec", "error", err)
+		LogError("Database Error: CreateTask", "error", err)
 		return err
 	}
 
@@ -763,31 +750,6 @@ func scanTaskRow(s issueScanner) (Task, error) {
 		t.Deadline = &deadline.Time
 	}
 	return t, nil
-}
-
-// GetAllTasks retrieves all tasks from the database, grouped by issue_id.
-func GetAllTasks() (map[int][]Task, error) {
-	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks ORDER BY issue_id, position ASC")
-	if err != nil {
-		LogError("Database Error: GetAllTasks", "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	result := make(map[int][]Task)
-	for rows.Next() {
-		t, err := scanTaskRow(rows)
-		if err != nil {
-			LogError("Database Error: GetAllTasks Scan", "error", err)
-			return nil, err
-		}
-		result[t.IssueID] = append(result[t.IssueID], t)
-	}
-	if err := rows.Err(); err != nil {
-		LogError("Database Error: GetAllTasks Rows", "error", err)
-		return nil, err
-	}
-	return result, nil
 }
 
 // GetTasksByIssueID retrieves all tasks associated with a specific issue.
@@ -815,42 +777,27 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 	return tasks, nil
 }
 
-// GetTaskByID retrieves a single task by its ID.
-func GetTaskByID(id int) (*Task, error) {
-	row := DB.QueryRow("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE id = ?", id)
-	t, err := scanTaskRow(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		LogError("Database Error: GetTaskByID", "error", err)
-		return nil, err
-	}
-	return &t, nil
-}
-
-// UpdateTask updates an existing task in the database.
-func UpdateTask(t *Task) error {
-	stmt, err := DB.Prepare("UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ?")
-	if err != nil {
-		LogError("Database Error: UpdateTask Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
+// UpdateTask updates a task that must belong to the given issue. The (id,
+// issue_id) pair is filtered in the SQL WHERE clause, so a task addressed
+// through the wrong parent issue is indistinguishable from "no such task" —
+// zero rows affected → ErrTaskNotFound → handler responds 404.
+func UpdateTask(t *Task, issueID int) error {
 	t.UpdatedAt = time.Now().UTC()
-	res, err := stmt.Exec(t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID)
+	res, err := DB.Exec(
+		"UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ? AND issue_id = ?",
+		t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID, issueID,
+	)
 	if err != nil {
-		LogError("Database Error: UpdateTask Exec", "error", err)
+		LogError("Database Error: UpdateTask", "error", err)
 		return err
 	}
-
 	return checkRowsAffected(res, "UpdateTask", ErrTaskNotFound)
 }
 
-// DeleteTask removes a task from the database by its ID.
-func DeleteTask(id int) error {
-	res, err := DB.Exec("DELETE FROM tasks WHERE id = ?", id)
+// DeleteTask removes a task that must belong to the given issue. Ownership is
+// enforced in the WHERE clause; see UpdateTask for the rationale.
+func DeleteTask(id, issueID int) error {
+	res, err := DB.Exec("DELETE FROM tasks WHERE id = ? AND issue_id = ?", id, issueID)
 	if err != nil {
 		LogError("Database Error: DeleteTask", "error", err)
 		return err
@@ -861,16 +808,9 @@ func DeleteTask(id int) error {
 
 // CreateLabel inserts a new label into the database.
 func CreateLabel(l *Label) error {
-	stmt, err := DB.Prepare("INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)")
+	res, err := DB.Exec("INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)", l.Name, l.Color, l.ProjectID)
 	if err != nil {
-		LogError("Database Error: CreateLabel Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(l.Name, l.Color, l.ProjectID)
-	if err != nil {
-		LogError("Database Error: CreateLabel Exec", "error", err)
+		LogError("Database Error: CreateLabel", "error", err)
 		return err
 	}
 
@@ -925,19 +865,12 @@ func DeleteLabel(labelID, projectID int) error {
 
 // CreateProject inserts a new project into the database.
 func CreateProject(p *Project) error {
-	stmt, err := DB.Prepare("INSERT INTO projects(name, description) VALUES(?, ?)")
-	if err != nil {
-		LogError("Database Error: CreateProject Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(p.Name, p.Description)
+	res, err := DB.Exec("INSERT INTO projects(name, description) VALUES(?, ?)", p.Name, p.Description)
 	if err != nil {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
 		}
-		LogError("Database Error: CreateProject Exec", "error", err)
+		LogError("Database Error: CreateProject", "error", err)
 		return err
 	}
 
@@ -999,19 +932,12 @@ func GetProjectByID(id int) (*Project, error) {
 
 // UpdateProject updates an existing project in the database.
 func UpdateProject(p *Project) error {
-	stmt, err := DB.Prepare("UPDATE projects SET name = ?, description = ? WHERE id = ?")
-	if err != nil {
-		LogError("Database Error: UpdateProject Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(p.Name, p.Description, p.ID)
+	res, err := DB.Exec("UPDATE projects SET name = ?, description = ? WHERE id = ?", p.Name, p.Description, p.ID)
 	if err != nil {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
 		}
-		LogError("Database Error: UpdateProject Exec", "error", err)
+		LogError("Database Error: UpdateProject", "error", err)
 		return err
 	}
 
@@ -1128,20 +1054,16 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 
 // CreateUser inserts a new user into the database.
 func CreateUser(u *User) error {
-	stmt, err := DB.Prepare("INSERT INTO users(email, first_name, last_name, password_hash, role, active, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		LogError("Database Error: CreateUser Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
 	u.UpdatedAt = time.Now().UTC()
-	res, err := stmt.Exec(u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt)
+	res, err := DB.Exec(
+		"INSERT INTO users(email, first_name, last_name, password_hash, role, active, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)",
+		u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt,
+	)
 	if err != nil {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateEmail
 		}
-		LogError("Database Error: CreateUser Exec", "error", err)
+		LogError("Database Error: CreateUser", "error", err)
 		return err
 	}
 
@@ -1209,20 +1131,16 @@ func GetAllUsers() ([]User, error) {
 
 // UpdateUser updates an existing user in the database.
 func UpdateUser(u *User) error {
-	stmt, err := DB.Prepare("UPDATE users SET email = ?, first_name = ?, last_name = ?, password_hash = ?, role = ?, active = ?, updated_at = ? WHERE id = ?")
-	if err != nil {
-		LogError("Database Error: UpdateUser Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
 	u.UpdatedAt = time.Now().UTC()
-	res, err := stmt.Exec(u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt, u.ID)
+	res, err := DB.Exec(
+		"UPDATE users SET email = ?, first_name = ?, last_name = ?, password_hash = ?, role = ?, active = ?, updated_at = ? WHERE id = ?",
+		u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt, u.ID,
+	)
 	if err != nil {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateEmail
 		}
-		LogError("Database Error: UpdateUser Exec", "error", err)
+		LogError("Database Error: UpdateUser", "error", err)
 		return err
 	}
 
@@ -1257,21 +1175,17 @@ func CountActiveSysAdmins() (int, error) {
 
 // CreateSession inserts a new session into the database.
 func CreateSession(s *Session) error {
-	stmt, err := DB.Prepare("INSERT INTO sessions(user_id, token_hash, expires_at, created_at) VALUES(?, ?, ?, ?)")
-	if err != nil {
-		LogError("Database Error: CreateSession Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
 	if s.CreatedAt.IsZero() {
 		s.CreatedAt = time.Now().UTC()
 	}
 	s.ExpiresAt = s.ExpiresAt.UTC()
 
-	res, err := stmt.Exec(s.UserID, s.TokenHash, s.ExpiresAt, s.CreatedAt)
+	res, err := DB.Exec(
+		"INSERT INTO sessions(user_id, token_hash, expires_at, created_at) VALUES(?, ?, ?, ?)",
+		s.UserID, s.TokenHash, s.ExpiresAt, s.CreatedAt,
+	)
 	if err != nil {
-		LogError("Database Error: CreateSession Exec", "error", err)
+		LogError("Database Error: CreateSession", "error", err)
 		return err
 	}
 
@@ -1302,16 +1216,9 @@ func GetSessionByID(id int) (*Session, error) {
 
 // UpdateSession updates the token hash and expiration of an existing session (Rotation).
 func UpdateSession(s *Session) error {
-	stmt, err := DB.Prepare("UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?")
+	res, err := DB.Exec("UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?", s.TokenHash, s.ExpiresAt, s.ID)
 	if err != nil {
-		LogError("Database Error: UpdateSession Prepare", "error", err)
-		return err
-	}
-	defer stmt.Close()
-
-	res, err := stmt.Exec(s.TokenHash, s.ExpiresAt, s.ID)
-	if err != nil {
-		LogError("Database Error: UpdateSession Exec", "error", err)
+		LogError("Database Error: UpdateSession", "error", err)
 		return err
 	}
 

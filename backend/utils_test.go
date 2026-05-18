@@ -157,9 +157,8 @@ func GetAllActiveIssues() ([]Issue, error) {
 		return nil, err
 	}
 
-	tasksByIssue, err := GetAllTasks()
+	tasksByIssue, err := getTasksForIssues(issues)
 	if err != nil {
-		slog.Error("Database Error: GetAllActiveIssues GetAllTasks", "error", err)
 		return nil, err
 	}
 	for idx := range issues {
@@ -193,9 +192,8 @@ func GetAllArchivedIssues() ([]Issue, error) {
 		return nil, err
 	}
 
-	tasksByIssue, err := GetAllTasks()
+	tasksByIssue, err := getTasksForIssues(issues)
 	if err != nil {
-		slog.Error("Database Error: GetAllArchivedIssues GetAllTasks", "error", err)
 		return nil, err
 	}
 	for idx := range issues {

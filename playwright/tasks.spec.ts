@@ -193,7 +193,7 @@ test.describe('Task (Subtask) Management', () => {
 
     // Click outside (modal title) → triggers autosave via blur, no popup
     const savePromise = page.waitForResponse(r =>
-      r.url().includes('/api/tasks/') && r.request().method() === 'PUT'
+      /\/tasks\/\d+$/.test(r.url().split('?')[0]) && r.request().method() === 'PUT'
     );
     await page.click('#modal-title');
     await savePromise;

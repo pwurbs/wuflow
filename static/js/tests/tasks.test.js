@@ -42,6 +42,7 @@ describe('Tasks Component', () => {
     container = document.createElement('ul');
     issue = {
       id: 1,
+      project_id: 7,
       tasks: [
         { id: 10, title: 'Task A', done: false, position: 0 },
         { id: 11, title: 'Task B', done: true, position: 1 }
@@ -94,7 +95,7 @@ describe('Tasks Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.updateTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       id: 10,
       done: true
     }));
@@ -112,7 +113,7 @@ describe('Tasks Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.deleteTask).toHaveBeenCalledWith(10);
+    expect(api.deleteTask).toHaveBeenCalledWith(7, 1, 10);
     expect(issue.tasks.length).toBe(1); // Should be removed from local array
     expect(callbacks.onTaskUpdate).toHaveBeenCalled();
   });
@@ -133,7 +134,7 @@ describe('Tasks Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.updateTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       id: 10,
       title: 'Updated Task'
     }));
@@ -300,7 +301,7 @@ describe('Tasks Component', () => {
     await new Promise(process.nextTick);
 
     // Should save and exit edit mode
-    expect(api.updateTask).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.updateTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       title: 'Changed Value'
     }));
     expect(item.classList.contains('editing')).toBe(false);
@@ -353,7 +354,7 @@ describe('Tasks Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.deleteTask).toHaveBeenCalledWith(10);
+    expect(api.deleteTask).toHaveBeenCalledWith(7, 1, 10);
     expect(issue.tasks.length).toBe(2); // not removed on failure
     expect(utils.showNotification).toHaveBeenCalledWith('Delete failed', 'error');
     expect(callbacks.onTaskUpdate).not.toHaveBeenCalled();

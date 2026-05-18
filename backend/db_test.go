@@ -179,35 +179,6 @@ func TestDeleteIssue(t *testing.T) {
 	}
 }
 
-func TestGetAllTasks(t *testing.T) {
-	setupTestDB()
-	defer teardownTestDB()
-
-	issue1 := &Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1}
-	issue2 := &Issue{Title: "Issue 2", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue1)
-	CreateIssue(issue2)
-
-	task1 := &Task{IssueID: issue1.ID, Title: "Task 1"}
-	task2 := &Task{IssueID: issue1.ID, Title: "Task 2"}
-	task3 := &Task{IssueID: issue2.ID, Title: "Task 3"}
-	CreateTask(task1)
-	CreateTask(task2)
-	CreateTask(task3)
-
-	tasksByIssue, err := GetAllTasks()
-	if err != nil {
-		t.Fatalf("Failed to get all tasks: %v", err)
-	}
-
-	if len(tasksByIssue[issue1.ID]) != 2 {
-		t.Errorf("Expected 2 tasks for issue1, got %d", len(tasksByIssue[issue1.ID]))
-	}
-	if len(tasksByIssue[issue2.ID]) != 1 {
-		t.Errorf("Expected 1 task for issue2, got %d", len(tasksByIssue[issue2.ID]))
-	}
-}
-
 func TestGetArchivedIssues(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
@@ -296,7 +267,7 @@ func TestUpdateTask(t *testing.T) {
 
 	task.Title = "Updated Task"
 	task.Done = true
-	err := UpdateTask(task)
+	err := UpdateTask(task, issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to update task: %v", err)
 	}
@@ -320,7 +291,7 @@ func TestDeleteTask(t *testing.T) {
 	task := &Task{IssueID: issue.ID, Title: "To Delete"}
 	CreateTask(task)
 
-	err := DeleteTask(task.ID)
+	err := DeleteTask(task.ID, issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to delete task: %v", err)
 	}
@@ -355,15 +326,13 @@ func TestDBErrors(t *testing.T) {
 		{"UpdateIssue", func() error { return UpdateIssue(&Issue{ID: 1, Title: "T", ProjectID: 1}) }},
 		{"DeleteIssue", func() error { return DeleteIssue(1) }},
 		{"CreateTask", func() error { return CreateTask(&Task{IssueID: 1, Title: "T"}) }},
-		{"UpdateTask", func() error { return UpdateTask(&Task{ID: 1, Title: "T"}) }},
-		{"DeleteTask", func() error { return DeleteTask(1) }},
+		{"UpdateTask", func() error { return UpdateTask(&Task{ID: 1, Title: "T"}, 1) }},
+		{"DeleteTask", func() error { return DeleteTask(1, 1) }},
 		{"GetLabelsByProject", func() error { _, err := GetLabelsByProject(1); return err }},
 		{"CreateLabel", func() error { return CreateLabel(&Label{Name: "L", ProjectID: 1}) }},
 		{"DeleteLabel", func() error { return DeleteLabel(1, 1) }},
 		{"GetIssueByID", func() error { _, err := GetIssueByID(1); return err }},
-		{"GetTaskByID", func() error { _, err := GetTaskByID(1); return err }},
 		{"GetAllArchivedIssues", func() error { _, err := GetAllArchivedIssues(); return err }},
-		{"GetAllTasks", func() error { _, err := GetAllTasks(); return err }},
 		{"GetAllProjects", func() error { _, err := GetAllProjects(); return err }},
 		{"CreateProject", func() error { return CreateProject(&Project{Name: "P"}) }},
 		{"UpdateProject", func() error { return UpdateProject(&Project{ID: 1, Name: "P"}) }},
@@ -422,10 +391,8 @@ func TestDBScanErrors(t *testing.T) {
 		{"GetAllActiveIssues_ScanError", scanErrorGetAllActiveIssues},
 		{"GetTasksByIssueID_ScanError", scanErrorGetTasksByIssueID},
 		{"GetAllLabels_ScanError", scanErrorGetAllLabels},
-		{"GetAllTasks_ScanError", scanErrorGetAllTasks},
 		{"GetArchivedIssues_ScanError", scanErrorGetArchivedIssues},
 		{"GetIssueByID_ScanError", scanErrorGetIssueByID},
-		{"GetTaskByID_ScanError", scanErrorGetTaskByID},
 		{"GetAllProjects_ScanError", scanErrorGetAllProjects},
 	}
 
@@ -500,29 +467,6 @@ func scanErrorGetAllLabels(t *testing.T) error {
 	return nil
 }
 
-func scanErrorGetAllTasks(t *testing.T) error {
-	if _, err := DB.Exec(insertMockIssueQuery); err != nil {
-		return err
-	}
-	if _, err := DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', 1)"); err != nil {
-		return err
-	}
-	if _, err := DB.Exec(dropTasksTable); err != nil {
-		return err
-	}
-	if _, err := DB.Exec("CREATE TABLE tasks (id TEXT, issue_id INTEGER, title TEXT, done BOOLEAN, position INTEGER, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
-		return err
-	}
-	if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title) VALUES(?, ?, ?)", notAnInt, 1, "T"); err != nil {
-		return err
-	}
-
-	if _, err := GetAllTasks(); err == nil {
-		t.Error(expectedScanError)
-	}
-	return nil
-}
-
 func scanErrorGetArchivedIssues(t *testing.T) error {
 	if _, err := DB.Exec("INSERT INTO issues(title, status, position, project_id) VALUES(?, ?, ?, ?)", "T", "Archive", 1, 1); err != nil {
 		return err
@@ -557,29 +501,6 @@ func scanErrorGetIssueByID(t *testing.T) error {
 	}
 
 	if _, err := GetIssueByID(1); err == nil {
-		t.Error(expectedScanError)
-	}
-	return nil
-}
-
-func scanErrorGetTaskByID(t *testing.T) error {
-	if _, err := DB.Exec(insertMockIssueQuery); err != nil {
-		return err
-	}
-	if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title) VALUES(1, 1, 'T')"); err != nil {
-		return err
-	}
-	if _, err := DB.Exec(dropTasksTable); err != nil {
-		return err
-	}
-	if _, err := DB.Exec("CREATE TABLE tasks (id INTEGER PRIMARY KEY, issue_id INTEGER, title TEXT, done BOOLEAN, position TEXT, deadline DATETIME, created_at DATETIME, updated_at DATETIME)"); err != nil {
-		return err
-	}
-	if _, err := DB.Exec("INSERT INTO tasks(id, issue_id, title, position) VALUES(1, 1, 'T', ?)", notAnInt); err != nil {
-		return err
-	}
-
-	if _, err := GetTaskByID(1); err == nil {
 		t.Error(expectedScanError)
 	}
 	return nil
@@ -657,13 +578,13 @@ func TestDBNotFoundErrors(t *testing.T) {
 	})
 
 	t.Run("UpdateTask_NotFound", func(t *testing.T) {
-		if UpdateTask(&Task{ID: 999, Title: "T"}) == nil {
+		if UpdateTask(&Task{ID: 999, Title: "T"}, 1) == nil {
 			t.Error(expectedErr)
 		}
 	})
 
 	t.Run("DeleteTask_NotFound", func(t *testing.T) {
-		if DeleteTask(999) == nil {
+		if DeleteTask(999, 1) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -772,34 +693,6 @@ func TestGetIssueByID(t *testing.T) {
 	}
 	if storedIssue.Title != testIssueTitle {
 		t.Errorf("Expected title '%s', got '%s'", testIssueTitle, storedIssue.Title)
-	}
-}
-
-func TestGetTaskByID(t *testing.T) {
-	setupTestDB()
-	defer teardownTestDB()
-
-	// 1. Not Found
-	task, err := GetTaskByID(999)
-	if err != nil {
-		t.Fatalf("Expected nil error for not found, got %v", err)
-	}
-	if task != nil {
-		t.Errorf("Expected nil task for not found, got %v", task)
-	}
-
-	// 2. Success
-	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
-	newTask := &Task{IssueID: issue.ID, Title: testTaskTitle}
-	CreateTask(newTask)
-
-	storedTask, err := GetTaskByID(newTask.ID)
-	if err != nil {
-		t.Fatalf("Failed to get task: %v", err)
-	}
-	if storedTask.Title != testTaskTitle {
-		t.Errorf("Expected title '%s', got '%s'", testTaskTitle, storedTask.Title)
 	}
 }
 

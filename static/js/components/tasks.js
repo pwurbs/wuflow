@@ -53,7 +53,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { checkbox.checked = !checkbox.checked; return; }
         task.done = checkbox.checked;
         try {
-          await updateTask(task);
+          await updateTask(currentIssue.project_id, currentIssue.id, task);
           li.className = `task-item ${task.done ? 'done' : ''}`;
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         } catch (err) {
@@ -69,7 +69,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         if (!userCan(state.currentUser, ACTION_DELETE_TASK)) return;
         if (await showConfirm('Delete Task', `Delete "${task.title}"?`, 'Delete')) {
           try {
-            await deleteTask(task.id);
+            await deleteTask(currentIssue.project_id, currentIssue.id, task.id);
             // Remove from local array to update UI immediately if needed
             const index = currentIssue.tasks.findIndex(t => t.id === task.id);
             if (index > -1) currentIssue.tasks.splice(index, 1);
@@ -139,7 +139,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
           if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { cancelEdit(); return; }
           task.title = newTitle;
           try {
-            await updateTask(task);
+            await updateTask(currentIssue.project_id, currentIssue.id, task);
             showNotification('Task updated');
             if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
           } catch (err) {
@@ -175,7 +175,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
         task.deadline = newDate;
         try {
-          await updateTask(task);
+          await updateTask(currentIssue.project_id, currentIssue.id, task);
           const display = li.querySelector('.task-deadline-display');
           display.textContent = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
           deadlineContainer.classList.toggle('no-deadline', !task.deadline);

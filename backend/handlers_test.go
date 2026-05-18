@@ -23,8 +23,8 @@ const (
 	apiIssues1Archive    = apiIssues1 + archiveSuffix
 	apiIssues1Unarchive  = apiIssues1 + unarchiveSuffix
 	invalidIssuePath     = apiIssuesBase + "999"
-	apiTasks             = "/api/tasks"
-	apiTasksBase         = "/api/tasks/"
+	apiTasks             = "/api/projects/1/issues/1/tasks"
+	apiTasksBase         = "/api/projects/1/issues/1/tasks/"
 	apiTasks1            = apiTasksBase + "1"
 	apiLabels            = "/api/projects/1/labels"
 	apiLabelsBase        = "/api/projects/1/labels/"
@@ -400,7 +400,7 @@ func TestHandleCreateTaskPost(t *testing.T) {
 	task := &Task{Title: testTaskTitleNew, IssueID: issue.ID}
 	body, _ := json.Marshal(task)
 
-	// URL path structure: /api/tasks
+	// URL path structure: /api/projects/{pId}/issues/{iId}/tasks
 	req, err := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
@@ -548,6 +548,10 @@ func TestHandleIssuePutInvalidJSON(t *testing.T) {
 }
 
 func TestHandleCreateTaskPostInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
+
 	req, err := http.NewRequest("POST", apiTasks, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -564,28 +568,11 @@ func TestHandleCreateTaskPostInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestHandleCreateTaskMissingIssueID(t *testing.T) {
-	// Post task without IssueID
-	task := &Task{Title: "Orphan Task"} // IssueID is 0
-	body, _ := json.Marshal(task)
-
-	req, err := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
-
-	rr := httptest.NewRecorder()
-
-	testAPI.ServeHTTP(rr, req)
-
-	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf(wrongStatusCode,
-			status, http.StatusBadRequest)
-	}
-}
-
 func TestHandleTaskInvalidID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
+
 	req, err := http.NewRequest("PUT", apiTasksBase+"invalid", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -602,6 +589,12 @@ func TestHandleTaskInvalidID(t *testing.T) {
 }
 
 func TestHandleTaskPutInvalidJSON(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(issue)
+	CreateTask(&Task{IssueID: issue.ID, Title: "T"})
+
 	req, err := http.NewRequest("PUT", apiTasks1, bytes.NewBufferString(invalidJSON))
 	if err != nil {
 		t.Fatal(err)
@@ -978,8 +971,12 @@ func TestHandleCreateIssueInvalidInput(t *testing.T) {
 }
 
 func TestHandleTaskInvalidInput(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
+
 	// Empty Title
-	task := Task{Title: "", IssueID: 1}
+	task := Task{Title: ""}
 	body, _ := json.Marshal(task)
 	req, _ := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -1019,6 +1016,7 @@ func TestHandleProjectInvalidInput(t *testing.T) {
 func TestHandleTaskRefOnNonExistentID(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
+	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
 
 	// 1. PUT non-existent task
 	task := &Task{Title: "Updated Task", Done: true}
@@ -1045,21 +1043,94 @@ func TestHandleTaskRefOnNonExistentID(t *testing.T) {
 	}
 }
 
-func TestHandleCreateTaskWithNonExistentIssueID(t *testing.T) {
+func TestCreateTask_URLIsSourceOfTruth(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	// POST task for non-existent issue
-	task := &Task{IssueID: 999, Title: "Orphan Task"}
-	body, _ := json.Marshal(task)
-	req, _ := http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
+	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(issue)
+
+	// Body claims issue_id=999 (which does not exist); URL pins iId=issue.ID.
+	body, _ := json.Marshal(&Task{Title: "Task", IssueID: 999})
+	url := fmt.Sprintf("/api/projects/1/issues/%d/tasks", issue.ID)
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 
-	if status := rr.Code; status != http.StatusBadRequest {
-		t.Errorf("POST /api/tasks (issue_id=999): "+wrongStatusCode,
-			status, http.StatusBadRequest)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("POST %s: %v, want %v", url, rr.Code, http.StatusCreated)
+	}
+
+	tasks, _ := GetTasksByIssueID(issue.ID)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task on issue %d, got %d", issue.ID, len(tasks))
+	}
+	if tasks[0].IssueID != issue.ID {
+		t.Errorf("persisted IssueID = %d, want %d (URL must override body)", tasks[0].IssueID, issue.ID)
+	}
+}
+
+func TestTaskOwnership_404(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Project 1 with issue A and a task; project 2 with issue B (no tasks).
+	CreateProject(&Project{Name: "P2"})
+	issueA := &Issue{Title: "A", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(issueA)
+	issueB := &Issue{Title: "B", Status: StatusOpen, ProjectID: 2}
+	CreateIssue(issueB)
+	task := &Task{IssueID: issueA.ID, Title: "T"}
+	CreateTask(task)
+
+	body, _ := json.Marshal(&Task{Title: "Mutated"})
+
+	cases := []struct {
+		name string
+		url  string
+	}{
+		// Task belongs to issueA; addressed via issueB → UPDATE/DELETE filters by (id, issue_id), zero rows → 404.
+		{"cross_issue", fmt.Sprintf("/api/projects/1/issues/%d/tasks/%d", issueB.ID, task.ID)},
+		// Issue belongs to project 1; addressed via project 2 → GetIssueByIDInProject=nil.
+		{"cross_project", fmt.Sprintf("/api/projects/2/issues/%d/tasks/%d", issueA.ID, task.ID)},
+		// Nonexistent iId in the project.
+		{"missing_issue", fmt.Sprintf("/api/projects/1/issues/999/tasks/%d", task.ID)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name+"_PUT", func(t *testing.T) {
+			req, _ := http.NewRequest("PUT", tc.url, bytes.NewBuffer(body))
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+			rr := httptest.NewRecorder()
+			testAPI.ServeHTTP(rr, req)
+			if rr.Code != http.StatusNotFound {
+				t.Errorf("PUT %s: got %v, want 404", tc.url, rr.Code)
+			}
+		})
+		t.Run(tc.name+"_DELETE", func(t *testing.T) {
+			req, _ := http.NewRequest("DELETE", tc.url, nil)
+			req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+			rr := httptest.NewRecorder()
+			testAPI.ServeHTTP(rr, req)
+			if rr.Code != http.StatusNotFound {
+				t.Errorf("DELETE %s: got %v, want 404", tc.url, rr.Code)
+			}
+		})
+	}
+}
+
+func TestMethodNotAllowed_Tasks(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	req, _ := http.NewRequest("GET", "/api/projects/1/issues/1/tasks", nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET /api/projects/1/issues/1/tasks: got %v, want 405", rr.Code)
 	}
 }
 
@@ -1115,17 +1186,18 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	task := &Task{IssueID: archivedIssue2.ID, Title: "Task"}
 	// Bypass nil to create a task for an archived issue for testing
 	CreateTask(task)
-	taskPath := apiTasksBase + strconv.Itoa(task.ID)
+	tasksOnIssue := fmt.Sprintf("/api/projects/1/issues/%d/tasks", archivedIssue2.ID)
+	taskPath := fmt.Sprintf("%s/%d", tasksOnIssue, task.ID)
 
 	// 5. Try to add a task to archived issue (blocked)
-	newTask := &Task{IssueID: archivedIssue2.ID, Title: testTaskTitleNew}
+	newTask := &Task{Title: testTaskTitleNew}
 	body, _ = json.Marshal(newTask)
-	req, _ = http.NewRequest("POST", apiTasks, bytes.NewBuffer(body))
+	req, _ = http.NewRequest("POST", tasksOnIssue, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
 	rr = httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusForbidden {
-		t.Errorf("POST /api/tasks: expected 403 Forbidden, got %v", rr.Code)
+		t.Errorf("POST %s: expected 403 Forbidden, got %v", tasksOnIssue, rr.Code)
 	}
 
 	// 6. Try to update task of archived issue (blocked)
@@ -3282,7 +3354,7 @@ func TestHandleProjectOpenIssuesTasksDBError(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create an open issue so the query returns rows, then drop the tasks table
-	// so GetAllTasks fails inside GetOpenIssuesByProject.
+	// so getTasksForIssues fails inside GetOpenIssuesByProject.
 	CreateIssue(&Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: 1})
 	if _, err := DB.Exec("DROP TABLE tasks"); err != nil {
 		t.Fatal(err)

@@ -213,10 +213,10 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 	hf("POST", "/api/projects/{pId}/releases/{id}/release", withProjectResource(ActionTriggerRelease, handleTriggerRelease), authAPI)
 	hf("POST", "/api/projects/{pId}/releases/{id}/reopen", withProjectResource(ActionTriggerRelease, handleReopenRelease), authAPI)
 
-	// --- Tasks (flat — scoping deferred) --------------------------------------
-	hf("POST", "/api/tasks", withRole(ActionCreateTask, handleCreateTask), authAPI)
-	hf("PUT", "/api/tasks/{id}", withResource(ActionUpdateTask, handlePutTask), authAPI)
-	hf("DELETE", "/api/tasks/{id}", withResource(ActionDeleteTask, handleDeleteTask), authAPI)
+	// --- Project- and issue-scoped tasks --------------------------------------
+	hf("POST", "/api/projects/{pId}/issues/{iId}/tasks", withIssue(ActionCreateTask, handleCreateTask), authAPI)
+	hf("PUT", "/api/projects/{pId}/issues/{iId}/tasks/{id}", withIssueResource(ActionUpdateTask, handlePutTask), authAPI)
+	hf("DELETE", "/api/projects/{pId}/issues/{iId}/tasks/{id}", withIssueResource(ActionDeleteTask, handleDeleteTask), authAPI)
 
 	// --- Misc -----------------------------------------------------------------
 	hf("GET", "/api/version", HandleGetVersion(version), authAPI)

@@ -114,7 +114,7 @@ test.describe('Notifications', () => {
       await openIssueByTitle(page, title);
       await page.fill('#new-task-title', 'My notification task');
       const taskPost = page.waitForResponse(
-        r => r.url().includes('/api/tasks') && r.request().method() === 'POST'
+        r => r.url().split('?')[0].endsWith('/tasks') && r.request().method() === 'POST'
       );
       await page.click('#add-task-btn');
       await taskPost;
@@ -127,7 +127,7 @@ test.describe('Notifications', () => {
       await openIssueByTitle(page, title);
       // Add a task first
       const taskPost = page.waitForResponse(
-        r => r.url().includes('/api/tasks') && r.request().method() === 'POST'
+        r => r.url().split('?')[0].endsWith('/tasks') && r.request().method() === 'POST'
       );
       await page.fill('#new-task-title', 'Task to delete');
       await page.click('#add-task-btn');

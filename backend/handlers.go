@@ -12,27 +12,27 @@ import (
 )
 
 const (
-	errMsgForbidden           = "Forbidden"
-	errMsgInvalidID           = "Invalid ID"
-	errMsgIssueNotFound       = "Issue not found"
-	errMsgTaskNotFound        = "Task not found"
-	errMsgArchivedReadOnly    = "Archived issues are read-only"
-	errMsgInternalServerError = "Internal server error"
-	errMsgUserNotFound        = "User not found"
-	errMsgInvalidLabel        = "Invalid label ID"
-	errMsgInvalidAssignee     = "Invalid or inactive assignee"
-	headerContentType         = "Content-Type"
-	contentTypeJSON           = "application/json"
-	loginPath                 = "/login"
-	errMsgInvalidRequestBody  = "Invalid request body"
-	errMsgFailedLogin         = "Failed login attempt"
-	errMsgInvalidCreds        = "Invalid email or password"
-	errMsgTooManyAttempts     = "Too many login attempts, please try again later"
-	errMsgLabelNotFound       = "Label not found"
-	errMsgProjectNotFound     = "Project not found"
-	errMsgInvalidProject      = "Invalid project ID"
-	errMsgDefaultProject      = "Cannot delete or rename the default project"
-	errMsgProjectHasIssues    = "Cannot delete project with assigned issues"
+	errMsgForbidden             = "Forbidden"
+	errMsgInvalidID             = "Invalid ID"
+	errMsgIssueNotFound         = "Issue not found"
+	errMsgTaskNotFound          = "Task not found"
+	errMsgArchivedReadOnly      = "Archived issues are read-only"
+	errMsgInternalServerError   = "Internal server error"
+	errMsgUserNotFound          = "User not found"
+	errMsgInvalidLabel          = "Invalid label ID"
+	errMsgInvalidAssignee       = "Invalid or inactive assignee"
+	headerContentType           = "Content-Type"
+	contentTypeJSON             = "application/json"
+	loginPath                   = "/login"
+	errMsgInvalidRequestBody    = "Invalid request body"
+	errMsgFailedLogin           = "Failed login attempt"
+	errMsgInvalidCreds          = "Invalid email or password"
+	errMsgTooManyAttempts       = "Too many login attempts, please try again later"
+	errMsgLabelNotFound         = "Label not found"
+	errMsgProjectNotFound       = "Project not found"
+	errMsgInvalidProject        = "Invalid project ID"
+	errMsgDefaultProject        = "Cannot delete or rename the default project"
+	errMsgProjectHasIssues      = "Cannot delete project with assigned issues"
 	errMsgReleaseNotFound       = "Release not found"
 	errMsgInvalidRelease        = "Invalid release ID"
 	errMsgClosedReleaseReadOnly = "Closed releases are read-only"
@@ -91,7 +91,7 @@ func HandleGetVersion(version string) http.HandlerFunc {
 // before returning ok). All project-scoped routes flow through this helper
 // via withProject / withProjectResource, so no other handler will change.
 func checkProjectAccess(w http.ResponseWriter, r *http.Request) (int, bool) {
-	pID, err := strconv.Atoi(r.PathValue("pId"))
+	pID, err := strconv.Atoi(r.PathValue(pathParamProjectID))
 	if err != nil || pID <= 0 {
 		http.Error(w, errMsgInvalidProject, http.StatusBadRequest)
 		return 0, false
@@ -109,6 +109,13 @@ func checkProjectAccess(w http.ResponseWriter, r *http.Request) (int, bool) {
 	return pID, true
 }
 
+// Path variable names used in route patterns registered with http.ServeMux.
+const (
+	pathParamProjectID  = "pId"
+	pathParamIssueID    = "iId"
+	pathParamResourceID = "id"
+)
+
 // resourceIDFromPath parses an integer path variable, writing 400 on failure.
 func resourceIDFromPath(w http.ResponseWriter, r *http.Request, name string) (int, bool) {
 	id, err := strconv.Atoi(r.PathValue(name))
@@ -122,6 +129,8 @@ func resourceIDFromPath(w http.ResponseWriter, r *http.Request, name string) (in
 type resourceHandler func(w http.ResponseWriter, r *http.Request, id int)
 type projectHandler func(w http.ResponseWriter, r *http.Request, projectID int)
 type projectResHandler func(w http.ResponseWriter, r *http.Request, projectID, resourceID int)
+type issueHandler func(w http.ResponseWriter, r *http.Request, projectID, issueID int, issue *Issue)
+type issueResHandler func(w http.ResponseWriter, r *http.Request, projectID, issueID, resourceID int, issue *Issue)
 
 // withRole gates a plain handler behind a role-based permission check.
 func withRole(action Action, h http.HandlerFunc) http.HandlerFunc {
@@ -142,7 +151,7 @@ func withResource(action Action, h resourceHandler) http.HandlerFunc {
 			denyForbidden(w, r, action)
 			return
 		}
-		id, ok := resourceIDFromPath(w, r, "id")
+		id, ok := resourceIDFromPath(w, r, pathParamResourceID)
 		if !ok {
 			return
 		}
@@ -180,11 +189,78 @@ func withProjectResource(action Action, h projectResHandler) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		resourceID, ok := resourceIDFromPath(w, r, "id")
+		resourceID, ok := resourceIDFromPath(w, r, pathParamResourceID)
 		if !ok {
 			return
 		}
 		h(w, r, projectID, resourceID)
+	}
+}
+
+// withIssue loads the {iId} issue (scoped to the path's project) and passes
+// it to h, so child-collection handlers (e.g. POST tasks) don't repeat the
+// fetch or the archive lookup.
+func withIssue(action Action, h issueHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !Can(GetRoleFromContext(r.Context()), action) {
+			denyForbidden(w, r, action)
+			return
+		}
+		projectID, ok := checkProjectAccess(w, r)
+		if !ok {
+			return
+		}
+		issueID, ok := resourceIDFromPath(w, r, pathParamIssueID)
+		if !ok {
+			return
+		}
+		issue, err := GetIssueByIDInProject(issueID, projectID)
+		if err != nil {
+			LogError("withIssue: GetIssueByIDInProject failed", "issue_id", issueID, "project_id", projectID, "error", err)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return
+		}
+		if issue == nil {
+			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+			return
+		}
+		h(w, r, projectID, issueID, issue)
+	}
+}
+
+// withIssueResource is withIssue plus a {id} child-resource ID. Ownership of
+// {id} under {iId} is NOT verified here — the mutating DB helper filters by
+// both id AND issue_id, so a wrong-issue resource affects zero rows and the
+// handler maps ErrTaskNotFound → 404.
+func withIssueResource(action Action, h issueResHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !Can(GetRoleFromContext(r.Context()), action) {
+			denyForbidden(w, r, action)
+			return
+		}
+		projectID, ok := checkProjectAccess(w, r)
+		if !ok {
+			return
+		}
+		issueID, ok := resourceIDFromPath(w, r, pathParamIssueID)
+		if !ok {
+			return
+		}
+		issue, err := GetIssueByIDInProject(issueID, projectID)
+		if err != nil {
+			LogError("withIssueResource: GetIssueByIDInProject failed", "issue_id", issueID, "project_id", projectID, "error", err)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return
+		}
+		if issue == nil {
+			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+			return
+		}
+		resourceID, ok := resourceIDFromPath(w, r, pathParamResourceID)
+		if !ok {
+			return
+		}
+		h(w, r, projectID, issueID, resourceID, issue)
 	}
 }
 
@@ -544,44 +620,28 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, projectID, id int
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleCreateTask handles POST /api/tasks.
-func handleCreateTask(w http.ResponseWriter, r *http.Request) {
+// handleCreateTask handles POST /api/projects/{pId}/issues/{iId}/tasks.
+func handleCreateTask(w http.ResponseWriter, r *http.Request, _ int, issueID int, issue *Issue) {
 	var t Task
 	if !decodeAndValidate(w, r, &t, validateTask) {
 		return
 	}
 
 	userEmail := GetEmailFromContext(r.Context())
+	t.IssueID = issueID
 
-	if t.IssueID == 0 {
-		http.Error(w, "Issue ID is required", http.StatusBadRequest)
-		return
-	}
-
-	// Check if issue is archived
-	issue, err := GetIssueByID(t.IssueID)
-	if err != nil {
-		LogError("GetIssueByID failed for task creation check", "id", t.IssueID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if issue == nil {
-		LogWarn("Task creation failed: Issue not found", "issue_id", t.IssueID, "user_email", userEmail)
-		http.Error(w, errMsgIssueNotFound, http.StatusBadRequest)
-		return
-	}
 	if issue.Status == StatusArchive {
-		LogWarn("Task creation failed: Issue archived", "issue_id", t.IssueID, "user_email", userEmail)
+		LogWarn("Task creation failed: Issue archived", "issue_id", issueID, "user_email", userEmail)
 		http.Error(w, "Cannot add tasks to archived issues", http.StatusForbidden)
 		return
 	}
 
 	if err := CreateTask(&t); err != nil {
-		LogError("CreateTask failed", "issue_id", t.IssueID, "error", err, "user_email", userEmail)
+		LogError("CreateTask failed", "issue_id", issueID, "error", err, "user_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
-	LogInfo("Task created", "id", t.ID, "issue_id", t.IssueID, "user_email", userEmail)
+	LogInfo("Task created", "id", t.ID, "issue_id", issueID, "user_email", userEmail)
 	w.Header().Set(headerContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(t); err != nil {
@@ -589,8 +649,8 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handlePutTask updates an existing task, checking for archived issue status.
-func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
+// handlePutTask updates an existing task.
+func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, issue *Issue) {
 	var t Task
 	if !decodeAndValidate(w, r, &t, validateTask) {
 		return
@@ -598,31 +658,15 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
 
 	userEmail := GetEmailFromContext(r.Context())
 
-	// Check if parent issue is archived
-	task, err := GetTaskByID(id)
-	if err != nil {
-		LogError("GetTaskByID failed for task update check", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if task == nil {
-		http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
-		return
-	}
-	issue, err := GetIssueByID(task.IssueID)
-	if err != nil {
-		LogError("GetIssueByID failed for task update check", "id", task.IssueID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if issue != nil && issue.Status == StatusArchive {
+	if issue.Status == StatusArchive {
 		LogWarn("Task update failed: Issue archived", "id", id, "user_email", userEmail)
 		http.Error(w, "Tasks of archived issues are read-only", http.StatusForbidden)
 		return
 	}
 
 	t.ID = id
-	if err := UpdateTask(&t); err != nil {
+	t.IssueID = issueID
+	if err := UpdateTask(&t, issueID); err != nil {
 		if err == ErrTaskNotFound {
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
@@ -638,31 +682,14 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, id int) {
 	}
 }
 
-// handleDeleteTask removes a task, checking for archived issue status.
-func handleDeleteTask(w http.ResponseWriter, _ *http.Request, id int) {
-	// Check if parent issue is archived
-	task, err := GetTaskByID(id)
-	if err != nil {
-		LogError("GetTaskByID failed for task delete check", "id", id, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if task == nil {
-		http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
-		return
-	}
-	issue, err := GetIssueByID(task.IssueID)
-	if err != nil {
-		LogError("GetIssueByID failed for task delete check", "id", task.IssueID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if issue != nil && issue.Status == StatusArchive {
+// handleDeleteTask removes a task.
+func handleDeleteTask(w http.ResponseWriter, _ *http.Request, _ int, issueID int, id int, issue *Issue) {
+	if issue.Status == StatusArchive {
 		http.Error(w, "Tasks of archived issues cannot be deleted", http.StatusForbidden)
 		return
 	}
 
-	if err := DeleteTask(id); err != nil {
+	if err := DeleteTask(id, issueID); err != nil {
 		if err == ErrTaskNotFound {
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
@@ -709,6 +736,23 @@ func handleCreateLabel(w http.ResponseWriter, r *http.Request, projectID int) {
 	}
 }
 
+// handleDeleteLabel handles DELETE /api/projects/{pId}/labels/{id}.
+// projectID/labelID are validated by withProjectResource before this runs.
+func handleDeleteLabel(w http.ResponseWriter, r *http.Request, projectID, labelID int) {
+	userEmail := GetEmailFromContext(r.Context())
+	if err := DeleteLabel(labelID, projectID); err != nil {
+		if err == ErrLabelNotFound {
+			http.Error(w, errMsgLabelNotFound, http.StatusNotFound)
+			return
+		}
+		LogError("DeleteLabel failed", "label_id", labelID, "project_id", projectID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	LogInfo("Label deleted", "label_id", labelID, "project_id", projectID, "user_email", userEmail)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleGetStatusConfig handles GET /api/projects/{pId}/statusconfig.
 func handleGetStatusConfig(w http.ResponseWriter, _ *http.Request, projectID int) {
 	cfg, err := GetStatusConfig(projectID)
@@ -741,23 +785,6 @@ func handleUpdateStatusConfig(w http.ResponseWriter, r *http.Request, projectID 
 	if err := json.NewEncoder(w).Encode(cfg); err != nil {
 		LogError("handleUpdateStatusConfig: failed to encode response", "error", err)
 	}
-}
-
-// handleDeleteLabel handles DELETE /api/projects/{pId}/labels/{id}.
-// projectID/labelID are validated by withProjectResource before this runs.
-func handleDeleteLabel(w http.ResponseWriter, r *http.Request, projectID, labelID int) {
-	userEmail := GetEmailFromContext(r.Context())
-	if err := DeleteLabel(labelID, projectID); err != nil {
-		if err == ErrLabelNotFound {
-			http.Error(w, errMsgLabelNotFound, http.StatusNotFound)
-			return
-		}
-		LogError("DeleteLabel failed", "label_id", labelID, "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	LogInfo("Label deleted", "label_id", labelID, "project_id", projectID, "user_email", userEmail)
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // -----------------------------------------------------------------------------

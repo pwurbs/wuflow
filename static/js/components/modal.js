@@ -1254,7 +1254,7 @@ async function handleTaskSubmit(e) {
   };
 
   try {
-    const newTask = await createTask(taskData);
+    const newTask = await createTask(state.currentIssue.project_id, state.currentIssue.id, taskData);
     if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
     state.currentIssue.tasks.push(newTask);
     renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
@@ -1281,7 +1281,7 @@ async function saveTaskOrder(issue) {
     const task = issue.tasks.find(t => t.id === id);
     if (task && task.position !== index) {
       task.position = index;
-      updates.push(updateTask(task));
+      updates.push(updateTask(issue.project_id, issue.id, task));
     }
   });
 

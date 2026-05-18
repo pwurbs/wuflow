@@ -52,18 +52,22 @@ Each layer either passes the request through or writes an HTTP error and returns
 
 ## Factories
 
-Every protected route flows through one of four factories. They all start with the same role-based permission check; what differs is which URL slots they parse and pass to the handler.
+Every protected route flows through one of six factories. They all start with the same role-based permission check; what differs is which URL slots they parse and pass to the handler.
 
 | Factory | Use it for | Steps it runs (in order) | Handler signature |
 | :--- | :--- | :--- | :--- |
 | `withRole(action, h)` | Routes with no path vars (`POST /api/users`, `GET /api/projects`). | role check → handler | `(w, r)` |
-| `withResource(action, h)` | Routes with `{id}` but no project (`PUT /api/users/{id}`, task routes). | role check → parse `{id}` → handler | `(w, r, id)` |
+| `withResource(action, h)` | Routes with `{id}` but no project (`PUT /api/users/{id}`). | role check → parse `{id}` → handler | `(w, r, id)` |
 | `withProject(action, h)` | Routes with `{pId}` but no resource id (`POST /api/projects/{pId}/issues`, list endpoints). | role check → `checkProjectAccess` (parse `{pId}` + project exists) → handler | `(w, r, projectID)` |
 | `withProjectResource(action, h)` | Routes with `{pId}` AND `{id}` (`PUT /api/projects/{pId}/issues/{id}`, etc.). | role check → `checkProjectAccess` → parse `{id}` → handler | `(w, r, projectID, id)` |
+| `withIssue(action, h)` | Routes scoped to an issue with no further resource id (`POST /api/projects/{pId}/issues/{iId}/tasks`). | role check → `checkProjectAccess` → parse `{iId}` → `GetIssueByIDInProject` (nil → 404) → handler | `(w, r, projectID, issueID, *Issue)` |
+| `withIssueResource(action, h)` | Routes scoped to an issue with an additional `{id}` (`PUT /api/projects/{pId}/issues/{iId}/tasks/{id}`). | role check → `checkProjectAccess` → parse `{iId}` → `GetIssueByIDInProject` → parse `{id}` → handler | `(w, r, projectID, issueID, id, *Issue)` |
 
-In all four, the role check fires first and short-circuits with `403` before any path parsing or DB query.
+In all six, the role check fires first and short-circuits with `403` before any path parsing or DB query.
 
-The two project factories overlap: both run `checkProjectAccess`. The split exists so the handler signature declares what URL slots it consumes — `withProject` hands you only `projectID`; `withProjectResource` also parses `{id}` and hands you both. Without the split, every `{id}` handler would start with a duplicate `resourceIDFromPath(...)` call.
+**On `withIssue` / `withIssueResource`**: tasks are currently the only issue-nested resource, but these factories are intentionally generic — comments, activity logs, and attachments are planned as further children of an issue. Each will reuse the same factories with no changes; the route line and DB helpers are the only additions needed (mirror the task pattern: child mutations must include `AND issue_id = ?` in their WHERE so the ownership-in-SQL discipline below extends one level deeper).
+
+The project factories overlap: each runs `checkProjectAccess`, and the two issue-scoped variants additionally run `GetIssueByIDInProject` so the loaded issue is available to the handler (which is how the task handlers run the archive check without a second DB query). The split exists so the handler signature declares what URL slots it consumes — without the split, every handler would start with a duplicate `resourceIDFromPath(...)` call and a duplicate issue lookup.
 
 **Why role check first**: tests that assert `403 Forbidden` set a `RoleUser` (or empty) context but do **not** call `setupTestDB()`. If the role check ran after a DB query, those tests would panic on `nil DB`. Keep the order.
 

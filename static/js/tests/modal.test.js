@@ -289,7 +289,7 @@ describe('Modal Component', () => {
   });
 
   it('should handle task creation', async () => {
-    const issue = { id: 1, title: 'Task Parent', tasks: [] };
+    const issue = { id: 1, project_id: 7, title: 'Task Parent', tasks: [] };
     await openModalWithMock(issue);
 
     document.getElementById('new-task-title').value = 'Subtask 1';
@@ -301,7 +301,7 @@ describe('Modal Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.createTask).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.createTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({
       title: 'Subtask 1',
       issue_id: 1
     }));
@@ -1388,6 +1388,7 @@ describe('Modal Component', () => {
     it('should save task order', async () => {
       const issue = {
         id: 1,
+        project_id: 7,
         tasks: [
           { id: 101, title: 'T1', position: 0 },
           { id: 102, title: 'T2', position: 1 }
@@ -1407,7 +1408,7 @@ describe('Modal Component', () => {
       const taskOrderCallback = tasks.renderTasks.mock.calls[0][3].onTaskOrderSave;
       await taskOrderCallback();
 
-      expect(api.updateTask).toHaveBeenCalled();
+      expect(api.updateTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({ id: expect.any(Number) }));
       expect(issue.tasks[0].id).toBe(102);
     });
 
@@ -1722,7 +1723,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle task title enter keypress', async () => {
-      const issue = { id: 1, title: 'Test' };
+      const issue = { id: 1, project_id: 7, title: 'Test' };
       await openModalWithMock(issue);
 
       const input = document.getElementById('new-task-title');
@@ -1976,6 +1977,7 @@ describe('Modal Component', () => {
     it('should show notification when saveTaskOrder fails', async () => {
       const issue = {
         id: 1,
+        project_id: 7,
         tasks: [
           { id: 101, title: 'T1', position: 0 },
           { id: 102, title: 'T2', position: 1 }

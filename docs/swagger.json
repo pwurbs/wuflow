@@ -243,12 +243,9 @@
           },
           "label_id": {
             "type": "integer"
-          },
-          "project_id": {
-            "type": "integer",
-            "description": "Optional. Defaults to 1 (default project) if omitted."
           }
         },
+        "description": "Project is determined by the URL's :pId; any project_id in the body is ignored.",
         "required": [
           "title",
           "status",
@@ -323,16 +320,13 @@
       },
       "TaskCreateRequest": {
         "type": "object",
+        "description": "Parent issue is determined by the URL's :iId; any issue_id in the body is ignored.",
         "properties": {
-          "issue_id": {
-            "type": "integer"
-          },
           "title": {
             "type": "string"
           }
         },
         "required": [
-          "issue_id",
           "title"
         ]
       },
@@ -1020,9 +1014,29 @@
         }
       }
     },
-    "/tasks": {
+    "/projects/{pId}/issues/{iId}/tasks": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "iId",
+          "in": "path",
+          "required": true,
+          "description": "Parent issue ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "post": {
-        "summary": "Create task",
+        "summary": "Create task under an issue",
         "tags": [
           "Tasks"
         ],
@@ -1046,16 +1060,41 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Parent issue is archived"
+          },
+          "404": {
+            "description": "Project or issue not found, or issue is not in this project"
           }
         }
       }
     },
-    "/tasks/{id}": {
+    "/projects/{pId}/issues/{iId}/tasks/{id}": {
       "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "iId",
+          "in": "path",
+          "required": true,
+          "description": "Parent issue ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
         {
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Task ID",
           "schema": {
             "type": "integer"
           }
@@ -1086,6 +1125,12 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Parent issue is archived"
+          },
+          "404": {
+            "description": "Task not under this issue, or issue not in this project"
           }
         }
       },
@@ -1097,6 +1142,12 @@
         "responses": {
           "204": {
             "description": "Task deleted"
+          },
+          "403": {
+            "description": "Parent issue is archived"
+          },
+          "404": {
+            "description": "Task not under this issue, or issue not in this project"
           }
         }
       }

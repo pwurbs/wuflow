@@ -17,9 +17,10 @@
 - Improved handling of session revocation failure on refresh token mismatch
 - Added a password legitimation step when user with admin role wants to change password or promote the role of another user
 - User must now enter the current password when setting a new own password
-- Complete API refactoring: Change most API endpoints to project-scoped, use Go ServeMux to register routes including method, simplify and standardize handler functions
+- Complete API refactoring: Change API endpoints for project-scoped resources to project-scoped endpoints, use Go ServeMux to register routes including method, simplify and standardize handler functions
 - Centralized and changed log to JSON format to allow better process in log analyses like Loki and satisfy gosec (G706)
 - Allowed horizontal rule in issue description
+- Harmonized SQL queries in db.go (Removed useless DB.prepare)
 
 # 1.2.1
 

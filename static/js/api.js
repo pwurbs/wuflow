@@ -169,8 +169,8 @@ export async function unarchiveIssue(projectId, id) {
   return await res.json();
 }
 
-export async function createTask(task) {
-  const res = await authFetch(`${API_URL}/tasks`, {
+export async function createTask(projectId, issueId, task) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
@@ -179,8 +179,8 @@ export async function createTask(task) {
   return res.json();
 }
 
-export async function updateTask(task) {
-  const res = await authFetch(`${API_URL}/tasks/${task.id}`, {
+export async function updateTask(projectId, issueId, task) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/${task.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
@@ -189,8 +189,8 @@ export async function updateTask(task) {
   return res.json();
 }
 
-export async function deleteTask(id) {
-  const res = await authFetch(`${API_URL}/tasks/${id}`, { method: 'DELETE' });
+export async function deleteTask(projectId, issueId, taskId) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/${taskId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete task');
 }
 

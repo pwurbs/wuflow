@@ -30,9 +30,9 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/projects/:pId/issues/:id` | DELETE | `handleDeleteIssue` | Admin | Delete issue |
 | `/projects/:pId/issues/:id/archive` | POST | `handleArchiveIssue` | Admin | Archive an issue |
 | `/projects/:pId/issues/:id/unarchive` | POST | `handleUnarchiveIssue` | Admin | Unarchive an issue (moves to Done) |
-| `/tasks` | POST | `handleCreateTask` | Required | Create task (IssueID in body) |
-| `/tasks/:id` | PUT | `handlePutTask` | Required | Update task |
-| `/tasks/:id` | DELETE | `handleDeleteTask` | Required | Delete task |
+| `/projects/:pId/issues/:iId/tasks` | POST | `handleCreateTask` | Required | Create task under an issue |
+| `/projects/:pId/issues/:iId/tasks/:id` | PUT | `handlePutTask` | Required | Update task |
+| `/projects/:pId/issues/:iId/tasks/:id` | DELETE | `handleDeleteTask` | Required | Delete task |
 | `/projects/:pId/labels` | GET | `handleListLabels` | Required | List labels for a project |
 | `/projects/:pId/labels` | POST | `handleCreateLabel` | Admin | Create label for a project |
 | `/projects/:pId/labels/:id` | DELETE | `handleDeleteLabel` | Admin | Delete label from a project |
@@ -51,7 +51,7 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/projects/:pId/releases/:id/reopen` | POST | `handleReopenRelease` | Admin | Reopen a closed release |
 | `/version` | GET | `Anonymous Func` | Public | Get app version |
 
-Resources looked up by `{id}` under `/projects/:pId/` are verified to belong to the named project — a request for an issue/release in another project returns `404`.
+Resources looked up by `{id}` under `/projects/:pId/` are verified to belong to the named project — a request for an issue/release/task in another project returns `404`. Tasks additionally verify that `{id}` belongs to the `{iId}` named in the URL; cross-issue references return `404`.
 
 **Legend:**
 - **Public**: No authentication required
@@ -197,7 +197,7 @@ Retrieves issues with status *Archive* for a specific project. Loaded lazily whe
   - `404 Not Found` - Project doesn't exist
 
 ### Create Issue
-Creates a new issue in the named project. The URL's `pId` is the source of truth — any `project_id` field in the body is overridden.
+Creates a new issue in the named project.
 - **POST** `/projects/:pId/issues`
 - **Body**:
   ```json
@@ -222,7 +222,6 @@ Updates an existing issue. Returns `404` if the issue belongs to a different pro
   - Archived issues are read-only — `PUT` returns `403 Forbidden`
   - Setting `status` to `Archive` via `PUT` returns `400 Bad Request`; use `POST /projects/:pId/issues/:id/archive` instead
   - Supports optimistic locking via `If-Match` / `ETag` headers
-  - The project assignment is pinned by the URL; `project_id` in the body is ignored
 
 ### Delete Issue
 Deletes an issue and its associated tasks (Admin or Sysadmin).
@@ -253,21 +252,27 @@ Moves an archived issue back to Done status (Admin or Sysadmin).
 
 ## Tasks
 
+Tasks are nested under their parent issue.
+
 ### Create Task
 Adds a task to a specific issue.
-- **POST** `/tasks`
+- **POST** `/projects/:pId/issues/:iId/tasks`
+- **Path parameters**: `pId` (project), `iId` (parent issue)
 - **Body**:
   ```json
   {
-    "issue_id": 1,
     "title": "Task Title",
     "description": "Optional Markdown content"
   }
   ```
+- **Errors**:
+  - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
+  - `403 Forbidden` - Parent issue is archived
 
 ### Update Task
 Updates a task (e.g., toggle done status, change title).
-- **PUT** `/tasks/:id`
+- **PUT** `/projects/:pId/issues/:iId/tasks/:id`
+- **Path parameters**: `pId`, `iId`, `id` (task)
 - **Body**:
   ```json
   {
@@ -275,10 +280,16 @@ Updates a task (e.g., toggle done status, change title).
     "done": true
   }
   ```
+- **Errors**:
+  - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
+  - `403 Forbidden` - Parent issue is archived
 
 ### Delete Task
 Deletes a task.
-- **DELETE** `/tasks/:id`
+- **DELETE** `/projects/:pId/issues/:iId/tasks/:id`
+- **Errors**:
+  - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
+  - `403 Forbidden` - Parent issue is archived
 
 ## Labels
 
