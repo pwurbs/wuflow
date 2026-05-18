@@ -137,21 +137,23 @@ Creates a new user (Sysadmin only).
 - **Response**: Created user object
 - **Errors**:
   - `400 Bad Request` - Validation failed (password policy, invalid email, etc.)
-  - `409 Conflict` - Email already exists
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not a sysadmin
+  - `409 Conflict` - Email already exists
 
 ### Get User
 Retrieves a specific user by ID. Accessible to all authenticated users.
 - **GET** `/users/:id`
+- **Path parameters**: `id` (user)
 - **Response**: User object
 - **Errors**:
-  - `404 Not Found` - User doesn't exist
   - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - User doesn't exist
 
 ### Update User
 Updates an existing user (Sysadmin only).
 - **PUT** `/users/:id`
+- **Path parameters**: `id` (user)
 - **Body**:
   ```json
   {
@@ -171,34 +173,44 @@ Updates an existing user (Sysadmin only).
 - **Response**: Updated user object
 - **Errors**:
   - `400 Bad Request` - Validation failed, trying to deactivate last sysadmin, or `admin_password` missing/incorrect
-  - `404 Not Found` - User doesn't exist
-  - `409 Conflict` - Email already in use
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not a sysadmin
+  - `404 Not Found` - User doesn't exist
+  - `409 Conflict` - Email already in use
 
 ## Issues
 
 ### Get Active Issues for a Project
 Retrieves issues with status *Todo, Stage1, Stage2, Stage3, Stage4, or Done* for a specific project (board issues). Excludes *Open* and *Archive* statuses. Includes associated tasks.
-- **GET** `/projects/:id/issues/active`
+- **GET** `/projects/:pId/issues/active`
+- **Path parameters**: `pId` (project)
+- **Response**: Array of issue objects (each including their tasks)
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Project doesn't exist
 
 ### Get Open Issues for a Project
 Retrieves issues with status *Open* (backlog items) for a specific project. Loaded lazily when the Backlog view is first opened. Includes associated tasks.
-- **GET** `/projects/:id/issues/open`
+- **GET** `/projects/:pId/issues/open`
+- **Path parameters**: `pId` (project)
+- **Response**: Array of issue objects (each including their tasks)
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Project doesn't exist
 
 ### Get Archived Issues for a Project
 Retrieves issues with status *Archive* for a specific project. Loaded lazily when the Archive view is first opened. Includes associated tasks.
-- **GET** `/projects/:id/issues/archived`
+- **GET** `/projects/:pId/issues/archived`
+- **Path parameters**: `pId` (project)
+- **Response**: Array of issue objects (each including their tasks)
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Project doesn't exist
 
 ### Create Issue
 Creates a new issue in the named project.
 - **POST** `/projects/:pId/issues`
+- **Path parameters**: `pId` (project)
 - **Body**:
   ```json
   {
@@ -206,47 +218,74 @@ Creates a new issue in the named project.
     "description": "Optional Markdown content",
     "status": "Open", // Open, Todo, Stage1, Stage2, Stage3, Stage4, Done, Archive
     "priority": "Normal", // Normal, High
-    "label_id": 1 // Optional
+    "position": 0, // Optional; non-negative integer for column ordering
+    "deadline": "2026-12-31T00:00:00Z", // Optional ISO 8601; year 2000–2100
+    "planned_dates": ["2026-06-01", "2026-06-15"], // Optional; YYYY-MM-DD strings
+    "assignee_id": 3, // Optional; must reference an active user
+    "label": {"id": 1}, // Optional; must belong to the same project
+    "release_id": 2 // Optional; must belong to the same project
   }
   ```
+- **Response**: Created issue object (201 Created)
+- **Errors**:
+  - `400 Bad Request` - Validation failed
+  - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - Project doesn't exist
 
 ### Get Issue Details
 Retrieves a specific issue by ID. Returns `404` if the issue belongs to a different project than `:pId`.
 - **GET** `/projects/:pId/issues/:id`
+- **Path parameters**: `pId` (project), `id` (issue)
+- **Response**: Issue object (including associated tasks)
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - Issue doesn't exist in this project
 
 ### Update Issue
 Updates an existing issue. Returns `404` if the issue belongs to a different project than `:pId`.
 - **PUT** `/projects/:pId/issues/:id`
+- **Path parameters**: `pId` (project), `id` (issue)
 - **Body**: Partial issue object (e.g., `{"status": "Done"}`)
 - **Notes**:
   - Archived issues are read-only — `PUT` returns `403 Forbidden`
   - Setting `status` to `Archive` via `PUT` returns `400 Bad Request`; use `POST /projects/:pId/issues/:id/archive` instead
   - Supports optimistic locking via `If-Match` / `ETag` headers
+- **Response**: Updated issue object
+- **Errors**:
+  - `400 Bad Request` - Attempt to set status to `Archive` directly
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Issue is archived
+  - `404 Not Found` - Issue doesn't exist in this project
 
 ### Delete Issue
 Deletes an issue and its associated tasks (Admin or Sysadmin).
 - **DELETE** `/projects/:pId/issues/:id`
+- **Path parameters**: `pId` (project), `id` (issue)
+- **Response**: `204 No Content`
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin, or issue is archived
   - `404 Not Found` - Issue doesn't exist in this project
 
 ### Archive Issue
 Moves an issue to the Archive status (Admin or Sysadmin).
 - **POST** `/projects/:pId/issues/:id/archive`
-- **Body**: None
+- **Path parameters**: `pId` (project), `id` (issue)
 - **Response**: Updated issue object
 - **Errors**:
   - `400 Bad Request` - Issue is already archived
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Issue doesn't exist in this project
 
 ### Unarchive Issue
 Moves an archived issue back to Done status (Admin or Sysadmin).
 - **POST** `/projects/:pId/issues/:id/unarchive`
-- **Body**: None
+- **Path parameters**: `pId` (project), `id` (issue)
 - **Response**: Updated issue object
 - **Errors**:
   - `400 Bad Request` - Issue is not archived
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Issue doesn't exist in this project
 
@@ -262,48 +301,62 @@ Adds a task to a specific issue.
   ```json
   {
     "title": "Task Title",
-    "description": "Optional Markdown content"
+    "deadline": "2026-12-31T00:00:00Z", // Optional ISO 8601; year 2000–2100
+    "position": 0 // Optional; non-negative integer for ordering within the issue
   }
   ```
+- **Response**: Created task object (201 Created)
 - **Errors**:
-  - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Parent issue is archived
+  - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
 
 ### Update Task
 Updates a task (e.g., toggle done status, change title).
 - **PUT** `/projects/:pId/issues/:iId/tasks/:id`
-- **Path parameters**: `pId`, `iId`, `id` (task)
+- **Path parameters**: `pId` (project), `iId` (parent issue), `id` (task)
 - **Body**:
   ```json
   {
     "title": "Updated Title",
-    "done": true
+    "done": true,
+    "deadline": "2026-12-31T00:00:00Z", // Optional ISO 8601; year 2000–2100
+    "position": 0 // Optional; non-negative integer for ordering within the issue
   }
   ```
+- **Response**: Updated task object
 - **Errors**:
-  - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Parent issue is archived
+  - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
 
 ### Delete Task
 Deletes a task.
 - **DELETE** `/projects/:pId/issues/:iId/tasks/:id`
+- **Path parameters**: `pId` (project), `iId` (parent issue), `id` (task)
+- **Response**: `204 No Content`
 - **Errors**:
-  - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Parent issue is archived
+  - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
 
 ## Labels
 
-Labels are scoped to a project. All label endpoints are nested under `/projects/:id/`.
+Labels are scoped to a project. All label endpoints are nested under `/projects/:pId/`.
 
 ### List Labels for a Project
 Retrieves all labels belonging to a specific project. Accessible to all authenticated users.
-- **GET** `/projects/:id/labels`
+- **GET** `/projects/:pId/labels`
+- **Path parameters**: `pId` (project)
+- **Response**: Array of label objects
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Project doesn't exist
 
 ### Create Label for a Project
 Creates a new label within a project (Admin or Sysadmin).
-- **POST** `/projects/:id/labels`
+- **POST** `/projects/:pId/labels`
+- **Path parameters**: `pId` (project)
 - **Body**:
   ```json
   {
@@ -317,13 +370,17 @@ Creates a new label within a project (Admin or Sysadmin).
 - **Response**: Created label object (201 Created)
 - **Errors**:
   - `400 Bad Request` - Validation failed
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Project doesn't exist
 
 ### Delete Label from a Project
 Deletes a label from a project (Admin or Sysadmin).
-- **DELETE** `/projects/:id/labels/:lid`
+- **DELETE** `/projects/:pId/labels/:id`
+- **Path parameters**: `pId` (project), `id` (label)
+- **Response**: `204 No Content`
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Project or label doesn't exist
 
@@ -333,6 +390,8 @@ Deletes a label from a project (Admin or Sysadmin).
 Retrieves all projects. Accessible to all authenticated users.
 - **GET** `/projects`
 - **Response**: Array of project objects
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
 
 ### Create Project
 Creates a new project (Sysadmin only).
@@ -356,7 +415,8 @@ Creates a new project (Sysadmin only).
 
 ### Update Project
 Updates an existing project (Sysadmin only).
-- **PUT** `/projects/:id`
+- **PUT** `/projects/:pId`
+- **Path parameters**: `pId` (project)
 - **Body**:
   ```json
   {
@@ -374,7 +434,8 @@ Updates an existing project (Sysadmin only).
 
 ### Delete Project
 Deletes a project (Sysadmin only).
-- **DELETE** `/projects/:id`
+- **DELETE** `/projects/:pId`
+- **Path parameters**: `pId` (project)
 - **Response**: `200 OK` with confirmation message
 - **Errors**:
   - `400 Bad Request` - Cannot delete the default project (id=1) or project still has assigned issues
@@ -388,7 +449,8 @@ Board column names are stored per project in a `StatusConfig` object. The four m
 
 ### Get Status Config
 Retrieves the board column configuration for a project. Accessible to all authenticated users.
-- **GET** `/projects/:id/statusconfig`
+- **GET** `/projects/:pId/statusconfig`
+- **Path parameters**: `pId` (project)
 - **Response**:
   ```json
   {
@@ -400,11 +462,13 @@ Retrieves the board column configuration for a project. Accessible to all authen
   }
   ```
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Project doesn't exist
 
 ### Update Status Config
 Updates the board column configuration for a project (Admin or Sysadmin).
-- **PUT** `/projects/:id/statusconfig`
+- **PUT** `/projects/:pId/statusconfig`
+- **Path parameters**: `pId` (project)
 - **Body**:
   ```json
   {
@@ -420,6 +484,7 @@ Updates the board column configuration for a project (Admin or Sysadmin).
 - **Response**: Updated `StatusConfig` object
 - **Errors**:
   - `400 Bad Request` - Validation failed (invalid characters or name too long)
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Project doesn't exist
 
@@ -429,14 +494,17 @@ Releases group issues into a named, time-boxed delivery. Each release belongs to
 
 ### List Releases for a Project
 Retrieves all releases for a project, ordered by creation date.
-- **GET** `/projects/:id/releases`
+- **GET** `/projects/:pId/releases`
+- **Path parameters**: `pId` (project)
 - **Response**: Array of release objects (including embedded `owner` user if set)
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Project doesn't exist
 
 ### Create Release
 Creates a new release within a project (Admin or Sysadmin).
-- **POST** `/projects/:id/releases`
+- **POST** `/projects/:pId/releases`
+- **Path parameters**: `pId` (project)
 - **Body**:
   ```json
   {
@@ -456,6 +524,7 @@ Creates a new release within a project (Admin or Sysadmin).
 - **Response**: Created release object (201 Created)
 - **Errors**:
   - `400 Bad Request` - Validation failed
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Project doesn't exist
   - `409 Conflict` - Release name already exists in this project
@@ -463,16 +532,21 @@ Creates a new release within a project (Admin or Sysadmin).
 ### Get Release
 Retrieves a specific release by ID. Returns `404` if the release belongs to a different project than `:pId`.
 - **GET** `/projects/:pId/releases/:id`
+- **Path parameters**: `pId` (project), `id` (release)
 - **Response**: Release object (including embedded `owner` user if set)
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Release doesn't exist in this project
 
 ### Update Release
 Updates an existing open release (Admin or Sysadmin). Closed releases are read-only.
 - **PUT** `/projects/:pId/releases/:id`
+- **Path parameters**: `pId` (project), `id` (release)
 - **Body**: Same fields as Create Release
+- **Response**: Updated release object
 - **Errors**:
   - `400 Bad Request` - Validation failed
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin, or release is closed
   - `404 Not Found` - Release doesn't exist in this project
   - `409 Conflict` - Release name already exists in this project
@@ -480,25 +554,38 @@ Updates an existing open release (Admin or Sysadmin). Closed releases are read-o
 ### Delete Release
 Deletes a release (Admin or Sysadmin). Issues previously assigned to the release are unlinked but not deleted.
 - **DELETE** `/projects/:pId/releases/:id`
+- **Path parameters**: `pId` (project), `id` (release)
+- **Response**: `204 No Content`
 - **Errors**:
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Release doesn't exist in this project
 
 ### Publish (Close) Release
-Closes an open release and archives all issues assigned to it that are in Done status (Admin or Sysadmin).
+Closes an open release and optionally archives all assigned Done issues (Admin or Sysadmin).
 - **POST** `/projects/:pId/releases/:id/release`
+- **Path parameters**: `pId` (project), `id` (release)
+- **Body**:
+  ```json
+  {
+    "archive_done": true // Optional; if true, Done issues assigned to this release are archived
+  }
+  ```
 - **Response**: Updated release object
 - **Errors**:
   - `400 Bad Request` - Release is already closed
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Release doesn't exist in this project
 
 ### Reopen Release
 Reopens a closed release (Admin or Sysadmin). Issues that were archived when the release was closed are **not** automatically unarchived.
 - **POST** `/projects/:pId/releases/:id/reopen`
+- **Path parameters**: `pId` (project), `id` (release)
 - **Response**: Updated release object
 - **Errors**:
   - `400 Bad Request` - Release is not closed
+  - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Release doesn't exist in this project
 
@@ -507,3 +594,4 @@ Reopens a closed release (Admin or Sysadmin). Issues that were archived when the
 ### Get Version
 Retrieves the current application version.
 - **GET** `/version`
+- **Response**: Version string

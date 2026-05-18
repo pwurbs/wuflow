@@ -36,74 +36,19 @@
             "type": "string"
           },
           "role": {
-            "type": "string"
+            "type": "string",
+            "enum": ["user", "admin", "sysadmin"]
           },
           "active": {
             "type": "boolean"
-          }
-        }
-      },
-      "Issue": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
           },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "status": {
+          "created_at": {
             "type": "string",
-            "enum": [
-              "Open",
-              "Todo",
-              "Stage1",
-              "Stage2",
-              "Stage3",
-              "Stage4",
-              "Done",
-              "Archive"
-            ]
+            "format": "date-time"
           },
-          "priority": {
+          "updated_at": {
             "type": "string",
-            "enum": [
-              "Normal",
-              "High"
-            ]
-          },
-          "label_id": {
-            "type": "integer"
-          },
-          "project_id": {
-            "type": "integer",
-            "description": "ID of the project this issue belongs to. Defaults to 1 (default project) if not set."
-          },
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Task"
-            }
-          }
-        }
-      },
-      "Task": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "issue_id": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string"
-          },
-          "done": {
-            "type": "boolean"
+            "format": "date-time"
           }
         }
       },
@@ -127,94 +72,103 @@
           }
         }
       },
-      "LoginRequest": {
+      "Task": {
         "type": "object",
         "properties": {
-          "email": {
+          "id": {
+            "type": "integer"
+          },
+          "issue_id": {
+            "type": "integer"
+          },
+          "title": {
             "type": "string"
           },
-          "password": {
-            "type": "string"
-          }
-        }
-      },
-      "UserCreateRequest": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "first_name": {
-            "type": "string"
-          },
-          "last_name": {
-            "type": "string"
-          },
-          "password": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "user",
-              "admin",
-              "sysadmin"
-            ]
-          },
-          "active": {
+          "done": {
             "type": "boolean"
+          },
+          "position": {
+            "type": "integer",
+            "description": "Non-negative integer for ordering within the issue"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Optional. Year must be 2000–2100."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
-      "UserUpdateRequest": {
+      "Release": {
         "type": "object",
         "properties": {
-          "email": {
-            "type": "string"
+          "id": {
+            "type": "integer"
           },
-          "first_name": {
-            "type": "string"
+          "project_id": {
+            "type": "integer"
           },
-          "last_name": {
-            "type": "string"
-          },
-          "password": {
+          "name": {
             "type": "string",
-            "description": "Optional. Leave empty to keep current password."
+            "maxLength": 20
           },
-          "admin_password": {
+          "description": {
             "type": "string",
-            "description": "Required when 'password' is provided or the role is being promoted (user\u2192admin, user\u2192sysadmin, admin\u2192sysadmin). The requesting sysadmin's own current password for confirmation."
+            "maxLength": 200
           },
-          "role": {
+          "status": {
             "type": "string",
-            "enum": [
-              "user",
-              "admin",
-              "sysadmin"
-            ]
+            "enum": ["open", "closed"]
           },
-          "active": {
-            "type": "boolean"
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "release_date": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "closed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "owner_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "ID of the user responsible for this release"
+          },
+          "owner": {
+            "nullable": true,
+            "description": "Embedded owner user object, present when owner_id is set",
+            "allOf": [{"$ref": "#/components/schemas/User"}]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
-      "SelfUpdateRequest": {
+      "Issue": {
         "type": "object",
         "properties": {
-          "password": {
-            "type": "string",
-            "description": "New password."
+          "id": {
+            "type": "integer"
           },
-          "current_password": {
-            "type": "string",
-            "description": "Required when 'password' is provided. The user's current password for confirmation."
-          }
-        }
-      },
-      "IssueCreateRequest": {
-        "type": "object",
-        "properties": {
           "title": {
             "type": "string"
           },
@@ -223,49 +177,99 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "Open",
-              "Todo",
-              "Stage1",
-              "Stage2",
-              "Stage3",
-              "Stage4",
-              "Done",
-              "Archive"
-            ]
+            "enum": ["Open", "Todo", "Stage1", "Stage2", "Stage3", "Stage4", "Done", "Archive"]
           },
           "priority": {
             "type": "string",
-            "enum": [
-              "Normal",
-              "High"
-            ]
+            "enum": ["Normal", "High"]
           },
-          "label_id": {
+          "position": {
+            "type": "integer",
+            "description": "Non-negative integer for column ordering"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "planned_dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date",
+              "description": "YYYY-MM-DD"
+            },
+            "nullable": true
+          },
+          "creator_id": {
             "type": "integer"
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "updated_by": {
+            "type": "integer",
+            "nullable": true
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "release_id": {
+            "type": "integer",
+            "nullable": true
+          },
+          "label": {
+            "nullable": true,
+            "description": "Assigned label object; null if no label",
+            "allOf": [{"$ref": "#/components/schemas/Label"}]
+          },
+          "release": {
+            "nullable": true,
+            "description": "Assigned release object; null if no release",
+            "allOf": [{"$ref": "#/components/schemas/Release"}]
+          },
+          "creator": {
+            "nullable": true,
+            "allOf": [{"$ref": "#/components/schemas/User"}]
+          },
+          "assignee": {
+            "nullable": true,
+            "allOf": [{"$ref": "#/components/schemas/User"}]
+          },
+          "updater": {
+            "nullable": true,
+            "allOf": [{"$ref": "#/components/schemas/User"}]
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
           }
-        },
-        "description": "Project is determined by the URL's :pId; any project_id in the body is ignored.",
-        "required": [
-          "title",
-          "status",
-          "priority"
-        ]
+        }
       },
-      "IssueUpdateRequest": {
+      "Project": {
         "type": "object",
         "properties": {
-          "status": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
             "type": "string",
-            "enum": [
-              "Open",
-              "Todo",
-              "Stage1",
-              "Stage2",
-              "Stage3",
-              "Stage4",
-              "Done"
-            ]
+            "maxLength": 15
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 100
           }
         }
       },
@@ -297,47 +301,193 @@
           }
         }
       },
-      "StatusConfigUpdateRequest": {
+      "LoginRequest": {
         "type": "object",
         "properties": {
-          "stage1_name": {
-            "type": "string",
-            "maxLength": 15
+          "email": {
+            "type": "string"
           },
-          "stage2_name": {
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": ["email", "password"]
+      },
+      "SelfUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "password": {
             "type": "string",
-            "maxLength": 15
+            "description": "New password."
           },
-          "stage3_name": {
+          "current_password": {
             "type": "string",
-            "maxLength": 15
-          },
-          "stage4_name": {
-            "type": "string",
-            "maxLength": 15
+            "description": "Required when 'password' is provided. The user's current password for confirmation."
           }
         }
+      },
+      "UserCreateRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["user", "admin", "sysadmin"]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": ["email", "first_name", "last_name", "password", "role"]
+      },
+      "UserUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "description": "Optional. Leave empty to keep current password."
+          },
+          "admin_password": {
+            "type": "string",
+            "description": "Required when 'password' is provided or the role is being promoted (user→admin, user→sysadmin, admin→sysadmin). The requesting sysadmin's own current password for confirmation."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["user", "admin", "sysadmin"]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": ["email", "first_name", "last_name", "role"]
+      },
+      "IssueWriteRequest": {
+        "type": "object",
+        "description": "Used for both create (POST) and update (PUT). Project is determined by the URL's :pId — any project_id in the body is ignored.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "status": {
+            "type": "string",
+            "enum": ["Open", "Todo", "Stage1", "Stage2", "Stage3", "Stage4", "Done", "Archive"]
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["Normal", "High"],
+            "description": "Optional. Defaults to empty (Normal) if omitted."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional. Non-negative integer for column ordering."
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Optional ISO 8601 timestamp. Year must be 2000–2100."
+          },
+          "planned_dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date",
+              "description": "YYYY-MM-DD"
+            },
+            "nullable": true,
+            "description": "Optional. Maximum 100 entries."
+          },
+          "assignee_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Optional. Must reference an active user."
+          },
+          "label": {
+            "type": "object",
+            "nullable": true,
+            "description": "Optional. Must belong to the same project. Send null to remove the label.",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            }
+          },
+          "release_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Optional. Must belong to the same project."
+          }
+        },
+        "required": ["title", "status"]
       },
       "TaskCreateRequest": {
         "type": "object",
         "description": "Parent issue is determined by the URL's :iId; any issue_id in the body is ignored.",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Optional ISO 8601 timestamp. Year must be 2000–2100."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional. Non-negative integer for ordering within the issue."
           }
         },
-        "required": [
-          "title"
-        ]
+        "required": ["title"]
       },
       "TaskUpdateRequest": {
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100
           },
           "done": {
             "type": "boolean"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Optional ISO 8601 timestamp. Year must be 2000–2100."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional. Non-negative integer for ordering within the issue."
           }
         }
       },
@@ -345,113 +495,68 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
-          },
-          "color": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "color"
-        ]
-      },
-      "Project": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "name": {
             "type": "string",
             "maxLength": 15
           },
-          "description": {
+          "color": {
             "type": "string",
-            "maxLength": 100
+            "description": "Hex color code, e.g. #ff0000"
           }
-        }
+        },
+        "required": ["name", "color"]
       },
       "ProjectCreateRequest": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
-            "maxLength": 15
+            "maxLength": 15,
+            "description": "Required. Stored as lowercase."
           },
           "description": {
             "type": "string",
             "maxLength": 100
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
       "ProjectUpdateRequest": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
-            "maxLength": 15
+            "maxLength": 15,
+            "description": "Required. Stored as lowercase."
           },
           "description": {
             "type": "string",
             "maxLength": 100
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
       },
-      "Release": {
+      "StatusConfigUpdateRequest": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "project_id": {
-            "type": "integer"
-          },
-          "name": {
+          "stage1_name": {
             "type": "string",
-            "maxLength": 20
+            "maxLength": 15,
+            "description": "Letters and digits only. Empty string hides the column."
           },
-          "description": {
+          "stage2_name": {
             "type": "string",
-            "maxLength": 200
+            "maxLength": 15,
+            "description": "Letters and digits only. Empty string hides the column."
           },
-          "status": {
+          "stage3_name": {
             "type": "string",
-            "enum": [
-              "open",
-              "closed"
-            ]
+            "maxLength": 15,
+            "description": "Letters and digits only. Empty string hides the column."
           },
-          "start_date": {
+          "stage4_name": {
             "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "release_date": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "closed_at": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "owner_id": {
-            "type": "integer",
-            "nullable": true,
-            "description": "ID of the user responsible for this release"
-          },
-          "owner": {
-            "$ref": "#/components/schemas/User",
-            "nullable": true,
-            "description": "Embedded owner user object, present when owner_id is set"
+            "maxLength": 15,
+            "description": "Letters and digits only. Empty string hides the column."
           }
         }
       },
@@ -460,25 +565,24 @@
         "properties": {
           "name": {
             "type": "string",
-            "maxLength": 20,
-            "description": "Required"
+            "maxLength": 20
           },
           "description": {
             "type": "string",
             "maxLength": 200,
-            "description": "Optional plain-text summary"
+            "description": "Optional plain-text summary (no HTML)"
           },
           "start_date": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Optional. Year must be 2000\u20132100."
+            "description": "Optional. Year must be 2000–2100."
           },
           "release_date": {
             "type": "string",
             "format": "date-time",
             "nullable": true,
-            "description": "Optional. Must not be before start_date. Year must be 2000\u20132100."
+            "description": "Optional. Must not be before start_date. Year must be 2000–2100."
           },
           "owner_id": {
             "type": "integer",
@@ -486,9 +590,16 @@
             "description": "Optional. ID of the user responsible for this release."
           }
         },
-        "required": [
-          "name"
-        ]
+        "required": ["name"]
+      },
+      "TriggerReleaseRequest": {
+        "type": "object",
+        "properties": {
+          "archive_done": {
+            "type": "boolean",
+            "description": "If true, Done issues assigned to this release are archived when the release is closed."
+          }
+        }
       }
     }
   },
@@ -501,9 +612,7 @@
     "/auth/login": {
       "post": {
         "summary": "Authenticate user",
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "security": [],
         "requestBody": {
           "required": true,
@@ -527,7 +636,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - invalid credentials or inactive account"
           }
         }
       }
@@ -535,9 +644,7 @@
     "/auth/logout": {
       "post": {
         "summary": "Clear auth cookies",
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "security": [],
         "responses": {
           "204": {
@@ -549,16 +656,14 @@
     "/auth/refresh": {
       "post": {
         "summary": "Refresh access token",
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "security": [],
         "responses": {
           "200": {
             "description": "Token refreshed"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - invalid or expired refresh token, or inactive user"
           }
         }
       }
@@ -566,9 +671,7 @@
     "/auth/me": {
       "get": {
         "summary": "Get current user",
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "responses": {
           "200": {
             "description": "Current user details",
@@ -588,9 +691,7 @@
       "put": {
         "summary": "Change own password",
         "description": "Allows the authenticated user to change their own password. Requires the current password for confirmation. All sessions are revoked on success.",
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "requestBody": {
           "required": true,
           "content": {
@@ -624,9 +725,7 @@
     "/users": {
       "get": {
         "summary": "List all users",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "responses": {
           "200": {
             "description": "List of users",
@@ -643,9 +742,6 @@
           },
           "401": {
             "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
           }
         }
       },
@@ -653,9 +749,7 @@
         "summary": "Create new user",
         "description": "Requires sysadmin role.",
         "x-required-role": "sysadmin",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "requestBody": {
           "required": true,
           "content": {
@@ -678,16 +772,16 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - validation failed"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not a sysadmin"
           },
           "409": {
-            "description": "Conflict"
+            "description": "Conflict - email already exists"
           }
         }
       }
@@ -698,6 +792,7 @@
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "User ID",
           "schema": {
             "type": "integer"
           }
@@ -705,9 +800,7 @@
       ],
       "get": {
         "summary": "Get user details",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "responses": {
           "200": {
             "description": "User details",
@@ -722,9 +815,6 @@
           "401": {
             "description": "Unauthorized"
           },
-          "403": {
-            "description": "Forbidden"
-          },
           "404": {
             "description": "Not Found"
           }
@@ -734,9 +824,7 @@
         "summary": "Update user",
         "description": "Requires sysadmin role.",
         "x-required-role": "sysadmin",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "requestBody": {
           "required": true,
           "content": {
@@ -759,35 +847,158 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - validation failed, trying to deactivate last sysadmin, or admin_password missing/incorrect"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not a sysadmin"
           },
           "404": {
             "description": "Not Found"
           },
           "409": {
-            "description": "Conflict"
+            "description": "Conflict - email already in use"
+          }
+        }
+      }
+    },
+    "/projects/{pId}/issues/active": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get active issues for a project (Todo, Stage1–Stage4, Done)",
+        "tags": ["Issues"],
+        "responses": {
+          "200": {
+            "description": "Array of active issues (status Todo, Stage1–Stage4, or Done; excludes Open and Archive), each including their tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Issue"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
+    "/projects/{pId}/issues/open": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get open (backlog) issues for a project",
+        "tags": ["Issues"],
+        "responses": {
+          "200": {
+            "description": "Array of open issues (status = Open, lazy-loaded for Backlog view), each including their tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Issue"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
+    "/projects/{pId}/issues/archived": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Get archived issues for a project",
+        "tags": ["Issues"],
+        "responses": {
+          "200": {
+            "description": "Array of archived issues (status = Archive, lazy-loaded for Archive view), each including their tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Issue"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project not found"
           }
         }
       }
     },
     "/projects/{pId}/issues": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
       "post": {
         "summary": "Create a new issue",
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IssueCreateRequest"
+                "$ref": "#/components/schemas/IssueWriteRequest"
               }
             }
           }
@@ -803,21 +1014,17 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request - validation failed"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
           "404": {
-            "description": "Not Found in this project"
+            "description": "Project not found"
           }
         }
-      },
-      "parameters": [
-        {
-          "name": "pId",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "integer"
-          }
-        }
-      ]
+      }
     },
     "/projects/{pId}/issues/{id}": {
       "parameters": [
@@ -825,6 +1032,7 @@
           "name": "pId",
           "in": "path",
           "required": true,
+          "description": "Project ID",
           "schema": {
             "type": "integer"
           }
@@ -833,6 +1041,7 @@
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Issue ID",
           "schema": {
             "type": "integer"
           }
@@ -840,12 +1049,10 @@
       ],
       "get": {
         "summary": "Get issue details",
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "responses": {
           "200": {
-            "description": "Issue details",
+            "description": "Issue details (including associated tasks)",
             "content": {
               "application/json": {
                 "schema": {
@@ -854,22 +1061,24 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized"
+          },
           "404": {
-            "description": "Not Found in this project"
+            "description": "Issue not found in this project"
           }
         }
       },
       "put": {
         "summary": "Update issue",
-        "tags": [
-          "Issues"
-        ],
+        "description": "Supports optimistic locking via If-Match / ETag headers. Archived issues are read-only. Setting status to Archive is not allowed — use the /archive action instead.",
+        "tags": ["Issues"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IssueUpdateRequest"
+                "$ref": "#/components/schemas/IssueWriteRequest"
               }
             }
           }
@@ -886,32 +1095,36 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - validation failed or attempt to set status to Archive directly"
+          },
+          "401": {
+            "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - issue is archived"
           },
           "404": {
-            "description": "Not Found in this project"
+            "description": "Issue not found in this project"
           }
         }
       },
       "delete": {
         "summary": "Delete issue",
-        "description": "Requires admin or sysadmin role.",
+        "description": "Requires admin or sysadmin role. Deletes the issue and its associated tasks.",
         "x-required-role": "admin",
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "responses": {
           "204": {
             "description": "Issue deleted"
           },
+          "401": {
+            "description": "Unauthorized"
+          },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin, or issue is archived"
           },
           "404": {
-            "description": "Not Found in this project"
+            "description": "Issue not found in this project"
           }
         }
       }
@@ -922,6 +1135,7 @@
           "name": "pId",
           "in": "path",
           "required": true,
+          "description": "Project ID",
           "schema": {
             "type": "integer"
           }
@@ -930,6 +1144,7 @@
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Issue ID",
           "schema": {
             "type": "integer"
           }
@@ -939,9 +1154,7 @@
         "summary": "Archive an issue",
         "description": "Requires admin or sysadmin role.",
         "x-required-role": "admin",
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "responses": {
           "200": {
             "description": "Archived issue",
@@ -954,13 +1167,16 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - issue is already archived"
+          },
+          "401": {
+            "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Issue not found in this project"
           }
         }
       }
@@ -971,6 +1187,7 @@
           "name": "pId",
           "in": "path",
           "required": true,
+          "description": "Project ID",
           "schema": {
             "type": "integer"
           }
@@ -979,6 +1196,7 @@
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Issue ID",
           "schema": {
             "type": "integer"
           }
@@ -986,11 +1204,9 @@
       ],
       "post": {
         "summary": "Unarchive an issue",
-        "description": "Requires admin or sysadmin role.",
+        "description": "Requires admin or sysadmin role. Moves the issue back to Done status.",
         "x-required-role": "admin",
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "responses": {
           "200": {
             "description": "Unarchived issue",
@@ -1003,13 +1219,16 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - issue is not archived"
+          },
+          "401": {
+            "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Issue not found in this project"
           }
         }
       }
@@ -1037,9 +1256,7 @@
       ],
       "post": {
         "summary": "Create task under an issue",
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1061,8 +1278,11 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized"
+          },
           "403": {
-            "description": "Parent issue is archived"
+            "description": "Forbidden - parent issue is archived"
           },
           "404": {
             "description": "Project or issue not found, or issue is not in this project"
@@ -1102,9 +1322,7 @@
       ],
       "put": {
         "summary": "Update task",
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1126,8 +1344,11 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized"
+          },
           "403": {
-            "description": "Parent issue is archived"
+            "description": "Forbidden - parent issue is archived"
           },
           "404": {
             "description": "Task not under this issue, or issue not in this project"
@@ -1136,15 +1357,16 @@
       },
       "delete": {
         "summary": "Delete task",
-        "tags": [
-          "Tasks"
-        ],
+        "tags": ["Tasks"],
         "responses": {
           "204": {
             "description": "Task deleted"
           },
+          "401": {
+            "description": "Unauthorized"
+          },
           "403": {
-            "description": "Parent issue is archived"
+            "description": "Forbidden - parent issue is archived"
           },
           "404": {
             "description": "Task not under this issue, or issue not in this project"
@@ -1152,10 +1374,10 @@
         }
       }
     },
-    "/projects/{id}/labels": {
+    "/projects/{pId}/labels": {
       "parameters": [
         {
-          "name": "id",
+          "name": "pId",
           "in": "path",
           "required": true,
           "description": "Project ID",
@@ -1166,12 +1388,10 @@
       ],
       "get": {
         "summary": "List labels for a project",
-        "tags": [
-          "Labels"
-        ],
+        "tags": ["Labels"],
         "responses": {
           "200": {
-            "description": "List of labels for the project",
+            "description": "Array of labels for the project",
             "content": {
               "application/json": {
                 "schema": {
@@ -1195,9 +1415,7 @@
         "summary": "Create label for a project",
         "description": "Requires admin or sysadmin role.",
         "x-required-role": "admin",
-        "tags": [
-          "Labels"
-        ],
+        "tags": ["Labels"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1220,13 +1438,13 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - validation failed"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
             "description": "Project not found"
@@ -1234,10 +1452,10 @@
         }
       }
     },
-    "/projects/{id}/labels/{labelId}": {
+    "/projects/{pId}/labels/{id}": {
       "parameters": [
         {
-          "name": "id",
+          "name": "pId",
           "in": "path",
           "required": true,
           "description": "Project ID",
@@ -1246,7 +1464,7 @@
           }
         },
         {
-          "name": "labelId",
+          "name": "id",
           "in": "path",
           "required": true,
           "description": "Label ID",
@@ -1259,9 +1477,7 @@
         "summary": "Delete label from a project",
         "description": "Requires admin or sysadmin role.",
         "x-required-role": "admin",
-        "tags": [
-          "Labels"
-        ],
+        "tags": ["Labels"],
         "responses": {
           "204": {
             "description": "Label deleted"
@@ -1270,7 +1486,7 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
             "description": "Project or label not found"
@@ -1281,12 +1497,10 @@
     "/projects": {
       "get": {
         "summary": "List all projects",
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "responses": {
           "200": {
-            "description": "List of projects",
+            "description": "Array of projects",
             "content": {
               "application/json": {
                 "schema": {
@@ -1307,9 +1521,7 @@
         "summary": "Create project",
         "description": "Requires sysadmin role.",
         "x-required-role": "sysadmin",
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1332,13 +1544,13 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - validation failed"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not a sysadmin"
           },
           "409": {
             "description": "Conflict - project name already exists"
@@ -1346,12 +1558,13 @@
         }
       }
     },
-    "/projects/{id}": {
+    "/projects/{pId}": {
       "parameters": [
         {
-          "name": "id",
+          "name": "pId",
           "in": "path",
           "required": true,
+          "description": "Project ID",
           "schema": {
             "type": "integer"
           }
@@ -1361,9 +1574,7 @@
         "summary": "Update project",
         "description": "Requires sysadmin role.",
         "x-required-role": "sysadmin",
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1386,13 +1597,13 @@
             }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Bad Request - validation failed"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not a sysadmin"
           },
           "404": {
             "description": "Not Found"
@@ -1406,21 +1617,19 @@
         "summary": "Delete project",
         "description": "Requires sysadmin role.",
         "x-required-role": "sysadmin",
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "responses": {
           "200": {
             "description": "Project deleted"
           },
           "400": {
-            "description": "Bad Request - cannot delete default project or project has assigned issues"
+            "description": "Bad Request - cannot delete default project (id=1) or project still has assigned issues"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not a sysadmin"
           },
           "404": {
             "description": "Not Found"
@@ -1428,10 +1637,10 @@
         }
       }
     },
-    "/projects/{id}/statusconfig": {
+    "/projects/{pId}/statusconfig": {
       "parameters": [
         {
-          "name": "id",
+          "name": "pId",
           "in": "path",
           "required": true,
           "description": "Project ID",
@@ -1442,9 +1651,7 @@
       ],
       "get": {
         "summary": "Get board column configuration for a project",
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "responses": {
           "200": {
             "description": "Status config for the project",
@@ -1468,9 +1675,7 @@
         "summary": "Update board column configuration for a project",
         "description": "Requires admin or sysadmin role.",
         "x-required-role": "admin",
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1493,13 +1698,13 @@
             }
           },
           "400": {
-            "description": "Bad Request - validation failed"
+            "description": "Bad Request - validation failed (invalid characters or name too long)"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
             "description": "Project not found"
@@ -1507,127 +1712,10 @@
         }
       }
     },
-    "/projects/{id}/issues/active": {
+    "/projects/{pId}/releases": {
       "parameters": [
         {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "integer"
-          }
-        }
-      ],
-      "get": {
-        "summary": "Get active issues for a project (Todo, Stage1\u2013Stage4, Done)",
-        "tags": [
-          "Issues"
-        ],
-        "responses": {
-          "200": {
-            "description": "List of active issues for the project (status Todo, Stage1\u2013Stage4, or Done; excludes Open and Archive)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Issue"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Project not found"
-          }
-        }
-      }
-    },
-    "/projects/{id}/issues/archived": {
-      "parameters": [
-        {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "integer"
-          }
-        }
-      ],
-      "get": {
-        "summary": "Get archived issues for a project",
-        "tags": [
-          "Issues"
-        ],
-        "responses": {
-          "200": {
-            "description": "List of archived issues for the project",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Issue"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Project not found"
-          }
-        }
-      }
-    },
-    "/projects/{id}/issues/open": {
-      "parameters": [
-        {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "integer"
-          }
-        }
-      ],
-      "get": {
-        "summary": "Get open (backlog) issues for a project",
-        "tags": [
-          "Issues"
-        ],
-        "responses": {
-          "200": {
-            "description": "List of open issues for the project (status = Open, lazy-loaded for Backlog view)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Issue"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Project not found"
-          }
-        }
-      }
-    },
-    "/projects/{id}/releases": {
-      "parameters": [
-        {
-          "name": "id",
+          "name": "pId",
           "in": "path",
           "required": true,
           "description": "Project ID",
@@ -1638,12 +1726,10 @@
       ],
       "get": {
         "summary": "List releases for a project",
-        "tags": [
-          "Releases"
-        ],
+        "tags": ["Releases"],
         "responses": {
           "200": {
-            "description": "List of releases for the project",
+            "description": "Array of releases for the project, ordered by creation date",
             "content": {
               "application/json": {
                 "schema": {
@@ -1667,9 +1753,7 @@
         "summary": "Create a release for a project",
         "description": "Requires admin or sysadmin role.",
         "x-required-role": "admin",
-        "tags": [
-          "Releases"
-        ],
+        "tags": ["Releases"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1698,10 +1782,13 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
             "description": "Project not found"
+          },
+          "409": {
+            "description": "Conflict - release name already exists in this project"
           }
         }
       }
@@ -1712,6 +1799,7 @@
           "name": "pId",
           "in": "path",
           "required": true,
+          "description": "Project ID",
           "schema": {
             "type": "integer"
           }
@@ -1720,6 +1808,7 @@
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Release ID",
           "schema": {
             "type": "integer"
           }
@@ -1727,9 +1816,7 @@
       ],
       "get": {
         "summary": "Get release details",
-        "tags": [
-          "Releases"
-        ],
+        "tags": ["Releases"],
         "responses": {
           "200": {
             "description": "Release details",
@@ -1745,7 +1832,7 @@
             "description": "Unauthorized"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Release not found in this project"
           }
         }
       },
@@ -1753,9 +1840,7 @@
         "summary": "Update a release",
         "description": "Requires admin or sysadmin role. Closed releases are read-only.",
         "x-required-role": "admin",
-        "tags": [
-          "Releases"
-        ],
+        "tags": ["Releases"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1784,10 +1869,13 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden - not admin, or release is closed"
+            "description": "Forbidden - not an admin or sysadmin, or release is closed"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Release not found in this project"
+          },
+          "409": {
+            "description": "Conflict - release name already exists in this project"
           }
         }
       },
@@ -1795,21 +1883,19 @@
         "summary": "Delete a release",
         "description": "Requires admin or sysadmin role. Issues assigned to the release are unlinked but not deleted.",
         "x-required-role": "admin",
-        "tags": [
-          "Releases"
-        ],
+        "tags": ["Releases"],
         "responses": {
-          "200": {
+          "204": {
             "description": "Release deleted"
           },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Release not found in this project"
           }
         }
       }
@@ -1820,6 +1906,7 @@
           "name": "pId",
           "in": "path",
           "required": true,
+          "description": "Project ID",
           "schema": {
             "type": "integer"
           }
@@ -1828,6 +1915,7 @@
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Release ID",
           "schema": {
             "type": "integer"
           }
@@ -1835,11 +1923,19 @@
       ],
       "post": {
         "summary": "Publish (close) a release",
-        "description": "Requires admin or sysadmin role. Closes the release and archives all Done issues assigned to it.",
+        "description": "Requires admin or sysadmin role. Closes the release; optionally archives Done issues assigned to it.",
         "x-required-role": "admin",
-        "tags": [
-          "Releases"
-        ],
+        "tags": ["Releases"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerReleaseRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Published release",
@@ -1858,10 +1954,10 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Release not found in this project"
           }
         }
       }
@@ -1872,6 +1968,7 @@
           "name": "pId",
           "in": "path",
           "required": true,
+          "description": "Project ID",
           "schema": {
             "type": "integer"
           }
@@ -1880,6 +1977,7 @@
           "name": "id",
           "in": "path",
           "required": true,
+          "description": "Release ID",
           "schema": {
             "type": "integer"
           }
@@ -1889,9 +1987,7 @@
         "summary": "Reopen a closed release",
         "description": "Requires admin or sysadmin role. Issues archived during publishing are not automatically unarchived.",
         "x-required-role": "admin",
-        "tags": [
-          "Releases"
-        ],
+        "tags": ["Releases"],
         "responses": {
           "200": {
             "description": "Reopened release",
@@ -1910,10 +2006,10 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Forbidden - not an admin or sysadmin"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Release not found in this project"
           }
         }
       }
@@ -1921,9 +2017,7 @@
     "/version": {
       "get": {
         "summary": "Get app version",
-        "tags": [
-          "System"
-        ],
+        "tags": ["System"],
         "security": [],
         "responses": {
           "200": {

@@ -21,6 +21,7 @@
 - Centralized and changed log to JSON format to allow better process in log analyses like Loki and satisfy gosec (G706)
 - Allowed horizontal rule in issue description
 - Harmonized SQL queries in db.go (Removed useless DB.prepare)
+- Fixed errors in API spec, ensured consistency over all endpoints and against swagger.json
 
 # 1.2.1
 
