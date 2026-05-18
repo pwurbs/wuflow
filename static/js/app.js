@@ -69,7 +69,7 @@ async function init() {
     setupSystemSettingsView(refreshApp);
     setupProjectSettingsView(refreshApp);
     setupReleasesView(refreshApp);
-    setupModal(refreshApp); // Pass refresh callback
+    setupModal(refreshApp, rerenderAfterTaskUpdate);
     setupUserMenu(user);
 
     // Fetch and display version
@@ -151,7 +151,14 @@ async function refreshApp() {
     }
 }
 
-
+function rerenderAfterTaskUpdate() {
+    if (state.currentIssue) {
+        const stateIssue = state.issues.find(i => i.id === state.currentIssue.id);
+        if (stateIssue) stateIssue.tasks = state.currentIssue.tasks;
+    }
+    renderBoard();
+    renderPlanningPanel();
+}
 
 function setupEventListeners() {
     // Navigation

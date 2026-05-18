@@ -55,6 +55,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         try {
           await updateTask(currentIssue.project_id, currentIssue.id, task);
           li.className = `task-item ${task.done ? 'done' : ''}`;
+          showNotification(task.done ? 'Task marked as done' : 'Task marked as not done');
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         } catch (err) {
           task.done = !checkbox.checked; // revert local state

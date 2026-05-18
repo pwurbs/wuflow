@@ -22,6 +22,7 @@
 - Allowed horizontal rule in issue description
 - Harmonized SQL queries in db.go (Removed useless DB.prepare)
 - Fixed errors in API spec, ensured consistency over all endpoints and against swagger.json
+- Fixed missing notication toast when tasks is set to done or not-done
 
 ## 1.2.1
 

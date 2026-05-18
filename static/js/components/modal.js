@@ -10,12 +10,14 @@ import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
 let refreshAppCallback = null;
+let rerenderViewsCallback = null;
 let previousActiveNavBtn = null;
 let currentEtag = null; // Stores ETag for conflict detection
 let hasSavedDuringSession = false; // Tracks whether any save occurred in this modal session
 
-export function setupModal(refreshApp) {
+export function setupModal(refreshApp, rerenderViews) {
   refreshAppCallback = refreshApp;
+  rerenderViewsCallback = rerenderViews;
   const form = document.getElementById('issue-form');
 
   // Global checking of state is tricky if we don't have reference to 'currentIssue' variable in app.js
@@ -251,7 +253,7 @@ function setupEditModal(issue) {
 
   renderTasks(issue.tasks || [], document.getElementById('task-list'), issue, {
     readOnly: isArchived,
-    onTaskUpdate: () => refreshAppCallback?.(),
+    onTaskUpdate: () => rerenderViewsCallback?.(),
     onTaskOrderSave: async () => {
       await saveTaskOrder(issue);
     },
@@ -1258,7 +1260,7 @@ async function handleTaskSubmit(e) {
     if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
     state.currentIssue.tasks.push(newTask);
     renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
-      onTaskUpdate: () => refreshAppCallback?.(),
+      onTaskUpdate: () => rerenderViewsCallback?.(),
       onTaskOrderSave: () => saveTaskOrder(state.currentIssue),
       onTaskEditStart: () => addUnloadListener(),
       onTaskEditEnd: () => checkRemoveUnloadListener()

@@ -683,21 +683,24 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 }
 
 // handleDeleteTask removes a task.
-func handleDeleteTask(w http.ResponseWriter, _ *http.Request, _ int, issueID int, id int, issue *Issue) {
+func handleDeleteTask(w http.ResponseWriter, r *http.Request, _ int, issueID int, id int, issue *Issue) {
 	if issue.Status == StatusArchive {
 		http.Error(w, "Tasks of archived issues cannot be deleted", http.StatusForbidden)
 		return
 	}
+
+	userEmail := GetEmailFromContext(r.Context())
 
 	if err := DeleteTask(id, issueID); err != nil {
 		if err == ErrTaskNotFound {
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("DeleteTask failed", "id", id, "error", err)
+		LogError("DeleteTask failed", "id", id, "error", err, "user_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
+	LogInfo("Task deleted", "id", id, "issue_id", issueID, "user_email", userEmail)
 	w.WriteHeader(http.StatusNoContent)
 }
 
