@@ -518,7 +518,12 @@ async function handleIssueSubmit(e) {
     } else {
       if (!userCan(state.currentUser, ACTION_CREATE_ISSUE)) return;
       const newIssue = await createIssue(issueData.project_id, issueData);
-      showNotification(`Issue #${newIssue.id} created successfully`);
+      const { strippedHTML } = renderMarkdown(issueData.description || '', true);
+      if (strippedHTML) {
+        showNotification('Unsupported HTML tags are not rendered for security.', 'error');
+      } else {
+        showNotification(`Issue #${newIssue.id} created successfully`);
+      }
     }
     closeModal();
     if (refreshAppCallback) refreshAppCallback();

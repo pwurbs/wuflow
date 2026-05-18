@@ -34,6 +34,7 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 | Links (`[text](url)`) | `<a>`              | **Allowed** (Attributes: `href`, `title`, `target`, `rel`) |
 | Code (`inline`, block)| `<code>`, `<pre>`  | **Allowed** (Attribute `class` allowed; marked always emits `class="language-…"` on code blocks) |
 | GFM Tables (`\| … \|`) | `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` | **Allowed** (Attribute `align` allowed for column alignment; marked emits `align="left\|center\|right"`) |
+| Horizontal Rule (`---`) | `<hr>`               | **Allowed**         |
 
 ---
 
@@ -51,7 +52,7 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 
 ## Testing Scenarios
 
-Copy and paste the sections below into an Issue/Task description field to visually verify that rendering and security policies are applied correctly.
+Copy and paste the sections below (snippets within markdown code blocks) into an Issue/Task description field to visually verify that rendering and security policies are applied correctly.
 
 ### 🟢 1. Standard Markdown
 Tests basic formatting, headers, lists, code blocks, and links.
@@ -76,6 +77,13 @@ This is **bold**, *italic*, and ~~strikethrough~~.
 // Block code
 console.log("Hello World");
 ```
+
+Text above horizontal rule
+
+---
+
+Text below horizontal rule
+```markdown
 
 ### 🟢 2. GFM Tables
 Tests GFM table rendering including optional column alignment. Should render a bordered table **without** triggering a security alert.

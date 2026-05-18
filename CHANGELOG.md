@@ -19,6 +19,7 @@
 - User must now enter the current password when setting a new own password
 - Complete API refactoring: Change most API endpoints to project-scoped, use Go ServeMux to register routes including method, simplify and standardize handler functions
 - Centralized and changed log to JSON format to allow better process in log analyses like Loki and satisfy gosec (G706)
+- Allowed horizontal rule in issue description
 
 # 1.2.1
 
