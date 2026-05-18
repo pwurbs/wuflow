@@ -82,6 +82,8 @@ Click on an issue card to view and adapt details. In addition to title and descr
 - **Label**: If labels have been created in the Project Settings view, you can assign them to the issue here. This leads to a colored label badge on the issues card and can be used too as filter criteria. Use labels to either define issue types (story, bug, question etc.) or to separate different topics or domains (UI, backend, refactor ...).
 - **Tasks**: Here you can define subtasks for the issue. See the Tasks section below for more details.
 
+See [this article](https://medium.com/@pwurbs/issue-attributes-what-you-actually-need-6068e5b74d4b), why only these issue attributes are provided.
+
 In the bottom right corner there is information when and by whom the issue was created and lastly updated. The user is indicated using the users badge. These fields are automatically filled and can't be edited.
 
 The Issue details view is closed by clicking the DONE button at the bottom of the view. In case of unsaved description changes, you will be asked if you want to save them before closing the view. All other fields are saved automatically.
