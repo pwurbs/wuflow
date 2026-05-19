@@ -130,13 +130,27 @@ Conventions:
 
 - All queries go through helpers in `db.go`. No `DB.Query(...)` calls in handlers.
 - Ownership-check helpers follow the pattern `XBelongsToProject(projectID, xID) (bool, error)` (named `XExistsInProject` for historical reasons). When adding a new project-scoped resource, add one.
-- Use `existsQuery("SELECT COUNT(*) FROM … WHERE …", args...)` for boolean existence checks; it already handles the count/error pattern.
+- Use `existsQuery(ctx, "SELECT COUNT(*) FROM … WHERE …", args...)` for boolean existence checks; it already handles the count/error pattern.
+
+## Context propagation
+
+Every DB helper in `db.go` takes `ctx context.Context` as its first parameter and uses the `*Context` variants of `database/sql` (`QueryRowContext`, `QueryContext`, `ExecContext`, `BeginTx`). Handlers pass `r.Context()` down; startup-time callers (`InitDB`, `EnsureInitialAdmin`, `DeleteExpiredSessions` in `server.go`) pass `context.Background()`.
+
+What this buys:
+
+- **Client disconnect cancellation** — `net/http` cancels `r.Context()` when the client connection drops; the in-flight DB query stops immediately instead of running to completion.
+- **Per-request timeout** — `TimeoutMiddleware` (in `server.go`, wired into both `commonAPI` and `authAPI` after `AuthMiddleware`) attaches a 5 s `context.WithTimeout` to every request. This is the application-layer deadline that actually reaches DB calls, distinct from the server's `ReadTimeout`/`WriteTimeout` which only close the TCP socket.
+- **Graceful shutdown** — `StartServer` blocks on `SIGINT`/`SIGTERM`, then calls `srv.Shutdown(ctx)` with a 15 s drain window so in-flight requests finish before the process exits. Required for cloud orchestrators (Kubernetes, Docker, etc.) that rely on graceful container drain during rolling deploys.
+
+**The discipline**: when adding a DB helper or a handler-side helper that calls one, take `ctx context.Context` as the first parameter and thread it through. Helpers without `r` (e.g. `respondWithUpdatedIssue`, `checkAssignee`, `persistIssueUpdate`) follow the same convention.
+
+> **Future consideration (Postgres / multi-statement transactions):** when a context is cancelled mid-transaction, individual `ExecContext` calls return an error but the transaction stays open server-side until rolled back. Use `defer tx.Rollback()` immediately after `BeginTx` (no-op after a successful `Commit`). Not needed for the current single-statement SQLite handlers; apply when introducing multi-statement transactions.
 
 ## Adding a new endpoint — checklist
 
 1. Add the route to `server.go`. Pick the right factory.
-2. Write the inner handler in `handlers.go` with the matching signature.
-3. If it's project-scoped with a resource ID, add an `XBelongsToProject` helper in `db.go` and pass it as the `belongs` argument.
+2. Write the inner handler in `handlers.go` with the matching signature. Take `ctx` from `r.Context()` and pass it to every DB call.
+3. If it's project-scoped with a resource ID, add an `XBelongsToProject` helper in `db.go` (first parameter `ctx context.Context`, SQL via `*Context` variants).
 4. If the role-based permission is new, add the `Action` constant and policy row in `permissions.go`.
 5. Tests: invoke via `testAPI.ServeHTTP(rr, req)` so the factory chain runs. Add an ownership-404 test for any new project-scoped resource.
 6. Update [api.md](api.md) (handler-mapping table + per-endpoint section) and [swagger.json](swagger.json).

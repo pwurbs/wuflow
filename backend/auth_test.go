@@ -320,12 +320,12 @@ func TestEnsureInitialAdmin(t *testing.T) {
 	defer teardownTestDB()
 	InitSecretKey("")
 
-	err := EnsureInitialAdmin(adminEmailLocal, testPassword)
+	err := EnsureInitialAdmin(context.Background(), adminEmailLocal, testPassword)
 	if err != nil {
 		t.Fatalf("EnsureInitialAdmin failed: %v", err)
 	}
 
-	user, err := GetUserByEmail(adminEmailLocal)
+	user, err := GetUserByEmail(context.Background(), adminEmailLocal)
 	if err != nil {
 		t.Fatalf(errGetUserByEmailFailed, err)
 	}
@@ -346,12 +346,12 @@ func TestEnsureInitialAdminCustomEmail(t *testing.T) {
 	InitSecretKey("")
 
 	customEmail := "custom-admin@example.com"
-	err := EnsureInitialAdmin(customEmail, testPassword)
+	err := EnsureInitialAdmin(context.Background(), customEmail, testPassword)
 	if err != nil {
 		t.Fatalf("EnsureInitialAdmin failed: %v", err)
 	}
 
-	user, err := GetUserByEmail(customEmail)
+	user, err := GetUserByEmail(context.Background(), customEmail)
 	if err != nil {
 		t.Fatalf(errGetUserByEmailFailed, err)
 	}
@@ -372,15 +372,15 @@ func TestEnsureInitialAdminSkipsExisting(t *testing.T) {
 
 	// Create a user first
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true})
 
 	// Should skip because users exist
-	err := EnsureInitialAdmin(adminEmailLocal, testPassword)
+	err := EnsureInitialAdmin(context.Background(), adminEmailLocal, testPassword)
 	if err != nil {
 		t.Fatalf("EnsureInitialAdmin should succeed when users exist: %v", err)
 	}
 
-	count, _ := CountUsers()
+	count, _ := CountUsers(context.Background())
 	if count != 1 {
 		t.Errorf("expected 1 user (no new admin), got %d", count)
 	}
@@ -390,7 +390,7 @@ func TestEnsureInitialAdminNoPassword(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	err := EnsureInitialAdmin(adminEmailLocal, "")
+	err := EnsureInitialAdmin(context.Background(), adminEmailLocal, "")
 	if err == nil {
 		t.Error("expected error when no password provided and no users exist")
 	}
@@ -400,7 +400,7 @@ func TestEnsureInitialAdminWeakPassword(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	err := EnsureInitialAdmin(adminEmailLocal, "short")
+	err := EnsureInitialAdmin(context.Background(), adminEmailLocal, "short")
 	if err == nil {
 		t.Error("expected error for weak password")
 	}
@@ -414,7 +414,7 @@ func TestHandleLoginSuccess(t *testing.T) {
 	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
 	body, _ := json.Marshal(map[string]string{"email": testEmail, "password": testPassword})
 	req := httptest.NewRequest("POST", apiAuthLogin, bytes.NewBuffer(body))
@@ -438,7 +438,7 @@ func TestHandleLoginInvalidPassword(t *testing.T) {
 	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
 	body, _ := json.Marshal(map[string]string{"email": testEmail, "password": "WrongPassword123!"})
 	req := httptest.NewRequest("POST", apiAuthLogin, bytes.NewBuffer(body))
@@ -471,7 +471,7 @@ func TestHandleLoginInactiveUser(t *testing.T) {
 	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: false})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: false})
 
 	body, _ := json.Marshal(map[string]string{"email": testEmail, "password": testPassword})
 	req := httptest.NewRequest("POST", apiAuthLogin, bytes.NewBuffer(body))
@@ -542,20 +542,20 @@ func TestHandleRefreshSuccess(t *testing.T) {
 	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
-	user, _ := GetUserByEmail(testEmail)
+	user, _ := GetUserByEmail(context.Background(), testEmail)
 
 	// Create Session first
 	session := &Session{
 		UserID:    user.ID,
 		ExpiresAt: time.Now().Add(refreshTokenDuration),
 	}
-	CreateSession(session)
+	CreateSession(context.Background(), session)
 
 	refreshToken, tokenHash, _ := GenerateRefreshToken(session.ID)
 	session.TokenHash = tokenHash
-	UpdateSession(session)
+	UpdateSession(context.Background(), session)
 
 	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
 	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: refreshToken})
@@ -596,24 +596,24 @@ func TestHandleRefreshInactiveUser(t *testing.T) {
 	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
-	user, _ := GetUserByEmail(testEmail)
+	user, _ := GetUserByEmail(context.Background(), testEmail)
 
 	// Create Session first
 	session := &Session{
 		UserID:    user.ID,
 		ExpiresAt: time.Now().Add(refreshTokenDuration),
 	}
-	CreateSession(session)
+	CreateSession(context.Background(), session)
 
 	refreshToken, tokenHash, _ := GenerateRefreshToken(session.ID)
 	session.TokenHash = tokenHash
-	UpdateSession(session)
+	UpdateSession(context.Background(), session)
 
 	// Deactivate user after generating token
 	user.Active = false
-	UpdateUser(user)
+	UpdateUser(context.Background(), user)
 
 	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
 	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: refreshToken})
@@ -643,7 +643,7 @@ func TestHandleGetCurrentUser(t *testing.T) {
 	InitSecretKey("")
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
 	req := httptest.NewRequest("GET", apiAuthMe, nil)
 	ctx := context.WithValue(req.Context(), contextKeyUserID, 1)
@@ -695,7 +695,7 @@ func TestCreateAndGetUser(t *testing.T) {
 	hash, _ := HashPassword(testPassword)
 	user := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true}
 
-	if err := CreateUser(user); err != nil {
+	if err := CreateUser(context.Background(), user); err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 	if user.ID == 0 {
@@ -703,7 +703,7 @@ func TestCreateAndGetUser(t *testing.T) {
 	}
 
 	// GetUserByEmail
-	found, err := GetUserByEmail(testEmail)
+	found, err := GetUserByEmail(context.Background(), testEmail)
 	if err != nil {
 		t.Fatalf(errGetUserByEmailFailed, err)
 	}
@@ -712,7 +712,7 @@ func TestCreateAndGetUser(t *testing.T) {
 	}
 
 	// GetUserByID
-	foundByID, err := GetUserByID(user.ID)
+	foundByID, err := GetUserByID(context.Background(), user.ID)
 	if err != nil {
 		t.Fatalf("GetUserByID failed: %v", err)
 	}
@@ -726,10 +726,10 @@ func TestGetAllUsers(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: "a@test.com", FirstName: "A", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
-	CreateUser(&User{Email: "b@test.com", FirstName: "B", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: "a@test.com", FirstName: "A", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: "b@test.com", FirstName: "B", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true})
 
-	users, err := GetAllUsers()
+	users, err := GetAllUsers(context.Background())
 	if err != nil {
 		t.Fatalf("GetAllUsers failed: %v", err)
 	}
@@ -744,14 +744,14 @@ func TestUpdateUser(t *testing.T) {
 
 	hash, _ := HashPassword(testPassword)
 	user := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	user.FirstName = "Updated"
-	if err := UpdateUser(user); err != nil {
+	if err := UpdateUser(context.Background(), user); err != nil {
 		t.Fatalf("UpdateUser failed: %v", err)
 	}
 
-	updated, _ := GetUserByID(user.ID)
+	updated, _ := GetUserByID(context.Background(), user.ID)
 	if updated.FirstName != "Updated" {
 		t.Errorf("expected FirstName 'Updated', got '%s'", updated.FirstName)
 	}
@@ -765,21 +765,21 @@ func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
 	// 1. Setup Admin (acting as caller) and Target User
 	adminHash, _ := HashPassword(testPassword)
 	admin := &User{Email: "admin@test.com", FirstName: "Admin", LastName: "User", PasswordHash: adminHash, Role: RoleAdmin, Active: true}
-	CreateUser(admin)
+	CreateUser(context.Background(), admin)
 
 	targetHash, _ := HashPassword(testPassword)
 	target := &User{Email: "target@test.com", FirstName: "Target", LastName: "User", PasswordHash: targetHash, Role: RoleAdmin, Active: true}
-	if err := CreateUser(target); err != nil {
+	if err := CreateUser(context.Background(), target); err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
 	// Verify creation role
-	savedTarget, _ := GetUserByID(target.ID)
+	savedTarget, _ := GetUserByID(context.Background(), target.ID)
 	if savedTarget.Role != RoleAdmin {
 		t.Fatalf("Setup failed: expected target to be RoleAdmin, got %s", savedTarget.Role)
 	}
 
 	// 2. Target logs in (creates session)
-	session, _, _, _ := CreateUserSession(target)
+	session, _, _, _ := CreateUserSession(context.Background(), target)
 
 	// 3. Admin updates Target's role to RoleUser
 	// Prepare request body
@@ -811,7 +811,7 @@ func TestHandleUpdateUserRoleChangeRevokesSession(t *testing.T) {
 	}
 
 	// 4. Verify Session is Revoked
-	s, err := GetSessionByID(session.ID)
+	s, err := GetSessionByID(context.Background(), session.ID)
 	if err != nil {
 		t.Errorf("GetSessionByID error: %v", err)
 	}
@@ -828,29 +828,29 @@ func TestRefreshSessionReuseRevokesAll(t *testing.T) {
 	// 1. Setup User
 	hash, _ := HashPassword(testPassword)
 	user := &User{Email: "victim@test.com", FirstName: "Victim", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	// 2. Create Two Sessions (Device A and Device B)
 	// Session A
-	sessionA, _, refreshA, err := CreateUserSession(user)
+	sessionA, _, refreshA, err := CreateUserSession(context.Background(), user)
 	if err != nil {
 		t.Fatalf("Failed to create session A: %v", err)
 	}
 	// Session B
-	sessionB, _, _, err := CreateUserSession(user)
+	sessionB, _, _, err := CreateUserSession(context.Background(), user)
 	if err != nil {
 		t.Fatalf("Failed to create session B: %v", err)
 	}
 
 	// 3. Legitimate Refresh of Session A (Rotates Token)
 	// This makes 'refreshA' invalid (old)
-	_, _, _, err = RefreshSession(refreshA)
+	_, _, _, err = RefreshSession(context.Background(), refreshA)
 	if err != nil {
 		t.Fatalf("First refresh failed: %v", err)
 	}
 
 	// 4. Attacker tries to use old 'refreshA' again (Token Reuse)
-	_, _, _, err = RefreshSession(refreshA)
+	_, _, _, err = RefreshSession(context.Background(), refreshA)
 	if err == nil {
 		t.Fatal("Expected error on reuse, got nil")
 	}
@@ -862,19 +862,17 @@ func TestRefreshSessionReuseRevokesAll(t *testing.T) {
 	// Both Session A and Session B should be gone
 
 	// Check Session A (should satisfy family revocation, even if it was just rotated)
-	// Note: RefreshSession deletes the *old* session ID if reuse is detected via DeleteSession(sessionID)
-	// OR RevokeUserSessions(userID) which deletes ALL sessions.
 	// We need to re-fetch sessionA to see if it still exists.
 	// Wait, RefreshSession rotates sessionA, so sessionA.ID stays the same?
 	// Yes, `CreateUserSession` -> `RefreshSession` updates `session.TokenHash`. ID remains checks out.
 
-	sA, err := GetSessionByID(sessionA.ID)
+	sA, err := GetSessionByID(context.Background(), sessionA.ID)
 	if sA != nil {
 		t.Error("Session A should be revoked (family revocation)")
 	}
 
 	// Check Session B (The innocent bystander session)
-	sB, err := GetSessionByID(sessionB.ID)
+	sB, err := GetSessionByID(context.Background(), sessionB.ID)
 	if sB != nil {
 		t.Error("Session B should be revoked (family revocation)")
 	}
@@ -884,7 +882,7 @@ func TestUpdateUserNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	err := UpdateUser(&User{ID: 999, Email: testEmail, FirstName: "T", LastName: "U", PasswordHash: "h", Role: RoleUser})
+	err := UpdateUser(context.Background(), &User{ID: 999, Email: testEmail, FirstName: "T", LastName: "U", PasswordHash: "h", Role: RoleUser})
 	if err != ErrUserNotFound {
 		t.Errorf("expected ErrUserNotFound, got %v", err)
 	}
@@ -895,9 +893,9 @@ func TestCreateUserDuplicateEmail(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "A", LastName: "B", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "A", LastName: "B", PasswordHash: hash, Role: RoleUser, Active: true})
 
-	err := CreateUser(&User{Email: testEmail, FirstName: "C", LastName: "D", PasswordHash: hash, Role: RoleUser, Active: true})
+	err := CreateUser(context.Background(), &User{Email: testEmail, FirstName: "C", LastName: "D", PasswordHash: hash, Role: RoleUser, Active: true})
 	if err != ErrDuplicateEmail {
 		t.Errorf("expected ErrDuplicateEmail, got %v", err)
 	}
@@ -907,15 +905,15 @@ func TestCountUsers(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	count, _ := CountUsers()
+	count, _ := CountUsers(context.Background())
 	if count != 0 {
 		t.Errorf("expected 0 users, got %d", count)
 	}
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "T", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "T", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
 
-	count, _ = CountUsers()
+	count, _ = CountUsers(context.Background())
 	if count != 1 {
 		t.Errorf("expected 1 user, got %d", count)
 	}
@@ -926,11 +924,11 @@ func TestCountActiveSysAdmins(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: "sysadmin1@test.com", FirstName: "A", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
-	CreateUser(&User{Email: "sysadmin2@test.com", FirstName: "B", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: false})
-	CreateUser(&User{Email: testUserEmail, FirstName: "C", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: "sysadmin1@test.com", FirstName: "A", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: "sysadmin2@test.com", FirstName: "B", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: false})
+	CreateUser(context.Background(), &User{Email: testUserEmail, FirstName: "C", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
 
-	count, _ := CountActiveSysAdmins()
+	count, _ := CountActiveSysAdmins(context.Background())
 	if count != 1 {
 		t.Errorf("expected 1 active sysadmin, got %d", count)
 	}
@@ -940,7 +938,7 @@ func TestGetUserByEmailNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	user, err := GetUserByEmail("nobody@test.com")
+	user, err := GetUserByEmail(context.Background(), "nobody@test.com")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -953,7 +951,7 @@ func TestGetUserByIDNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	user, err := GetUserByID(999)
+	user, err := GetUserByID(context.Background(), 999)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -976,13 +974,13 @@ func TestUserDBErrors(t *testing.T) {
 		name string
 		f    func() error
 	}{
-		{"CreateUser", func() error { return CreateUser(&User{Email: testEmailTwo}) }},
-		{"UpdateUser", func() error { return UpdateUser(&User{ID: 1, Email: testEmailTwo}) }},
-		{"GetUserByEmail", func() error { _, err := GetUserByEmail(testEmailTwo); return err }},
-		{"GetUserByID", func() error { _, err := GetUserByID(1); return err }},
-		{"GetAllUsers", func() error { _, err := GetAllUsers(); return err }},
-		{"CountUsers", func() error { _, err := CountUsers(); return err }},
-		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(); return err }},
+		{"CreateUser", func() error { return CreateUser(context.Background(), &User{Email: testEmailTwo}) }},
+		{"UpdateUser", func() error { return UpdateUser(context.Background(), &User{ID: 1, Email: testEmailTwo}) }},
+		{"GetUserByEmail", func() error { _, err := GetUserByEmail(context.Background(), testEmailTwo); return err }},
+		{"GetUserByID", func() error { _, err := GetUserByID(context.Background(), 1); return err }},
+		{"GetAllUsers", func() error { _, err := GetAllUsers(context.Background()); return err }},
+		{"CountUsers", func() error { _, err := CountUsers(context.Background()); return err }},
+		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(context.Background()); return err }},
 	}
 
 	for _, tt := range tests {
@@ -1001,7 +999,7 @@ func TestHandleUsersGetList(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
 	req := httptest.NewRequest("GET", apiUsers, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -1048,7 +1046,7 @@ func TestHandleUsersCreateDuplicateEmail(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "A", LastName: "B", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "A", LastName: "B", PasswordHash: hash, Role: RoleUser, Active: true})
 
 	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
@@ -1163,7 +1161,7 @@ func TestHandleUserGetSuccess(t *testing.T) {
 
 	hash, _ := HashPassword(testPassword)
 	user := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	req := httptest.NewRequest("GET", apiUsersBase+strconv.Itoa(user.ID), nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -1205,7 +1203,7 @@ func TestHandleUserPutSuccess(t *testing.T) {
 
 	hash, _ := HashPassword(testPassword)
 	user := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	body, _ := json.Marshal(map[string]any{
 		"email":      testEmail,
@@ -1226,7 +1224,7 @@ func TestHandleUserPutSuccess(t *testing.T) {
 		t.Errorf(wrongStatusCode+"\nbody: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 
-	updated, _ := GetUserByID(user.ID)
+	updated, _ := GetUserByID(context.Background(), user.ID)
 	if updated.FirstName != "Updated" {
 		t.Errorf("expected first name 'Updated', got '%s'", updated.FirstName)
 	}
@@ -1260,7 +1258,7 @@ func TestHandleUserPutInvalidJSON(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "T", LastName: "U", PasswordHash: hash, Role: RoleAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "T", LastName: "U", PasswordHash: hash, Role: RoleAdmin, Active: true})
 
 	req := httptest.NewRequest("PUT", apiUsers1, bytes.NewBufferString(invalidJSON))
 	rr := httptest.NewRecorder()
@@ -1278,7 +1276,7 @@ func TestHandleUserPutLastSysAdminProtection(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword(testPassword)
-	CreateUser(&User{Email: testEmail, FirstName: "Admin", LastName: "User", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Admin", LastName: "User", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
 
 	// Try to demote the only sysadmin
 	body, _ := json.Marshal(map[string]any{
@@ -1445,23 +1443,23 @@ func TestRevokeSession(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword("pass")
-	CreateUser(&User{Email: "revoke@test.com", FirstName: "R", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
-	user, _ := GetUserByEmail("revoke@test.com")
+	CreateUser(context.Background(), &User{Email: "revoke@test.com", FirstName: "R", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
+	user, _ := GetUserByEmail(context.Background(), "revoke@test.com")
 
 	session := &Session{
 		UserID:    user.ID,
 		TokenHash: "to-revoke",
 		ExpiresAt: time.Now().Add(time.Hour),
 	}
-	CreateSession(session)
+	CreateSession(context.Background(), session)
 
 	// Revoke
-	if err := RevokeSession(session.ID); err != nil {
+	if err := RevokeSession(context.Background(), session.ID); err != nil {
 		t.Fatalf("RevokeSession failed: %v", err)
 	}
 
 	// Verify gone
-	s, _ := GetSessionByID(session.ID)
+	s, _ := GetSessionByID(context.Background(), session.ID)
 	if s != nil {
 		t.Error("expected session to be revoked (deleted)")
 	}
@@ -1472,13 +1470,13 @@ func TestRevokeUserSessions(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword("pass")
-	CreateUser(&User{Email: "revoke_all@test.com", FirstName: "R", LastName: "A", PasswordHash: hash, Role: RoleUser, Active: true})
-	user, _ := GetUserByEmail("revoke_all@test.com")
+	CreateUser(context.Background(), &User{Email: "revoke_all@test.com", FirstName: "R", LastName: "A", PasswordHash: hash, Role: RoleUser, Active: true})
+	user, _ := GetUserByEmail(context.Background(), "revoke_all@test.com")
 
-	CreateSession(&Session{UserID: user.ID, TokenHash: "1", ExpiresAt: time.Now().Add(time.Hour)})
-	CreateSession(&Session{UserID: user.ID, TokenHash: "2", ExpiresAt: time.Now().Add(time.Hour)})
+	CreateSession(context.Background(), &Session{UserID: user.ID, TokenHash: "1", ExpiresAt: time.Now().Add(time.Hour)})
+	CreateSession(context.Background(), &Session{UserID: user.ID, TokenHash: "2", ExpiresAt: time.Now().Add(time.Hour)})
 
-	if err := RevokeUserSessions(user.ID); err != nil {
+	if err := RevokeUserSessions(context.Background(), user.ID); err != nil {
 		t.Fatalf("RevokeUserSessions failed: %v", err)
 	}
 
@@ -1496,10 +1494,10 @@ func TestCreateUserSession(t *testing.T) {
 	InitSecretKey("")
 
 	hash, _ := HashPassword("pass")
-	CreateUser(&User{Email: "session@test.com", FirstName: "S", LastName: "C", PasswordHash: hash, Role: RoleUser, Active: true})
-	user, _ := GetUserByEmail("session@test.com")
+	CreateUser(context.Background(), &User{Email: "session@test.com", FirstName: "S", LastName: "C", PasswordHash: hash, Role: RoleUser, Active: true})
+	user, _ := GetUserByEmail(context.Background(), "session@test.com")
 
-	session, accessToken, refreshToken, err := CreateUserSession(user)
+	session, accessToken, refreshToken, err := CreateUserSession(context.Background(), user)
 	if err != nil {
 		t.Fatalf("CreateUserSession failed: %v", err)
 	}
@@ -1518,7 +1516,7 @@ func TestCreateUserSession(t *testing.T) {
 	}
 
 	// Verify DB has hash
-	stored, _ := GetSessionByID(session.ID)
+	stored, _ := GetSessionByID(context.Background(), session.ID)
 	if stored == nil {
 		t.Error("expected session to be persisted")
 	} else if stored.TokenHash == "" {
@@ -1556,7 +1554,7 @@ func TestEnsureInitialAdminCountUsersError(t *testing.T) {
 	closedDB.Close()
 	DB = closedDB
 
-	err := EnsureInitialAdmin(adminEmailLocal, "SomePassword1!")
+	err := EnsureInitialAdmin(context.Background(), adminEmailLocal, "SomePassword1!")
 	if err == nil {
 		t.Error("expected error with closed DB, got nil")
 	}
@@ -1575,7 +1573,7 @@ func TestTryRefreshSessionEmptyCookie(t *testing.T) {
 func TestCreateUserSessionInactiveUser(t *testing.T) {
 	InitSecretKey("")
 	user := &User{ID: 1, Email: "inactive@test.com", Role: RoleUser, Active: false}
-	_, _, _, err := CreateUserSession(user)
+	_, _, _, err := CreateUserSession(context.Background(), user)
 	if err == nil {
 		t.Error("expected error for inactive user, got nil")
 	}
@@ -1591,7 +1589,7 @@ func TestCreateUserSessionDBError(t *testing.T) {
 	InitSecretKey("")
 
 	user := &User{ID: 1, Email: "active@test.com", Role: RoleUser, Active: true}
-	_, _, _, err := CreateUserSession(user)
+	_, _, _, err := CreateUserSession(context.Background(), user)
 	if err == nil {
 		t.Error("expected error with closed DB, got nil")
 	}
@@ -1622,5 +1620,5 @@ func TestDeleteSessionSafeError(t *testing.T) {
 	DB = closedDB
 
 	// Must not panic; simply logs a warning.
-	deleteSessionSafe(123, "test cleanup failure")
+	deleteSessionSafe(context.Background(), 123, "test cleanup failure")
 }

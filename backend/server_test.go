@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -218,6 +219,106 @@ func TestWithLogging(t *testing.T) {
 	// but we've verified the middleware passes through correctly.
 }
 
+// captureLogs swaps safeLogger for one that writes JSON to a buffer at the
+// given level, and returns the buffer plus a restore func. Used to assert
+// that a middleware emits an expected log line.
+func captureLogs(t *testing.T, level slog.Level) (*bytes.Buffer, func()) {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	orig := safeLogger
+	safeLogger = slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: level}))
+	return buf, func() { safeLogger = orig }
+}
+
+func TestTimeoutMiddleware_HandlerCompletesInTime(t *testing.T) {
+	// Handler runs synchronously and completes well within the deadline.
+	// Expectations: no WARN log, ctx.Err() is nil during handler execution,
+	// status 200 is propagated.
+	buf, restore := captureLogs(t, slog.LevelWarn)
+	defer restore()
+
+	var ctxErrDuringHandler error
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctxErrDuringHandler = r.Context().Err()
+		w.WriteHeader(http.StatusOK)
+	})
+	h := TimeoutMiddleware(100 * time.Millisecond)(next)
+
+	req := httptest.NewRequest("GET", "/api/x", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(expectedStatusMsg, http.StatusOK, rr.Code)
+	}
+	if ctxErrDuringHandler != nil {
+		t.Errorf("expected no ctx error during handler, got %v", ctxErrDuringHandler)
+	}
+	if strings.Contains(buf.String(), "Request exceeded application timeout") {
+		t.Errorf("did not expect a timeout WARN, got: %s", buf.String())
+	}
+}
+
+func TestTimeoutMiddleware_DeadlineFires(t *testing.T) {
+	// Handler sleeps past the deadline, then checks its own ctx.
+	// Expectations: ctx.Err() reports DeadlineExceeded by the time the handler
+	// returns, and the middleware emits a WARN log line afterwards.
+	buf, restore := captureLogs(t, slog.LevelWarn)
+	defer restore()
+
+	var ctxErrAfterSleep error
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Sleep longer than the configured timeout so the deadline fires.
+		select {
+		case <-r.Context().Done():
+		case <-time.After(200 * time.Millisecond):
+		}
+		ctxErrAfterSleep = r.Context().Err()
+		w.WriteHeader(http.StatusOK)
+	})
+	timeout := 20 * time.Millisecond
+	h := TimeoutMiddleware(timeout)(next)
+
+	req := httptest.NewRequest("POST", "/api/slow", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if !errors.Is(ctxErrAfterSleep, context.DeadlineExceeded) {
+		t.Errorf("expected context.DeadlineExceeded inside handler, got %v", ctxErrAfterSleep)
+	}
+
+	// The WARN log line must be emitted with the expected fields.
+	out := buf.String()
+	if !strings.Contains(out, "Request exceeded application timeout") {
+		t.Fatalf("expected timeout WARN log, got: %s", out)
+	}
+	// Spot-check that structured fields are present in the JSON record.
+	// slog's JSON handler renders time.Duration as nanoseconds (int), not "20ms".
+	for _, want := range []string{`"method":"POST"`, `"path":"/api/slow"`, `"timeout":20000000`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("WARN log missing field %s, got: %s", want, out)
+		}
+	}
+}
+
+func TestTimeoutMiddleware_PropagatesDeadlineToContext(t *testing.T) {
+	// Verify that the context handed to the handler carries a deadline derived
+	// from the configured timeout — this is the behaviour DB queries rely on.
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deadline, ok := r.Context().Deadline()
+		if !ok {
+			t.Error("expected context to have a deadline set")
+			return
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 || remaining > time.Second {
+			t.Errorf("deadline outside expected window: remaining=%v", remaining)
+		}
+	})
+	h := TimeoutMiddleware(500 * time.Millisecond)(next)
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
+}
+
 func TestParseLogLevel(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -274,7 +375,7 @@ func TestServerRoutes(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create a test issue for route testing
-	CreateIssue(&Issue{Title: "Test Issue", Status: StatusOpen})
+	CreateIssue(context.Background(), &Issue{Title: "Test Issue", Status: StatusOpen})
 
 	tests := []struct {
 		name           string
@@ -499,11 +600,11 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 
 	// Create user
 	user := &User{Email: "refresh@example.com", Role: RoleUser, Active: true}
-	if err := CreateUser(user); err != nil {
+	if err := CreateUser(context.Background(), user); err != nil {
 		t.Fatalf("Failed to create user: %v", err)
 	}
 	// Fetch user to get ID
-	u, _ := GetUserByEmail("refresh@example.com")
+	u, _ := GetUserByEmail(context.Background(), "refresh@example.com")
 	user.ID = u.ID // Ensure ID is set
 
 	// Create expired access token manually
@@ -524,12 +625,12 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 		UserID:    u.ID,
 		ExpiresAt: time.Now().Add(refreshTokenDuration),
 	}
-	CreateSession(session)
+	CreateSession(context.Background(), session)
 
 	// Create valid refresh token
 	validRefreshToken, tokenHash, _ := GenerateRefreshToken(session.ID)
 	session.TokenHash = tokenHash
-	UpdateSession(session)
+	UpdateSession(context.Background(), session)
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

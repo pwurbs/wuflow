@@ -15,8 +15,10 @@ test.describe('Label Management', () => {
     // Board should be hidden
     await expect(page.locator('.board')).toBeHidden();
 
-    // Label management section should be visible
-    await expect(page.locator('#ps-labels-list')).toBeVisible();
+    // Label management section should be attached to the DOM. An empty list
+    // has zero dimensions and would fail toBeVisible() — toBeAttached() is the
+    // right assertion for "the labels grid container exists and is rendered".
+    await expect(page.locator('#ps-labels-list')).toBeAttached();
   });
 
   test('create a new label', async ({ page }) => {

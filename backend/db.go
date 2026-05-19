@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -50,7 +51,7 @@ const errUniqueConstraintFailed = "UNIQUE constraint failed"
 const dbErrPrefix = "Database Error: "
 
 // InitDB initializes the database connection and creates tables if they don't exist.
-func InitDB(dataSourceName string) error {
+func InitDB(ctx context.Context, dataSourceName string) error {
 	if _, err := os.Stat(dataSourceName); os.IsNotExist(err) {
 		LogInfo("Creating new database", "path", dataSourceName)
 	}
@@ -69,17 +70,17 @@ func InitDB(dataSourceName string) error {
 		return err
 	}
 
-	if err = DB.Ping(); err != nil {
+	if err = DB.PingContext(ctx); err != nil {
 		LogError("Failed to ping database", "error", err)
 		return err
 	}
 
-	if _, err := DB.Exec("PRAGMA journal_mode=WAL"); err != nil {
+	if _, err := DB.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
 		LogError("Failed to set WAL mode", "error", err)
 		return err
 	}
 
-	if err := createTables(); err != nil {
+	if err := createTables(ctx); err != nil {
 		return err
 	}
 
@@ -87,7 +88,7 @@ func InitDB(dataSourceName string) error {
 }
 
 // createTables creates the necessary tables for the application.
-func createTables() error {
+func createTables(ctx context.Context) error {
 	// Projects table must be created before issues if we want to reference it
 	createProjectsTable := `
 	CREATE TABLE IF NOT EXISTS projects (
@@ -95,13 +96,13 @@ func createTables() error {
 		name TEXT NOT NULL UNIQUE,
 		description TEXT NOT NULL DEFAULT ''
 	);`
-	if _, err := DB.Exec(createProjectsTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createProjectsTable); err != nil {
 		LogError("Failed to create projects table", "error", err)
 		return err
 	}
 
 	// Seed the default project (id=1)
-	if _, err := DB.Exec(`INSERT OR IGNORE INTO projects(id, name, description) VALUES(1, 'default', 'Default project')`); err != nil {
+	if _, err := DB.ExecContext(ctx, `INSERT OR IGNORE INTO projects(id, name, description) VALUES(1, 'default', 'Default project')`); err != nil {
 		LogError("Failed to seed default project", "error", err)
 		return err
 	}
@@ -123,7 +124,7 @@ func createTables() error {
 		FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL,
 		UNIQUE(project_id, name)
 	);`
-	if _, err := DB.Exec(createReleasesTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createReleasesTable); err != nil {
 		LogError("Failed to create releases table", "error", err)
 		return err
 	}
@@ -167,12 +168,12 @@ func createTables() error {
 		FOREIGN KEY (issue_id) REFERENCES issues(id) ON DELETE CASCADE
 	);`
 
-	if _, err := DB.Exec(createIssuesTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createIssuesTable); err != nil {
 		LogError("Failed to create issues table", "error", err)
 		return err
 	}
 
-	if _, err := DB.Exec(createTasksTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createTasksTable); err != nil {
 		LogError("Failed to create tasks table", "error", err)
 		return err
 	}
@@ -185,7 +186,7 @@ func createTables() error {
 		project_id INTEGER NOT NULL DEFAULT 1,
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
-	if _, err := DB.Exec(createLabelsTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createLabelsTable); err != nil {
 		LogError("Failed to create labels table", "error", err)
 		return err
 	}
@@ -199,7 +200,7 @@ func createTables() error {
 		stage4_name  TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
-	if _, err := DB.Exec(createStatusConfigTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createStatusConfigTable); err != nil {
 		LogError("Failed to create project_status_config table", "error", err)
 		return err
 	}
@@ -216,7 +217,7 @@ func createTables() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
-	if _, err := DB.Exec(createUsersTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createUsersTable); err != nil {
 		LogError("Failed to create users table", "error", err)
 		return err
 	}
@@ -230,17 +231,17 @@ func createTables() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
-	if _, err := DB.Exec(createSessionsTable); err != nil {
+	if _, err := DB.ExecContext(ctx, createSessionsTable); err != nil {
 		LogError("Failed to create sessions table", "error", err)
 		return err
 	}
 	// Create index on user_id to speed up session revocation by user (e.g., logout all devices)
-	if _, err := DB.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
+	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
 		LogError("Failed to create index on sessions(user_id)", "error", err)
 		return err
 	}
 
-	if err := runMigrations(); err != nil {
+	if err := runMigrations(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -248,21 +249,21 @@ func createTables() error {
 
 // runMigrations applies incremental schema and data migrations to existing databases.
 // All migrations must be idempotent so they are safe to run on every startup.
-func runMigrations() error {
+func runMigrations(ctx context.Context) error {
 	// TODO: Migration code for 1.2.0, can be removed in a later version.
-	if err := migrateLabelsAddProjectIDColumn(); err != nil {
+	if err := migrateLabelsAddProjectIDColumn(ctx); err != nil {
 		return err
 	}
 	// TODO: Migration code for 1.2.0, can be removed in a later version.
-	if err := migrateIssueStatusValues(); err != nil {
+	if err := migrateIssueStatusValues(ctx); err != nil {
 		return err
 	}
 	// TODO: Migration code for 1.3.0, can be removed in a later version.
-	if err := migrateIssuesAddReleaseIDColumn(); err != nil {
+	if err := migrateIssuesAddReleaseIDColumn(ctx); err != nil {
 		return err
 	}
 	// TODO: Migration code for 1.3.0 , can be removed in a later version.
-	if err := migrateLabelsAddProjectForeignKey(); err != nil {
+	if err := migrateLabelsAddProjectForeignKey(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -270,16 +271,16 @@ func runMigrations() error {
 
 // migrateLabelsAddProjectIDColumn adds project_id to labels for existing DBs that predate the column.
 // SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so column existence is checked first.
-func migrateLabelsAddProjectIDColumn() error {
+func migrateLabelsAddProjectIDColumn(ctx context.Context) error {
 	var count int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&count); err != nil {
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='project_id'`).Scan(&count); err != nil {
 		LogError("Failed to check for project_id column in labels", "error", err)
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
-	if _, err := DB.Exec(`ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
+	if _, err := DB.ExecContext(ctx, `ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1`); err != nil {
 		LogError("Failed to add project_id column to labels", "error", err)
 		return err
 	}
@@ -289,20 +290,20 @@ func migrateLabelsAddProjectIDColumn() error {
 
 // migrateIssueStatusValues renames legacy Pending/Working status values to Stage1/Stage2
 // and seeds default status config for projects that don't have one yet.
-func migrateIssueStatusValues() error {
-	if res, err := DB.Exec(`UPDATE issues SET status = 'Stage1' WHERE status = 'Pending'`); err != nil {
+func migrateIssueStatusValues(ctx context.Context) error {
+	if res, err := DB.ExecContext(ctx, `UPDATE issues SET status = 'Stage1' WHERE status = 'Pending'`); err != nil {
 		LogError("Failed to migrate Pending -> Stage1", "error", err)
 		return err
 	} else if n, _ := res.RowsAffected(); n > 0 {
 		LogInfo("Migrated issues: Pending -> Stage1", "count", n)
 	}
-	if res, err := DB.Exec(`UPDATE issues SET status = 'Stage2' WHERE status = 'Working'`); err != nil {
+	if res, err := DB.ExecContext(ctx, `UPDATE issues SET status = 'Stage2' WHERE status = 'Working'`); err != nil {
 		LogError("Failed to migrate Working -> Stage2", "error", err)
 		return err
 	} else if n, _ := res.RowsAffected(); n > 0 {
 		LogInfo("Migrated issues: Working -> Stage2", "count", n)
 	}
-	if _, err := DB.Exec(`INSERT OR IGNORE INTO project_status_config (project_id) SELECT id FROM projects`); err != nil {
+	if _, err := DB.ExecContext(ctx, `INSERT OR IGNORE INTO project_status_config (project_id) SELECT id FROM projects`); err != nil {
 		LogError("Failed to seed project_status_config", "error", err)
 		return err
 	}
@@ -310,16 +311,16 @@ func migrateIssueStatusValues() error {
 }
 
 // migrateIssuesAddReleaseIDColumn adds release_id to issues for existing DBs that predate the column.
-func migrateIssuesAddReleaseIDColumn() error {
+func migrateIssuesAddReleaseIDColumn(ctx context.Context) error {
 	var count int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('issues') WHERE name='release_id'`).Scan(&count); err != nil {
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('issues') WHERE name='release_id'`).Scan(&count); err != nil {
 		LogError("Failed to check for release_id column in issues", "error", err)
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
-	if _, err := DB.Exec(`ALTER TABLE issues ADD COLUMN release_id INTEGER REFERENCES releases(id) ON DELETE SET NULL`); err != nil {
+	if _, err := DB.ExecContext(ctx, `ALTER TABLE issues ADD COLUMN release_id INTEGER REFERENCES releases(id) ON DELETE SET NULL`); err != nil {
 		LogError("Failed to add release_id column to issues", "error", err)
 		return err
 	}
@@ -328,26 +329,26 @@ func migrateIssuesAddReleaseIDColumn() error {
 }
 
 // SQLite doesn't support ADD CONSTRAINT, so the table must be recreated to add the FK.
-func migrateLabelsAddProjectForeignKey() error {
+func migrateLabelsAddProjectForeignKey(ctx context.Context) error {
 	var count int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_list('labels') WHERE "table" = 'projects'`).Scan(&count); err != nil {
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_foreign_key_list('labels') WHERE "table" = 'projects'`).Scan(&count); err != nil {
 		LogError("Failed to check foreign key on labels.project_id", "error", err)
 		return err
 	}
 	if count > 0 {
 		return nil
 	}
-	if _, err := DB.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+	if _, err := DB.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
 		LogError("Failed to disable foreign keys before labels migration", "error", err)
 		return err
 	}
-	defer DB.Exec(`PRAGMA foreign_keys = ON`)
-	tx, err := DB.Begin()
+	defer DB.ExecContext(ctx, `PRAGMA foreign_keys = ON`)
+	tx, err := DB.BeginTx(ctx, nil)
 	if err != nil {
 		LogError("Failed to begin transaction for labels migration", "error", err)
 		return err
 	}
-	res, err := tx.Exec(`DELETE FROM labels WHERE project_id NOT IN (SELECT id FROM projects)`)
+	res, err := tx.ExecContext(ctx, `DELETE FROM labels WHERE project_id NOT IN (SELECT id FROM projects)`)
 	if err != nil {
 		_ = tx.Rollback()
 		LogError("Failed to delete orphaned labels before FK migration", "error", err)
@@ -373,7 +374,7 @@ func migrateLabelsAddProjectForeignKey() error {
 		{"rename labels_new to labels", `ALTER TABLE labels_new RENAME TO labels`},
 	}
 	for _, s := range steps {
-		if _, err := tx.Exec(s.sql); err != nil {
+		if _, err := tx.ExecContext(ctx, s.sql); err != nil {
 			_ = tx.Rollback()
 			LogError("Failed to "+s.desc, "error", err)
 			return err
@@ -388,26 +389,26 @@ func migrateLabelsAddProjectForeignKey() error {
 }
 
 // UserExistsAndActive checks if a user exists and is active.
-func UserExistsAndActive(id int) (bool, error) {
-	return existsQuery("SELECT COUNT(*) FROM users WHERE id = ? AND active = 1", id)
+func UserExistsAndActive(ctx context.Context, id int) (bool, error) {
+	return existsQuery(ctx, "SELECT COUNT(*) FROM users WHERE id = ? AND active = 1", id)
 }
 
 // UserExists checks if a user exists, regardless of active status.
-func UserExists(id int) (bool, error) {
-	return existsQuery("SELECT COUNT(*) FROM users WHERE id = ?", id)
+func UserExists(ctx context.Context, id int) (bool, error) {
+	return existsQuery(ctx, "SELECT COUNT(*) FROM users WHERE id = ?", id)
 }
 
 // LabelExistsInProject checks if a label exists and belongs to the given project.
-func LabelExistsInProject(labelID, projectID int) (bool, error) {
-	return existsQuery("SELECT COUNT(*) FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
+func LabelExistsInProject(ctx context.Context, labelID, projectID int) (bool, error) {
+	return existsQuery(ctx, "SELECT COUNT(*) FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
 }
 
 // GetIssueByIDInProject returns the issue only if it belongs to the given project.
 // The (id, project_id) pair is filtered in the SQL WHERE clause, so an issue
 // living in a different project is indistinguishable from "no such issue" — the
 // helper returns nil so the caller can respond 404 uniformly.
-func GetIssueByIDInProject(id, projectID int) (*Issue, error) {
-	row := DB.QueryRow(queryIssueByIDInProject, id, projectID)
+func GetIssueByIDInProject(ctx context.Context, id, projectID int) (*Issue, error) {
+	row := DB.QueryRowContext(ctx, queryIssueByIDInProject, id, projectID)
 	issue, err := scanIssueRow(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -416,7 +417,7 @@ func GetIssueByIDInProject(id, projectID int) (*Issue, error) {
 		LogError("Database Error: GetIssueByIDInProject", "id", id, "project_id", projectID, "error", err)
 		return nil, err
 	}
-	tasks, err := GetTasksByIssueID(issue.ID)
+	tasks, err := GetTasksByIssueID(ctx, issue.ID)
 	if err != nil {
 		LogError("Database Error: GetIssueByIDInProject GetTasksByIssueID", "id", id, "error", err)
 		return nil, err
@@ -426,14 +427,14 @@ func GetIssueByIDInProject(id, projectID int) (*Issue, error) {
 }
 
 // ProjectExists checks if a project exists.
-func ProjectExists(id int) (bool, error) {
-	return existsQuery("SELECT COUNT(*) FROM projects WHERE id = ?", id)
+func ProjectExists(ctx context.Context, id int) (bool, error) {
+	return existsQuery(ctx, "SELECT COUNT(*) FROM projects WHERE id = ?", id)
 }
 
 // existsQuery runs a SELECT COUNT(*) query and returns true if count > 0.
-func existsQuery(query string, args ...any) (bool, error) {
+func existsQuery(ctx context.Context, query string, args ...any) (bool, error) {
 	var count int
-	if err := DB.QueryRow(query, args...).Scan(&count); err != nil {
+	if err := DB.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
 		LogError("Database Error: existence check", "error", err)
 		return false, err
 	}
@@ -454,13 +455,13 @@ func checkRowsAffected(res sql.Result, caller string, notFoundErr error) error {
 }
 
 // CreateIssue inserts a new issue into the database.
-func CreateIssue(i *Issue) error {
+func CreateIssue(ctx context.Context, i *Issue) error {
 	if i.Priority == "" {
 		i.Priority = PriorityNormal
 	}
 	// Get max position for the status to append to the end
 	var maxPos sql.NullInt64
-	err := DB.QueryRow("SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
+	err := DB.QueryRowContext(ctx, "SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
 	if err != nil && err != sql.ErrNoRows {
 		LogError("Database Error: CreateIssue MaxPos", "error", err)
 		return err
@@ -494,7 +495,7 @@ func CreateIssue(i *Issue) error {
 		plannedDatesJSON = string(b)
 	}
 
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		"INSERT INTO issues(title, description, status, position, deadline, planned_dates, priority, label_id, creator_id, assignee_id, updated_by, project_id, release_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt,
 	)
@@ -538,7 +539,7 @@ const (
 )
 
 // getTasksForIssues fetches tasks for the given issues, keyed by issue ID.
-func getTasksForIssues(issues []Issue) (map[int][]Task, error) {
+func getTasksForIssues(ctx context.Context, issues []Issue) (map[int][]Task, error) {
 	ids := make([]int, len(issues))
 	for i, iss := range issues {
 		ids[i] = iss.ID
@@ -547,7 +548,7 @@ func getTasksForIssues(issues []Issue) (map[int][]Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := DB.Query(
+	rows, err := DB.QueryContext(ctx,
 		"SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id IN (SELECT value FROM json_each(?)) ORDER BY position ASC",
 		string(jsonIDs),
 	)
@@ -568,8 +569,8 @@ func getTasksForIssues(issues []Issue) (map[int][]Task, error) {
 }
 
 // queryIssuesByProject executes query, scans the results, and attaches tasks.
-func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, error) {
-	rows, err := DB.Query(query, args...)
+func queryIssuesByProject(ctx context.Context, caller string, query string, args ...any) ([]Issue, error) {
+	rows, err := DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		LogError(dbErrPrefix+caller, "error", err)
 		return nil, err
@@ -591,7 +592,7 @@ func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, er
 	}
 
 	if len(issues) > 0 {
-		tasksByIssue, err := getTasksForIssues(issues)
+		tasksByIssue, err := getTasksForIssues(ctx, issues)
 		if err != nil {
 			LogError(dbErrPrefix+caller+" GetTasks", "error", err)
 			return nil, err
@@ -605,23 +606,23 @@ func queryIssuesByProject(caller string, query string, args ...any) ([]Issue, er
 }
 
 // GetActiveIssuesByProject retrieves issues in the active workflow statuses for a project (excludes Open and Archive).
-func GetActiveIssuesByProject(projectID int) ([]Issue, error) {
-	return queryIssuesByProject("GetActiveIssuesByProject", queryActiveIssues, StatusArchive, StatusOpen, projectID)
+func GetActiveIssuesByProject(ctx context.Context, projectID int) ([]Issue, error) {
+	return queryIssuesByProject(ctx, "GetActiveIssuesByProject", queryActiveIssues, StatusArchive, StatusOpen, projectID)
 }
 
 // GetArchivedIssuesByProject retrieves all archived issues for a specific project.
-func GetArchivedIssuesByProject(projectID int) ([]Issue, error) {
-	return queryIssuesByProject("GetArchivedIssuesByProject", queryArchivedIssues, StatusArchive, projectID)
+func GetArchivedIssuesByProject(ctx context.Context, projectID int) ([]Issue, error) {
+	return queryIssuesByProject(ctx, "GetArchivedIssuesByProject", queryArchivedIssues, StatusArchive, projectID)
 }
 
 // GetOpenIssuesByProject retrieves all open (status = Open) issues for a specific project.
-func GetOpenIssuesByProject(projectID int) ([]Issue, error) {
-	return queryIssuesByProject("GetOpenIssuesByProject", queryOpenIssues, StatusOpen, projectID)
+func GetOpenIssuesByProject(ctx context.Context, projectID int) ([]Issue, error) {
+	return queryIssuesByProject(ctx, "GetOpenIssuesByProject", queryOpenIssues, StatusOpen, projectID)
 }
 
 // GetIssueByID retrieves a single issue by ID, including its associated tasks.
-func GetIssueByID(id int) (*Issue, error) {
-	row := DB.QueryRow(queryIssueByID, id)
+func GetIssueByID(ctx context.Context, id int) (*Issue, error) {
+	row := DB.QueryRowContext(ctx, queryIssueByID, id)
 	issue, err := scanIssueRow(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -631,7 +632,7 @@ func GetIssueByID(id int) (*Issue, error) {
 		return nil, err
 	}
 
-	tasks, err := GetTasksByIssueID(issue.ID)
+	tasks, err := GetTasksByIssueID(ctx, issue.ID)
 	if err != nil {
 		LogError("Database Error: GetIssueByID GetTasksByIssueID", "error", err)
 		return nil, err
@@ -642,7 +643,7 @@ func GetIssueByID(id int) (*Issue, error) {
 }
 
 // UpdateIssue updates an existing issue in the database.
-func UpdateIssue(i *Issue) error {
+func UpdateIssue(ctx context.Context, i *Issue) error {
 	i.UpdatedAt = time.Now().UTC()
 
 	var labelID *int
@@ -666,7 +667,7 @@ func UpdateIssue(i *Issue) error {
 		updaterID = i.UpdaterID
 	}
 
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		"UPDATE issues SET title = ?, description = ?, status = ?, position = ?, deadline = ?, planned_dates = ?, priority = ?, label_id = ?, assignee_id = ?, updated_by = ?, project_id = ?, release_id = ?, updated_at = ? WHERE id = ?",
 		i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt, i.ID,
 	)
@@ -680,8 +681,8 @@ func UpdateIssue(i *Issue) error {
 
 // UpdateIssuePosition updates only the position of an issue without modifying
 // updated_at or updated_by — used when a drag reorder shifts cards cosmetically.
-func UpdateIssuePosition(id, position int) error {
-	res, err := DB.Exec("UPDATE issues SET position = ? WHERE id = ?", position, id)
+func UpdateIssuePosition(ctx context.Context, id, position int) error {
+	res, err := DB.ExecContext(ctx, "UPDATE issues SET position = ? WHERE id = ?", position, id)
 	if err != nil {
 		LogError("Database Error: UpdateIssuePosition", "error", err)
 		return err
@@ -690,8 +691,8 @@ func UpdateIssuePosition(id, position int) error {
 }
 
 // DeleteIssue removes an issue from the database by its ID.
-func DeleteIssue(id int) error {
-	res, err := DB.Exec("DELETE FROM issues WHERE id = ?", id)
+func DeleteIssue(ctx context.Context, id int) error {
+	res, err := DB.ExecContext(ctx, "DELETE FROM issues WHERE id = ?", id)
 	if err != nil {
 		LogError("Database Error: DeleteIssue", "error", err)
 		return err
@@ -701,8 +702,8 @@ func DeleteIssue(id int) error {
 }
 
 // CreateTask inserts a new task into the database.
-func CreateTask(t *Task) error {
-	exists, err := existsQuery("SELECT COUNT(*) FROM issues WHERE id = ?", t.IssueID)
+func CreateTask(ctx context.Context, t *Task) error {
+	exists, err := existsQuery(ctx, "SELECT COUNT(*) FROM issues WHERE id = ?", t.IssueID)
 	if err != nil {
 		LogError("Database Error: CreateTask CheckIssue", "error", err)
 		return err
@@ -713,7 +714,7 @@ func CreateTask(t *Task) error {
 
 	// Get max position
 	var maxPos sql.NullInt64
-	err = DB.QueryRow("SELECT MAX(position) FROM tasks WHERE issue_id = ?", t.IssueID).Scan(&maxPos)
+	err = DB.QueryRowContext(ctx, "SELECT MAX(position) FROM tasks WHERE issue_id = ?", t.IssueID).Scan(&maxPos)
 	if err != nil && err != sql.ErrNoRows {
 		LogError("Database Error: CreateTask MaxPos", "error", err)
 		return err
@@ -721,7 +722,7 @@ func CreateTask(t *Task) error {
 	t.Position = int(maxPos.Int64) + 1
 	t.UpdatedAt = time.Now().UTC()
 
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		"INSERT INTO tasks(issue_id, title, done, position, deadline, updated_at) VALUES(?, ?, ?, ?, ?, ?)",
 		t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt,
 	)
@@ -753,8 +754,8 @@ func scanTaskRow(s issueScanner) (Task, error) {
 }
 
 // GetTasksByIssueID retrieves all tasks associated with a specific issue.
-func GetTasksByIssueID(issueID int) ([]Task, error) {
-	rows, err := DB.Query("SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id = ? ORDER BY position ASC", issueID)
+func GetTasksByIssueID(ctx context.Context, issueID int) ([]Task, error) {
+	rows, err := DB.QueryContext(ctx, "SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id = ? ORDER BY position ASC", issueID)
 	if err != nil {
 		LogError("Database Error: GetTasksByIssueID", "error", err)
 		return nil, err
@@ -781,9 +782,9 @@ func GetTasksByIssueID(issueID int) ([]Task, error) {
 // issue_id) pair is filtered in the SQL WHERE clause, so a task addressed
 // through the wrong parent issue is indistinguishable from "no such task" —
 // zero rows affected → ErrTaskNotFound → handler responds 404.
-func UpdateTask(t *Task, issueID int) error {
+func UpdateTask(ctx context.Context, t *Task, issueID int) error {
 	t.UpdatedAt = time.Now().UTC()
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		"UPDATE tasks SET title = ?, done = ?, position = ?, deadline = ?, updated_at = ? WHERE id = ? AND issue_id = ?",
 		t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID, issueID,
 	)
@@ -796,8 +797,8 @@ func UpdateTask(t *Task, issueID int) error {
 
 // DeleteTask removes a task that must belong to the given issue. Ownership is
 // enforced in the WHERE clause; see UpdateTask for the rationale.
-func DeleteTask(id, issueID int) error {
-	res, err := DB.Exec("DELETE FROM tasks WHERE id = ? AND issue_id = ?", id, issueID)
+func DeleteTask(ctx context.Context, id, issueID int) error {
+	res, err := DB.ExecContext(ctx, "DELETE FROM tasks WHERE id = ? AND issue_id = ?", id, issueID)
 	if err != nil {
 		LogError("Database Error: DeleteTask", "error", err)
 		return err
@@ -807,8 +808,8 @@ func DeleteTask(id, issueID int) error {
 }
 
 // CreateLabel inserts a new label into the database.
-func CreateLabel(l *Label) error {
-	res, err := DB.Exec("INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)", l.Name, l.Color, l.ProjectID)
+func CreateLabel(ctx context.Context, l *Label) error {
+	res, err := DB.ExecContext(ctx, "INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)", l.Name, l.Color, l.ProjectID)
 	if err != nil {
 		LogError("Database Error: CreateLabel", "error", err)
 		return err
@@ -824,8 +825,8 @@ func CreateLabel(l *Label) error {
 }
 
 // GetLabelsByProject retrieves all labels belonging to a specific project.
-func GetLabelsByProject(projectID int) ([]Label, error) {
-	rows, err := DB.Query("SELECT id, name, color, project_id FROM labels WHERE project_id = ? ORDER BY name ASC", projectID)
+func GetLabelsByProject(ctx context.Context, projectID int) ([]Label, error) {
+	rows, err := DB.QueryContext(ctx, "SELECT id, name, color, project_id FROM labels WHERE project_id = ? ORDER BY name ASC", projectID)
 	if err != nil {
 		LogError("Database Error: GetLabelsByProject", "project_id", projectID, "error", err)
 		return nil, err
@@ -849,8 +850,8 @@ func GetLabelsByProject(projectID int) ([]Label, error) {
 }
 
 // DeleteLabel removes a label from the database, verifying it belongs to the given project.
-func DeleteLabel(labelID, projectID int) error {
-	res, err := DB.Exec("DELETE FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
+func DeleteLabel(ctx context.Context, labelID, projectID int) error {
+	res, err := DB.ExecContext(ctx, "DELETE FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
 	if err != nil {
 		LogError("Database Error: DeleteLabel", "error", err)
 		return err
@@ -864,8 +865,8 @@ func DeleteLabel(labelID, projectID int) error {
 // -----------------------------------------------------------------------------
 
 // CreateProject inserts a new project into the database.
-func CreateProject(p *Project) error {
-	res, err := DB.Exec("INSERT INTO projects(name, description) VALUES(?, ?)", p.Name, p.Description)
+func CreateProject(ctx context.Context, p *Project) error {
+	res, err := DB.ExecContext(ctx, "INSERT INTO projects(name, description) VALUES(?, ?)", p.Name, p.Description)
 	if err != nil {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
@@ -882,7 +883,7 @@ func CreateProject(p *Project) error {
 	p.ID = int(id)
 
 	// Seed default column/status config for the new project.
-	if _, err := DB.Exec(`INSERT OR IGNORE INTO project_status_config (project_id) VALUES (?)`, p.ID); err != nil {
+	if _, err := DB.ExecContext(ctx, `INSERT OR IGNORE INTO project_status_config (project_id) VALUES (?)`, p.ID); err != nil {
 		LogError("Database Error: CreateProject seed status config", "error", err)
 		return err
 	}
@@ -890,8 +891,8 @@ func CreateProject(p *Project) error {
 }
 
 // GetAllProjects retrieves all projects from the database.
-func GetAllProjects() ([]Project, error) {
-	rows, err := DB.Query("SELECT id, name, description FROM projects ORDER BY id ASC")
+func GetAllProjects(ctx context.Context) ([]Project, error) {
+	rows, err := DB.QueryContext(ctx, "SELECT id, name, description FROM projects ORDER BY id ASC")
 	if err != nil {
 		LogError("Database Error: GetAllProjects", "error", err)
 		return nil, err
@@ -915,8 +916,8 @@ func GetAllProjects() ([]Project, error) {
 }
 
 // GetProjectByID retrieves a single project by its ID.
-func GetProjectByID(id int) (*Project, error) {
-	row := DB.QueryRow("SELECT id, name, description FROM projects WHERE id = ?", id)
+func GetProjectByID(ctx context.Context, id int) (*Project, error) {
+	row := DB.QueryRowContext(ctx, "SELECT id, name, description FROM projects WHERE id = ?", id)
 
 	var p Project
 	err := row.Scan(&p.ID, &p.Name, &p.Description)
@@ -931,8 +932,8 @@ func GetProjectByID(id int) (*Project, error) {
 }
 
 // UpdateProject updates an existing project in the database.
-func UpdateProject(p *Project) error {
-	res, err := DB.Exec("UPDATE projects SET name = ?, description = ? WHERE id = ?", p.Name, p.Description, p.ID)
+func UpdateProject(ctx context.Context, p *Project) error {
+	res, err := DB.ExecContext(ctx, "UPDATE projects SET name = ?, description = ? WHERE id = ?", p.Name, p.Description, p.ID)
 	if err != nil {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
@@ -945,8 +946,8 @@ func UpdateProject(p *Project) error {
 }
 
 // DeleteProject removes a project from the database by its ID.
-func DeleteProject(id int) error {
-	res, err := DB.Exec("DELETE FROM projects WHERE id = ?", id)
+func DeleteProject(ctx context.Context, id int) error {
+	res, err := DB.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", id)
 	if err != nil {
 		LogError("Database Error: DeleteProject", "error", err)
 		return err
@@ -956,9 +957,9 @@ func DeleteProject(id int) error {
 }
 
 // CountIssuesByProject counts how many issues reference a given project.
-func CountIssuesByProject(projectID int) (int, error) {
+func CountIssuesByProject(ctx context.Context, projectID int) (int, error) {
 	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM issues WHERE project_id = ?", projectID).Scan(&count)
+	err := DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM issues WHERE project_id = ?", projectID).Scan(&count)
 	if err != nil {
 		LogError("Database Error: CountIssuesByProject", "project_id", projectID, "error", err)
 		return 0, err
@@ -1053,9 +1054,9 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 
 
 // CreateUser inserts a new user into the database.
-func CreateUser(u *User) error {
+func CreateUser(ctx context.Context, u *User) error {
 	u.UpdatedAt = time.Now().UTC()
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		"INSERT INTO users(email, first_name, last_name, password_hash, role, active, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?)",
 		u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt,
 	)
@@ -1077,8 +1078,8 @@ func CreateUser(u *User) error {
 }
 
 // GetUserByEmail retrieves a user by their email address.
-func GetUserByEmail(email string) (*User, error) {
-	row := DB.QueryRow("SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE email = ?", email)
+func GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	row := DB.QueryRowContext(ctx, "SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE email = ?", email)
 
 	var u User
 	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt)
@@ -1093,8 +1094,8 @@ func GetUserByEmail(email string) (*User, error) {
 }
 
 // GetUserByID retrieves a user by their ID.
-func GetUserByID(id int) (*User, error) {
-	row := DB.QueryRow("SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE id = ?", id)
+func GetUserByID(ctx context.Context, id int) (*User, error) {
+	row := DB.QueryRowContext(ctx, "SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE id = ?", id)
 
 	var u User
 	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt)
@@ -1109,8 +1110,8 @@ func GetUserByID(id int) (*User, error) {
 }
 
 // GetAllUsers retrieves all users from the database.
-func GetAllUsers() ([]User, error) {
-	rows, err := DB.Query("SELECT id, email, first_name, last_name, role, active, created_at, updated_at FROM users ORDER BY id ASC")
+func GetAllUsers(ctx context.Context) ([]User, error) {
+	rows, err := DB.QueryContext(ctx, "SELECT id, email, first_name, last_name, role, active, created_at, updated_at FROM users ORDER BY id ASC")
 	if err != nil {
 		LogError("Database Error: GetAllUsers", "error", err)
 		return nil, err
@@ -1130,9 +1131,9 @@ func GetAllUsers() ([]User, error) {
 }
 
 // UpdateUser updates an existing user in the database.
-func UpdateUser(u *User) error {
+func UpdateUser(ctx context.Context, u *User) error {
 	u.UpdatedAt = time.Now().UTC()
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		"UPDATE users SET email = ?, first_name = ?, last_name = ?, password_hash = ?, role = ?, active = ?, updated_at = ? WHERE id = ?",
 		u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt, u.ID,
 	)
@@ -1148,9 +1149,9 @@ func UpdateUser(u *User) error {
 }
 
 // CountUsers returns the total number of users in the database.
-func CountUsers() (int, error) {
+func CountUsers(ctx context.Context) (int, error) {
 	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	err := DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
 		LogError("Database Error: CountUsers", "error", err)
 		return 0, err
@@ -1159,9 +1160,9 @@ func CountUsers() (int, error) {
 }
 
 // CountActiveSysAdmins returns the number of active users with sysadmin role.
-func CountActiveSysAdmins() (int, error) {
+func CountActiveSysAdmins(ctx context.Context) (int, error) {
 	var count int
-	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = ? AND active = 1", RoleSysAdmin).Scan(&count)
+	err := DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE role = ? AND active = 1", RoleSysAdmin).Scan(&count)
 	if err != nil {
 		LogError("Database Error: CountActiveSysAdmins", "error", err)
 		return 0, err
@@ -1174,13 +1175,13 @@ func CountActiveSysAdmins() (int, error) {
 // -----------------------------------------------------------------------------
 
 // CreateSession inserts a new session into the database.
-func CreateSession(s *Session) error {
+func CreateSession(ctx context.Context, s *Session) error {
 	if s.CreatedAt.IsZero() {
 		s.CreatedAt = time.Now().UTC()
 	}
 	s.ExpiresAt = s.ExpiresAt.UTC()
 
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		"INSERT INTO sessions(user_id, token_hash, expires_at, created_at) VALUES(?, ?, ?, ?)",
 		s.UserID, s.TokenHash, s.ExpiresAt, s.CreatedAt,
 	)
@@ -1199,8 +1200,8 @@ func CreateSession(s *Session) error {
 }
 
 // GetSessionByID retrieves a session by its ID.
-func GetSessionByID(id int) (*Session, error) {
-	row := DB.QueryRow("SELECT id, user_id, token_hash, expires_at, created_at FROM sessions WHERE id = ?", id)
+func GetSessionByID(ctx context.Context, id int) (*Session, error) {
+	row := DB.QueryRowContext(ctx, "SELECT id, user_id, token_hash, expires_at, created_at FROM sessions WHERE id = ?", id)
 
 	var s Session
 	err := row.Scan(&s.ID, &s.UserID, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
@@ -1215,8 +1216,8 @@ func GetSessionByID(id int) (*Session, error) {
 }
 
 // UpdateSession updates the token hash and expiration of an existing session (Rotation).
-func UpdateSession(s *Session) error {
-	res, err := DB.Exec("UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?", s.TokenHash, s.ExpiresAt, s.ID)
+func UpdateSession(ctx context.Context, s *Session) error {
+	res, err := DB.ExecContext(ctx, "UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?", s.TokenHash, s.ExpiresAt, s.ID)
 	if err != nil {
 		LogError("Database Error: UpdateSession", "error", err)
 		return err
@@ -1226,8 +1227,8 @@ func UpdateSession(s *Session) error {
 }
 
 // DeleteSession removes a session from the database by its ID.
-func DeleteSession(id int) error {
-	res, err := DB.Exec("DELETE FROM sessions WHERE id = ?", id)
+func DeleteSession(ctx context.Context, id int) error {
+	res, err := DB.ExecContext(ctx, "DELETE FROM sessions WHERE id = ?", id)
 	if err != nil {
 		LogError("Database Error: DeleteSession", "error", err)
 		return err
@@ -1237,8 +1238,8 @@ func DeleteSession(id int) error {
 }
 
 // DeleteSessionsByUserID removes all sessions for a specific user.
-func DeleteSessionsByUserID(userID int) error {
-	_, err := DB.Exec("DELETE FROM sessions WHERE user_id = ?", userID)
+func DeleteSessionsByUserID(ctx context.Context, userID int) error {
+	_, err := DB.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", userID)
 	if err != nil {
 		LogError("Database Error: DeleteSessionsByUserID", "error", err)
 		return err
@@ -1247,9 +1248,9 @@ func DeleteSessionsByUserID(userID int) error {
 }
 
 // DeleteExpiredSessions removes all sessions that have expired from the database.
-func DeleteExpiredSessions() (int64, error) {
+func DeleteExpiredSessions(ctx context.Context) (int64, error) {
 	// Use time.Now() so the driver formats it consistently with how sessions were inserted
-	res, err := DB.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now().UTC())
+	res, err := DB.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at < ?", time.Now().UTC())
 	if err != nil {
 		LogError("Database Error: DeleteExpiredSessions", "error", err)
 		return 0, err
@@ -1265,9 +1266,9 @@ func DeleteExpiredSessions() (int64, error) {
 
 // GetStatusConfig retrieves the status config for a project.
 // Returns default values if no config row exists yet.
-func GetStatusConfig(projectID int) (*StatusConfig, error) {
+func GetStatusConfig(ctx context.Context, projectID int) (*StatusConfig, error) {
 	cfg := &StatusConfig{ProjectID: projectID}
-	err := DB.QueryRow(
+	err := DB.QueryRowContext(ctx,
 		`SELECT stage1_name, stage2_name, stage3_name, stage4_name
 		 FROM project_status_config WHERE project_id = ?`, projectID,
 	).Scan(&cfg.Stage1Name, &cfg.Stage2Name, &cfg.Stage3Name, &cfg.Stage4Name)
@@ -1288,11 +1289,11 @@ func GetStatusConfig(projectID int) (*StatusConfig, error) {
 // -----------------------------------------------------------------------------
 
 // CreateRelease inserts a new release into the database.
-func CreateRelease(r *Release) error {
+func CreateRelease(ctx context.Context, r *Release) error {
 	r.Status = ReleaseStatusOpen
 	r.CreatedAt = time.Now().UTC()
 	r.UpdatedAt = r.CreatedAt
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		`INSERT INTO releases(project_id, name, description, start_date, release_date, status, owner_id, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ProjectID, r.Name, r.Description, r.StartDate, r.ReleaseDate, r.Status, r.OwnerID, r.CreatedAt, r.UpdatedAt,
 	)
@@ -1313,8 +1314,8 @@ func CreateRelease(r *Release) error {
 }
 
 // GetReleasesByProject retrieves all releases for a project ordered by created_at desc.
-func GetReleasesByProject(projectID int) ([]Release, error) {
-	rows, err := DB.Query(
+func GetReleasesByProject(ctx context.Context, projectID int) ([]Release, error) {
+	rows, err := DB.QueryContext(ctx,
 		`SELECT r.id, r.project_id, r.name, r.description, r.start_date, r.release_date, r.closed_at, r.status, r.created_at, r.updated_at,
 		        o.id, o.first_name, o.last_name, o.email
 		 FROM releases r
@@ -1373,8 +1374,8 @@ func hydrateRelease(r *Release, f releaseNullFields) {
 }
 
 // GetReleaseByID retrieves a single release by ID.
-func GetReleaseByID(id int) (*Release, error) {
-	row := DB.QueryRow(
+func GetReleaseByID(ctx context.Context, id int) (*Release, error) {
+	row := DB.QueryRowContext(ctx,
 		`SELECT r.id, r.project_id, r.name, r.description, r.start_date, r.release_date, r.closed_at, r.status, r.created_at, r.updated_at,
 		        o.id, o.first_name, o.last_name, o.email
 		 FROM releases r
@@ -1397,9 +1398,9 @@ func GetReleaseByID(id int) (*Release, error) {
 }
 
 // UpdateRelease updates name, description, dates, and owner of an existing release.
-func UpdateRelease(r *Release) error {
+func UpdateRelease(ctx context.Context, r *Release) error {
 	r.UpdatedAt = time.Now().UTC()
-	res, err := DB.Exec(
+	res, err := DB.ExecContext(ctx,
 		`UPDATE releases SET name = ?, description = ?, start_date = ?, release_date = ?, owner_id = ?, updated_at = ? WHERE id = ?`,
 		r.Name, r.Description, r.StartDate, r.ReleaseDate, r.OwnerID, r.UpdatedAt, r.ID,
 	)
@@ -1414,8 +1415,8 @@ func UpdateRelease(r *Release) error {
 }
 
 // DeleteRelease removes a release. The FK ON DELETE SET NULL clears release_id on issues.
-func DeleteRelease(id int) error {
-	res, err := DB.Exec(`DELETE FROM releases WHERE id = ?`, id)
+func DeleteRelease(ctx context.Context, id int) error {
+	res, err := DB.ExecContext(ctx, `DELETE FROM releases WHERE id = ?`, id)
 	if err != nil {
 		LogError("Database Error: DeleteRelease", "id", id, "error", err)
 		return err
@@ -1424,9 +1425,9 @@ func DeleteRelease(id int) error {
 }
 
 // ReopenRelease sets a release status back to 'open'. Already archived issues are not changed.
-func ReopenRelease(id int) error {
+func ReopenRelease(ctx context.Context, id int) error {
 	now := time.Now().UTC()
-	res, err := DB.Exec(`UPDATE releases SET status = ?, closed_at = NULL, updated_at = ? WHERE id = ? AND status = ?`,
+	res, err := DB.ExecContext(ctx, `UPDATE releases SET status = ?, closed_at = NULL, updated_at = ? WHERE id = ? AND status = ?`,
 		ReleaseStatusOpen, now, id, ReleaseStatusClosed,
 	)
 	if err != nil {
@@ -1437,9 +1438,9 @@ func ReopenRelease(id int) error {
 }
 
 // TriggerRelease sets a release status to 'closed' and optionally archives all Done issues in it.
-func TriggerRelease(id int, archiveDone bool) error {
+func TriggerRelease(ctx context.Context, id int, archiveDone bool) error {
 	now := time.Now().UTC()
-	res, err := DB.Exec(`UPDATE releases SET status = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = ?`,
+	res, err := DB.ExecContext(ctx, `UPDATE releases SET status = ?, closed_at = ?, updated_at = ? WHERE id = ? AND status = ?`,
 		ReleaseStatusClosed, now, now, id, ReleaseStatusOpen,
 	)
 	if err != nil {
@@ -1450,7 +1451,7 @@ func TriggerRelease(id int, archiveDone bool) error {
 		return err
 	}
 	if archiveDone {
-		if _, err := DB.Exec(
+		if _, err := DB.ExecContext(ctx,
 			`UPDATE issues SET status = ?, updated_at = ? WHERE release_id = ? AND status = ?`,
 			StatusArchive, now, id, StatusDone,
 		); err != nil {
@@ -1464,15 +1465,15 @@ func TriggerRelease(id int, archiveDone bool) error {
 // ReleaseExistsInProject checks if a release exists and belongs to the given project.
 // Used by checkRelease to validate that a release referenced from an issue body lives
 // in the same project as the issue.
-func ReleaseExistsInProject(releaseID, projectID int) (bool, error) {
-	return existsQuery("SELECT COUNT(*) FROM releases WHERE id = ? AND project_id = ?", releaseID, projectID)
+func ReleaseExistsInProject(ctx context.Context, releaseID, projectID int) (bool, error) {
+	return existsQuery(ctx, "SELECT COUNT(*) FROM releases WHERE id = ? AND project_id = ?", releaseID, projectID)
 }
 
 // GetReleaseByIDInProject returns the release only if it belongs to the given project.
 // Filtered in the SQL WHERE clause; same nil-on-not-in-project contract as
 // GetIssueByIDInProject.
-func GetReleaseByIDInProject(id, projectID int) (*Release, error) {
-	row := DB.QueryRow(
+func GetReleaseByIDInProject(ctx context.Context, id, projectID int) (*Release, error) {
+	row := DB.QueryRowContext(ctx,
 		`SELECT r.id, r.project_id, r.name, r.description, r.start_date, r.release_date, r.closed_at, r.status, r.created_at, r.updated_at,
 		        o.id, o.first_name, o.last_name, o.email
 		 FROM releases r
@@ -1506,8 +1507,8 @@ func scanRelease(rows *sql.Rows) (Release, error) {
 }
 
 // UpsertStatusConfig saves the status config for a project.
-func UpsertStatusConfig(cfg *StatusConfig) error {
-	_, err := DB.Exec(
+func UpsertStatusConfig(ctx context.Context, cfg *StatusConfig) error {
+	_, err := DB.ExecContext(ctx,
 		`INSERT OR REPLACE INTO project_status_config
 		 (project_id, stage1_name, stage2_name, stage3_name, stage4_name)
 		 VALUES (?, ?, ?, ?, ?)`,

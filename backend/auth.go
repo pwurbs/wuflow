@@ -284,8 +284,8 @@ func GetEmailFromContext(ctx context.Context) string {
 }
 
 // EnsureInitialAdmin creates the initial admin user if no users exist.
-func EnsureInitialAdmin(initialAdminEmail, initialAdminPassword string) error {
-	count, err := CountUsers()
+func EnsureInitialAdmin(ctx context.Context, initialAdminEmail, initialAdminPassword string) error {
+	count, err := CountUsers(ctx)
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func EnsureInitialAdmin(initialAdminEmail, initialAdminPassword string) error {
 	}
 	admin.PasswordHash = hash
 
-	if err := CreateUser(admin); err != nil {
+	if err := CreateUser(ctx, admin); err != nil {
 		return err
 	}
 
@@ -336,7 +336,7 @@ func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	// Use shared RefreshSession logic
-	user, newAccessToken, newRefreshToken, err := RefreshSession(refreshTokenCookie.Value)
+	user, newAccessToken, newRefreshToken, err := RefreshSession(r.Context(), refreshTokenCookie.Value)
 	if err != nil {
 		LogInfo("Session refresh failed, redirecting to login", "reason", err.Error())
 		return false
@@ -353,7 +353,7 @@ func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
 
 // CreateUserSession creates a new session for a user, generates tokens, and returns them.
 // It handles the DB insertion and token generation.
-func CreateUserSession(user *User) (*Session, string, string, error) {
+func CreateUserSession(ctx context.Context, user *User) (*Session, string, string, error) {
 	// 1. Generate Access Token
 	accessToken, err := GenerateAccessToken(user)
 	if err != nil {
@@ -366,14 +366,14 @@ func CreateUserSession(user *User) (*Session, string, string, error) {
 		TokenHash: "", // Will be set after generation
 		ExpiresAt: time.Now().UTC().Add(refreshTokenDuration),
 	}
-	if err := CreateSession(session); err != nil {
+	if err := CreateSession(ctx, session); err != nil {
 		return nil, "", "", fmt.Errorf("failed to create session: %w", err)
 	}
 
 	// 3. Generate Refresh Token
 	refreshToken, tokenHash, err := GenerateRefreshToken(session.ID)
 	if err != nil {
-		if derr := DeleteSession(session.ID); derr != nil {
+		if derr := DeleteSession(ctx, session.ID); derr != nil {
 			LogWarn("failed to cleanup session after refresh token error", "session_id", session.ID, "err", derr)
 		}
 		return nil, "", "", fmt.Errorf("failed to generate refresh token: %w", err)
@@ -381,8 +381,8 @@ func CreateUserSession(user *User) (*Session, string, string, error) {
 
 	// 4. Update session with the real hash
 	session.TokenHash = tokenHash
-	if err := UpdateSession(session); err != nil {
-		if derr := DeleteSession(session.ID); derr != nil {
+	if err := UpdateSession(ctx, session); err != nil {
+		if derr := DeleteSession(ctx, session.ID); derr != nil {
 			LogWarn("failed to cleanup orphaned session after hash update error", "session_id", session.ID, "err", derr)
 		}
 		return nil, "", "", fmt.Errorf("failed to update session hash: %w", err)
@@ -392,24 +392,24 @@ func CreateUserSession(user *User) (*Session, string, string, error) {
 }
 
 // RevokeSession revokes a specific session by ID.
-func RevokeSession(sessionID int) error {
-	return DeleteSession(sessionID)
+func RevokeSession(ctx context.Context, sessionID int) error {
+	return DeleteSession(ctx, sessionID)
 }
 
 // RevokeUserSessions revokes all sessions for a user (e.g., on password change or deactivation).
-func RevokeUserSessions(userID int) error {
-	return DeleteSessionsByUserID(userID)
+func RevokeUserSessions(ctx context.Context, userID int) error {
+	return DeleteSessionsByUserID(ctx, userID)
 }
 
-func deleteSessionSafe(sessionID int, msg string) {
-	if err := DeleteSession(sessionID); err != nil {
+func deleteSessionSafe(ctx context.Context, sessionID int, msg string) {
+	if err := DeleteSession(ctx, sessionID); err != nil {
 		LogWarn(msg, "session_id", strconv.Itoa(sessionID), "err", err)
 	}
 }
 
 // RefreshSession validates a refresh token, performs rotation, and returns new tokens.
 // Returns the user, new access token, new refresh token, or error.
-func RefreshSession(tokenString string) (*User, string, string, error) {
+func RefreshSession(ctx context.Context, tokenString string) (*User, string, string, error) {
 	// 1. Parse Opaque Token
 	sessionID, secret, err := ValidateRefreshToken(tokenString)
 	if err != nil {
@@ -417,7 +417,7 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 	}
 
 	// 2. Fetch Session
-	session, err := GetSessionByID(sessionID)
+	session, err := GetSessionByID(ctx, sessionID)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("session lookup failed session_id=%d: %w", sessionID, err)
 	}
@@ -427,16 +427,16 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 
 	// 3. Check Expiry
 	if time.Now().After(session.ExpiresAt) {
-		deleteSessionSafe(sessionID, "failed to delete expired session")
+		deleteSessionSafe(ctx, sessionID, "failed to delete expired session")
 		return nil, "", "", fmt.Errorf("session expired user_id=%d session_id=%d", session.UserID, sessionID)
 	}
 
 	// 4. Verify Hash (Reuse Detection)
 	expected := computeTokenMAC([]byte(secret))
 	if !hmac.Equal([]byte(expected), []byte(session.TokenHash)) {
-		revokeErr := RevokeUserSessions(session.UserID)
+		revokeErr := RevokeUserSessions(ctx, session.UserID)
 		if revokeErr != nil {
-			revokeErr = RevokeUserSessions(session.UserID) // one retry for transient DB failures
+			revokeErr = RevokeUserSessions(ctx, session.UserID) // one retry for transient DB failures
 		}
 		if revokeErr != nil {
 			// Sessions may remain active — operators should monitor for this error.
@@ -446,12 +446,12 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 	}
 
 	// 5. Fetch User
-	user, err := GetUserByID(session.UserID)
+	user, err := GetUserByID(ctx, session.UserID)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("user lookup failed user_id=%d session_id=%d: %w", session.UserID, sessionID, err)
 	}
 	if user == nil || !user.Active {
-		deleteSessionSafe(sessionID, "failed to delete session for inactive user")
+		deleteSessionSafe(ctx, sessionID, "failed to delete session for inactive user")
 		return nil, "", "", fmt.Errorf("user inactive or not found user_id=%d session_id=%d", session.UserID, sessionID)
 	}
 
@@ -470,7 +470,7 @@ func RefreshSession(tokenString string) (*User, string, string, error) {
 	// 8. Update Session
 	session.TokenHash = newTokenHash
 	session.ExpiresAt = time.Now().UTC().Add(refreshTokenDuration)
-	if err := UpdateSession(session); err != nil {
+	if err := UpdateSession(ctx, session); err != nil {
 		return nil, "", "", fmt.Errorf("failed to update session user_id=%d session_id=%d: %w", session.UserID, sessionID, err)
 	}
 

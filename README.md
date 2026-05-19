@@ -106,6 +106,17 @@ Configuration Remarks:
 - If the **Secret Key** is not configured, a random key is generated on startup. This invalidates all sessions and forces users to login again. If you want to provide persistent sessions which survive restarts, you **must** provide a stable secret key. This key should have at least 32 characters, be a high-entropy random string and **must** be stored securely. Because it's used for JWT signing and session token hash, a **revealed or compromised key will compromise the security** of the entire application.
 - **Secure Cookie** must be kept **enabled** for production environments. Otherwise, there is the risk that the critical security related cookies are sent over unencrypted connections. The Secure cookie flag requires TLS, so this only works correctly when the app runs behind a TLS-terminating reverse proxy. Setting this to false and going without a TLS terminating reverse proxy **is only recommended for internal and trustworthy HTTP networks**.
 - The **Remote IP Header** setting is used to correctly detect the actual client IP when the app is running behind a reverse proxy. If empty, the client IP is directly taken from the TCP connection. If you are running the app behind a reverse proxy, you **must** set this to the HTTP header that the proxy sets with the actual client IP (e.g., `X-Forwarded-For` or `X-Real-IP`). Otherwise, the login rate limiting is based on wrong IP address information and the request logging contains the IP address of the reverse proxy instead of the actual client IP.
+- **Timing parameters** are not configurable but are fixed at well-reasoned defaults. None of these require tuning for typical deployments.
+  - *Server (transport layer):*
+    - `ReadTimeout` — **15 s**: maximum time to read the full HTTP request (headers + body).
+    - `WriteTimeout` — **15 s**: maximum time to write the full HTTP response.
+    - `IdleTimeout` — **60 s**: closes keep-alive connections that have been idle.
+  - *Server (application layer):*
+    - Request timeout — **5 s**: per-request deadline propagated through all database calls; a slow or blocked query is cancelled rather than held open indefinitely.
+    - Graceful shutdown drain — **15 s**: maximum time the server waits for in-flight requests to finish after receiving `SIGTERM`.
+  - *Session / authentication:*
+    - JWT access token — **15 min**: short-lived token embedded in the auth cookie.
+    - Refresh token — **24 h**: backs the persistent session; renewed automatically on each access-token refresh.
 
 ## Deployment Options
 
@@ -155,6 +166,7 @@ For deeper technical insights, architecture overviews, and detailed functional d
 
 - [API Design](docs/api.md)
 - [Swagger](docs/swagger.json)
+- [Backend Architecture](docs/backend-architecture.md)
 - [User Management](docs/user-management.md)
 - [Input Validation](docs/input-validation.md)
 - [Client Security](docs/client-security.md)

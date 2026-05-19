@@ -23,6 +23,7 @@
 - Harmonized SQL queries in db.go (Removed useless DB.prepare)
 - Fixed errors in API spec, ensured consistency over all endpoints and against swagger.json
 - Fixed missing notication toast when tasks is set to done or not-done
+- Added context propagation to all database operations, added server timeout to trigger context termination and added graceful shutdown
 
 ## 1.2.1
 

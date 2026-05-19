@@ -54,7 +54,7 @@ func TestHandleActiveIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateIssue(&Issue{Title: "Issue 1", Status: StatusTodo, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Issue 1", Status: StatusTodo, ProjectID: 1})
 
 	req, err := http.NewRequest("GET", apiProjects1IssuesActive, nil)
 	if err != nil {
@@ -204,7 +204,7 @@ func TestHandleIssuePut(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Original", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	issue.Title = "Updated"
 	body, _ := json.Marshal(issue)
@@ -242,7 +242,7 @@ func TestHandleIssueDelete(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: toDelete, Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	req, err := http.NewRequest("DELETE", apiIssues1, nil)
 	if err != nil {
@@ -270,7 +270,7 @@ func TestHandleIssueGet(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Test Issue", Status: StatusOpen, ProjectID: 1, Description: "Test Description"}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	req, err := http.NewRequest("GET", apiIssues1, nil)
 	if err != nil {
@@ -326,7 +326,7 @@ func TestHandleIssuePutConflict(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Original", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	// Simulate a stale ETag (old timestamp)
 	staleEtag := `"2020-01-01T00:00:00Z"`
@@ -355,7 +355,7 @@ func TestHandleIssuePutWithValidEtag(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Original", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	// Get the current issue to obtain valid ETag
 	getReq, _ := http.NewRequest("GET", apiIssues1, nil)
@@ -395,7 +395,7 @@ func TestHandleCreateTaskPost(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	task := &Task{Title: testTaskTitleNew, IssueID: issue.ID}
 	body, _ := json.Marshal(task)
@@ -416,7 +416,7 @@ func TestHandleCreateTaskPost(t *testing.T) {
 			status, http.StatusCreated)
 	}
 
-	tasks, _ := GetTasksByIssueID(issue.ID)
+	tasks, _ := GetTasksByIssueID(context.Background(), issue.ID)
 	if len(tasks) != 1 {
 		t.Errorf("expected 1 task, got %d", len(tasks))
 	}
@@ -427,9 +427,9 @@ func TestHandleTaskPut(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	task := &Task{IssueID: issue.ID, Title: "Original"}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 
 	task.Title = "Updated"
 	body, _ := json.Marshal(task)
@@ -449,7 +449,7 @@ func TestHandleTaskPut(t *testing.T) {
 			status, http.StatusOK)
 	}
 
-	tasks, _ := GetTasksByIssueID(issue.ID)
+	tasks, _ := GetTasksByIssueID(context.Background(), issue.ID)
 	if tasks[0].Title != "Updated" {
 		t.Errorf(expectedTitleUpdated, tasks[0].Title)
 	}
@@ -460,9 +460,9 @@ func TestHandleTaskDelete(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	task := &Task{IssueID: issue.ID, Title: toDelete}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 
 	req, err := http.NewRequest("DELETE", apiTasks1, nil)
 	if err != nil {
@@ -479,7 +479,7 @@ func TestHandleTaskDelete(t *testing.T) {
 			status, http.StatusNoContent)
 	}
 
-	tasks, _ := GetTasksByIssueID(issue.ID)
+	tasks, _ := GetTasksByIssueID(context.Background(), issue.ID)
 	if len(tasks) != 0 {
 		t.Errorf("expected 0 tasks, got %d", len(tasks))
 	}
@@ -529,7 +529,7 @@ func TestHandleIssuePutInvalidJSON(t *testing.T) {
 	defer teardownTestDB()
 
 	// Create a dummy issue to avoid 404 before JSON decode
-	CreateIssue(&Issue{Title: "Dummy", ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Dummy", ProjectID: 1})
 
 	req, err := http.NewRequest("PUT", apiIssues1, bytes.NewBufferString(invalidJSON))
 	if err != nil {
@@ -550,7 +550,7 @@ func TestHandleIssuePutInvalidJSON(t *testing.T) {
 func TestHandleCreateTaskPostInvalidJSON(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
 
 	req, err := http.NewRequest("POST", apiTasks, bytes.NewBufferString(invalidJSON))
 	if err != nil {
@@ -571,7 +571,7 @@ func TestHandleCreateTaskPostInvalidJSON(t *testing.T) {
 func TestHandleTaskInvalidID(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
 
 	req, err := http.NewRequest("PUT", apiTasksBase+"invalid", nil)
 	if err != nil {
@@ -592,8 +592,8 @@ func TestHandleTaskPutInvalidJSON(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
-	CreateTask(&Task{IssueID: issue.ID, Title: "T"})
+	CreateIssue(context.Background(), issue)
+	CreateTask(context.Background(), &Task{IssueID: issue.ID, Title: "T"})
 
 	req, err := http.NewRequest("PUT", apiTasks1, bytes.NewBufferString(invalidJSON))
 	if err != nil {
@@ -688,8 +688,8 @@ func TestHandleLabelsGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateLabel(&Label{Name: "Bug", Color: "#FF0000", ProjectID: 1})
-	CreateLabel(&Label{Name: "Feature", Color: "#00FF00", ProjectID: 1})
+	CreateLabel(context.Background(), &Label{Name: "Bug", Color: "#FF0000", ProjectID: 1})
+	CreateLabel(context.Background(), &Label{Name: "Feature", Color: "#00FF00", ProjectID: 1})
 
 	req, err := http.NewRequest("GET", apiLabels, nil)
 	if err != nil {
@@ -804,7 +804,7 @@ func TestHandleLabelDelete(t *testing.T) {
 	defer teardownTestDB()
 
 	label := &Label{Name: toDelete, Color: "#FF00FF", ProjectID: 1}
-	CreateLabel(label)
+	CreateLabel(context.Background(), label)
 
 	req, err := http.NewRequest("DELETE", apiLabels1, nil)
 	if err != nil {
@@ -820,7 +820,7 @@ func TestHandleLabelDelete(t *testing.T) {
 		t.Errorf(wrongStatusCode, status, http.StatusNoContent)
 	}
 
-	labels, _ := GetLabelsByProject(1)
+	labels, _ := GetLabelsByProject(context.Background(), 1)
 	if len(labels) != 0 {
 		t.Errorf("expected 0 labels, got %d", len(labels))
 	}
@@ -973,7 +973,7 @@ func TestHandleCreateIssueInvalidInput(t *testing.T) {
 func TestHandleTaskInvalidInput(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
 
 	// Empty Title
 	task := Task{Title: ""}
@@ -1016,7 +1016,7 @@ func TestHandleProjectInvalidInput(t *testing.T) {
 func TestHandleTaskRefOnNonExistentID(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
-	CreateIssue(&Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1})
 
 	// 1. PUT non-existent task
 	task := &Task{Title: "Updated Task", Done: true}
@@ -1048,7 +1048,7 @@ func TestCreateTask_URLIsSourceOfTruth(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	// Body claims issue_id=999 (which does not exist); URL pins iId=issue.ID.
 	body, _ := json.Marshal(&Task{Title: "Task", IssueID: 999})
@@ -1062,7 +1062,7 @@ func TestCreateTask_URLIsSourceOfTruth(t *testing.T) {
 		t.Fatalf("POST %s: %v, want %v", url, rr.Code, http.StatusCreated)
 	}
 
-	tasks, _ := GetTasksByIssueID(issue.ID)
+	tasks, _ := GetTasksByIssueID(context.Background(), issue.ID)
 	if len(tasks) != 1 {
 		t.Fatalf("expected 1 task on issue %d, got %d", issue.ID, len(tasks))
 	}
@@ -1076,13 +1076,13 @@ func TestTaskOwnership_404(t *testing.T) {
 	defer teardownTestDB()
 
 	// Project 1 with issue A and a task; project 2 with issue B (no tasks).
-	CreateProject(&Project{Name: "P2"})
+	CreateProject(context.Background(), &Project{Name: "P2"})
 	issueA := &Issue{Title: "A", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issueA)
+	CreateIssue(context.Background(), issueA)
 	issueB := &Issue{Title: "B", Status: StatusOpen, ProjectID: 2}
-	CreateIssue(issueB)
+	CreateIssue(context.Background(), issueB)
 	task := &Task{IssueID: issueA.ID, Title: "T"}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 
 	body, _ := json.Marshal(&Task{Title: "Mutated"})
 
@@ -1156,7 +1156,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 
 	// 1. Create an archived issue
 	archivedIssue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(archivedIssue)
+	CreateIssue(context.Background(), archivedIssue)
 	archivedIssuePath := apiIssuesBase + strconv.Itoa(archivedIssue.ID)
 
 	// 2. Try to update the archived issue (blocked)
@@ -1182,10 +1182,10 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 
 	// 4. Create another archived issue for task tests
 	archivedIssue2 := &Issue{Title: "Archived with Tasks", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(archivedIssue2)
+	CreateIssue(context.Background(), archivedIssue2)
 	task := &Task{IssueID: archivedIssue2.ID, Title: "Task"}
 	// Bypass nil to create a task for an archived issue for testing
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 	tasksOnIssue := fmt.Sprintf("/api/projects/1/issues/%d/tasks", archivedIssue2.ID)
 	taskPath := fmt.Sprintf("%s/%d", tasksOnIssue, task.ID)
 
@@ -1222,7 +1222,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 
 	// 8. Try to bypass by omitting status on a *new* archived issue (blocked)
 	archivedIssue3 := &Issue{Title: "Archived 3", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(archivedIssue3)
+	CreateIssue(context.Background(), archivedIssue3)
 	archivedIssue3Path := apiIssuesBase + strconv.Itoa(archivedIssue3.ID)
 
 	req, _ = http.NewRequest("PUT", archivedIssue3Path, bytes.NewBufferString(`{"title":"Bypass"}`))
@@ -1231,7 +1231,7 @@ func TestHandleArchivedIssueBlocking(t *testing.T) {
 	testAPI.ServeHTTP(rr, req)
 	// 9. Try to delete archived issue (blocked even for admin — business rule in handler)
 	archivedIssue4 := &Issue{Title: "Archived 4", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(archivedIssue4)
+	CreateIssue(context.Background(), archivedIssue4)
 	archivedDeletePath := apiIssuesBase + strconv.Itoa(archivedIssue4.ID)
 
 	req, _ = http.NewRequest("DELETE", archivedDeletePath, nil)
@@ -1360,7 +1360,7 @@ func TestCheckIfMatchConflict(t *testing.T) {
 
 	// Create issue
 	issue := &Issue{Title: "Orignal", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	originalEtag := `"` + issue.UpdatedAt.UTC().Format(time.RFC3339Nano) + `"`
 
 	// 1. No Conflict (Match)
@@ -1387,7 +1387,7 @@ func TestHandlePutIssueReadOnlyArchived(t *testing.T) {
 
 	// Create archived issue
 	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID)
 
 	// Try to update title (not allowed)
@@ -1413,7 +1413,7 @@ func TestHandleArchiveIssue(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Active", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + archiveSuffix
 
 	req := httptest.NewRequest("POST", path, nil)
@@ -1454,7 +1454,7 @@ func TestHandleArchiveIssueAlready(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Already Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + archiveSuffix
 
 	req := httptest.NewRequest("POST", path, nil)
@@ -1473,7 +1473,7 @@ func TestHandleUnarchiveIssue(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
 
 	req := httptest.NewRequest("POST", path, nil)
@@ -1499,7 +1499,7 @@ func TestHandleUnarchiveIssueNotArchived(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Active", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
 
 	req := httptest.NewRequest("POST", path, nil)
@@ -1518,7 +1518,7 @@ func TestHandleDeleteIssueArchived(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID)
 
 	// Archived issues cannot be deleted regardless of role (business rule in handler)
@@ -1540,7 +1540,7 @@ func TestHandleUpdateUserLastSysAdminProtection(t *testing.T) {
 	// Create single sysadmin
 	hash, _ := HashPassword(testPassword)
 	user := &User{Email: "admin@local", Role: RoleSysAdmin, Active: true, PasswordHash: hash}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 	path := apiUsersBase + strconv.Itoa(user.ID)
 
 	// Try to demote the only sysadmin
@@ -1568,9 +1568,9 @@ func TestHandlePutTaskArchivedIssue(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	task := &Task{Title: "Task", IssueID: issue.ID, Done: false}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 	path := apiTasksBase + strconv.Itoa(task.ID)
 
 	updateBody := map[string]any{
@@ -1595,9 +1595,9 @@ func TestHandleDeleteTaskArchivedIssue(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	task := &Task{Title: "Task", IssueID: issue.ID, Done: false}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 	path := apiTasksBase + strconv.Itoa(task.ID)
 
 	req := httptest.NewRequest("DELETE", path, nil)
@@ -1617,7 +1617,7 @@ func TestHandlePutIssueUnarchive(t *testing.T) {
 
 	// Create archived issue
 	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	path := apiIssuesBase + strconv.Itoa(issue.ID) + unarchiveSuffix
 
 	// Unarchive via dedicated endpoint — requires admin
@@ -1631,7 +1631,7 @@ func TestHandlePutIssueUnarchive(t *testing.T) {
 		t.Errorf("Expected 200 OK for unarchiving issue, got %d. Body: %s", rr.Code, rr.Body.String())
 	}
 
-	updated, err := GetIssueByID(issue.ID)
+	updated, err := GetIssueByID(context.Background(), issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to get updated issue: %v", err)
 	}
@@ -1650,11 +1650,11 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	const adminPass = "AdminPassword123!"
 	adminHash, _ := HashPassword(adminPass)
 	admin := &User{Email: "admin@t.com", PasswordHash: adminHash, Active: true, Role: RoleSysAdmin}
-	CreateUser(admin)
+	CreateUser(context.Background(), admin)
 
 	hash, _ := HashPassword("oldpass")
 	user := &User{Email: "t@t.com", PasswordHash: hash, Active: true, Role: RoleUser}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 	path := apiUsersBase + strconv.Itoa(user.ID)
 
 	// Update with new password, including admin_password for confirmation
@@ -1680,7 +1680,7 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 		t.Errorf("Expected 200 OK, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	updated, _ := GetUserByID(user.ID)
+	updated, _ := GetUserByID(context.Background(), user.ID)
 	if !CheckPassword(updated.PasswordHash, testPassword) {
 		t.Error("Password was not updated correctly")
 	}
@@ -1702,7 +1702,7 @@ func TestHandleUpdateSelf(t *testing.T) {
 		Role:         RoleUser,
 		Active:       true,
 	}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	// Prepare update request (change password, including current_password)
 	updateData := map[string]string{
@@ -1729,7 +1729,7 @@ func TestHandleUpdateSelf(t *testing.T) {
 	}
 
 	// Verify password hash changed
-	updatedUser, _ := GetUserByID(user.ID)
+	updatedUser, _ := GetUserByID(context.Background(), user.ID)
 	if updatedUser.PasswordHash == "oldhash" {
 		t.Error("expected password hash to change")
 	}
@@ -1745,7 +1745,7 @@ func TestHandleUpdateSelf(t *testing.T) {
 	rr = httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 
-	updatedUser, _ = GetUserByID(user.ID)
+	updatedUser, _ = GetUserByID(context.Background(), user.ID)
 	if updatedUser.Role != RoleUser {
 		t.Error("expected role to remain User")
 	}
@@ -1829,7 +1829,7 @@ func TestPersistIssueUpdatePositionOnlyNotFound(t *testing.T) {
 	modified.Position = current.Position + 1
 
 	rr := httptest.NewRecorder()
-	if persistIssueUpdate(rr, &modified, current, "test@example.com") {
+	if persistIssueUpdate(context.Background(), rr, &modified, current, "test@example.com") {
 		t.Error("expected false for not-found position update")
 	}
 	if rr.Code != http.StatusNotFound {
@@ -1840,7 +1840,7 @@ func TestPersistIssueUpdatePositionOnlyNotFound(t *testing.T) {
 func TestPersistIssueUpdatePositionOnlyDBError(t *testing.T) {
 	setupTestDB()
 	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	oldDB := DB
 	closedDB, _ := sql.Open("sqlite3", testDBPath)
@@ -1852,7 +1852,7 @@ func TestPersistIssueUpdatePositionOnlyDBError(t *testing.T) {
 	modified.Position = issue.Position + 1
 
 	rr := httptest.NewRecorder()
-	if persistIssueUpdate(rr, &modified, issue, "test@example.com") {
+	if persistIssueUpdate(context.Background(), rr, &modified, issue, "test@example.com") {
 		t.Error(expectedFalseDBError)
 	}
 	if rr.Code != http.StatusInternalServerError {
@@ -1870,7 +1870,7 @@ func TestPersistIssueUpdateContentNotFound(t *testing.T) {
 	modified.Title = "Changed"
 
 	rr := httptest.NewRecorder()
-	if persistIssueUpdate(rr, &modified, current, "test@example.com") {
+	if persistIssueUpdate(context.Background(), rr, &modified, current, "test@example.com") {
 		t.Error("expected false for not-found content update")
 	}
 	if rr.Code != http.StatusNotFound {
@@ -1881,7 +1881,7 @@ func TestPersistIssueUpdateContentNotFound(t *testing.T) {
 func TestPersistIssueUpdateContentDBError(t *testing.T) {
 	setupTestDB()
 	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	oldDB := DB
 	closedDB, _ := sql.Open("sqlite3", testDBPath)
@@ -1893,7 +1893,7 @@ func TestPersistIssueUpdateContentDBError(t *testing.T) {
 	modified.Title = "Changed"
 
 	rr := httptest.NewRecorder()
-	if persistIssueUpdate(rr, &modified, issue, "test@example.com") {
+	if persistIssueUpdate(context.Background(), rr, &modified, issue, "test@example.com") {
 		t.Error(expectedFalseDBError)
 	}
 	if rr.Code != http.StatusInternalServerError {
@@ -1906,7 +1906,7 @@ func TestHandleUpdateSelfInvalidJSON(t *testing.T) {
 	defer teardownTestDB()
 
 	user := &User{Email: testEmail, Role: RoleUser, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{invalid json}`))
 	ctx := context.WithValue(req.Context(), contextKeyUserID, user.ID)
@@ -1925,7 +1925,7 @@ func TestHandleUpdateSelfValidationFailure(t *testing.T) {
 	const currentPass = "CurrentPassword123!"
 	hash, _ := HashPassword(currentPass)
 	user := &User{Email: testEmail, Role: RoleUser, Active: true, PasswordHash: hash}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	// "password12345" is a common password in the blacklist; current_password is correct
 	body := `{"password":"password12345","current_password":"` + currentPass + `"}`
@@ -1942,7 +1942,7 @@ func TestHandleUpdateSelfValidationFailure(t *testing.T) {
 func TestHandleUpdateSelfDBError(t *testing.T) {
 	setupTestDB()
 	user := &User{Email: testEmail, Role: RoleUser, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	oldDB := DB
 	defer func() { DB = oldDB }()
@@ -1966,7 +1966,7 @@ func TestHandleUpdateSelfNoPassword(t *testing.T) {
 	defer teardownTestDB()
 
 	user := &User{Email: testEmail, Role: RoleUser, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	// Empty update (no password)
 	req := httptest.NewRequest("PUT", apiAuthMe, bytes.NewBufferString(`{}`))
@@ -1988,7 +1988,7 @@ func TestHandleCreateIssueSetsCreator(t *testing.T) {
 
 	// Create user
 	user := &User{Email: "creator@test.com", FirstName: "C", LastName: "U", Role: RoleUser, Active: true}
-	CreateUser(user)
+	CreateUser(context.Background(), user)
 
 	issue := &Issue{Title: "My Issue", Status: StatusOpen, ProjectID: 1}
 	body, _ := json.Marshal(issue)
@@ -2024,11 +2024,11 @@ func TestHandleIssueUpdateAssignee(t *testing.T) {
 	// Create users
 	creator := &User{Email: "c@test.com", FirstName: "C", LastName: "U", Role: RoleUser, Active: true}
 	assignee := &User{Email: "a@test.com", FirstName: "A", LastName: "U", Role: RoleUser, Active: true}
-	CreateUser(creator)
-	CreateUser(assignee)
+	CreateUser(context.Background(), creator)
+	CreateUser(context.Background(), assignee)
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	// Request to assign
 	issue.AssigneeID = &assignee.ID
@@ -2043,7 +2043,7 @@ func TestHandleIssueUpdateAssignee(t *testing.T) {
 		t.Errorf("Expected 200 OK, got %d", rr.Code)
 	}
 
-	updated, _ := GetIssueByID(issue.ID)
+	updated, _ := GetIssueByID(context.Background(), issue.ID)
 	if updated.AssigneeID == nil || *updated.AssigneeID != assignee.ID {
 		t.Errorf("Expected AssigneeID %d, got %v", assignee.ID, updated.AssigneeID)
 	}
@@ -2055,11 +2055,11 @@ func TestHandleIssueCreatorReadOnly(t *testing.T) {
 
 	creator := &User{Email: "c@test.com", FirstName: "C", LastName: "U", Role: RoleUser}
 	imposter := &User{Email: "i@test.com", FirstName: "I", LastName: "U", Role: RoleUser}
-	CreateUser(creator)
-	CreateUser(imposter)
+	CreateUser(context.Background(), creator)
+	CreateUser(context.Background(), imposter)
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, CreatorID: creator.ID, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	// Try to change creator
 	issue.CreatorID = imposter.ID
@@ -2070,7 +2070,7 @@ func TestHandleIssueCreatorReadOnly(t *testing.T) {
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 
-	updated, _ := GetIssueByID(issue.ID)
+	updated, _ := GetIssueByID(context.Background(), issue.ID)
 	if updated.CreatorID != creator.ID {
 		t.Errorf("Expected CreatorID to remain %d, but it was changed to %d", creator.ID, updated.CreatorID)
 	}
@@ -2174,24 +2174,24 @@ func TestHandlersJSONEncodingErrors(t *testing.T) {
 
 	// Create dummy data for tests
 	issue := &Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 	archivedIssue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(archivedIssue)
+	CreateIssue(context.Background(), archivedIssue)
 
 	task := &Task{Title: "Task 1", IssueID: issue.ID}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 
 	label := &Label{Name: "Label 1", Color: "#000", ProjectID: 1}
-	CreateLabel(label)
+	CreateLabel(context.Background(), label)
 
 	// Create Admin User
 	adminEmail := "admin@test.local"
 	hash, _ := HashPassword("password")
 	admin := &User{Email: adminEmail, FirstName: "Admin", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true}
-	CreateUser(admin)
+	CreateUser(context.Background(), admin)
 
 	// Create Session for Auth tests
-	_, accessToken, refreshToken, _ := CreateUserSession(admin)
+	_, accessToken, refreshToken, _ := CreateUserSession(context.Background(), admin)
 
 	// Common body payloads
 	issueBody, _ := json.Marshal(&Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1})
@@ -2453,13 +2453,13 @@ func TestCheckAssignee(t *testing.T) {
 
 	// Create an active user
 	activeUser := &User{Email: "active@example.com", Active: true}
-	if err := CreateUser(activeUser); err != nil {
+	if err := CreateUser(context.Background(), activeUser); err != nil {
 		t.Fatalf("Failed to create active user: %v", err)
 	}
 
 	// Create an inactive user
 	inactiveUser := &User{Email: "inactive@example.com", Active: false}
-	if err := CreateUser(inactiveUser); err != nil {
+	if err := CreateUser(context.Background(), inactiveUser); err != nil {
 		t.Fatalf("Failed to create inactive user: %v", err)
 	}
 
@@ -2531,7 +2531,7 @@ func TestCheckAssignee(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			res := checkAssignee(rr, tt.issue, tt.current, testAssigneeEmail)
+			res := checkAssignee(context.Background(), rr, tt.issue, tt.current, testAssigneeEmail)
 			if res != tt.expectedRes {
 				t.Errorf(expectedResMsg, tt.expectedRes, res)
 			}
@@ -2552,7 +2552,7 @@ func TestCheckAssigneeDBError(t *testing.T) {
 	id := 1
 	issue := &Issue{AssigneeID: &id}
 	rr := httptest.NewRecorder()
-	res := checkAssignee(rr, issue, nil, testAssigneeEmail)
+	res := checkAssignee(context.Background(), rr, issue, nil, testAssigneeEmail)
 	if res {
 		t.Error(expectedFalseDBError)
 	}
@@ -2562,7 +2562,7 @@ func TestCheckAssigneeDBError(t *testing.T) {
 
 	// Test Same Assignee error case
 	rr = httptest.NewRecorder()
-	res = checkAssignee(rr, issue, &Issue{AssigneeID: &id}, testAssigneeEmail)
+	res = checkAssignee(context.Background(), rr, issue, &Issue{AssigneeID: &id}, testAssigneeEmail)
 	if res {
 		t.Error(expectedFalseDBError)
 	}
@@ -2576,7 +2576,7 @@ func TestCheckLabel(t *testing.T) {
 	defer teardownTestDB()
 
 	label := &Label{Name: "Bug", Color: "#FF0000", ProjectID: 1}
-	if err := CreateLabel(label); err != nil {
+	if err := CreateLabel(context.Background(), label); err != nil {
 		t.Fatalf("Failed to create label: %v", err)
 	}
 
@@ -2609,7 +2609,7 @@ func TestCheckLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			res := checkLabel(rr, tt.issue, testAssigneeEmail)
+			res := checkLabel(context.Background(), rr, tt.issue, testAssigneeEmail)
 			if res != tt.expectedRes {
 				t.Errorf(expectedResMsg, tt.expectedRes, res)
 			}
@@ -2629,7 +2629,7 @@ func TestCheckLabelDBError(t *testing.T) {
 
 	issue := &Issue{Label: &Label{ID: 1}}
 	rr := httptest.NewRecorder()
-	res := checkLabel(rr, issue, testAssigneeEmail)
+	res := checkLabel(context.Background(), rr, issue, testAssigneeEmail)
 	if res {
 		t.Error(expectedFalseDBError)
 	}
@@ -2644,7 +2644,7 @@ func TestHandleListProjects(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateProject(&Project{Name: "Proj 1"})
+	CreateProject(context.Background(), &Project{Name: "Proj 1"})
 
 	req, _ := http.NewRequest("GET", apiProjects, nil)
 	rr := httptest.NewRecorder()
@@ -2690,7 +2690,7 @@ func TestHandleProjectUpdate(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "Old"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	p.Name = "New"
 	body, _ := json.Marshal(p)
@@ -2713,7 +2713,7 @@ func TestHandleProjectDelete(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: toDelete}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	path := apiProjectsBase + strconv.Itoa(p.ID)
 	req, _ := http.NewRequest("DELETE", path, nil)
@@ -2728,7 +2728,7 @@ func TestHandleProjectDelete(t *testing.T) {
 	}
 
 	// Verify it's gone
-	p2, _ := GetProjectByID(p.ID)
+	p2, _ := GetProjectByID(context.Background(), p.ID)
 	if p2 != nil {
 		t.Error("expected project to be deleted")
 	}
@@ -2755,8 +2755,8 @@ func TestHandleProjectDeleteWithIssuesBlocked(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "Has Issues"}
-	CreateProject(p)
-	CreateIssue(&Issue{Title: "I1", ProjectID: p.ID})
+	CreateProject(context.Background(), p)
+	CreateIssue(context.Background(), &Issue{Title: "I1", ProjectID: p.ID})
 
 	path := apiProjectsBase + strconv.Itoa(p.ID)
 	req, _ := http.NewRequest("DELETE", path, nil)
@@ -2835,7 +2835,7 @@ func TestHandleCreateProjectDuplicateName(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateProject(&Project{Name: "dupe"})
+	CreateProject(context.Background(), &Project{Name: "dupe"})
 
 	body, _ := json.Marshal(Project{Name: "Dupe"})
 	req := httptest.NewRequest("POST", apiProjects, bytes.NewBuffer(body))
@@ -2852,7 +2852,7 @@ func TestHandleUpdateProjectInvalidJSON(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "Upd"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBufferString(invalidJSON))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
@@ -2869,7 +2869,7 @@ func TestHandleUpdateProjectValidationFailure(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "Upd"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	body, _ := json.Marshal(Project{Name: ""})
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
@@ -2901,9 +2901,9 @@ func TestHandleUpdateProjectDuplicateName(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateProject(&Project{Name: "existing"})
+	CreateProject(context.Background(), &Project{Name: "existing"})
 	p := &Project{Name: "torename"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	body, _ := json.Marshal(Project{Name: "Existing"})
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
@@ -2921,9 +2921,9 @@ func TestHandleDeleteProjectNotFound(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "GoneProject"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 	path := apiProjectsBase + strconv.Itoa(p.ID)
-	DeleteProject(p.ID) // pre-delete so the handler hits ErrProjectNotFound
+	DeleteProject(context.Background(), p.ID) // pre-delete so the handler hits ErrProjectNotFound
 
 	req := httptest.NewRequest("DELETE", path, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
@@ -2941,7 +2941,7 @@ func TestHandleProjectActiveIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateIssue(&Issue{Title: "Active Issue", Status: StatusTodo, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Active Issue", Status: StatusTodo, ProjectID: 1})
 
 	req := httptest.NewRequest("GET", apiProjects1IssuesActive, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -2965,7 +2965,7 @@ func TestHandleProjectArchivedIssuesGet(t *testing.T) {
 	defer teardownTestDB()
 
 	i := &Issue{Title: "Archived Issue", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(i)
+	CreateIssue(context.Background(), i)
 
 	req := httptest.NewRequest("GET", apiProjects1IssuesArchived, nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -3040,11 +3040,11 @@ func TestHandleUpdateIssueCrossProject404(t *testing.T) {
 	defer teardownTestDB()
 
 	p2 := &Project{Name: "P2"}
-	if err := CreateProject(p2); err != nil {
+	if err := CreateProject(context.Background(), p2); err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	updated := &Issue{Title: "Updated", Status: StatusOpen, ProjectID: 1}
 	body, _ := json.Marshal(updated)
@@ -3252,11 +3252,11 @@ func TestHandleProjectOpenIssuesSuccess(t *testing.T) {
 	defer teardownTestDB()
 
 	project := &Project{Name: "Test Project"}
-	CreateProject(project)
+	CreateProject(context.Background(), project)
 	open := &Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: project.ID}
 	active := &Issue{Title: "Todo Issue", Status: StatusTodo, ProjectID: project.ID}
-	CreateIssue(open)
-	CreateIssue(active)
+	CreateIssue(context.Background(), open)
+	CreateIssue(context.Background(), active)
 
 	req := httptest.NewRequest("GET", apiProjectsBase+strconv.Itoa(project.ID)+"/issues/open", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
@@ -3355,7 +3355,7 @@ func TestHandleProjectOpenIssuesTasksDBError(t *testing.T) {
 
 	// Create an open issue so the query returns rows, then drop the tasks table
 	// so getTasksForIssues fails inside GetOpenIssuesByProject.
-	CreateIssue(&Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: 1})
 	if _, err := DB.Exec("DROP TABLE tasks"); err != nil {
 		t.Fatal(err)
 	}
@@ -3376,13 +3376,13 @@ func TestGetActiveIssuesByProjectExcludesOpen(t *testing.T) {
 	defer teardownTestDB()
 
 	project := &Project{Name: "Test Project"}
-	CreateProject(project)
+	CreateProject(context.Background(), project)
 	openIssue := &Issue{Title: "Open Issue", Status: StatusOpen, ProjectID: project.ID}
 	todoIssue := &Issue{Title: "Todo Issue", Status: StatusTodo, ProjectID: project.ID}
-	CreateIssue(openIssue)
-	CreateIssue(todoIssue)
+	CreateIssue(context.Background(), openIssue)
+	CreateIssue(context.Background(), todoIssue)
 
-	issues, err := GetActiveIssuesByProject(project.ID)
+	issues, err := GetActiveIssuesByProject(context.Background(), project.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3403,7 +3403,7 @@ func TestHandleUpdateProjectDBError(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "ToCorrupt"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	// Drop projects table so UpdateProject fails with a generic DB error
 	// (not ErrProjectNotFound or ErrDuplicateProjectName).
@@ -3430,7 +3430,7 @@ func TestHandleUpdateProjectEncodeError(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "EncodeErrUpd"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	body, _ := json.Marshal(Project{Name: "EncodeErrUpd2"})
 	req := httptest.NewRequest("PUT", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
@@ -3446,7 +3446,7 @@ func TestHandleDeleteProjectCountDBError(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "CountFail"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	// Drop issues table so CountIssuesByProject fails.
 	if _, err := DB.Exec(dropIssuesTable); err != nil {
@@ -3471,7 +3471,7 @@ func TestHandleDeleteProjectGenericDBError(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "DeleteFail"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	// Drop projects table so DeleteProject fails with a generic error.
 	// CountIssuesByProject still works because it queries the issues table.
@@ -3497,7 +3497,7 @@ func TestHandleDeleteProjectEncodeError(t *testing.T) {
 	defer teardownTestDB()
 
 	p := &Project{Name: "EncodeErrDel"}
-	CreateProject(p)
+	CreateProject(context.Background(), p)
 
 	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
@@ -3570,7 +3570,7 @@ func TestHandleProjectStatusConfigGetCustomValues(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	UpsertStatusConfig(&StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA", Stage3Name: "Staging"})
+	UpsertStatusConfig(context.Background(), &StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA", Stage3Name: "Staging"})
 
 	req, err := http.NewRequest("GET", apiStatusConfig, nil)
 	if err != nil {
@@ -3781,7 +3781,7 @@ func TestHandleProjectReleasesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+	if err := CreateRelease(context.Background(), &Release{ProjectID: 1, Name: "v1.0"}); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -3829,7 +3829,7 @@ func TestHandleProjectReleasesPostDuplicate(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+	if err := CreateRelease(context.Background(), &Release{ProjectID: 1, Name: "v1.0"}); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 	body, _ := json.Marshal(Release{Name: "v1.0"})
@@ -3871,7 +3871,7 @@ func TestHandleReleaseGet(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -3925,7 +3925,7 @@ func TestHandleReleasePut(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -3968,10 +3968,10 @@ func TestHandleReleasePutClosedForbidden(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
-	if err := TriggerRelease(rel.ID, false); err != nil {
+	if err := TriggerRelease(context.Background(), rel.ID, false); err != nil {
 		t.Fatalf("TriggerRelease failed: %v", err)
 	}
 
@@ -3992,7 +3992,7 @@ func TestHandleReleaseDelete(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4025,7 +4025,7 @@ func TestHandleReleaseTrigger(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4067,7 +4067,7 @@ func TestHandleReleaseTriggerInvalidBody(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4086,10 +4086,10 @@ func TestHandleReleaseReopen(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
-	if err := TriggerRelease(rel.ID, false); err != nil {
+	if err := TriggerRelease(context.Background(), rel.ID, false); err != nil {
 		t.Fatalf("TriggerRelease failed: %v", err)
 	}
 
@@ -4129,7 +4129,7 @@ func TestHandleReleaseSubpathMethodNotAllowed(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4148,7 +4148,7 @@ func TestHandleReleaseSubpathUnknown(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4168,7 +4168,7 @@ func TestHandleReleaseMethodNotAllowed(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4192,7 +4192,7 @@ func TestCheckReleaseInvalidRelease(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiIssues, nil)
 	req = makeAdminCtx(req)
 
-	result := checkRelease(rr, issue, testAssigneeEmail)
+	result := checkRelease(context.Background(), rr, issue, testAssigneeEmail)
 	if result {
 		t.Error("expected checkRelease to return false for non-existent release")
 	}
@@ -4206,7 +4206,7 @@ func TestHandleCreateIssueWithValidRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, ReleaseID: &rel.ID}
@@ -4261,7 +4261,7 @@ func TestCheckReleaseDBError(t *testing.T) {
 	req, _ := http.NewRequest("POST", apiIssues, nil)
 	req = makeAdminCtx(req)
 
-	result := checkRelease(rr, issue, testAssigneeEmail)
+	result := checkRelease(context.Background(), rr, issue, testAssigneeEmail)
 	if result {
 		t.Error("expected checkRelease to return false on DB error")
 	}
@@ -4277,11 +4277,11 @@ func TestHandleIssuePutWithReleaseID(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1, ReleaseID: &rel.ID}
-	if err := CreateIssue(issue); err != nil {
+	if err := CreateIssue(context.Background(), issue); err != nil {
 		t.Fatalf("CreateIssue failed: %v", err)
 	}
 
@@ -4370,7 +4370,7 @@ func TestHandleReleaseTriggerForbidden(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4392,7 +4392,7 @@ func TestHandleReleaseGetForbidden(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4413,7 +4413,7 @@ func TestHandleReleasePutForbidden(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4436,7 +4436,7 @@ func TestHandleReleaseDeleteForbidden(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4475,7 +4475,7 @@ func TestHandleReleasePutInvalidJSON(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4514,11 +4514,11 @@ func TestHandleReleasePutDuplicateName(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+	if err := CreateRelease(context.Background(), &Release{ProjectID: 1, Name: "v1.0"}); err != nil {
 		t.Fatalf("CreateRelease r1 failed: %v", err)
 	}
 	r2 := &Release{ProjectID: 1, Name: "v2.0"}
-	if err := CreateRelease(r2); err != nil {
+	if err := CreateRelease(context.Background(), r2); err != nil {
 		t.Fatalf("CreateRelease r2 failed: %v", err)
 	}
 
@@ -4541,7 +4541,7 @@ func TestHandleReleasePutUpdateDBError(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
@@ -4653,11 +4653,11 @@ func TestReleaseCrossProject404(t *testing.T) {
 	defer teardownTestDB()
 
 	p2 := &Project{Name: "P2"}
-	if err := CreateProject(p2); err != nil {
+	if err := CreateProject(context.Background(), p2); err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease: %v", err)
 	}
 
@@ -4677,7 +4677,7 @@ func TestMethodNotAllowedFromMux(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	CreateIssue(&Issue{Title: "T", Status: StatusOpen, ProjectID: 1})
+	CreateIssue(context.Background(), &Issue{Title: "T", Status: StatusOpen, ProjectID: 1})
 
 	req := httptest.NewRequest("PATCH", "/api/projects/1/issues/1", nil)
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))

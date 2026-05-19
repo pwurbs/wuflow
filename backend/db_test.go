@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -32,7 +33,7 @@ func setupTestDB() {
 	// Use a unique name for each test database to avoid pollution,
 	// while still using cache=shared to support the connection pool.
 	dataSourceName := fmt.Sprintf(testDBURI, testDBCounter)
-	if err := InitDB(dataSourceName); err != nil {
+	if err := InitDB(context.Background(), dataSourceName); err != nil {
 		panic(err)
 	}
 }
@@ -56,7 +57,7 @@ func TestCreateIssue(t *testing.T) {
 		Deadline:    &deadline,
 	}
 
-	err := CreateIssue(issue)
+	err := CreateIssue(context.Background(), issue)
 	if err != nil {
 		t.Fatalf(failedToCreateIssueError, err)
 	}
@@ -82,7 +83,7 @@ func TestIssuePlannedDates(t *testing.T) {
 		PlannedDates: dates,
 	}
 
-	err := CreateIssue(issue)
+	err := CreateIssue(context.Background(), issue)
 	if err != nil {
 		t.Fatalf(failedToCreateIssueError, err)
 	}
@@ -105,7 +106,7 @@ func TestIssuePlannedDates(t *testing.T) {
 
 	// 3. Update dates
 	retrieved.PlannedDates = []string{"2023-10-29"}
-	err = UpdateIssue(&retrieved)
+	err = UpdateIssue(context.Background(), &retrieved)
 	if err != nil {
 		t.Fatalf(failedToUpdateIssueError, err)
 	}
@@ -123,8 +124,8 @@ func TestGetAllActiveIssues(t *testing.T) {
 	issue1 := &Issue{Title: "Issue 1", Status: StatusOpen, ProjectID: 1}
 	issue2 := &Issue{Title: "Issue 2", Status: StatusOpen, ProjectID: 1}
 
-	CreateIssue(issue1)
-	CreateIssue(issue2)
+	CreateIssue(context.Background(), issue1)
+	CreateIssue(context.Background(), issue2)
 
 	issues, err := GetAllActiveIssues()
 	if err != nil {
@@ -141,10 +142,10 @@ func TestUpdateIssue(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Original Title", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	issue.Title = "Updated Title"
-	err := UpdateIssue(issue)
+	err := UpdateIssue(context.Background(), issue)
 	if err != nil {
 		t.Fatalf(failedToUpdateIssueError, err)
 	}
@@ -166,9 +167,9 @@ func TestDeleteIssue(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "To Delete", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
-	err := DeleteIssue(issue.ID)
+	err := DeleteIssue(context.Background(), issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to delete issue: %v", err)
 	}
@@ -186,9 +187,9 @@ func TestGetArchivedIssues(t *testing.T) {
 	issue1 := &Issue{Title: "Active Issue", Status: StatusOpen, ProjectID: 1}
 	issue2 := &Issue{Title: "Archived Issue", Status: StatusArchive, ProjectID: 1}
 	issue3 := &Issue{Title: "Another Archived", Status: StatusArchive, ProjectID: 1}
-	CreateIssue(issue1)
-	CreateIssue(issue2)
-	CreateIssue(issue3)
+	CreateIssue(context.Background(), issue1)
+	CreateIssue(context.Background(), issue2)
+	CreateIssue(context.Background(), issue3)
 
 	archived, err := GetAllArchivedIssues()
 	if err != nil {
@@ -214,7 +215,7 @@ func TestCreateTask(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue for Task", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	task := &Task{
 		IssueID: issue.ID,
@@ -222,7 +223,7 @@ func TestCreateTask(t *testing.T) {
 		Done:    false,
 	}
 
-	err := CreateTask(task)
+	err := CreateTask(context.Background(), task)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
@@ -237,15 +238,15 @@ func TestGetTasksByIssueID(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue with Tasks", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	task1 := &Task{IssueID: issue.ID, Title: "Task 1"}
 	task2 := &Task{IssueID: issue.ID, Title: "Task 2"}
 
-	CreateTask(task1)
-	CreateTask(task2)
+	CreateTask(context.Background(), task1)
+	CreateTask(context.Background(), task2)
 
-	tasks, err := GetTasksByIssueID(issue.ID)
+	tasks, err := GetTasksByIssueID(context.Background(), issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to get tasks: %v", err)
 	}
@@ -260,19 +261,19 @@ func TestUpdateTask(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	task := &Task{IssueID: issue.ID, Title: "Original Task"}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 
 	task.Title = "Updated Task"
 	task.Done = true
-	err := UpdateTask(task, issue.ID)
+	err := UpdateTask(context.Background(), task, issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to update task: %v", err)
 	}
 
-	tasks, _ := GetTasksByIssueID(issue.ID)
+	tasks, _ := GetTasksByIssueID(context.Background(), issue.ID)
 	if tasks[0].Title != "Updated Task" {
 		t.Errorf("Expected title to be 'Updated Task', got '%s'", tasks[0].Title)
 	}
@@ -286,17 +287,17 @@ func TestDeleteTask(t *testing.T) {
 	defer teardownTestDB()
 
 	issue := &Issue{Title: "Issue", Status: StatusOpen, ProjectID: 1}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	task := &Task{IssueID: issue.ID, Title: "To Delete"}
-	CreateTask(task)
+	CreateTask(context.Background(), task)
 
-	err := DeleteTask(task.ID, issue.ID)
+	err := DeleteTask(context.Background(), task.ID, issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to delete task: %v", err)
 	}
 
-	tasks, _ := GetTasksByIssueID(issue.ID)
+	tasks, _ := GetTasksByIssueID(context.Background(), issue.ID)
 	if len(tasks) != 0 {
 		t.Errorf("Expected 0 tasks, got %d", len(tasks))
 	}
@@ -321,51 +322,51 @@ func TestDBErrors(t *testing.T) {
 		f    func() error
 	}{
 		{"GetAllActiveIssues", func() error { _, err := GetAllActiveIssues(); return err }},
-		{"GetTasksByIssueID", func() error { _, err := GetTasksByIssueID(1); return err }},
-		{"CreateIssue", func() error { return CreateIssue(&Issue{Title: "T", ProjectID: 1}) }},
-		{"UpdateIssue", func() error { return UpdateIssue(&Issue{ID: 1, Title: "T", ProjectID: 1}) }},
-		{"DeleteIssue", func() error { return DeleteIssue(1) }},
-		{"CreateTask", func() error { return CreateTask(&Task{IssueID: 1, Title: "T"}) }},
-		{"UpdateTask", func() error { return UpdateTask(&Task{ID: 1, Title: "T"}, 1) }},
-		{"DeleteTask", func() error { return DeleteTask(1, 1) }},
-		{"GetLabelsByProject", func() error { _, err := GetLabelsByProject(1); return err }},
-		{"CreateLabel", func() error { return CreateLabel(&Label{Name: "L", ProjectID: 1}) }},
-		{"DeleteLabel", func() error { return DeleteLabel(1, 1) }},
-		{"GetIssueByID", func() error { _, err := GetIssueByID(1); return err }},
+		{"GetTasksByIssueID", func() error { _, err := GetTasksByIssueID(context.Background(), 1); return err }},
+		{"CreateIssue", func() error { return CreateIssue(context.Background(), &Issue{Title: "T", ProjectID: 1}) }},
+		{"UpdateIssue", func() error { return UpdateIssue(context.Background(), &Issue{ID: 1, Title: "T", ProjectID: 1}) }},
+		{"DeleteIssue", func() error { return DeleteIssue(context.Background(), 1) }},
+		{"CreateTask", func() error { return CreateTask(context.Background(), &Task{IssueID: 1, Title: "T"}) }},
+		{"UpdateTask", func() error { return UpdateTask(context.Background(), &Task{ID: 1, Title: "T"}, 1) }},
+		{"DeleteTask", func() error { return DeleteTask(context.Background(), 1, 1) }},
+		{"GetLabelsByProject", func() error { _, err := GetLabelsByProject(context.Background(), 1); return err }},
+		{"CreateLabel", func() error { return CreateLabel(context.Background(), &Label{Name: "L", ProjectID: 1}) }},
+		{"DeleteLabel", func() error { return DeleteLabel(context.Background(), 1, 1) }},
+		{"GetIssueByID", func() error { _, err := GetIssueByID(context.Background(), 1); return err }},
 		{"GetAllArchivedIssues", func() error { _, err := GetAllArchivedIssues(); return err }},
-		{"GetAllProjects", func() error { _, err := GetAllProjects(); return err }},
-		{"CreateProject", func() error { return CreateProject(&Project{Name: "P"}) }},
-		{"UpdateProject", func() error { return UpdateProject(&Project{ID: 1, Name: "P"}) }},
-		{"DeleteProject", func() error { return DeleteProject(1) }},
-		{"GetProjectByID", func() error { _, err := GetProjectByID(1); return err }},
-		{"CountIssuesByProject", func() error { _, err := CountIssuesByProject(1); return err }},
-		{"GetIssueByIDInProject", func() error { _, err := GetIssueByIDInProject(1, 1); return err }},
-		{"GetReleaseByIDInProject", func() error { _, err := GetReleaseByIDInProject(1, 1); return err }},
-		{"UserExists", func() error { _, err := UserExists(1); return err }},
-		{"UserExistsAndActive", func() error { _, err := UserExistsAndActive(1); return err }},
-		{"LabelExistsInProject", func() error { _, err := LabelExistsInProject(1, 1); return err }},
-		{"ProjectExists", func() error { _, err := ProjectExists(1); return err }},
-		{"ReleaseExistsInProject", func() error { _, err := ReleaseExistsInProject(1, 1); return err }},
-		{"CreateUser", func() error { return CreateUser(&User{Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser}) }},
-		{"GetUserByEmail", func() error { _, err := GetUserByEmail("x@y.z"); return err }},
-		{"GetUserByID", func() error { _, err := GetUserByID(1); return err }},
-		{"GetAllUsers", func() error { _, err := GetAllUsers(); return err }},
-		{"UpdateUser", func() error { return UpdateUser(&User{ID: 1, Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser}) }},
-		{"CountUsers", func() error { _, err := CountUsers(); return err }},
-		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(); return err }},
-		{"CreateSession", func() error { return CreateSession(&Session{UserID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)}) }},
-		{"GetSessionByID", func() error { _, err := GetSessionByID(1); return err }},
-		{"UpdateSession", func() error { return UpdateSession(&Session{ID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)}) }},
-		{"DeleteSession", func() error { return DeleteSession(1) }},
-		{"DeleteSessionsByUserID", func() error { return DeleteSessionsByUserID(1) }},
-		{"DeleteExpiredSessions", func() error { _, err := DeleteExpiredSessions(); return err }},
-		{"CreateRelease", func() error { return CreateRelease(&Release{ProjectID: 1, Name: "R"}) }},
-		{"GetReleasesByProject", func() error { _, err := GetReleasesByProject(1); return err }},
-		{"GetReleaseByID", func() error { _, err := GetReleaseByID(1); return err }},
-		{"UpdateRelease", func() error { return UpdateRelease(&Release{ID: 1, Name: "R"}) }},
-		{"DeleteRelease", func() error { return DeleteRelease(1) }},
-		{"ReopenRelease", func() error { return ReopenRelease(1) }},
-		{"TriggerRelease", func() error { return TriggerRelease(1, false) }},
+		{"GetAllProjects", func() error { _, err := GetAllProjects(context.Background()); return err }},
+		{"CreateProject", func() error { return CreateProject(context.Background(), &Project{Name: "P"}) }},
+		{"UpdateProject", func() error { return UpdateProject(context.Background(), &Project{ID: 1, Name: "P"}) }},
+		{"DeleteProject", func() error { return DeleteProject(context.Background(), 1) }},
+		{"GetProjectByID", func() error { _, err := GetProjectByID(context.Background(), 1); return err }},
+		{"CountIssuesByProject", func() error { _, err := CountIssuesByProject(context.Background(), 1); return err }},
+		{"GetIssueByIDInProject", func() error { _, err := GetIssueByIDInProject(context.Background(), 1, 1); return err }},
+		{"GetReleaseByIDInProject", func() error { _, err := GetReleaseByIDInProject(context.Background(), 1, 1); return err }},
+		{"UserExists", func() error { _, err := UserExists(context.Background(), 1); return err }},
+		{"UserExistsAndActive", func() error { _, err := UserExistsAndActive(context.Background(), 1); return err }},
+		{"LabelExistsInProject", func() error { _, err := LabelExistsInProject(context.Background(), 1, 1); return err }},
+		{"ProjectExists", func() error { _, err := ProjectExists(context.Background(), 1); return err }},
+		{"ReleaseExistsInProject", func() error { _, err := ReleaseExistsInProject(context.Background(), 1, 1); return err }},
+		{"CreateUser", func() error { return CreateUser(context.Background(), &User{Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser}) }},
+		{"GetUserByEmail", func() error { _, err := GetUserByEmail(context.Background(), "x@y.z"); return err }},
+		{"GetUserByID", func() error { _, err := GetUserByID(context.Background(), 1); return err }},
+		{"GetAllUsers", func() error { _, err := GetAllUsers(context.Background()); return err }},
+		{"UpdateUser", func() error { return UpdateUser(context.Background(), &User{ID: 1, Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser}) }},
+		{"CountUsers", func() error { _, err := CountUsers(context.Background()); return err }},
+		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(context.Background()); return err }},
+		{"CreateSession", func() error { return CreateSession(context.Background(), &Session{UserID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)}) }},
+		{"GetSessionByID", func() error { _, err := GetSessionByID(context.Background(), 1); return err }},
+		{"UpdateSession", func() error { return UpdateSession(context.Background(), &Session{ID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)}) }},
+		{"DeleteSession", func() error { return DeleteSession(context.Background(), 1) }},
+		{"DeleteSessionsByUserID", func() error { return DeleteSessionsByUserID(context.Background(), 1) }},
+		{"DeleteExpiredSessions", func() error { _, err := DeleteExpiredSessions(context.Background()); return err }},
+		{"CreateRelease", func() error { return CreateRelease(context.Background(), &Release{ProjectID: 1, Name: "R"}) }},
+		{"GetReleasesByProject", func() error { _, err := GetReleasesByProject(context.Background(), 1); return err }},
+		{"GetReleaseByID", func() error { _, err := GetReleaseByID(context.Background(), 1); return err }},
+		{"UpdateRelease", func() error { return UpdateRelease(context.Background(), &Release{ID: 1, Name: "R"}) }},
+		{"DeleteRelease", func() error { return DeleteRelease(context.Background(), 1) }},
+		{"ReopenRelease", func() error { return ReopenRelease(context.Background(), 1) }},
+		{"TriggerRelease", func() error { return TriggerRelease(context.Background(), 1, false) }},
 	}
 
 	for _, tt := range tests {
@@ -400,7 +401,7 @@ func TestDBScanErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset DB for each subtest
 			testDBCounter++
-			if err := InitDB(fmt.Sprintf(testDBURI, testDBCounter)); err != nil {
+			if err := InitDB(context.Background(), fmt.Sprintf(testDBURI, testDBCounter)); err != nil {
 				t.Fatalf(initDBErrorMsg, err)
 			}
 			defer DB.Close()
@@ -442,7 +443,7 @@ func scanErrorGetTasksByIssueID(t *testing.T) error {
 	if _, err := DB.Exec("INSERT INTO tasks(issue_id, title, position) VALUES(1, 'T', ?)", notAnInt); err != nil {
 		return err
 	}
-	if _, err := GetTasksByIssueID(1); err == nil {
+	if _, err := GetTasksByIssueID(context.Background(), 1); err == nil {
 		t.Error(expectedScanError)
 	}
 	return nil
@@ -461,7 +462,7 @@ func scanErrorGetAllLabels(t *testing.T) error {
 	if _, err := DB.Exec("INSERT INTO labels(id, name, color, project_id) VALUES(?, ?, ?, ?)", notAnInt, "L", "#000", 1); err != nil {
 		return err
 	}
-	if _, err := GetLabelsByProject(1); err == nil {
+	if _, err := GetLabelsByProject(context.Background(), 1); err == nil {
 		t.Error(expectedScanError)
 	}
 	return nil
@@ -500,7 +501,7 @@ func scanErrorGetIssueByID(t *testing.T) error {
 		return err
 	}
 
-	if _, err := GetIssueByID(1); err == nil {
+	if _, err := GetIssueByID(context.Background(), 1); err == nil {
 		t.Error(expectedScanError)
 	}
 	return nil
@@ -515,7 +516,7 @@ func TestDBConstraintErrors(t *testing.T) {
 
 	t.Run("CreateIssue_ExecError", func(t *testing.T) {
 		_, _ = DB.Exec(foreignKeyConst)
-		if CreateIssue(&Issue{Title: "T", Status: "todo", ProjectID: 1, Label: &Label{ID: 999}}) == nil {
+		if CreateIssue(context.Background(), &Issue{Title: "T", Status: "todo", ProjectID: 1, Label: &Label{ID: 999}}) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -523,8 +524,8 @@ func TestDBConstraintErrors(t *testing.T) {
 	t.Run("UpdateIssue_ExecError", func(t *testing.T) {
 		setupTestDB()
 		_, _ = DB.Exec(foreignKeyConst)
-		CreateIssue(&Issue{Title: "T", Status: "todo", ProjectID: 1})
-		if UpdateIssue(&Issue{ID: 1, Title: "T", Status: "todo", ProjectID: 1, Label: &Label{ID: 999}}) == nil {
+		CreateIssue(context.Background(), &Issue{Title: "T", Status: "todo", ProjectID: 1})
+		if UpdateIssue(context.Background(), &Issue{ID: 1, Title: "T", Status: "todo", ProjectID: 1, Label: &Label{ID: 999}}) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -532,7 +533,7 @@ func TestDBConstraintErrors(t *testing.T) {
 	t.Run("CreateTask_ExecError", func(t *testing.T) {
 		setupTestDB()
 		_, _ = DB.Exec(foreignKeyConst)
-		if CreateTask(&Task{IssueID: 999, Title: "T"}) == nil {
+		if CreateTask(context.Background(), &Task{IssueID: 999, Title: "T"}) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -542,12 +543,12 @@ func TestDBConstraintErrors(t *testing.T) {
 		// Actually, let's try something else. Duplicate ID?
 		setupTestDB()
 		_, _ = DB.Exec("INSERT INTO labels(id, name, color) VALUES(1, 'L', '#000')")
-		_ = CreateLabel(&Label{ID: 1, Name: "L2", Color: "#111"})
+		_ = CreateLabel(context.Background(), &Label{ID: 1, Name: "L2", Color: "#111"})
 
 		// Let's force it to fail by making it too long? No SQLite doesn't care.
 		// How about a unique constraint?
 		_, _ = DB.Exec("CREATE UNIQUE INDEX idx_labels_name ON labels(name)")
-		if CreateLabel(&Label{Name: "L", Color: "#000"}) == nil {
+		if CreateLabel(context.Background(), &Label{Name: "L", Color: "#000"}) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -560,37 +561,37 @@ func TestDBNotFoundErrors(t *testing.T) {
 	const expectedErr = "expected not found error, got nil"
 
 	t.Run("UpdateIssue_NotFound", func(t *testing.T) {
-		if UpdateIssue(&Issue{ID: 999, Title: "T"}) == nil {
+		if UpdateIssue(context.Background(), &Issue{ID: 999, Title: "T"}) == nil {
 			t.Error(expectedErr)
 		}
 	})
 
 	t.Run("DeleteIssue_NotFound", func(t *testing.T) {
-		if DeleteIssue(999) == nil {
+		if DeleteIssue(context.Background(), 999) == nil {
 			t.Error(expectedErr)
 		}
 	})
 
 	t.Run("CreateTask_IssueNotFound", func(t *testing.T) {
-		if CreateTask(&Task{IssueID: 999, Title: "T"}) == nil {
+		if CreateTask(context.Background(), &Task{IssueID: 999, Title: "T"}) == nil {
 			t.Error(expectedErr)
 		}
 	})
 
 	t.Run("UpdateTask_NotFound", func(t *testing.T) {
-		if UpdateTask(&Task{ID: 999, Title: "T"}, 1) == nil {
+		if UpdateTask(context.Background(), &Task{ID: 999, Title: "T"}, 1) == nil {
 			t.Error(expectedErr)
 		}
 	})
 
 	t.Run("DeleteTask_NotFound", func(t *testing.T) {
-		if DeleteTask(999, 1) == nil {
+		if DeleteTask(context.Background(), 999, 1) == nil {
 			t.Error(expectedErr)
 		}
 	})
 
 	t.Run("DeleteLabel_NotFound", func(t *testing.T) {
-		if DeleteLabel(999, 1) == nil {
+		if DeleteLabel(context.Background(), 999, 1) == nil {
 			t.Error(expectedErr)
 		}
 	})
@@ -621,7 +622,7 @@ func TestScanIssueInvalidJSON(t *testing.T) {
 	}
 
 	// Also test GetIssueByID with invalid JSON
-	issue, err := GetIssueByID(1)
+	issue, err := GetIssueByID(context.Background(), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -636,7 +637,7 @@ func TestInitDBFileCreation(t *testing.T) {
 
 	// InitDB might call os.Exit(1) on failure, which is hard to test in-process.
 	// But we can test the "new database" logging branch and file creation.
-	if err := InitDB(tempFile); err != nil {
+	if err := InitDB(context.Background(), tempFile); err != nil {
 		t.Fatalf(initDBErrorMsg, err)
 	}
 	defer DB.Close()
@@ -662,7 +663,7 @@ func TestInitDBError(t *testing.T) {
 	// Or simply an invalid DSN that sqlite3 rejects?
 	// "file::memory:?mode=ro" implies read-only, so createTables should fail!
 
-	err := InitDB("file::memory:?mode=ro")
+	err := InitDB(context.Background(), "file::memory:?mode=ro")
 	if err == nil {
 		t.Error("Expected error when initializing read-only DB (create tables should fail), got nil")
 	}
@@ -673,7 +674,7 @@ func TestGetIssueByID(t *testing.T) {
 	defer teardownTestDB()
 
 	// 1. Not Found
-	issue, err := GetIssueByID(999)
+	issue, err := GetIssueByID(context.Background(), 999)
 	if err != nil {
 		t.Fatalf("Expected nil error for not found, got %v", err)
 	}
@@ -683,11 +684,11 @@ func TestGetIssueByID(t *testing.T) {
 
 	// 2. Success
 	newIssue := &Issue{Title: testIssueTitle, Status: StatusOpen, ProjectID: 1}
-	if err := CreateIssue(newIssue); err != nil {
+	if err := CreateIssue(context.Background(), newIssue); err != nil {
 		t.Fatalf("Failed to create issue: %v", err)
 	}
 
-	storedIssue, err := GetIssueByID(newIssue.ID)
+	storedIssue, err := GetIssueByID(context.Background(), newIssue.ID)
 	if err != nil {
 		t.Fatalf("Failed to get issue: %v", err) // Covered by TestDBErrors
 	}
@@ -705,7 +706,7 @@ func TestSessionCRUD(t *testing.T) {
 	userID := 1
 	// Need a user for FK constraint
 	hash, _ := HashPassword("pass")
-	CreateUser(&User{Email: "s@test.com", FirstName: "S", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: "s@test.com", FirstName: "S", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
 
 	session := &Session{
 		UserID:    userID,
@@ -714,7 +715,7 @@ func TestSessionCRUD(t *testing.T) {
 	}
 
 	// 1. Create
-	if err := CreateSession(session); err != nil {
+	if err := CreateSession(context.Background(), session); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 	if session.ID == 0 {
@@ -722,7 +723,7 @@ func TestSessionCRUD(t *testing.T) {
 	}
 
 	// 2. Get
-	retrieved, err := GetSessionByID(session.ID)
+	retrieved, err := GetSessionByID(context.Background(), session.ID)
 	if err != nil {
 		t.Fatalf("GetSessionByID failed: %v", err)
 	}
@@ -732,19 +733,19 @@ func TestSessionCRUD(t *testing.T) {
 
 	// 3. Update
 	session.TokenHash = "newhash"
-	if err := UpdateSession(session); err != nil {
+	if err := UpdateSession(context.Background(), session); err != nil {
 		t.Fatalf("UpdateSession failed: %v", err)
 	}
-	updated, _ := GetSessionByID(session.ID)
+	updated, _ := GetSessionByID(context.Background(), session.ID)
 	if updated.TokenHash != "newhash" {
 		t.Errorf("expected updated hash 'newhash', got '%s'", updated.TokenHash)
 	}
 
 	// 4. Delete
-	if err := DeleteSession(session.ID); err != nil {
+	if err := DeleteSession(context.Background(), session.ID); err != nil {
 		t.Fatalf("DeleteSession failed: %v", err)
 	}
-	deleted, _ := GetSessionByID(session.ID)
+	deleted, _ := GetSessionByID(context.Background(), session.ID)
 	if deleted != nil {
 		t.Error("expected session to be deleted")
 	}
@@ -755,13 +756,13 @@ func TestSessionNotFound(t *testing.T) {
 	defer teardownTestDB()
 
 	// Update non-existent
-	err := UpdateSession(&Session{ID: 999, TokenHash: "h", ExpiresAt: time.Now()})
+	err := UpdateSession(context.Background(), &Session{ID: 999, TokenHash: "h", ExpiresAt: time.Now()})
 	if err == nil || err.Error() != "session not found" {
 		t.Errorf("expected 'session not found' error, got %v", err)
 	}
 
 	// Delete non-existent
-	err = DeleteSession(999)
+	err = DeleteSession(context.Background(), 999)
 	if err == nil || err.Error() != "session not found" {
 		t.Errorf("expected 'session not found' error, got %v", err)
 	}
@@ -772,14 +773,14 @@ func TestDeleteSessionsByUserID(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword("pass")
-	CreateUser(&User{Email: "u@test.com", FirstName: "U", LastName: "1", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: "u@test.com", FirstName: "U", LastName: "1", PasswordHash: hash, Role: RoleUser, Active: true})
 	userID := 1
 
 	// Create 2 sessions
-	CreateSession(&Session{UserID: userID, TokenHash: "1", ExpiresAt: time.Now()})
-	CreateSession(&Session{UserID: userID, TokenHash: "2", ExpiresAt: time.Now()})
+	CreateSession(context.Background(), &Session{UserID: userID, TokenHash: "1", ExpiresAt: time.Now()})
+	CreateSession(context.Background(), &Session{UserID: userID, TokenHash: "2", ExpiresAt: time.Now()})
 
-	if err := DeleteSessionsByUserID(userID); err != nil {
+	if err := DeleteSessionsByUserID(context.Background(), userID); err != nil {
 		t.Fatalf("DeleteSessionsByUserID failed: %v", err)
 	}
 
@@ -796,13 +797,13 @@ func TestDeleteExpiredSessions(t *testing.T) {
 	defer teardownTestDB()
 
 	hash, _ := HashPassword("pass")
-	CreateUser(&User{Email: "e@test.com", FirstName: "E", LastName: "X", PasswordHash: hash, Role: RoleUser, Active: true})
+	CreateUser(context.Background(), &User{Email: "e@test.com", FirstName: "E", LastName: "X", PasswordHash: hash, Role: RoleUser, Active: true})
 
 	// 1 expired, 1 active
-	CreateSession(&Session{UserID: 1, TokenHash: "exp", ExpiresAt: time.Now().Add(-1 * time.Hour)})
-	CreateSession(&Session{UserID: 1, TokenHash: "act", ExpiresAt: time.Now().Add(1 * time.Hour)})
+	CreateSession(context.Background(), &Session{UserID: 1, TokenHash: "exp", ExpiresAt: time.Now().Add(-1 * time.Hour)})
+	CreateSession(context.Background(), &Session{UserID: 1, TokenHash: "act", ExpiresAt: time.Now().Add(1 * time.Hour)})
 
-	deletedCount, err := DeleteExpiredSessions()
+	deletedCount, err := DeleteExpiredSessions(context.Background())
 	if err != nil {
 		t.Fatalf("DeleteExpiredSessions failed: %v", err)
 	}
@@ -826,8 +827,8 @@ func TestCreateIssueWithCreatorAndAssignee(t *testing.T) {
 	// Create users
 	creator := &User{Email: "creator@test.com", FirstName: "Creator", LastName: "User", Role: RoleUser}
 	assignee := &User{Email: "assignee@test.com", FirstName: "Assignee", LastName: "User", Role: RoleUser}
-	CreateUser(creator)
-	CreateUser(assignee)
+	CreateUser(context.Background(), creator)
+	CreateUser(context.Background(), assignee)
 
 	issue := &Issue{
 		Title:      "Assigned Issue",
@@ -837,12 +838,12 @@ func TestCreateIssueWithCreatorAndAssignee(t *testing.T) {
 		AssigneeID: &assignee.ID,
 	}
 
-	if err := CreateIssue(issue); err != nil {
+	if err := CreateIssue(context.Background(), issue); err != nil {
 		t.Fatalf(failedToCreateIssueError, err)
 	}
 
 	// Verify DB values
-	stored, err := GetIssueByID(issue.ID)
+	stored, err := GetIssueByID(context.Background(), issue.ID)
 	if err != nil {
 		t.Fatalf("Failed to get issue: %v", err)
 	}
@@ -870,8 +871,8 @@ func TestUpdateIssueAssignee(t *testing.T) {
 	// Create users
 	user1 := &User{Email: "u1@test.com", FirstName: "User", LastName: "One", Role: RoleUser}
 	user2 := &User{Email: "u2@test.com", FirstName: "User", LastName: "Two", Role: RoleUser}
-	CreateUser(user1)
-	CreateUser(user2)
+	CreateUser(context.Background(), user1)
+	CreateUser(context.Background(), user2)
 
 	// Create issue assigned to user1
 	issue := &Issue{
@@ -880,15 +881,15 @@ func TestUpdateIssueAssignee(t *testing.T) {
 		ProjectID:  1,
 		AssigneeID: &user1.ID,
 	}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	// Update assignee to user2
 	issue.AssigneeID = &user2.ID
-	if err := UpdateIssue(issue); err != nil {
+	if err := UpdateIssue(context.Background(), issue); err != nil {
 		t.Fatalf(failedToUpdateIssueError, err)
 	}
 
-	stored, _ := GetIssueByID(issue.ID)
+	stored, _ := GetIssueByID(context.Background(), issue.ID)
 	if stored.AssigneeID == nil || *stored.AssigneeID != user2.ID {
 		t.Errorf("Expected AssigneeID to be %d, got %v", user2.ID, stored.AssigneeID)
 	}
@@ -902,18 +903,18 @@ func TestUpdateIssueUnassign(t *testing.T) {
 	defer teardownTestDB()
 
 	user1 := &User{Email: "u1@test.com", FirstName: "User", LastName: "One", Role: RoleUser}
-	CreateUser(user1)
+	CreateUser(context.Background(), user1)
 
 	issue := &Issue{Title: "Unassign Issue", Status: StatusOpen, ProjectID: 1, AssigneeID: &user1.ID}
-	CreateIssue(issue)
+	CreateIssue(context.Background(), issue)
 
 	// Unassign
 	issue.AssigneeID = nil
-	if err := UpdateIssue(issue); err != nil {
+	if err := UpdateIssue(context.Background(), issue); err != nil {
 		t.Fatalf(failedToUpdateIssueError, err)
 	}
 
-	stored, _ := GetIssueByID(issue.ID)
+	stored, _ := GetIssueByID(context.Background(), issue.ID)
 	if stored.AssigneeID != nil {
 		t.Errorf("Expected AssigneeID to be nil, got %d", *stored.AssigneeID)
 	}
@@ -928,7 +929,7 @@ func TestLabelsCRUD(t *testing.T) {
 
 	// 1. Test CreateLabel
 	l := &Label{Name: "Bug", Color: "#ff0000", ProjectID: 1}
-	err := CreateLabel(l)
+	err := CreateLabel(context.Background(), l)
 	if err != nil {
 		t.Fatalf("Failed to create label: %v", err)
 	}
@@ -937,7 +938,7 @@ func TestLabelsCRUD(t *testing.T) {
 	}
 
 	// 2. Test GetLabelsByProject
-	labels, err := GetLabelsByProject(1)
+	labels, err := GetLabelsByProject(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("Failed to get labels: %v", err)
 	}
@@ -949,12 +950,12 @@ func TestLabelsCRUD(t *testing.T) {
 	}
 
 	// 3. Test DeleteLabel
-	err = DeleteLabel(l.ID, 1)
+	err = DeleteLabel(context.Background(), l.ID, 1)
 	if err != nil {
 		t.Fatalf("Failed to delete label: %v", err)
 	}
 
-	labels, err = GetLabelsByProject(1)
+	labels, err = GetLabelsByProject(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("Failed to get labels after delete: %v", err)
 	}
@@ -969,7 +970,7 @@ func TestLabelAssociation(t *testing.T) {
 
 	// Create Label
 	lbl := &Label{Name: "Feature", Color: "#00ff00", ProjectID: 1}
-	if err := CreateLabel(lbl); err != nil {
+	if err := CreateLabel(context.Background(), lbl); err != nil {
 		t.Fatalf("Failed to create label: %v", err)
 	}
 
@@ -980,7 +981,7 @@ func TestLabelAssociation(t *testing.T) {
 		ProjectID: 1,
 		Label:     lbl,
 	}
-	if err := CreateIssue(issue); err != nil {
+	if err := CreateIssue(context.Background(), issue); err != nil {
 		t.Fatalf(failedToCreateIssueError, err)
 	}
 
@@ -999,7 +1000,7 @@ func TestLabelAssociation(t *testing.T) {
 	}
 
 	// Delete Label and verify ON DELETE SET NULL
-	if err := DeleteLabel(lbl.ID, 1); err != nil {
+	if err := DeleteLabel(context.Background(), lbl.ID, 1); err != nil {
 		t.Fatalf("Failed to delete label: %v", err)
 	}
 
@@ -1023,14 +1024,14 @@ func TestProjectsCRUD(t *testing.T) {
 	defer teardownTestDB()
 
 	// 0. Ensure default project exists (seeded in InitDB)
-	projects, _ := GetAllProjects()
+	projects, _ := GetAllProjects(context.Background())
 	if len(projects) != 1 {
 		t.Errorf("Expected 1 project (default) at start, got %d", len(projects))
 	}
 
 	// 1. CreateProject
 	p := &Project{Name: "Project A", Description: "Desc A"}
-	err := CreateProject(p)
+	err := CreateProject(context.Background(), p)
 	if err != nil {
 		t.Fatalf("Failed to create project: %v", err)
 	}
@@ -1039,7 +1040,7 @@ func TestProjectsCRUD(t *testing.T) {
 	}
 
 	// 2. GetProjectByID
-	retrieved, err := GetProjectByID(p.ID)
+	retrieved, err := GetProjectByID(context.Background(), p.ID)
 	if err != nil {
 		t.Fatalf("GetProjectByID failed: %v", err)
 	}
@@ -1048,7 +1049,7 @@ func TestProjectsCRUD(t *testing.T) {
 	}
 
 	// 3. GetAllProjects
-	projects, err = GetAllProjects()
+	projects, err = GetAllProjects(context.Background())
 	if err != nil {
 		t.Fatalf("GetAllProjects failed: %v", err)
 	}
@@ -1058,44 +1059,44 @@ func TestProjectsCRUD(t *testing.T) {
 
 	// 4. UpdateProject
 	p.Name = "Updated Project"
-	err = UpdateProject(p)
+	err = UpdateProject(context.Background(), p)
 	if err != nil {
 		t.Fatalf("UpdateProject failed: %v", err)
 	}
-	updated, _ := GetProjectByID(p.ID)
+	updated, _ := GetProjectByID(context.Background(), p.ID)
 	if updated.Name != "Updated Project" {
 		t.Errorf("Expected name 'Updated Project', got '%s'", updated.Name)
 	}
 
 	// 5. CountIssuesByProject
-	count, _ := CountIssuesByProject(p.ID)
+	count, _ := CountIssuesByProject(context.Background(), p.ID)
 	if count != 0 {
 		t.Errorf("Expected 0 issues for new project, got %d", count)
 	}
 
 	// Create an issue for this project
 	issue := &Issue{Title: "P Issue", Status: StatusOpen, ProjectID: p.ID}
-	CreateIssue(issue)
-	count, _ = CountIssuesByProject(p.ID)
+	CreateIssue(context.Background(), issue)
+	count, _ = CountIssuesByProject(context.Background(), p.ID)
 	if count != 1 {
 		t.Errorf(expectedOneIssueMsg, count)
 	}
 
 	// Attempt to delete project with issue (should fail due to FK)
-	err = DeleteProject(p.ID)
+	err = DeleteProject(context.Background(), p.ID)
 	if err == nil {
 		t.Errorf("Expected FK error when deleting project with issues, got nil")
 	}
 
 	// Delete issue first
-	DeleteIssue(issue.ID)
+	DeleteIssue(context.Background(), issue.ID)
 
 	// 6. DeleteProject
-	err = DeleteProject(p.ID)
+	err = DeleteProject(context.Background(), p.ID)
 	if err != nil {
 		t.Fatalf("DeleteProject failed: %v", err)
 	}
-	deleted, _ := GetProjectByID(p.ID)
+	deleted, _ := GetProjectByID(context.Background(), p.ID)
 	if deleted != nil {
 		t.Errorf("Expected nil after deletion, got %v", deleted)
 	}
@@ -1107,36 +1108,36 @@ func TestProjectErrors(t *testing.T) {
 
 	// 1. Create duplicate project name
 	p1 := &Project{Name: "Dup", Description: "D1"}
-	CreateProject(p1)
+	CreateProject(context.Background(), p1)
 	p2 := &Project{Name: "Dup", Description: "D2"}
-	err := CreateProject(p2)
+	err := CreateProject(context.Background(), p2)
 	if err == nil || err != ErrDuplicateProjectName {
 		t.Errorf("Expected ErrDuplicateProjectName for duplicate project name, got %v", err)
 	}
 
 	// 2. Update to duplicate name
 	p3 := &Project{Name: "Project 3", Description: "D3"}
-	CreateProject(p3)
+	CreateProject(context.Background(), p3)
 	p3.Name = "Dup"
-	err = UpdateProject(p3)
+	err = UpdateProject(context.Background(), p3)
 	if err == nil || err != ErrDuplicateProjectName {
 		t.Errorf("Expected ErrDuplicateProjectName for duplicate project name on update, got %v", err)
 	}
 
 	// 3. Update non-existent
-	err = UpdateProject(&Project{ID: 999, Name: "Non-existent"})
+	err = UpdateProject(context.Background(), &Project{ID: 999, Name: "Non-existent"})
 	if err == nil || err != ErrProjectNotFound {
 		t.Errorf("Expected ErrProjectNotFound for updating non-existent project, got %v", err)
 	}
 
 	// 4. Delete non-existent
-	err = DeleteProject(999)
+	err = DeleteProject(context.Background(), 999)
 	if err == nil || err != ErrProjectNotFound {
 		t.Errorf("Expected ErrProjectNotFound for deleting non-existent project, got %v", err)
 	}
 
 	// 5. Get non-existent
-	ret, err := GetProjectByID(9999)
+	ret, err := GetProjectByID(context.Background(), 9999)
 	if err != nil {
 		t.Errorf("Expected nil error for non-existent ID, got %v", err)
 	}
@@ -1158,7 +1159,7 @@ func scanErrorGetAllProjects(t *testing.T) error {
 	if _, err := DB.Exec("INSERT INTO projects(id, name) VALUES(?, ?)", notAnInt, "P"); err != nil {
 		return err
 	}
-	if _, err := GetAllProjects(); err == nil {
+	if _, err := GetAllProjects(context.Background()); err == nil {
 		t.Error(expectedScanError)
 	}
 	return nil
@@ -1210,7 +1211,7 @@ func TestGetStatusConfigReturnsDefaultsWhenNoRow(t *testing.T) {
 		t.Fatalf("failed to delete seeded row: %v", err)
 	}
 
-	cfg, err := GetStatusConfig(1)
+	cfg, err := GetStatusConfig(context.Background(), 1)
 	if err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
@@ -1230,11 +1231,11 @@ func TestGetStatusConfigReturnsStoredValues(t *testing.T) {
 	defer teardownTestDB()
 
 	stored := &StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA", Stage3Name: "Staging", Stage4Name: "Prod"}
-	if err := UpsertStatusConfig(stored); err != nil {
+	if err := UpsertStatusConfig(context.Background(), stored); err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
 
-	cfg, err := GetStatusConfig(1)
+	cfg, err := GetStatusConfig(context.Background(), 1)
 	if err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
@@ -1251,7 +1252,7 @@ func TestGetStatusConfigDBError(t *testing.T) {
 		t.Fatalf("failed to drop table: %v", err)
 	}
 
-	if _, err := GetStatusConfig(1); err == nil {
+	if _, err := GetStatusConfig(context.Background(), 1); err == nil {
 		t.Error("expected error after table drop, got nil")
 	}
 }
@@ -1261,11 +1262,11 @@ func TestUpsertStatusConfigPersists(t *testing.T) {
 	defer teardownTestDB()
 
 	cfg := &StatusConfig{ProjectID: 1, Stage1Name: "Todo", Stage2Name: "Doing", Stage3Name: "", Stage4Name: ""}
-	if err := UpsertStatusConfig(cfg); err != nil {
+	if err := UpsertStatusConfig(context.Background(), cfg); err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
 
-	got, err := GetStatusConfig(1)
+	got, err := GetStatusConfig(context.Background(), 1)
 	if err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
@@ -1278,14 +1279,14 @@ func TestUpsertStatusConfigReplacesExisting(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := UpsertStatusConfig(&StatusConfig{ProjectID: 1, Stage1Name: "Pending", Stage2Name: "Working"}); err != nil {
+	if err := UpsertStatusConfig(context.Background(), &StatusConfig{ProjectID: 1, Stage1Name: "Pending", Stage2Name: "Working"}); err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
-	if err := UpsertStatusConfig(&StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA"}); err != nil {
+	if err := UpsertStatusConfig(context.Background(), &StatusConfig{ProjectID: 1, Stage1Name: "Review", Stage2Name: "QA"}); err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
 
-	got, err := GetStatusConfig(1)
+	got, err := GetStatusConfig(context.Background(), 1)
 	if err != nil {
 		t.Fatalf(errUnexpected, err)
 	}
@@ -1302,7 +1303,7 @@ func TestUpsertStatusConfigDBError(t *testing.T) {
 		t.Fatalf("failed to drop table: %v", err)
 	}
 
-	if err := UpsertStatusConfig(&StatusConfig{ProjectID: 1}); err == nil {
+	if err := UpsertStatusConfig(context.Background(), &StatusConfig{ProjectID: 1}); err == nil {
 		t.Error("expected error after table drop, got nil")
 	}
 }
@@ -1316,7 +1317,7 @@ func TestCreateRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	r := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(r); err != nil {
+	if err := CreateRelease(context.Background(), r); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 	if r.ID == 0 {
@@ -1332,11 +1333,11 @@ func TestCreateReleaseDuplicate(t *testing.T) {
 	defer teardownTestDB()
 
 	r1 := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(r1); err != nil {
+	if err := CreateRelease(context.Background(), r1); err != nil {
 		t.Fatalf("first CreateRelease failed: %v", err)
 	}
 	r2 := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(r2); err != ErrDuplicateReleaseName {
+	if err := CreateRelease(context.Background(), r2); err != ErrDuplicateReleaseName {
 		t.Errorf("expected ErrDuplicateReleaseName, got %v", err)
 	}
 }
@@ -1345,14 +1346,14 @@ func TestGetReleasesByProject(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := CreateRelease(&Release{ProjectID: 1, Name: "v1.0"}); err != nil {
+	if err := CreateRelease(context.Background(), &Release{ProjectID: 1, Name: "v1.0"}); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
-	if err := CreateRelease(&Release{ProjectID: 1, Name: "v2.0"}); err != nil {
+	if err := CreateRelease(context.Background(), &Release{ProjectID: 1, Name: "v2.0"}); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
-	releases, err := GetReleasesByProject(1)
+	releases, err := GetReleasesByProject(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("GetReleasesByProject failed: %v", err)
 	}
@@ -1366,11 +1367,11 @@ func TestGetReleaseByID(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
-	got, err := GetReleaseByID(rel.ID)
+	got, err := GetReleaseByID(context.Background(), rel.ID)
 	if err != nil {
 		t.Fatalf("GetReleaseByID failed: %v", err)
 	}
@@ -1386,7 +1387,7 @@ func TestGetReleaseByIDNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	got, err := GetReleaseByID(9999)
+	got, err := GetReleaseByID(context.Background(), 9999)
 	if err != nil {
 		t.Fatalf("expected nil error for missing release, got %v", err)
 	}
@@ -1402,11 +1403,11 @@ func TestGetReleaseByIDWithDates(t *testing.T) {
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	rel := &Release{ProjectID: 1, Name: "v1.0", StartDate: &start, ReleaseDate: &end}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
-	got, err := GetReleaseByID(rel.ID)
+	got, err := GetReleaseByID(context.Background(), rel.ID)
 	if err != nil {
 		t.Fatalf("GetReleaseByID failed: %v", err)
 	}
@@ -1420,16 +1421,16 @@ func TestUpdateRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
 	rel.Name = "v1.1"
-	if err := UpdateRelease(rel); err != nil {
+	if err := UpdateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("UpdateRelease failed: %v", err)
 	}
 
-	got, _ := GetReleaseByID(rel.ID)
+	got, _ := GetReleaseByID(context.Background(), rel.ID)
 	if got.Name != "v1.1" {
 		t.Errorf("expected name 'v1.1', got '%s'", got.Name)
 	}
@@ -1440,7 +1441,7 @@ func TestUpdateReleaseNotFound(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ID: 9999, ProjectID: 1, Name: "ghost"}
-	if err := UpdateRelease(rel); err != ErrReleaseNotFound {
+	if err := UpdateRelease(context.Background(), rel); err != ErrReleaseNotFound {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }
@@ -1451,15 +1452,15 @@ func TestUpdateReleaseDuplicate(t *testing.T) {
 
 	r1 := &Release{ProjectID: 1, Name: "v1.0"}
 	r2 := &Release{ProjectID: 1, Name: "v2.0"}
-	if err := CreateRelease(r1); err != nil {
+	if err := CreateRelease(context.Background(), r1); err != nil {
 		t.Fatalf("CreateRelease r1 failed: %v", err)
 	}
-	if err := CreateRelease(r2); err != nil {
+	if err := CreateRelease(context.Background(), r2); err != nil {
 		t.Fatalf("CreateRelease r2 failed: %v", err)
 	}
 
 	r2.Name = "v1.0"
-	if err := UpdateRelease(r2); err != ErrDuplicateReleaseName {
+	if err := UpdateRelease(context.Background(), r2); err != ErrDuplicateReleaseName {
 		t.Errorf("expected ErrDuplicateReleaseName, got %v", err)
 	}
 }
@@ -1469,15 +1470,15 @@ func TestDeleteRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
-	if err := DeleteRelease(rel.ID); err != nil {
+	if err := DeleteRelease(context.Background(), rel.ID); err != nil {
 		t.Fatalf("DeleteRelease failed: %v", err)
 	}
 
-	got, _ := GetReleaseByID(rel.ID)
+	got, _ := GetReleaseByID(context.Background(), rel.ID)
 	if got != nil {
 		t.Error("expected release to be deleted")
 	}
@@ -1487,7 +1488,7 @@ func TestDeleteReleaseNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := DeleteRelease(9999); err != ErrReleaseNotFound {
+	if err := DeleteRelease(context.Background(), 9999); err != ErrReleaseNotFound {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }
@@ -1497,15 +1498,15 @@ func TestTriggerRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
-	if err := TriggerRelease(rel.ID, false); err != nil {
+	if err := TriggerRelease(context.Background(), rel.ID, false); err != nil {
 		t.Fatalf("TriggerRelease failed: %v", err)
 	}
 
-	got, _ := GetReleaseByID(rel.ID)
+	got, _ := GetReleaseByID(context.Background(), rel.ID)
 	if got.Status != ReleaseStatusClosed {
 		t.Errorf("expected status closed, got %s", got.Status)
 	}
@@ -1519,19 +1520,19 @@ func TestTriggerReleaseArchivesDoneIssues(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 	issue := &Issue{Title: "Done issue", Status: StatusDone, ProjectID: 1, ReleaseID: &rel.ID}
-	if err := CreateIssue(issue); err != nil {
+	if err := CreateIssue(context.Background(), issue); err != nil {
 		t.Fatalf("CreateIssue failed: %v", err)
 	}
 
-	if err := TriggerRelease(rel.ID, true); err != nil {
+	if err := TriggerRelease(context.Background(), rel.ID, true); err != nil {
 		t.Fatalf("TriggerRelease failed: %v", err)
 	}
 
-	got, _ := GetIssueByID(issue.ID)
+	got, _ := GetIssueByID(context.Background(), issue.ID)
 	if got.Status != StatusArchive {
 		t.Errorf("expected issue status archive, got %s", got.Status)
 	}
@@ -1541,7 +1542,7 @@ func TestTriggerReleaseNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := TriggerRelease(9999, false); err != ErrReleaseNotFound {
+	if err := TriggerRelease(context.Background(), 9999, false); err != ErrReleaseNotFound {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }
@@ -1551,18 +1552,18 @@ func TestReopenRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
-	if err := TriggerRelease(rel.ID, false); err != nil {
+	if err := TriggerRelease(context.Background(), rel.ID, false); err != nil {
 		t.Fatalf("TriggerRelease failed: %v", err)
 	}
 
-	if err := ReopenRelease(rel.ID); err != nil {
+	if err := ReopenRelease(context.Background(), rel.ID); err != nil {
 		t.Fatalf("ReopenRelease failed: %v", err)
 	}
 
-	got, _ := GetReleaseByID(rel.ID)
+	got, _ := GetReleaseByID(context.Background(), rel.ID)
 	if got.Status != ReleaseStatusOpen {
 		t.Errorf("expected status open, got %s", got.Status)
 	}
@@ -1575,7 +1576,7 @@ func TestReopenReleaseNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := ReopenRelease(9999); err != ErrReleaseNotFound {
+	if err := ReopenRelease(context.Background(), 9999); err != ErrReleaseNotFound {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }
@@ -1585,11 +1586,11 @@ func TestReleaseExistsInProject(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
-	exists, err := ReleaseExistsInProject(rel.ID, 1)
+	exists, err := ReleaseExistsInProject(context.Background(), rel.ID, 1)
 	if err != nil {
 		t.Fatalf("ReleaseExistsInProject failed: %v", err)
 	}
@@ -1597,7 +1598,7 @@ func TestReleaseExistsInProject(t *testing.T) {
 		t.Error("expected release to exist in project")
 	}
 
-	notExists, err := ReleaseExistsInProject(rel.ID, 999)
+	notExists, err := ReleaseExistsInProject(context.Background(), rel.ID, 999)
 	if err != nil {
 		t.Fatalf("ReleaseExistsInProject (wrong project) failed: %v", err)
 	}
@@ -1611,15 +1612,15 @@ func TestGetIssueByIDWithRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 	issue := &Issue{Title: "Issue with release", Status: StatusOpen, ProjectID: 1, ReleaseID: &rel.ID}
-	if err := CreateIssue(issue); err != nil {
+	if err := CreateIssue(context.Background(), issue); err != nil {
 		t.Fatalf("CreateIssue failed: %v", err)
 	}
 
-	got, err := GetIssueByID(issue.ID)
+	got, err := GetIssueByID(context.Background(), issue.ID)
 	if err != nil {
 		t.Fatalf("GetIssueByID failed: %v", err)
 	}
@@ -1636,15 +1637,15 @@ func TestGetIssuesByProjectWithRelease(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(rel); err != nil {
+	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 	issue := &Issue{Title: "Issue with release", Status: StatusTodo, ProjectID: 1, ReleaseID: &rel.ID}
-	if err := CreateIssue(issue); err != nil {
+	if err := CreateIssue(context.Background(), issue); err != nil {
 		t.Fatalf("CreateIssue failed: %v", err)
 	}
 
-	issues, err := GetActiveIssuesByProject(1)
+	issues, err := GetActiveIssuesByProject(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("GetActiveIssuesByProject failed: %v", err)
 	}

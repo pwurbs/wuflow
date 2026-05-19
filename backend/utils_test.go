@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"log/slog"
 	"net/http/httptest"
 	"testing"
@@ -157,7 +158,7 @@ func GetAllActiveIssues() ([]Issue, error) {
 		return nil, err
 	}
 
-	tasksByIssue, err := getTasksForIssues(issues)
+	tasksByIssue, err := getTasksForIssues(context.Background(), issues)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +193,7 @@ func GetAllArchivedIssues() ([]Issue, error) {
 		return nil, err
 	}
 
-	tasksByIssue, err := getTasksForIssues(issues)
+	tasksByIssue, err := getTasksForIssues(context.Background(), issues)
 	if err != nil {
 		return nil, err
 	}

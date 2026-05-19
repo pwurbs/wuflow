@@ -1,7 +1,9 @@
 package backend
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -9,7 +11,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -29,6 +33,53 @@ func init() {
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
 func StartServer(version string, port string, dbPath string, initialAdminEmail string, initialAdminPassword string, secretKey string, embeddedFiles embed.FS) {
+	resolveServerConfig()
+
+	fmt.Printf("Starting wuFlow version: %s at %s\n", version, time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Printf("Using database: %s\n", dbPath)
+	fmt.Printf("Log level: %s\n", logLevel)
+	fmt.Printf("Secure cookies: %v\n", secureCookie)
+	fmt.Printf("API rate limiting: %v\n", apiRateLimitEnabled)
+	if remoteIPHeader != "" {
+		fmt.Printf("Remote IP header: %s\n", remoteIPHeader)
+	}
+
+	bootstrapDatabase(dbPath, initialAdminEmail, initialAdminPassword, secretKey)
+
+	// Serve static files from embedded filesystem
+	fmt.Printf("Serving static files from: embedded in binary\n")
+	staticFS, err := fs.Sub(embeddedFiles, "static")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileServer := http.FileServer(neuteredFileSystem{http.FS(staticFS)})
+
+	mux := APIMux(version)
+
+	// Login page — served without auth (no API middleware). GET only; the mux
+	// returns 405 for any other method.
+	mux.Handle("GET "+loginPath, WithLogging(SecurityHeadersMiddleware(HandleLoginHTML(fileServer))))
+
+	// Static files — require auth, redirect to login if not authenticated.
+	// ValidatePathMiddleware is intentionally NOT applied; we only protect the API.
+	// GET only; non-GET requests to unknown paths get 405 from the mux.
+	mux.Handle("GET /", WithLogging(SecurityHeadersMiddleware(HandleStaticFiles(fileServer))))
+
+	fmt.Printf("Server starting on port %s\n", port)
+	LogInfo("Server starting", "port", port)
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	runWithGracefulShutdown(srv)
+}
+
+// resolveServerConfig applies the Flag > Env > Default priority to each
+// configuration variable and initialises the package-wide log level.
+func resolveServerConfig() {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -68,84 +119,101 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	// resolved level. All log calls go through LogInfo/LogWarn/LogError/LogDebug
 	// helpers — see utils.go for the gosec G706 rationale.
 	SetLogLevel(level)
+}
 
-	fmt.Printf("Starting wuFlow version: %s at %s\n", version, time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Printf("Using database: %s\n", dbPath)
-	fmt.Printf("Log level: %s\n", logLevel)
-	fmt.Printf("Secure cookies: %v\n", secureCookie)
-	fmt.Printf("API rate limiting: %v\n", apiRateLimitEnabled)
-	if remoteIPHeader != "" {
-		fmt.Printf("Remote IP header: %s\n", remoteIPHeader)
-	}
-	if err := InitDB(dbPath); err != nil {
+// bootstrapDatabase opens the DB, cleans up expired sessions, derives the
+// crypto keys, and ensures the initial admin user exists. Fatal on any DB-
+// init or admin-bootstrap failure; non-fatal on expired-session cleanup.
+func bootstrapDatabase(dbPath, initialAdminEmail, initialAdminPassword, secretKey string) {
+	startupCtx := context.Background()
+	if err := InitDB(startupCtx, dbPath); err != nil {
 		LogError("Failed to initialize database", "error", err)
 		os.Exit(1)
 	}
 
 	// Clean up expired sessions on startup
-	deletedSessions, err := DeleteExpiredSessions()
+	deletedSessions, err := DeleteExpiredSessions(startupCtx)
 	if err != nil {
 		LogWarn("Failed to cleanup expired sessions", "error", err)
 	} else {
 		LogInfo("Cleaned up expired sessions", "count", deletedSessions)
 	}
 
-	// Initialize secret key
 	InitSecretKey(secretKey)
 
-	// Create initial admin user if no users exist
-	if err := EnsureInitialAdmin(initialAdminEmail, initialAdminPassword); err != nil {
+	if err := EnsureInitialAdmin(startupCtx, initialAdminEmail, initialAdminPassword); err != nil {
 		LogError("Failed to ensure initial admin user", "error", err)
 		os.Exit(1)
 	}
-
-	// Serve static files from embedded filesystem
-	fmt.Printf("Serving static files from: embedded in binary\n")
-	staticFS, err := fs.Sub(embeddedFiles, "static")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fileServer := http.FileServer(neuteredFileSystem{http.FS(staticFS)})
-
-	mux := APIMux(version)
-
-	// Login page — served without auth (no API middleware). GET only; the mux
-	// returns 405 for any other method.
-	mux.Handle("GET "+loginPath, WithLogging(SecurityHeadersMiddleware(HandleLoginHTML(fileServer))))
-
-	// Static files — require auth, redirect to login if not authenticated.
-	// ValidatePathMiddleware is intentionally NOT applied; we only protect the API.
-	// GET only; non-GET requests to unknown paths get 405 from the mux.
-	mux.Handle("GET /", WithLogging(SecurityHeadersMiddleware(HandleStaticFiles(fileServer))))
-
-	fmt.Printf("Server starting on port %s\n", port)
-	LogInfo("Server starting", "port", port)
-	srv := &http.Server{
-		Addr:         ":" + port,
-		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-	log.Fatal(srv.ListenAndServe())
 }
+
+// runWithGracefulShutdown starts srv in a goroutine, blocks on SIGINT/SIGTERM,
+// then drains in-flight requests via srv.Shutdown with a bounded timeout.
+// Cloud orchestrators (Kubernetes, Docker, etc.) rely on this signal to drain
+// a container during a rolling deploy.
+func runWithGracefulShutdown(srv *http.Server) {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal(err)
+		}
+	}()
+	sig := <-quit
+	LogInfo("Shutdown signal received", "signal", sig.String())
+	shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutCtx); err != nil {
+		LogError("Graceful shutdown failed", "error", err)
+	} else {
+		LogInfo("Server shut down cleanly")
+	}
+}
+
+// apiRequestTimeout is the per-request application-level deadline propagated to
+// every DB call via the request context. 5 s is far above any realistic SQLite
+// query but short enough to protect against lock contention or a future remote
+// database round-trip going wrong.
+const apiRequestTimeout = 5 * time.Second
 
 // APIMux returns an http.ServeMux with every API route registered using
 // Go 1.22 method+path patterns and the full middleware chain (auth + rate
 // limit + JSON / body / path validators).
 func APIMux(version string) *http.ServeMux {
+	timeout := TimeoutMiddleware(apiRequestTimeout)
 	// commonAPI: applied to PUBLIC API routes (login, logout, refresh).
-	//   Order: Logging → CSP → ValidatePath → LimitBody → RequireJSON → Handler
+	//   Order: Logging → CSP → ValidatePath → LimitBody → RequireJSON → Timeout → Handler
 	commonAPI := func(h http.Handler) http.Handler {
-		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(h)))))
+		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(timeout(h))))))
 	}
 	// authAPI: applied to PROTECTED API routes. Same chain as commonAPI plus
-	// Auth and UserRateLimit at the end.
-	//   Order: Logging → CSP → ValidatePath → LimitBody → RequireJSON → Auth → UserRateLimit → Handler
+	// Auth, UserRateLimit, and Timeout. Timeout is placed AFTER AuthMiddleware
+	// so the deadline applies to handler+DB work, not to cookie parsing.
+	//   Order: Logging → CSP → ValidatePath → LimitBody → RequireJSON → Auth → UserRateLimit → Timeout → Handler
 	authAPI := func(h http.Handler) http.Handler {
-		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(AuthMiddleware(UserRateLimitMiddleware(h)))))))
+		return WithLogging(SecurityHeadersMiddleware(ValidatePathMiddleware(LimitBodyMiddleware(RequireJSONMiddleware(AuthMiddleware(UserRateLimitMiddleware(timeout(h))))))))
 	}
 	return buildAPIMux(version, commonAPI, authAPI)
+}
+
+// TimeoutMiddleware cancels the request context if the handler exceeds timeout.
+func TimeoutMiddleware(timeout time.Duration) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), timeout)
+			defer cancel()
+			next.ServeHTTP(w, r.WithContext(ctx))
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				LogWarn("Request exceeded application timeout",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"timeout", timeout,
+					"user_id", GetUserIDFromContext(ctx),
+					"ip", GetClientIP(r),
+				)
+			}
+		})
+	}
 }
 
 // buildAPIMux is the canonical API table: every line below is method, path,

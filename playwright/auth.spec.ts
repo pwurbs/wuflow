@@ -343,10 +343,15 @@ test.describe('Authentication Security', () => {
     await page.click('#login-btn');
     await expect(page.locator('#nav-system-settings')).toBeVisible();
 
-    // 2. Drop the access token to force a full refresh cycle
+    // 2. Drop the access token to force a full refresh cycle.
+    // Navigate away before clearing cookies so the app's JS stops making API
+    // calls. Without this, an in-flight request with no access token triggers
+    // server-side token rotation (tryRefreshSession in auth.go), consuming the
+    // refresh token before our explicit refresh call below.
     const cookies = await context.cookies();
     const refreshToken = cookies.find(c => c.name === 'wf_refresh_token');
     expect(refreshToken, 'wf_refresh_token cookie must exist after login').toBeDefined();
+    await page.goto('about:blank');
     await context.clearCookies();
     await context.addCookies([refreshToken!]);
 
