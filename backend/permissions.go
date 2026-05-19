@@ -15,6 +15,7 @@ const (
 	ActionDeleteIssue    Action = "issue:delete"
 	ActionArchiveIssue   Action = "issue:archive"
 	ActionUnarchiveIssue Action = "issue:unarchive"
+	ActionMoveIssue      Action = "issue:move"
 
 	// Task actions
 	ActionCreateTask Action = "task:create"
@@ -68,6 +69,7 @@ var rolePermissions = map[Action][]UserRole{
 	ActionDeleteIssue:    {RoleSysAdmin, RoleAdmin},
 	ActionArchiveIssue:   {RoleSysAdmin, RoleAdmin},
 	ActionUnarchiveIssue: {RoleSysAdmin, RoleAdmin},
+	ActionMoveIssue:      {RoleSysAdmin, RoleAdmin},
 
 	// Tasks
 	ActionCreateTask: {RoleSysAdmin, RoleAdmin, RoleUser},

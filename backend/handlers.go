@@ -461,6 +461,68 @@ func handleUnarchiveIssue(w http.ResponseWriter, r *http.Request, projectID, id 
 	})
 }
 
+type moveIssueRequest struct {
+	NewProjectID int `json:"new_project_id"`
+}
+
+func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
+	updaterID := GetUserIDFromContext(r.Context())
+	userEmail := GetEmailFromContext(r.Context())
+
+	current, err := GetIssueByIDInProject(r.Context(), id, projectID)
+	if err != nil {
+		LogError("GetIssueByIDInProject failed for move", "id", id, "project_id", projectID, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if current == nil {
+		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+		return
+	}
+
+	var req moveIssueRequest
+	if !decodeAndValidate(w, r, &req, func(r *moveIssueRequest) error {
+		if r.NewProjectID <= 0 {
+			return errors.New("new_project_id must be a positive integer")
+		}
+		if r.NewProjectID == projectID {
+			return errors.New("new_project_id must differ from the current project")
+		}
+		return nil
+	}) {
+		return
+	}
+
+	exists, err := ProjectExists(r.Context(), req.NewProjectID)
+	if err != nil {
+		LogError("ProjectExists failed for move", "new_project_id", req.NewProjectID, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		http.Error(w, "target project not found", http.StatusBadRequest)
+		return
+	}
+
+	moved := *current
+	moved.ProjectID = req.NewProjectID
+	moved.Label = nil
+	moved.ReleaseID = nil
+	moved.Status = StatusOpen
+	moved.UpdaterID = &updaterID
+
+	if err := UpdateIssue(r.Context(), &moved); err != nil {
+		LogError("UpdateIssue failed for move", "id", id, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	LogInfo("Issue moved", "id", id, "from_project_id", projectID, "to_project_id", req.NewProjectID, "user_email", userEmail)
+	// respondWithUpdatedIssue uses GetIssueByID (not project-scoped), so it
+	// correctly retrieves the issue from its new project after the move.
+	respondWithUpdatedIssue(r.Context(), w, id, "", userEmail)
+}
+
 // issueContentHash serializes all meaningful issue fields into a comparable string.
 // Position and audit fields (updated_at, updated_by) are excluded by design.
 func issueContentHash(i *Issue) string {
@@ -1362,7 +1424,9 @@ func respondWithUpdatedIssue(ctx context.Context, w http.ResponseWriter, id int,
 		return
 	}
 
-	LogInfo(actionLog, "id", id, "user_email", userEmail)
+	if actionLog != "" {
+		LogInfo(actionLog, "id", id, "user_email", userEmail)
+	}
 
 	w.Header().Set("ETag", formatETag(updated.UpdatedAt))
 	w.Header().Set(headerContentType, contentTypeJSON)

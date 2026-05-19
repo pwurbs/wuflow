@@ -19,6 +19,7 @@ export const ACTION_UPDATE_ISSUE    = 'issue:update';
 export const ACTION_DELETE_ISSUE    = 'issue:delete';
 export const ACTION_ARCHIVE_ISSUE   = 'issue:archive';
 export const ACTION_UNARCHIVE_ISSUE = 'issue:unarchive';
+export const ACTION_MOVE_ISSUE      = 'issue:move';
 export const ACTION_CREATE_TASK     = 'task:create';
 export const ACTION_UPDATE_TASK     = 'task:update';
 export const ACTION_DELETE_TASK     = 'task:delete';
@@ -58,6 +59,7 @@ const rolePermissions = {
     [ACTION_DELETE_ISSUE]:    [ROLE_SYSADMIN, ROLE_ADMIN],
     [ACTION_ARCHIVE_ISSUE]:   [ROLE_SYSADMIN, ROLE_ADMIN],
     [ACTION_UNARCHIVE_ISSUE]: [ROLE_SYSADMIN, ROLE_ADMIN],
+    [ACTION_MOVE_ISSUE]:      [ROLE_SYSADMIN, ROLE_ADMIN],
     // Tasks
     [ACTION_CREATE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     [ACTION_UPDATE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],

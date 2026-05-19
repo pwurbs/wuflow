@@ -169,6 +169,16 @@ export async function unarchiveIssue(projectId, id) {
   return await res.json();
 }
 
+export async function moveIssue(currentProjectId, issueId, newProjectId) {
+  const res = await authFetch(`${API_URL}/projects/${currentProjectId}/issues/${issueId}/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_project_id: newProjectId })
+  });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to move issue');
+  return await res.json();
+}
+
 export async function createTask(projectId, issueId, task) {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks`, {
     method: 'POST',

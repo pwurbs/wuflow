@@ -1,11 +1,11 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
-import { createIssue, updateIssue, archiveIssue, unarchiveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
-import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
+import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
@@ -150,6 +150,30 @@ export async function openModal(issue = null) {
   resetTaskForm();
 }
 
+function setupProjectDropdown(issue) {
+  const projectInput = document.getElementById('project-select');
+  const projectText = document.getElementById('project-text');
+  const projectTrigger = document.getElementById('project-trigger');
+  if (!projectInput || !projectText) return;
+
+  const storedProjectId = issue ? null : localStorage.getItem('wuflow_selectedProjectId');
+  projectInput.value = issue?.project_id ?? (storedProjectId ? Number.parseInt(storedProjectId) : 1);
+  projectText.textContent = issue?.project?.name ?? 'default';
+
+  fetchProjects().then(projects => {
+    renderProjectOptions(projects);
+    const currentId = Number.parseInt(projectInput.value);
+    const found = projects.find(p => p.id === currentId);
+    if (found) projectText.textContent = found.name;
+  }).catch(err => console.error('Failed to load projects', err));
+
+  if (projectTrigger) {
+    const restricted = !!issue && !userCan(state.currentUser, ACTION_MOVE_ISSUE);
+    projectTrigger.disabled = restricted;
+    projectTrigger.title = restricted ? 'Insufficient permissions to move this issue' : '';
+  }
+}
+
 function renderModalDropdowns(issue) {
   // Status Dropdown
   const statusInput = document.getElementById('status');
@@ -194,30 +218,7 @@ function renderModalDropdowns(issue) {
   }).catch(err => console.error('Failed to load users', err));
 
   // Project Dropdown
-  const projectInput = document.getElementById('project-select');
-  const projectText = document.getElementById('project-text');
-  const projectTrigger = document.getElementById('project-trigger');
-  if (projectInput && projectText) {
-    const storedProjectId = issue ? null : localStorage.getItem('wuflow_selectedProjectId');
-    projectInput.value = issue?.project_id ?? (storedProjectId ? Number.parseInt(storedProjectId) : 1);
-    projectText.textContent = issue?.project?.name ?? 'default';
-
-    fetchProjects().then(projects => {
-      renderProjectOptions(projects);
-      const currentId = Number.parseInt(projectInput.value);
-      const found = projects.find(p => p.id === currentId);
-      if (found) projectText.textContent = found.name;
-    }).catch(err => console.error('Failed to load projects', err));
-
-    // Project moves are not supported via PUT (URL pins the project; backend
-    // returns 404 if URL and current project differ). Disable the selector
-    // when editing an existing issue. A dedicated move endpoint is planned —
-    // see TODO in tests/issue_edits.spec.ts (changing project ... defaults).
-    if (projectTrigger) {
-      projectTrigger.disabled = !!issue;
-      projectTrigger.title = issue ? 'Project cannot be changed after issue creation' : '';
-    }
-  }
+  setupProjectDropdown(issue);
 
   // Release Dropdown
   const releaseInput = document.getElementById('release-select');
@@ -962,16 +963,20 @@ function setupSidebarImmediateSave() {
       const projectId = val ? Number.parseInt(val) : 1;
       localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       if (state.currentIssue) {
-        const updatedIssue = { ...state.currentIssue, project_id: projectId, label: null, release_id: null, status: STATUS_OPEN };
         try {
-          const saved = await saveIssueWithConflictCheck(updatedIssue, 'Project updated');
-          if (saved) {
-            state.currentIssue.project_id = projectId;
-            state.currentIssue.label = null;
-            state.currentIssue.release_id = null;
-            state.currentIssue.status = STATUS_OPEN;
-            showNotification('Project updated. Label, release and status were reset.', 'info');
-          }
+          const updated = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId);
+          setCurrentIssue(updated);
+          // The project-option click already loaded label/release/statusconfig for the new
+          // project. Just reset the displayed values that the server cleared on move.
+          document.getElementById('label-select').value = '';
+          document.getElementById('label-text').textContent = 'No Label';
+          document.getElementById('release-select').value = '';
+          document.getElementById('release-text').textContent = 'No Release';
+          document.getElementById('status').value = STATUS_OPEN;
+          document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
+          document.getElementById('status-options')?.classList.add('hidden');
+          setupEditModal(updated);
+          showNotification('Project updated. Label, release and status were reset.', 'info');
         } catch (err) {
           showNotification(err.message, 'error');
         }
@@ -1445,6 +1450,7 @@ function renderProjectOptions(projects) {
         document.getElementById('label-text').textContent = 'No Label';
       }).catch(err => console.error('Failed to reload labels for project', err));
       fetchReleases(project.id).then(releases => {
+        state.releases = releases;
         renderReleaseOptions(releases, null);
       }).catch(err => console.error('Failed to reload releases for project', err));
       fetchStatusConfig(project.id).then(cfg => {

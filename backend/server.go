@@ -262,6 +262,7 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 	hf("DELETE", "/api/projects/{pId}/issues/{id}", withProjectResource(ActionDeleteIssue, handleDeleteIssue), authAPI)
 	hf("POST", "/api/projects/{pId}/issues/{id}/archive", withProjectResource(ActionArchiveIssue, handleArchiveIssue), authAPI)
 	hf("POST", "/api/projects/{pId}/issues/{id}/unarchive", withProjectResource(ActionUnarchiveIssue, handleUnarchiveIssue), authAPI)
+	hf("POST", "/api/projects/{pId}/issues/{id}/move", withProjectResource(ActionMoveIssue, handleMoveIssue), authAPI)
 
 	// --- Project-scoped labels ------------------------------------------------
 	hf("GET", "/api/projects/{pId}/labels", withProject(ActionListLabels, handleListLabels), authAPI)

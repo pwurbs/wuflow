@@ -84,6 +84,16 @@
   border-color: var(--primary-color);
 }
 
+.custom-select-trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+  color: var(--muted-text);
+}
+
+.custom-select-trigger:disabled:hover {
+  border-color: var(--card-border);
+}
+
 .custom-select-trigger:focus {
   /* No focus ring needed on button usually if we manage active state, or use default */
   outline: none;

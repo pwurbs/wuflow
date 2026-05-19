@@ -227,13 +227,7 @@ test.describe('Project change resets project-scoped fields', () => {
     await login();
   });
 
-  // TODO(move-endpoint): The project-select dropdown is disabled for existing
-  // issues — the project-scoped routing refactor moved ownership into the URL,
-  // so PUT can no longer move an issue between projects. Re-enable this test
-  // once a dedicated `POST /api/projects/{pId}/issues/{id}/move` endpoint
-  // exists; the test will need to drive that move via the frontend handler
-  // (or directly via the API) instead of mutating project-select.
-  test.skip('changing project resets label, release and status to defaults', async ({ page }) => {
+  test('changing project resets label, release and status to defaults', async ({ page }) => {
     // Create a second project
     await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
@@ -275,7 +269,10 @@ test.describe('Project change resets project-scoped fields', () => {
 
     // Change the project inside the modal
     await page.click('#project-trigger');
-    await page.click(`#project-options .custom-option:has-text("${projectName}")`);
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/move') && r.request().method() === 'POST'),
+      page.click(`#project-options .custom-option:has-text("${projectName}")`),
+    ]);
 
     // Toast must inform the user about the reset
     await waitForToast(page, 'Project updated. Label, release and status were reset.');
@@ -345,5 +342,59 @@ test.describe('Project change resets project-scoped fields', () => {
 
       await page.click('#done-btn');
     });
+  });
+});
+
+test.describe('Move issue – permission gate', () => {
+  let adminEmail = '';
+  let adminPassword = '';
+  let userEmail = '';
+  let userPassword = '';
+
+  test.beforeAll(async ({ workerServer }) => {
+    adminEmail = workerServer.adminEmail;
+    adminPassword = workerServer.adminPassword;
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('#login-email', adminEmail);
+    await page.fill('#login-password', adminPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
+
+    await page.click('#nav-system-settings');
+    await page.click('#add-user-btn');
+    userEmail = `move_perm_${Date.now()}@example.com`;
+    userPassword = `${Date.now()}Aa!`;
+    await page.fill('#user-email', userEmail);
+    await page.fill('#user-first-name', 'Move');
+    await page.fill('#user-last-name', 'TestUser');
+    await page.fill('#user-password', userPassword);
+    // Default role is 'user' — no role change needed
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('standard user sees project dropdown disabled on existing issue', async ({ page }) => {
+    await page.fill('#login-email', userEmail);
+    await page.fill('#login-password', userPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+
+    await createIssue(page, { title: 'MovePermIssue', status: 'Todo' });
+
+    const card = page.locator('.column[data-status="Todo"] .card:has-text("MovePermIssue")');
+    await card.click({ force: true });
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    // RoleUser cannot move — project dropdown must be disabled
+    await expect(page.locator('#project-trigger')).toBeDisabled();
+
+    await page.click('#done-btn');
   });
 });

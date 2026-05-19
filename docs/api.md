@@ -30,6 +30,7 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/projects/:pId/issues/:id` | DELETE | `handleDeleteIssue` | Admin | Delete issue |
 | `/projects/:pId/issues/:id/archive` | POST | `handleArchiveIssue` | Admin | Archive an issue |
 | `/projects/:pId/issues/:id/unarchive` | POST | `handleUnarchiveIssue` | Admin | Unarchive an issue (moves to Done) |
+| `/projects/:pId/issues/:id/move` | POST | `handleMoveIssue` | Admin | Move issue to another project (resets label, release, status) |
 | `/projects/:pId/issues/:iId/tasks` | POST | `handleCreateTask` | Required | Create task under an issue |
 | `/projects/:pId/issues/:iId/tasks/:id` | PUT | `handlePutTask` | Required | Update task |
 | `/projects/:pId/issues/:iId/tasks/:id` | DELETE | `handleDeleteTask` | Required | Delete task |
@@ -285,6 +286,21 @@ Moves an archived issue back to Done status (Admin or Sysadmin).
 - **Response**: Updated issue object
 - **Errors**:
   - `400 Bad Request` - Issue is not archived
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not an admin or sysadmin
+  - `404 Not Found` - Issue doesn't exist in this project
+
+### Move Issue
+Moves an issue to a different project (Admin or Sysadmin). Resets label, release, and status to Open.
+- **POST** `/projects/:pId/issues/:id/move`
+- **Path parameters**: `pId` (current project), `id` (issue)
+- **Request body**:
+  ```json
+  { "new_project_id": 2 }
+  ```
+- **Response**: Updated issue object (with `project_id` set to `new_project_id`, `label` and `release_id` null, `status` Open)
+- **Errors**:
+  - `400 Bad Request` - `new_project_id` is missing, not a positive integer, equals the current project, or the target project does not exist
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Issue doesn't exist in this project

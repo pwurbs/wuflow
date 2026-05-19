@@ -19,6 +19,7 @@ vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({ issue: {}, etag: '"test-etag"', conflict: false }),
   archiveIssue: vi.fn().mockResolvedValue({ id: 100, status: 'Archive' }),
   unarchiveIssue: vi.fn().mockResolvedValue({ id: 101, status: 'Done' }),
+  moveIssue: vi.fn().mockResolvedValue({ id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }),
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteIssue: vi.fn(),
@@ -620,6 +621,20 @@ describe('Modal Component', () => {
       expect(document.getElementById('priority-text').textContent).toBe('Normal');
       expect(document.getElementById('label-select').value).toBe('');
       expect(document.getElementById('label-text').textContent).toBe('No Label');
+    });
+
+    it('should disable project trigger for RoleUser editing an existing issue', async () => {
+      state.currentUser = { role: 'user' };
+      const issue = { id: 1, status: 'Open', priority: 'Normal', label: null };
+      await openModalWithMock(issue);
+      expect(document.getElementById('project-trigger').disabled).toBe(true);
+    });
+
+    it('should enable project trigger for RoleAdmin editing an existing issue', async () => {
+      state.currentUser = { role: 'admin' };
+      const issue = { id: 1, status: 'Open', priority: 'Normal', label: null };
+      await openModalWithMock(issue);
+      expect(document.getElementById('project-trigger').disabled).toBe(false);
     });
 
     it('should setup edit modal with timestamps', async () => {
@@ -2038,9 +2053,9 @@ describe('Project Selector Coverage', () => {
     expect(document.getElementById('project-text').textContent).toBe('default');
   });
 
-  it('should save project update when project-select changes with currentIssue set (lines 880-890)', async () => {
+  it('should move issue when project-select changes with currentIssue set', async () => {
     state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
-    api.updateIssue.mockResolvedValue({ issue: {}, etag: '"new-etag"', conflict: false });
+    api.moveIssue.mockResolvedValue({ id: 1, project_id: 2, label: null, release_id: null, status: 'Open' });
 
     const projectSelect = document.getElementById('project-select');
     projectSelect.value = '2';
@@ -2048,17 +2063,13 @@ describe('Project Selector Coverage', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(
-      2,
-      expect.objectContaining({ project_id: 2 }),
-      expect.anything()
-    );
+    expect(api.moveIssue).toHaveBeenCalledWith(1, 1, 2);
     expect(state.currentIssue.project_id).toBe(2);
   });
 
-  it('should show error notification when project save fails (line 888)', async () => {
+  it('should show error notification when project move fails', async () => {
     state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
-    api.updateIssue.mockRejectedValue(new Error('Save failed'));
+    api.moveIssue.mockRejectedValue(new Error('Save failed'));
 
     const projectSelect = document.getElementById('project-select');
     projectSelect.value = '3';
@@ -2069,7 +2080,7 @@ describe('Project Selector Coverage', () => {
     expect(utils.showNotification).toHaveBeenCalledWith('Save failed', 'error');
   });
 
-  it('should not call updateIssue when project-select changes without currentIssue (line 880 branch false)', async () => {
+  it('should not call moveIssue when project-select changes without currentIssue', async () => {
     state.currentIssue = null;
 
     const projectSelect = document.getElementById('project-select');
@@ -2078,7 +2089,7 @@ describe('Project Selector Coverage', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).not.toHaveBeenCalled();
+    expect(api.moveIssue).not.toHaveBeenCalled();
   });
 
   it('should reload labels and reset selection when a project option is clicked (lines 1295-1299)', async () => {

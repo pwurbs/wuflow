@@ -22,6 +22,7 @@ const (
 	unarchiveSuffix      = "/unarchive"
 	apiIssues1Archive    = apiIssues1 + archiveSuffix
 	apiIssues1Unarchive  = apiIssues1 + unarchiveSuffix
+	apiIssues1Move       = apiIssues1 + "/move"
 	invalidIssuePath     = apiIssuesBase + "999"
 	apiTasks             = "/api/projects/1/issues/1/tasks"
 	apiTasksBase         = "/api/projects/1/issues/1/tasks/"
@@ -1275,6 +1276,7 @@ func TestHandlersDBErrors(t *testing.T) {
 		{"HandleIssue_DELETE", "DELETE", apiIssues1, "", nil},
 		{"HandleIssue_archive", "POST", apiIssues1Archive, "", nil},
 		{"HandleIssue_unarchive", "POST", apiIssues1Unarchive, "", nil},
+		{"HandleIssue_move", "POST", apiIssues1Move, `{"new_project_id":2}`, nil},
 		{"nil", "POST", apiTasks, validTask, nil},
 		{"HandleTask_PUT", "PUT", apiTasks1, validTaskUpdate, nil},
 		{"HandleTask_DELETE", "DELETE", apiTasks1, "", nil},
@@ -4685,5 +4687,149 @@ func TestMethodNotAllowedFromMux(t *testing.T) {
 	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status: got %d want %d", rr.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestHandleMoveIssueHappyPath(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	proj2 := &Project{Name: "project2", Description: "second"}
+	if err := CreateProject(context.Background(), proj2); err != nil {
+		t.Fatal(err)
+	}
+
+	issue := &Issue{Title: "ToMove", Status: StatusTodo, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: proj2.ID})
+	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+
+	var got Issue
+	if err := json.NewDecoder(rr.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.ProjectID != proj2.ID {
+		t.Errorf("project_id: got %d want %d", got.ProjectID, proj2.ID)
+	}
+	if got.Label != nil {
+		t.Errorf("expected label nil after move, got %v", got.Label)
+	}
+	if got.ReleaseID != nil {
+		t.Errorf("expected release_id nil after move, got %v", got.ReleaseID)
+	}
+	if got.Status != StatusOpen {
+		t.Errorf("expected status Open after move, got %s", got.Status)
+	}
+
+	// Verify persistence
+	persisted, _ := GetIssueByID(context.Background(), issue.ID)
+	if persisted.ProjectID != proj2.ID {
+		t.Errorf("DB project_id: got %d want %d", persisted.ProjectID, proj2.ID)
+	}
+}
+
+func TestHandleMoveIssueWrongSourceProject(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "T", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	// URL says project 2, but issue lives in project 1
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: 1})
+	req := httptest.NewRequest("POST", "/api/projects/2/issues/1/move", bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleMoveIssueSameProject(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "T", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: 1})
+	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleMoveIssueUnknownTarget(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "T", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: 999})
+	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleMoveIssueInsufficientRole(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: 2})
+	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleUser))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+	}
+}
+
+func TestHandleMoveIssueZeroProjectID(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: "T", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: 0})
+	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
 }

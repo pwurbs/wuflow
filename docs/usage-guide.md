@@ -87,7 +87,7 @@ See [this article](https://medium.com/@pwurbs/issue-attributes-what-you-actually
 In the bottom right corner there is information when and by whom the issue was created and lastly updated. The user is indicated using the users badge. These fields are automatically filled and can't be edited.
 
 The Issue details view is closed by clicking the DONE button at the bottom of the view. In case of unsaved description changes, you will be asked if you want to save them before closing the view. All other fields are saved automatically.
-Additionally, users owning the Admin or Sysadmin role can archive or delete the issue by clicking the Archive or Delete button at the bottom of the view.
+Additionally, users owning the Admin or Sysadmin role can archive or delete the issue by clicking the Archive or Delete button at the bottom of the view. Admins can also **move an issue to a different project** by changing the project in the issue details view. Moving an issue resets its label, release, and status to Open.
 
 ### Tasks
 We decided against treating (sub)tasks as separate issues like it's done in Jira. We think, that actual (sub)tasks belong fixed to an issue and are just a checklist of things to do. This helps to break issues down into smaller, checkable items.
@@ -249,6 +249,7 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | View labels, users & projects | ✓ | ✓ | ✓ |
 | Archive an issue | — | ✓ | ✓ |
 | Unarchive an issue | — | ✓ | ✓ |
+| Move an issue to another project | — | ✓ | ✓ |
 | Delete an issue | — | ✓ | ✓ |
 | Create / delete labels | — | ✓ | ✓ |
 | Configure board columns | — | ✓ | ✓ |

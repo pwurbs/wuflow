@@ -1233,6 +1233,75 @@
         }
       }
     },
+    "/projects/{pId}/issues/{id}/move": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID (current project of the issue)",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Issue ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Move an issue to a different project",
+        "description": "Requires admin or sysadmin role. Moves the issue to the specified target project and resets label, release, and status to Open.",
+        "x-required-role": "admin",
+        "tags": ["Issues"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["new_project_id"],
+                "properties": {
+                  "new_project_id": {
+                    "type": "integer",
+                    "description": "ID of the target project. Must differ from the current project."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Issue moved — project_id updated, label and release_id reset to null, status reset to Open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Issue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - new_project_id is missing, not a positive integer, equals the current project, or the target project does not exist"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not an admin or sysadmin"
+          },
+          "404": {
+            "description": "Issue not found in this project"
+          }
+        }
+      }
+    },
     "/projects/{pId}/issues/{iId}/tasks": {
       "parameters": [
         {

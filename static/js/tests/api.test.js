@@ -8,6 +8,7 @@ import {
   updateIssue,
   archiveIssue,
   unarchiveIssue,
+  moveIssue,
   fetchVersion,
   fetchCurrentUser,
   logout,
@@ -232,6 +233,23 @@ describe('api', () => {
     it('throws on failure', async () => {
       fetch.mockResolvedValue(makeResponse(500, 'error'));
       await expect(unarchiveIssue(1, 1)).rejects.toThrow();
+    });
+  });
+
+  describe('moveIssue', () => {
+    it('posts to move endpoint with new_project_id and returns updated issue', async () => {
+      const moved = { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' };
+      fetch.mockResolvedValue(makeResponse(200, moved));
+      const result = await moveIssue(1, 1, 2);
+      expect(result).toEqual(moved);
+      expect(fetch.mock.calls[0][0]).toContain('/projects/1/issues/1/move');
+      const body = JSON.parse(fetch.mock.calls[0][1].body);
+      expect(body).toEqual({ new_project_id: 2 });
+    });
+
+    it('throws on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(400, 'new_project_id must differ'));
+      await expect(moveIssue(1, 1, 1)).rejects.toThrow('new_project_id must differ');
     });
   });
 

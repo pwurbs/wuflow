@@ -19,6 +19,7 @@ Three roles are available, ordered from least to most privileged:
 | View labels, users & projects | ✓ | ✓ | ✓ |
 | Archive an issue | — | ✓ | ✓ |
 | Unarchive an issue | — | ✓ | ✓ |
+| Move an issue to another project | — | ✓ | ✓ |
 | Delete an issue | — | ✓ | ✓ |
 | Create / delete labels | — | ✓ | ✓ |
 | Configure board columns | — | ✓ | ✓ |
