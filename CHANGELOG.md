@@ -11,7 +11,6 @@
 - Added a script to create a database containing demo data
 - Improved due date checking for consistency (overdue, issue violates release date, task violates issue deadline) and added appropriate style / notication
 - Removed edit button for users and projects in system settings, edit dialog is now opened by clicking the card
-- Bumped dompurify to 3.4.3
 - Issue id is now covered by the text-based search filter
 - General refactor in frontend and backend: eliminate duplicate patterns, fix inefficiencies, and replace stringly-typed code with existing constants
 - Improved handling of session revocation failure on refresh token mismatch
@@ -25,6 +24,9 @@
 - Fixed missing notication toast when tasks is set to done or not-done
 - Added context propagation to all database operations, added server timeout to trigger context termination and added graceful shutdown
 - Added dedicated API endpoint to move issues to another project, only admin roles have permission
+- Bumped marked to 18.0.4
+- Bumped dompurify to 3.4.5
+
 
 # 1.2.1
 
