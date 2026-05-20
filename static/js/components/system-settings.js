@@ -427,6 +427,10 @@ function promptAdminPasswordConfirmation() {
     const cancelBtn = document.getElementById('admin-confirm-cancel-btn');
 
     input.value = '';
+    const usernameField = document.getElementById('admin-confirm-username');
+    if (usernameField && state.currentUser) {
+      usernameField.value = state.currentUser.email || '';
+    }
     errorDiv.textContent = '';
     errorDiv.classList.add('hidden');
     modal.classList.remove('hidden');

@@ -805,14 +805,17 @@
             </div>
             <div class="admin-confirm-body">
                 <p>Enter your own password to authorize this change.</p>
-                <div class="form-group">
-                    <input type="password" id="admin-confirm-password" required placeholder="Enter your password" maxlength="128" autocomplete="off">
-                    <div id="admin-confirm-error" class="form-error hidden" role="alert"></div>
-                </div>
-                <div class="form-actions">
-                    <button type="button" id="admin-confirm-cancel-btn" class="btn secondary">Cancel</button>
-                    <button type="button" id="admin-confirm-ok-btn" class="btn primary">Confirm</button>
-                </div>
+                <form id="admin-confirm-form">
+                    <input type="text" id="admin-confirm-username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" readonly>
+                    <div class="form-group">
+                        <input type="password" id="admin-confirm-password" required placeholder="Enter your password" maxlength="128" autocomplete="current-password">
+                        <div id="admin-confirm-error" class="form-error hidden" role="alert"></div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="admin-confirm-cancel-btn" class="btn secondary">Cancel</button>
+                        <button type="button" id="admin-confirm-ok-btn" class="btn primary">Confirm</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -824,14 +827,15 @@
                 <h2>Change Password</h2>
             </div>
             <form id="password-form">
+                <input type="text" id="password-form-username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" readonly>
                 <div class="form-group">
                     <label for="current-password">Current Password</label>
-                    <input type="password" id="current-password" required placeholder="Enter your current password" maxlength="128" autocomplete="off">
+                    <input type="password" id="current-password" required placeholder="Enter your current password" maxlength="128" autocomplete="current-password">
                 </div>
                 <div class="form-group">
                     <label for="new-password">New Password</label>
                     <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
-                    <input type="password" id="new-password" required placeholder="Enter new password" maxlength="128">
+                    <input type="password" id="new-password" required placeholder="Enter new password" maxlength="128" autocomplete="new-password">
                     <small class="form-hint">Minimum 12 characters. No common passwords.</small>
                 </div>
                 <div id="password-modal-error" class="form-error hidden" role="alert"></div>

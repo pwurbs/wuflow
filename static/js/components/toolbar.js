@@ -491,6 +491,11 @@ function openPasswordModal() {
       errorDisplay.classList.add('hidden');
     }
 
+    const usernameField = document.getElementById('password-form-username');
+    if (usernameField && state.currentUser) {
+      usernameField.value = state.currentUser.email || '';
+    }
+
     modal.classList.remove('hidden');
     document.getElementById('current-password').focus();
   }
