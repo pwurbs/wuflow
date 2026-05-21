@@ -3,7 +3,7 @@ import { STATUS_OPEN, STATUS_TODO } from '../status-config.js';
 import { RELEASE_STATUS_OPEN } from '../domain-constants.js';
 import { fetchOpenIssuesByProject, updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
-import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 import { getDraggedCard } from '../drag.js';
@@ -64,16 +64,7 @@ function renderBacklogReleaseLanes() {
   const container = document.getElementById('backlog-release-lanes');
   if (!container) return;
 
-  const openReleases = state.releases
-    .filter(r => r.status === RELEASE_STATUS_OPEN)
-    .sort((a, b) => {
-      const da = a.release_date ? new Date(a.release_date) : null;
-      const db = b.release_date ? new Date(b.release_date) : null;
-      if (da && db) return da - db;
-      if (da) return -1;
-      if (db) return 1;
-      return new Date(a.created_at) - new Date(b.created_at);
-    });
+  const openReleases = sortReleasesByDate(state.releases.filter(r => r.status === RELEASE_STATUS_OPEN));
 
   if (openReleases.length === 0) {
     container.innerHTML = '';

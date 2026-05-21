@@ -1,9 +1,10 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
+import { sortReleasesByDate } from '../list-utils.js';
 import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials } from '../utils.js';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
 import { state } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
-import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE } from '../status-config.js';
+import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE, IN_PROGRESS_STATUSES } from '../status-config.js';
 import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 
 let refreshCallback = null;
@@ -166,15 +167,7 @@ export async function renderReleasesView(forceRefresh = false) {
     }
     return true;
   });
-  const openReleases = releases.filter(r => r.status === RELEASE_STATUS_OPEN)
-    .sort((a, b) => {
-      const da = a.release_date ? new Date(a.release_date) : null;
-      const db = b.release_date ? new Date(b.release_date) : null;
-      if (da && db) return da - db;
-      if (da) return -1;
-      if (db) return 1;
-      return new Date(a.created_at) - new Date(b.created_at);
-    });
+  const openReleases = sortReleasesByDate(releases.filter(r => r.status === RELEASE_STATUS_OPEN));
   const closedReleases = releases.filter(r => r.status === RELEASE_STATUS_CLOSED)
     .sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at));
 
@@ -417,7 +410,7 @@ function buildReleaseRow(rel, isOpen, allIssues) {
   const issues = allIssues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === STATUS_DONE || i.status === STATUS_ARCHIVE).length;
-  const inProgress = issues.filter(i => i.status === STATUS_STAGE1 || i.status === STATUS_STAGE2 || i.status === STATUS_STAGE3 || i.status === STATUS_STAGE4).length;
+  const inProgress = issues.filter(i => IN_PROGRESS_STATUSES.includes(i.status)).length;
   const donePct = total > 0 ? Math.round((done / total) * 100) : 0;
   const inProgPct = total > 0 ? Math.round((inProgress / total) * 100) : 0;
 

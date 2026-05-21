@@ -32,3 +32,6 @@ backend/testdata
 
 # local Trivy scan
 .trivy
+
+# CodeGraph
+.codeGraph

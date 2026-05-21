@@ -11,6 +11,7 @@ export const STATUS_STAGE1  = 'Stage1';
 export const STATUS_STAGE2  = 'Stage2';
 export const STATUS_STAGE3  = 'Stage3';
 export const STATUS_STAGE4  = 'Stage4';
+export const IN_PROGRESS_STATUSES = [STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4];
 
 // Fixed mapping between StatusConfig fields and internal issue status keys.
 export const STATUS_SLOTS = [

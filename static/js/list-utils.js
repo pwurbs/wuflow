@@ -237,3 +237,14 @@ export function setupListDrag(listId, targetStatus, options = {}) {
     }
   });
 }
+
+export function sortReleasesByDate(releases) {
+  return releases.slice().sort((a, b) => {
+    const da = a.release_date ? new Date(a.release_date) : null;
+    const db = b.release_date ? new Date(b.release_date) : null;
+    if (da && db) return da - db;
+    if (da) return -1;
+    if (db) return 1;
+    return new Date(a.created_at) - new Date(b.created_at);
+  });
+}

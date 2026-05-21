@@ -58,6 +58,7 @@ vi.mock('../status-config.js', () => ({
   STATUS_STAGE4:  'Stage4',
   STATUS_DONE:    'Done',
   STATUS_ARCHIVE: 'Archive',
+  IN_PROGRESS_STATUSES: ['Stage1', 'Stage2', 'Stage3', 'Stage4'],
 }));
 
 import { state } from '../state.js';
