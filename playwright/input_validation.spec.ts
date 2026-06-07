@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures';
-import { createIssue, openIssueByTitle, navigateTo, selectStatus, createRelease } from './helpers/test-utils';
+import { createIssue, openIssueByTitle, navigateTo, selectStatus } from './helpers/test-utils';
 
 /**
  * Tests for:
@@ -305,16 +305,13 @@ test.describe('XSS and Sanitization', () => {
   // ── Description ────────────────────────────────────────────────────────────
 
   test('desc: script tags and onerror attributes are stripped (preview + roundtrip)', async ({ page }) => {
-    const title = `XSS-D-${Date.now().toString().slice(-6)}`;
-    // Mix of safe content + dangerous tags — safe text must survive, dangerous must be gone
     const payload = '<b>Safe Bold</b><script>alert(1)</script><img src=x onerror="alert(2)">Trailing';
 
+    // Preview check — warning toast expected, no dangerous elements
     await page.click('#add-issue-btn');
-    await page.fill('#title', title);
+    await page.fill('#title', `XSS-D-${Date.now().toString().slice(-6)}`);
     await selectStatus(page, 'Todo');
     await page.fill('#description-editor', payload);
-
-    // Preview check — warning toast expected, no dangerous elements
     await page.click('#md-preview-toggle');
     await expect(page.locator('#notification-toast')).toContainText('Unsupported HTML tags are not rendered for security.');
     const preview = page.locator('#description-preview');
@@ -322,15 +319,35 @@ test.describe('XSS and Sanitization', () => {
     expect(await preview.innerHTML()).not.toContain('onerror');
     await expect(preview.locator('script')).toHaveCount(0);
     await expect(preview.locator('img[onerror]')).toHaveCount(0);
-    // Safe content preserved
     expect(await preview.textContent()).toContain('Safe Bold');
     expect(await preview.textContent()).toContain('Trailing');
 
-    // Roundtrip — save, reload, re-open
+    // Save is blocked — modal stays open with error
+    await page.click('#save-issue-btn');
+    await expectMainError(page, 'Description contains unsupported HTML tags.');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+    await page.click('#cancel-btn');
+
+    // Roundtrip — create a clean issue, then use inline edit to save XSS payload to the server,
+    // reload and re-open to verify DOMPurify strips it on render
+    const rtTitle = `XSS-RT-${Date.now().toString().slice(-6)}`;
+    await page.click('#add-issue-btn');
+    await page.fill('#title', rtTitle);
+    await selectStatus(page, 'Todo');
     await page.click('#save-issue-btn');
     await expect(page.locator('#issue-modal')).toBeHidden();
+
+    await openIssueByTitle(page, rtTitle);
+    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
+    await page.click('#description-preview');
+    await page.fill('#description-editor', payload);
+    await page.click('#desc-save-btn');
+
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
     await page.reload({ waitUntil: 'networkidle' });
-    await openIssueByTitle(page, title);
+    await openIssueByTitle(page, rtTitle);
     await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
     const savedPreview = page.locator('#description-preview');
     expect(await savedPreview.innerHTML()).not.toContain('<script');
@@ -458,6 +475,29 @@ test.describe('XSS and Sanitization', () => {
     expect(textContent).not.toContain('<b>');
     expect(textContent).not.toContain('<script');
     expect(textContent).toContain('Bold Title');
+  });
+
+  test('desc: inline edit strips tags and shows warning toast', async ({ page }) => {
+    const base = `Desc-XSS-${Date.now().toString().slice(-6)}`;
+    await createIssue(page, { title: base, status: 'Todo' });
+
+    await page.locator('.board-card', { hasText: base }).click();
+    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
+
+    // Enter inline edit mode and type XSS payload
+    await page.click('#description-preview');
+    await page.fill('#description-editor', '<b>Safe</b><script>alert(1)</script><img src=x onerror="alert(2)">');
+    await page.click('#desc-save-btn');
+
+    // Warning toast expected
+    await expect(page.locator('#notification-toast')).toContainText('Unsupported HTML tags are not rendered for security.');
+
+    // Preview shown with dangerous elements stripped, safe content preserved
+    const preview = page.locator('#description-preview');
+    await expect(preview).toBeVisible();
+    expect(await preview.innerHTML()).not.toContain('<script');
+    expect(await preview.innerHTML()).not.toContain('onerror');
+    expect(await preview.textContent()).toContain('Safe');
   });
 
   test('title: inline edit strips tags and shows warning toast', async ({ page }) => {
