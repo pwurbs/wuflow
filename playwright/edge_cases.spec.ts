@@ -274,6 +274,22 @@ test.describe('Edge Cases and Validation', () => {
     await expect(page.locator('.column[data-status="Done"] .board-card:has-text("Drag Cancel Test")')).toBeHidden();
   });
 
+  test('invalid column name is rejected with error toast', async ({ page }) => {
+    await navigateTo(page, 'project-settings');
+    await page.click('#project-selector-btn');
+    const configLoaded = page.waitForResponse(r =>
+      r.url().includes('/statusconfig') && r.request().method() === 'GET'
+    );
+    await page.click('#project-selector-options .custom-option:has-text("default")');
+    await configLoaded;
+    await expect(page.locator('.sc-name-input[name="stage1_name"]')).toBeVisible();
+
+    await page.fill('.sc-name-input[name="stage1_name"]', 'Bad!');
+    await page.click('#ps-save-status-config-btn');
+
+    await expect(page.locator('#notification-toast')).toContainText('only letters, digits and single spaces');
+  });
+
   test('strict validation: rejects query parameters', async ({ page }) => {
     // Make an API request with query parameters
     const response = await page.request.get('/api/projects/1/issues/active?foo=bar');

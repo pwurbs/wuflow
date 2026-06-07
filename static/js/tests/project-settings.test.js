@@ -486,5 +486,57 @@ describe('project-settings.js component', () => {
       expect(message).toContain('"Pending"');
       expect(message).toContain('2 issues');
     });
+
+    it('shows error for name with invalid characters', async () => {
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = 'Bad!';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith(
+        'Column names must contain only letters, digits and single spaces.', 'error'
+      );
+      expect(api.updateStatusConfig).not.toHaveBeenCalled();
+    });
+
+    it('shows error for name with consecutive spaces', async () => {
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = 'In  Progress';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith(
+        'Column names must contain only letters, digits and single spaces.', 'error'
+      );
+      expect(api.updateStatusConfig).not.toHaveBeenCalled();
+    });
+
+    it('shows error for name exceeding max length', async () => {
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = 'A'.repeat(16);
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith(
+        'Column names must not exceed 15 characters.', 'error'
+      );
+      expect(api.updateStatusConfig).not.toHaveBeenCalled();
+    });
+
+    it('saves successfully with a name containing a single space', async () => {
+      await renderProjectSettingsView();
+
+      document.querySelector('.sc-name-input[data-field="stage1_name"]').value = 'In Progress';
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(api.updateStatusConfig).toHaveBeenCalledWith(
+        1, expect.objectContaining({ stage1_name: 'In Progress' })
+      );
+      expect(utils.showNotification).toHaveBeenCalledWith('Column configuration saved', 'success');
+    });
   });
 });

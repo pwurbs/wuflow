@@ -212,7 +212,7 @@ In the Board Columns section you see six boxes side by side representing the ful
 - **Active column**: has a non-empty name — the column is visible on the board and in the issue status dropdown.
 - **Inactive column**: empty name — the column is hidden on the board. Issues already assigned to that status are preserved but not visible until the column is re-enabled.
 
-Rules for column names: letters and digits only, max 15 characters. Empty = hidden.
+Rules for column names: letters, digits and single spaces only, max 15 characters. Empty = hidden.
 
 Click **Save Columns** to apply the changes. The board updates immediately. If a column being deactivated still has issues, a confirmation dialog warns you before saving.
 

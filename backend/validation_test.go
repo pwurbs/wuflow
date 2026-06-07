@@ -486,10 +486,10 @@ func TestValidateStatusConfigValidNames(t *testing.T) {
 	}
 }
 
-func TestValidateStatusConfigNamesWithSpaces(t *testing.T) {
+func TestValidateStatusConfigNamesWithSpacesValid(t *testing.T) {
 	cfg := &StatusConfig{Stage1Name: "In Progress", Stage2Name: "Code Review"}
-	if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
-		t.Errorf("expected ErrStatusNameInvalid for names with spaces, got %v", err)
+	if err := validateStatusConfig(cfg); err != nil {
+		t.Errorf("expected no error for names with single spaces, got %v", err)
 	}
 }
 
@@ -508,7 +508,7 @@ func TestValidateStatusConfigNameTooLong(t *testing.T) {
 }
 
 func TestValidateStatusConfigNameInvalidChars(t *testing.T) {
-	cases := []string{"Bad!Name", "No#Hash", "dash-not-ok", "dot.not.ok", "slash/bad"}
+	cases := []string{"Bad!Name", "No#Hash", "dash-not-ok", "dot.not.ok", "slash/bad", "In  Progress"}
 	for _, name := range cases {
 		cfg := &StatusConfig{Stage1Name: name}
 		if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {

@@ -495,7 +495,7 @@ Updates the board column configuration for a project (Admin or Sysadmin).
   }
   ```
 - **Notes**:
-  - Each name must contain only letters and digits, max 15 characters
+  - Each name must contain only letters, digits and single spaces, max 15 characters
   - Empty string deactivates (hides) that column; existing issues with that status are preserved but hidden
 - **Response**: Updated `StatusConfig` object
 - **Errors**:

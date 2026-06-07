@@ -15,4 +15,4 @@ export const MAX_RELEASE_DESC_LEN = 200;
 // Mirror of backend compiled regexes in validation.go
 export const EMAIL_REGEX       = /^[^\s@]+@[^\s@]+$/;
 export const COLOR_REGEX       = /^#[0-9A-Fa-f]{6}$/;
-export const STATUS_NAME_REGEX = /^[a-zA-Z0-9]*$/;
+export const STATUS_NAME_REGEX = /^[a-zA-Z0-9]+( [a-zA-Z0-9]+)*$/;
