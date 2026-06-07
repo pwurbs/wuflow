@@ -6,6 +6,7 @@
 - Bumped dompurify to 3.4.8
 - Bumped marked to 18.0.5
 - Bumped vitest and playwright packages
+- Bumped base image to debian:13.5
 
 ## 1.3.0
 
