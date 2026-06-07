@@ -1,5 +1,5 @@
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setFilterRelease, setFilterReleaseOwner, setSelectedProject } from '../state.js';
-import { PRIORITY_OPTIONS } from '../domain-constants.js';
+import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { logout, updateCurrentUser } from '../api.js';
 import { showNotification, getUserInitials } from '../utils.js';
 import { validatePasswordPolicy } from './system-settings.js';
@@ -277,7 +277,7 @@ export function updateReleaseFilterOptions(releases) {
   const noReleaseOption = createReleaseOption('No Release', '__no_release__');
   releaseFilterOptions.appendChild(noReleaseOption);
 
-  [...releases].sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
+  [...releases].filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
     const option = createReleaseOption(release.name, release.id);
     releaseFilterOptions.appendChild(option);
   });

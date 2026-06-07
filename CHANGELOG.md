@@ -7,6 +7,7 @@
 - Bumped marked to 18.0.5
 - Bumped vitest and playwright packages
 - Bumped base image to debian:13.5
+- Fixed the issue that a closed release is still shown in the dropdown for releases in the board filter and the issuer modal
 
 # 1.3.0
 

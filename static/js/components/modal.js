@@ -3,7 +3,7 @@ import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '.
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
-import { PRIORITY_NORMAL, PRIORITY_OPTIONS } from '../domain-constants.js';
+import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
@@ -1409,7 +1409,8 @@ export function renderReleaseOptions(releases, currentReleaseId) {
   });
   optionsContainer.appendChild(noReleaseDiv);
 
-  [...(releases || [])].sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
+  const openReleases = (releases || []).filter(r => r.status !== RELEASE_STATUS_CLOSED);
+  [...openReleases].sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = release.name;
