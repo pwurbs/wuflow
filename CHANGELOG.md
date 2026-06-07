@@ -1,4 +1,9 @@
 
+# 1.3.1
+
+- Bumped Go to 1.25.11
+- Bumped direct Go package dependencies go-sqlite3 and x/crypto 
+
 # 1.3.0
 
 - Improved styles of fonts and buttons
