@@ -19,7 +19,7 @@ vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({ issue: {}, etag: '"test-etag"', conflict: false }),
   archiveIssue: vi.fn().mockResolvedValue({ id: 100, status: 'Archive' }),
   unarchiveIssue: vi.fn().mockResolvedValue({ id: 101, status: 'Done' }),
-  moveIssue: vi.fn().mockResolvedValue({ id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }),
+  moveIssue: vi.fn().mockResolvedValue({ issue: { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }, etag: '"move-etag"' }),
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteIssue: vi.fn(),
@@ -2055,7 +2055,8 @@ describe('Project Selector Coverage', () => {
 
   it('should move issue when project-select changes with currentIssue set', async () => {
     state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
-    api.moveIssue.mockResolvedValue({ id: 1, project_id: 2, label: null, release_id: null, status: 'Open' });
+    api.moveIssue.mockResolvedValue({ issue: { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }, etag: '"move-etag"' });
+    utils.showConfirm.mockResolvedValue(true);
 
     const projectSelect = document.getElementById('project-select');
     projectSelect.value = '2';
@@ -2070,6 +2071,7 @@ describe('Project Selector Coverage', () => {
   it('should show error notification when project move fails', async () => {
     state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
     api.moveIssue.mockRejectedValue(new Error('Save failed'));
+    utils.showConfirm.mockResolvedValue(true);
 
     const projectSelect = document.getElementById('project-select');
     projectSelect.value = '3';
@@ -2078,6 +2080,21 @@ describe('Project Selector Coverage', () => {
     await new Promise(process.nextTick);
 
     expect(utils.showNotification).toHaveBeenCalledWith('Save failed', 'error');
+  });
+
+  it('should not call moveIssue and revert dropdown when user cancels confirmation', async () => {
+    state.currentIssue = { id: 1, title: 'Test', project_id: 1, project: { name: 'Default' } };
+    utils.showConfirm.mockResolvedValue(false);
+
+    const projectSelect = document.getElementById('project-select');
+    projectSelect.value = '2';
+    projectSelect.dispatchEvent(new Event('change'));
+
+    await new Promise(process.nextTick);
+
+    expect(api.moveIssue).not.toHaveBeenCalled();
+    expect(projectSelect.value).toBe('1');
+    expect(document.getElementById('project-text').textContent).toBe('Default');
   });
 
   it('should not call moveIssue when project-select changes without currentIssue', async () => {

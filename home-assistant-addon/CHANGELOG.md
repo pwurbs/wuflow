@@ -10,6 +10,8 @@
 - Fixed the issue that a closed release is still shown in the dropdown for releases in the board filter and the issuer modal
 - Allow single spaces in configurable column/status names
 - Added issue description confirmation also for new issues as for editing issues
+- Added a confirmation dialog before changing a project of an issue to explain the consequences (reset labels, status and release)
+- Fixed the issue that the ETag response header was discarded when moving an issue to another project which caused a wrong concurrent edit warning in the issue edit modal
 
 ## 1.3.0
 

@@ -237,11 +237,11 @@ describe('api', () => {
   });
 
   describe('moveIssue', () => {
-    it('posts to move endpoint with new_project_id and returns updated issue', async () => {
+    it('posts to move endpoint with new_project_id and returns updated issue with etag', async () => {
       const moved = { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' };
-      fetch.mockResolvedValue(makeResponse(200, moved));
+      fetch.mockResolvedValue(makeResponse(200, moved, { ETag: '"move-etag"' }));
       const result = await moveIssue(1, 1, 2);
-      expect(result).toEqual(moved);
+      expect(result).toEqual({ issue: moved, etag: '"move-etag"' });
       expect(fetch.mock.calls[0][0]).toContain('/projects/1/issues/1/move');
       const body = JSON.parse(fetch.mock.calls[0][1].body);
       expect(body).toEqual({ new_project_id: 2 });

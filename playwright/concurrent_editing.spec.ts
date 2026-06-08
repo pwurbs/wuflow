@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, openIssueByTitle, selectPriority } from './helpers/test-utils';
+import { createIssue, createProjectViaAPI, openIssueByTitle, selectPriority } from './helpers/test-utils';
 
 test.describe('Concurrent Editing', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -74,6 +74,32 @@ test.describe('Concurrent Editing', () => {
     await page.click('#done-btn');
     await openIssueByTitle(page, 'Normal Edit Issue');
     await expect(page.locator('#priority-text')).toContainText('High');
+  });
+
+  test('no conflict after moving issue to another project and editing a field', async ({ page }) => {
+    const secondProject = `ConcTest_${Date.now().toString().slice(-5)}`;
+    await createProjectViaAPI(page.request, secondProject);
+
+    await createIssue(page, { title: 'Move And Edit Issue', status: 'Todo' });
+    await openIssueByTitle(page, 'Move And Edit Issue');
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
+
+    // Move to the second project — confirm the dialog
+    await page.click('#project-trigger');
+    await page.click(`#project-options .custom-option:has-text("${secondProject}")`);
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/move') && r.request().method() === 'POST'),
+      page.click('#confirm-ok-btn'),
+    ]);
+
+    // Edit another field immediately after the move
+    const savePromise = page.waitForResponse(r => r.url().includes('/issues/') && r.request().method() === 'PUT');
+    await selectPriority(page, 'High');
+    await savePromise;
+
+    // The ETag from the move response must have been applied — no conflict dialog
+    await expect(page.locator('#confirm-modal')).toBeHidden();
   });
 
   test('ETag is sent with If-Match header on save', async ({ page }) => {

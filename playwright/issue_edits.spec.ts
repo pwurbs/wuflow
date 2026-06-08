@@ -267,15 +267,17 @@ test.describe('Project change resets project-scoped fields', () => {
     await expect(page.locator('#release-text')).toContainText(relName);
     await expect(page.locator('#status-text')).toContainText('Todo');
 
-    // Change the project inside the modal
+    // Change the project inside the modal — confirm the destructive action
     await page.click('#project-trigger');
+    await page.click(`#project-options .custom-option:has-text("${projectName}")`);
+    await expect(page.locator('#confirm-modal')).toBeVisible();
     await Promise.all([
       page.waitForResponse(r => r.url().includes('/move') && r.request().method() === 'POST'),
-      page.click(`#project-options .custom-option:has-text("${projectName}")`),
+      page.click('#confirm-ok-btn'),
     ]);
 
     // Toast must inform the user about the reset
-    await waitForToast(page, 'Project updated. Label, release and status were reset.');
+    await waitForToast(page, 'Project changed');
 
     // Label, release and status must be reset immediately in the UI
     await expect(page.locator('#label-text')).toContainText('No Label');

@@ -176,7 +176,9 @@ export async function moveIssue(currentProjectId, issueId, newProjectId) {
     body: JSON.stringify({ new_project_id: newProjectId })
   });
   if (!res.ok) throw new Error(await res.text() || 'Failed to move issue');
-  return await res.json();
+  const issue = await res.json();
+  const etag = res.headers.get('ETag');
+  return { issue, etag };
 }
 
 export async function createTask(projectId, issueId, task) {

@@ -961,10 +961,27 @@ function setupSidebarImmediateSave() {
     projectSelect.addEventListener('change', async () => {
       const val = projectSelect.value;
       const projectId = val ? Number.parseInt(val) : 1;
+
+      if (state.currentIssue) {
+        const confirmed = await showConfirm(
+          'Move Issue to another Project',
+          'Moving this issue will reset its label, release, and status. These fields are project-specific and cannot be preserved across projects. Do you want to continue?',
+          'Move Issue',
+          'Cancel',
+          'primary'
+        );
+        if (!confirmed) {
+          projectSelect.value = state.currentIssue.project_id;
+          document.getElementById('project-text').textContent = state.currentIssue.project?.name ?? '';
+          return;
+        }
+      }
+
       localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       if (state.currentIssue) {
         try {
-          const updated = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId);
+          const { issue: updated, etag } = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId);
+          currentEtag = etag;
           setCurrentIssue(updated);
           // The project-option click already loaded label/release/statusconfig for the new
           // project. Just reset the displayed values that the server cleared on move.
@@ -976,7 +993,7 @@ function setupSidebarImmediateSave() {
           document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
           document.getElementById('status-options')?.classList.add('hidden');
           setupEditModal(updated);
-          showNotification('Project updated. Label, release and status were reset.', 'info');
+          showNotification('Project changed', 'info');
         } catch (err) {
           showNotification(err.message, 'error');
         }
