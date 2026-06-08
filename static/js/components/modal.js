@@ -975,14 +975,11 @@ function setupSidebarImmediateSave() {
           document.getElementById('project-text').textContent = state.currentIssue.project?.name ?? '';
           return;
         }
-      }
-
-      localStorage.setItem('wuflow_selectedProjectId', String(projectId));
-      if (state.currentIssue) {
         try {
           const { issue: updated, etag } = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId);
           currentEtag = etag;
           setCurrentIssue(updated);
+          localStorage.setItem('wuflow_selectedProjectId', String(projectId));
           // The project-option click already loaded label/release/statusconfig for the new
           // project. Just reset the displayed values that the server cleared on move.
           document.getElementById('label-select').value = '';
@@ -997,6 +994,8 @@ function setupSidebarImmediateSave() {
         } catch (err) {
           showNotification(err.message, 'error');
         }
+      } else {
+        localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       }
     });
   }
@@ -1426,8 +1425,7 @@ export function renderReleaseOptions(releases, currentReleaseId) {
   });
   optionsContainer.appendChild(noReleaseDiv);
 
-  const openReleases = (releases || []).filter(r => r.status !== RELEASE_STATUS_CLOSED);
-  [...openReleases].sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
+  (releases || []).filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = release.name;

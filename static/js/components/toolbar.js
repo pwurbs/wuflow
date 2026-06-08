@@ -277,7 +277,7 @@ export function updateReleaseFilterOptions(releases) {
   const noReleaseOption = createReleaseOption('No Release', '__no_release__');
   releaseFilterOptions.appendChild(noReleaseOption);
 
-  [...releases].filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
+  releases.filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
     const option = createReleaseOption(release.name, release.id);
     releaseFilterOptions.appendChild(option);
   });
