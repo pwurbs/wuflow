@@ -60,6 +60,7 @@ func denyForbidden(w http.ResponseWriter, r *http.Request, action Action) {
 }
 
 func HandleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 }
 
