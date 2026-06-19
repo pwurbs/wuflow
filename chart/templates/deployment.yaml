@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    {{- include "wuflow.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: wuflow
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            - name: WF_PORT
+              value: {{ .Values.wuflow.port | quote }}
+            - name: WF_DBPATH
+              value: /data/wuflow.db
+            - name: WF_LOG_LEVEL
+              value: {{ .Values.wuflow.logLevel }}
+            - name: WF_SECURE_COOKIE
+              value: {{ .Values.wuflow.secureCookie | quote }}
+            - name: WF_API_RATE_LIMIT
+              value: {{ .Values.wuflow.apiRateLimit | quote }}
+            - name: WF_REMOTE_IP_HEADER
+              value: {{ .Values.wuflow.remoteIpHeader | quote }}
+            - name: WF_INITIAL_ADMIN_EMAIL
+              value: {{ .Values.wuflow.initialAdminEmail | quote }}
+            - name: WF_INITIAL_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: admin-password
+            - name: WF_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: secret-key
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.wuflow.port }}
+            periodSeconds: 2
+            failureThreshold: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.wuflow.port }}
+            periodSeconds: 60
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.wuflow.port }}
+            periodSeconds: 60
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - port: {{ .Values.wuflow.port }}
+      targetPort: {{ .Values.wuflow.port }}

@@ -139,7 +139,7 @@
     {
       "label": "Build & Scan Image",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && container build --no-cache --build-arg VERSION=$VERSION -t wuflow:$VERSION . && sh scripts/trivy_scan.sh",
+      "command": "export VERSION=$(cat VERSION) && container build --no-cache --arch arm64 --build-arg VERSION=$VERSION -t wuflow:$VERSION . && sh scripts/trivy_scan.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -148,20 +148,44 @@
       "problemMatcher": []
     },
     {
-      "label": "Push Image",
+      "label": "Build & Push Image",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container image tag wuflow:$VERSION ghcr.io/pwurbs/wuflow:$VERSION && container image push ghcr.io/pwurbs/wuflow:$VERSION",
+      "command": "export VERSION=$(cat VERSION) && echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container build --no-cache --arch amd64,arm64 --build-arg VERSION=$VERSION -t ghcr.io/pwurbs/wuflow:$VERSION . && container image push ghcr.io/pwurbs/wuflow:$VERSION",
       "group": "build",
       "presentation": {
         "reveal": "always",
         "panel": "shared"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Run locally",
+      "type": "shell",
+      "command": "go run -ldflags=\"-w -s -X main.Version=$(cat VERSION)\" . -secret-key 12345 -dbpath ./wuflow-test.db",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": [
+        "$go"
+      ]
     },
     {
       "label": "New Version",
       "type": "shell",
       "command": "./scripts/new_version.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Deploy dev",
+      "type": "shell",
+      "command": "bash ./deploy/helm_deploy.sh dev",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
       "problemMatcher": []
     }
   ]

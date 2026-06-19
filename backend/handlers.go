@@ -59,6 +59,10 @@ func denyForbidden(w http.ResponseWriter, r *http.Request, action Action) {
 	http.Error(w, errMsgForbidden, http.StatusForbidden)
 }
 
+func HandleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 // HandleGetVersion returns a handler that responds with the build version
 // as a JSON object. Constructed at startup (the version string is embedded
 // by the build); the returned closure is reused per request.

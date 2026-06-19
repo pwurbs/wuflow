@@ -1,4 +1,10 @@
 
+## 1.4.0
+
+- Added Helm Chart and deploy script
+- Now built and pushed a multi-platform image (linux/amd64,linux/arm64)
+- Added API health endpoint
+
 ## 1.3.1
 
 - Bumped Go to 1.25.11

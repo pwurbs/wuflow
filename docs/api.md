@@ -12,6 +12,7 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 
 | Endpoint | Method | Handler | Auth | Description |
 | :--- | :--- | :--- | :--- | :--- |
+| `/health` | GET | `HandleHealth` | Public | Health check (used by Kubernetes probes) |
 | `/auth/login` | POST | `HandleLogin` | Public | Authenticate user |
 | `/auth/logout` | POST | `HandleLogout` | Public | Clear auth cookies |
 | `/auth/refresh` | POST | `HandleRefresh` | Refresh Token | Refresh access token |

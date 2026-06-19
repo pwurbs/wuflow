@@ -35,3 +35,6 @@ backend/testdata
 
 # CodeGraph
 .codeGraph
+
+# Helm secrets (per-environment, contain passwords)
+deploy/secrets.*.yaml

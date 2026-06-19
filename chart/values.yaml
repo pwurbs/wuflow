@@ -1,0 +1,34 @@
+image:
+  repository: ghcr.io/pwurbs/wuflow
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+wuflow:
+  port: 8080
+  logLevel: info
+  secureCookie: true
+  apiRateLimit: true
+  remoteIpHeader: "X-Forwarded-For"
+  initialAdminEmail: admin@local
+
+ingress:
+  host: ""        # e.g. wuflow.example.com — set in values.{env}.yaml
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  tls:
+    enabled: true
+    secretName: ""  # empty = Traefik default cert; set for cert-manager
+
+storage:
+  storageClass: local-path   # set to your cluster's storage class (e.g. standard, longhorn)
+  data:
+    size: 1Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

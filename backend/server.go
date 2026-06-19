@@ -231,6 +231,7 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 	hf("POST", "/api/auth/login", HandleLogin, commonAPI)
 	hf("POST", "/api/auth/logout", HandleLogout, commonAPI)
 	hf("POST", "/api/auth/refresh", HandleRefresh, commonAPI)
+	hf("GET", "/api/health", HandleHealth, commonAPI)
 
 	// =========================================================================
 	// All routes below require authentication (wrapped with authAPI).

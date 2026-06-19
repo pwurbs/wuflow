@@ -609,6 +609,19 @@
     }
   ],
   "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns 200 OK when the server is running. Used by Kubernetes liveness and readiness probes.",
+        "tags": ["System"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/auth/login": {
       "post": {
         "summary": "Authenticate user",

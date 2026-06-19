@@ -38,4 +38,9 @@ mv CHANGELOG.tmp home-assistant-addon/CHANGELOG.md
 printf '\n# %s\n\n%s\n' "$NEW_VERSION" "$CHANGELOG" | cat - CHANGELOG.md > CHANGELOG_ROOT.tmp
 mv CHANGELOG_ROOT.tmp CHANGELOG.md
 
+# 5. Update Helm chart version, appVersion and image tag
+sed -i '' "s/^version: .*/version: ${NEW_VERSION}00/" chart/Chart.yaml
+sed -i '' "s/^appVersion: \".*\"/appVersion: \"$NEW_VERSION\"/" chart/Chart.yaml
+sed -i '' "s/^  tag: \".*\"/  tag: \"$NEW_VERSION\"/" deploy/values.dev.yaml
+
 echo "Successfully updated to version $NEW_VERSION"

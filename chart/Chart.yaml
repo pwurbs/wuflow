@@ -1,0 +1,6 @@
+apiVersion: v2
+name: wuflow
+description: wuFlow Agile board deployment
+type: application
+version: 1.4.000-pre1
+appVersion: "1.4.0-pre1"
