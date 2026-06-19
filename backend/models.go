@@ -165,9 +165,10 @@ type User struct {
 
 // Session represents an active user session (refresh token).
 type Session struct {
-	ID        int       `json:"id"`
-	UserID    int       `json:"user_id"`
-	TokenHash string    `json:"-"` // Hash of the refresh token secret
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           int       `json:"id"`
+	UserID       int       `json:"user_id"`
+	SessionToken string    `json:"-"` // Unguessable random lookup key embedded in the client token
+	TokenHash    string    `json:"-"` // HMAC-SHA256 digest of the refresh token secret
+	ExpiresAt    time.Time `json:"expires_at"`
+	CreatedAt    time.Time `json:"created_at"`
 }

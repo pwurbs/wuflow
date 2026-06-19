@@ -4,6 +4,7 @@
 - Added Helm Chart and deploy script
 - Now built and pushed a multi-platform image (linux/amd64,linux/arm64)
 - Added API health endpoint
+- Fix Refresh Token DoS attack surface
 
 ## 1.3.1
 

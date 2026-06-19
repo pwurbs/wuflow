@@ -130,60 +130,60 @@ func GenerateAccessToken(user *User) (string, error) {
 	return token.SignedString(jwtSecret)
 }
 
-// GenerateRefreshToken creates a secure opaque refresh token.
+// generateSessionToken returns a cryptographically random, URL-safe token string.
+// Uses crypto/rand.Text() (Go 1.24+): base32 alphabet, 128 bits of entropy, no error return.
+func generateSessionToken() string {
+	return rand.Text()
+}
+
+// GenerateRefreshToken creates a secure opaque refresh token for the given session token.
 // Returns the token string (for the client cookie) and the token hash (for the database).
-// Format: base64(session_id:secret)
-func GenerateRefreshToken(sessionID int) (string, string, error) {
-	// Generate 32-byte random secret
+// Format: base64(sessionToken:base64(secret))
+func GenerateRefreshToken(sessionToken string) (string, string, error) {
+	// Generate 32-byte random secret. crypto/rand.Read never errors in Go 1.20+.
 	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return "", "", err
-	}
+	_, _ = rand.Read(secret)
 
 	// Hash the secret for storage
 	hash := computeTokenMAC(secret)
 
-	// Create opaque token string: sessionID:base64(secret)
-	// We base64 encode the secret specifically to make it a safe string
+	// Create opaque token string: sessionToken:base64(secret)
 	secretStr := base64.StdEncoding.EncodeToString(secret)
-	token := fmt.Sprintf("%d:%s", sessionID, secretStr)
+	token := fmt.Sprintf("%s:%s", sessionToken, secretStr)
 	encodedToken := base64.StdEncoding.EncodeToString([]byte(token))
 
 	return encodedToken, hash, nil
 }
 
 // ValidateRefreshToken parses an opaque refresh token.
-// Returns the session ID and the raw secret (to be verified against the DB hash).
-func ValidateRefreshToken(tokenString string) (int, string, error) {
+// Returns the session token (lookup key) and the raw secret (to be verified against the DB hash).
+func ValidateRefreshToken(tokenString string) (string, string, error) {
 	if len(tokenString) > MaxRefreshTokenLength {
-		return 0, "", fmt.Errorf("token too long")
+		return "", "", fmt.Errorf("token too long")
 	}
 	decodedBytes, err := base64.StdEncoding.DecodeString(tokenString)
 	if err != nil {
-		return 0, "", fmt.Errorf("invalid token encoding")
+		return "", "", fmt.Errorf("invalid token encoding")
 	}
 	decoded := string(decodedBytes)
 
 	parts := strings.SplitN(decoded, ":", 2)
 	if len(parts) != 2 {
-		return 0, "", fmt.Errorf("invalid token format")
+		return "", "", fmt.Errorf("invalid token format")
 	}
 
-	sessionID, err := strconv.Atoi(parts[0])
+	sessionToken := parts[0]
+	if sessionToken == "" {
+		return "", "", fmt.Errorf("empty session token")
+	}
+
+	// The secret is base64-encoded in the token string; decode to raw bytes for HMAC verification.
+	rawSecret, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
-		return 0, "", fmt.Errorf("invalid session ID")
+		return "", "", fmt.Errorf("invalid secret encoding")
 	}
 
-	secret := parts[1]
-	// The secret is base64 encoded in the token string.
-	// We decode it back to raw bytes for bcrypt verification.
-
-	rawSecret, err := base64.StdEncoding.DecodeString(secret)
-	if err != nil {
-		return 0, "", fmt.Errorf("invalid secret encoding")
-	}
-
-	return sessionID, string(rawSecret), nil
+	return sessionToken, string(rawSecret), nil
 }
 
 // ValidateToken parses and validates a JWT token string.
@@ -360,32 +360,22 @@ func CreateUserSession(ctx context.Context, user *User) (*Session, string, strin
 		return nil, "", "", fmt.Errorf("failed to generate access token: %w", err)
 	}
 
-	// 2. Create Session Record
-	session := &Session{
-		UserID:    user.ID,
-		TokenHash: "", // Will be set after generation
-		ExpiresAt: time.Now().UTC().Add(refreshTokenDuration),
-	}
-	if err := CreateSession(ctx, session); err != nil {
-		return nil, "", "", fmt.Errorf("failed to create session: %w", err)
-	}
-
-	// 3. Generate Refresh Token
-	refreshToken, tokenHash, err := GenerateRefreshToken(session.ID)
+	// 2. Generate Refresh Token (session_token + secret generated before DB insert)
+	sessionToken := generateSessionToken()
+	refreshToken, tokenHash, err := GenerateRefreshToken(sessionToken)
 	if err != nil {
-		if derr := DeleteSession(ctx, session.ID); derr != nil {
-			LogWarn("failed to cleanup session after refresh token error", "session_id", session.ID, "err", derr)
-		}
 		return nil, "", "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
-	// 4. Update session with the real hash
-	session.TokenHash = tokenHash
-	if err := UpdateSession(ctx, session); err != nil {
-		if derr := DeleteSession(ctx, session.ID); derr != nil {
-			LogWarn("failed to cleanup orphaned session after hash update error", "session_id", session.ID, "err", derr)
-		}
-		return nil, "", "", fmt.Errorf("failed to update session hash: %w", err)
+	// 3. Create Session Record (token_hash and session_token set in one write)
+	session := &Session{
+		UserID:       user.ID,
+		SessionToken: sessionToken,
+		TokenHash:    tokenHash,
+		ExpiresAt:    time.Now().UTC().Add(refreshTokenDuration),
+	}
+	if err := CreateSession(ctx, session); err != nil {
+		return nil, "", "", fmt.Errorf("failed to create session: %w", err)
 	}
 
 	return session, accessToken, refreshToken, nil
@@ -411,24 +401,24 @@ func deleteSessionSafe(ctx context.Context, sessionID int, msg string) {
 // Returns the user, new access token, new refresh token, or error.
 func RefreshSession(ctx context.Context, tokenString string) (*User, string, string, error) {
 	// 1. Parse Opaque Token
-	sessionID, secret, err := ValidateRefreshToken(tokenString)
+	sessionToken, secret, err := ValidateRefreshToken(tokenString)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("invalid token format: %w", err)
 	}
 
-	// 2. Fetch Session
-	session, err := GetSessionByID(ctx, sessionID)
+	// 2. Fetch Session by unguessable token (not by integer row ID)
+	session, err := GetSessionByToken(ctx, sessionToken)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("session lookup failed session_id=%d: %w", sessionID, err)
+		return nil, "", "", fmt.Errorf("session lookup failed session_token=%.8s: %w", sessionToken, err)
 	}
 	if session == nil {
-		return nil, "", "", fmt.Errorf("session not found session_id=%d", sessionID)
+		return nil, "", "", fmt.Errorf("session not found session_token=%.8s", sessionToken)
 	}
 
 	// 3. Check Expiry
 	if time.Now().After(session.ExpiresAt) {
-		deleteSessionSafe(ctx, sessionID, "failed to delete expired session")
-		return nil, "", "", fmt.Errorf("session expired user_id=%d session_id=%d", session.UserID, sessionID)
+		deleteSessionSafe(ctx, session.ID, "failed to delete expired session")
+		return nil, "", "", fmt.Errorf("session expired user_id=%d session_token=%.8s", session.UserID, sessionToken)
 	}
 
 	// 4. Verify Hash (Reuse Detection)
@@ -440,38 +430,38 @@ func RefreshSession(ctx context.Context, tokenString string) (*User, string, str
 		}
 		if revokeErr != nil {
 			// Sessions may remain active — operators should monitor for this error.
-			return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_id=%d AND session revocation failed after retry (sessions may remain active): %w", session.UserID, sessionID, revokeErr)
+			return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_token=%.8s AND session revocation failed after retry (sessions may remain active): %w", session.UserID, sessionToken, revokeErr)
 		}
-		return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_id=%d, all sessions revoked (possible token reuse or server restart without WF_SECRET_KEY)", session.UserID, sessionID)
+		return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_token=%.8s, all sessions revoked (possible token reuse or server restart without WF_SECRET_KEY)", session.UserID, sessionToken)
 	}
 
 	// 5. Fetch User
 	user, err := GetUserByID(ctx, session.UserID)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("user lookup failed user_id=%d session_id=%d: %w", session.UserID, sessionID, err)
+		return nil, "", "", fmt.Errorf("user lookup failed user_id=%d session_token=%.8s: %w", session.UserID, sessionToken, err)
 	}
 	if user == nil || !user.Active {
-		deleteSessionSafe(ctx, sessionID, "failed to delete session for inactive user")
-		return nil, "", "", fmt.Errorf("user inactive or not found user_id=%d session_id=%d", session.UserID, sessionID)
+		deleteSessionSafe(ctx, session.ID, "failed to delete session for inactive user")
+		return nil, "", "", fmt.Errorf("user inactive or not found user_id=%d session_token=%.8s", session.UserID, sessionToken)
 	}
 
 	// 6. Generate New Access Token
 	newAccessToken, err := GenerateAccessToken(user)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to generate access token user_id=%d session_id=%d: %w", user.ID, sessionID, err)
+		return nil, "", "", fmt.Errorf("failed to generate access token user_id=%d session_token=%.8s: %w", user.ID, sessionToken, err)
 	}
 
-	// 7. Rotate Refresh Token
-	newRefreshToken, newTokenHash, err := GenerateRefreshToken(sessionID)
+	// 7. Rotate Refresh Token (session_token stays constant; only the secret rotates)
+	newRefreshToken, newTokenHash, err := GenerateRefreshToken(session.SessionToken)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("failed to rotate refresh token user_id=%d session_id=%d: %w", user.ID, sessionID, err)
+		return nil, "", "", fmt.Errorf("failed to rotate refresh token user_id=%d session_token=%.8s: %w", user.ID, sessionToken, err)
 	}
 
 	// 8. Update Session
 	session.TokenHash = newTokenHash
 	session.ExpiresAt = time.Now().UTC().Add(refreshTokenDuration)
 	if err := UpdateSession(ctx, session); err != nil {
-		return nil, "", "", fmt.Errorf("failed to update session user_id=%d session_id=%d: %w", session.UserID, sessionID, err)
+		return nil, "", "", fmt.Errorf("failed to update session user_id=%d session_token=%.8s: %w", session.UserID, sessionToken, err)
 	}
 
 	return user, newAccessToken, newRefreshToken, nil

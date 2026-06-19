@@ -978,16 +978,23 @@ func HandleLogout(w http.ResponseWriter, r *http.Request) {
 // cookie, if any. Silently does nothing when the cookie is missing or invalid —
 // logout is best-effort and must succeed even without a usable session.
 func revokeSessionFromCookie(r *http.Request) {
-	if cookie, err := r.Cookie(cookieRefreshToken); err == nil {
-		sessionID, _, err := ValidateRefreshToken(cookie.Value)
-		if err == nil {
-			if err := RevokeSession(r.Context(), sessionID); err != nil {
-				if errors.Is(err, ErrSessionNotFound) {
-					LogInfo("Logout: session already revoked or not found", "session_id", strconv.Itoa(sessionID))
-				} else {
-					LogWarn("Logout: failed to revoke session", "session_id", strconv.Itoa(sessionID), "error", err)
-				}
-			}
+	cookie, err := r.Cookie(cookieRefreshToken)
+	if err != nil {
+		return
+	}
+	sessionToken, _, err := ValidateRefreshToken(cookie.Value)
+	if err != nil {
+		return
+	}
+	session, err := GetSessionByToken(r.Context(), sessionToken)
+	if err != nil || session == nil {
+		return
+	}
+	if err := RevokeSession(r.Context(), session.ID); err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			LogInfo("Logout: session already revoked or not found", "session_id", strconv.Itoa(session.ID))
+		} else {
+			LogWarn("Logout: failed to revoke session", "session_id", strconv.Itoa(session.ID), "error", err)
 		}
 	}
 }
@@ -1007,6 +1014,11 @@ func getUserEmailFromCookie(r *http.Request) string {
 // HandleRefresh handles POST /api/auth/refresh.
 // Validates the refresh token, checks user is still active, and issues a new access token.
 func HandleRefresh(w http.ResponseWriter, r *http.Request) {
+	if !refreshLimiter.allow(GetClientIP(r)) {
+		http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
+		return
+	}
+
 	cookie, err := r.Cookie(cookieRefreshToken)
 	if err != nil {
 		http.Error(w, errMsgUnauthorized, http.StatusUnauthorized)

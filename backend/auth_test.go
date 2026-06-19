@@ -78,8 +78,8 @@ func TestJWTTokenGeneration(t *testing.T) {
 }
 
 func TestOpaqueRefreshToken(t *testing.T) {
-	sessionID := 123
-	token, hash, err := GenerateRefreshToken(sessionID)
+	sessionTok := generateSessionToken()
+	token, hash, err := GenerateRefreshToken(sessionTok)
 	if err != nil {
 		t.Fatalf("GenerateRefreshToken failed: %v", err)
 	}
@@ -92,21 +92,16 @@ func TestOpaqueRefreshToken(t *testing.T) {
 	}
 
 	// Validate
-	gotSessionID, gotSecret, err := ValidateRefreshToken(token)
+	gotSessionTok, gotSecret, err := ValidateRefreshToken(token)
 	if err != nil {
 		t.Fatalf("ValidateRefreshToken failed: %v", err)
 	}
-	if gotSessionID != sessionID {
-		t.Errorf("expected sessionID %d, got %d", sessionID, gotSessionID)
+	if gotSessionTok != sessionTok {
+		t.Errorf("expected session token %q, got %q", sessionTok, gotSessionTok)
 	}
 	if gotSecret == "" {
 		t.Error("expected non-empty secret")
 	}
-
-	// Note: We cannot verify the hash against the secret easily here without bcrypt dependency in test or helper,
-	// but the fact that it parsed cleanly is good.
-	// We could verify the hash matches if we really wanted to be sure.
-	// But let's assume bcrypt works.
 }
 
 func TestValidateRefreshTokenInvalid(t *testing.T) {
@@ -117,19 +112,17 @@ func TestValidateRefreshTokenInvalid(t *testing.T) {
 	}
 
 	// 2. Invalid Format (no colon)
-	// "bad:format" encoded
 	encodedBad := "YmFkZm9ybWF0" // base64("badformat")
 	_, _, err = ValidateRefreshToken(encodedBad)
 	if err == nil {
 		t.Error("expected error for missing colon")
 	}
 
-	// 3. Invalid Session ID
-	// "abc:secret"
-	encodedBadID := "YWJjOnNlY3JldA==" // base64("abc:secret")
-	_, _, err = ValidateRefreshToken(encodedBadID)
+	// 3. Empty session token (":secret" → first part is empty)
+	encodedEmptyTok := base64.StdEncoding.EncodeToString([]byte(":secret"))
+	_, _, err = ValidateRefreshToken(encodedEmptyTok)
 	if err == nil {
-		t.Error("expected error for invalid session ID")
+		t.Error("expected error for empty session token")
 	}
 }
 
@@ -546,16 +539,16 @@ func TestHandleRefreshSuccess(t *testing.T) {
 
 	user, _ := GetUserByEmail(context.Background(), testEmail)
 
-	// Create Session first
+	// Create Session
+	sessionTok := generateSessionToken()
+	refreshToken, tokenHash, _ := GenerateRefreshToken(sessionTok)
 	session := &Session{
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(refreshTokenDuration),
+		UserID:       user.ID,
+		SessionToken: sessionTok,
+		TokenHash:    tokenHash,
+		ExpiresAt:    time.Now().Add(refreshTokenDuration),
 	}
 	CreateSession(context.Background(), session)
-
-	refreshToken, tokenHash, _ := GenerateRefreshToken(session.ID)
-	session.TokenHash = tokenHash
-	UpdateSession(context.Background(), session)
 
 	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
 	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: refreshToken})
@@ -600,16 +593,16 @@ func TestHandleRefreshInactiveUser(t *testing.T) {
 
 	user, _ := GetUserByEmail(context.Background(), testEmail)
 
-	// Create Session first
+	// Create Session
+	sessionTok := generateSessionToken()
+	refreshToken, tokenHash, _ := GenerateRefreshToken(sessionTok)
 	session := &Session{
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(refreshTokenDuration),
+		UserID:       user.ID,
+		SessionToken: sessionTok,
+		TokenHash:    tokenHash,
+		ExpiresAt:    time.Now().Add(refreshTokenDuration),
 	}
 	CreateSession(context.Background(), session)
-
-	refreshToken, tokenHash, _ := GenerateRefreshToken(session.ID)
-	session.TokenHash = tokenHash
-	UpdateSession(context.Background(), session)
 
 	// Deactivate user after generating token
 	user.Active = false
@@ -1380,8 +1373,8 @@ func TestAuthHandlersDBError(t *testing.T) {
 	})
 
 	t.Run("Refresh_DBError", func(t *testing.T) {
-		// Mock a token for a session ID (DB is closed so it handles 500)
-		token, _, _ := GenerateRefreshToken(1)
+		// Generate a valid-format token; DB is closed so the handler returns 401
+		token, _, _ := GenerateRefreshToken(generateSessionToken())
 		req := httptest.NewRequest("POST", apiAuthRefresh, nil)
 		req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: token})
 		rr := httptest.NewRecorder()

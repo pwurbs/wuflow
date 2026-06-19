@@ -621,16 +621,15 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 	expiredAccessToken, _ := token.SignedString(jwtSecret)
 
 	// Create Session
+	sessionTok := generateSessionToken()
+	validRefreshToken, tokenHash, _ := GenerateRefreshToken(sessionTok)
 	session := &Session{
-		UserID:    u.ID,
-		ExpiresAt: time.Now().Add(refreshTokenDuration),
+		UserID:       u.ID,
+		SessionToken: sessionTok,
+		TokenHash:    tokenHash,
+		ExpiresAt:    time.Now().Add(refreshTokenDuration),
 	}
 	CreateSession(context.Background(), session)
-
-	// Create valid refresh token
-	validRefreshToken, tokenHash, _ := GenerateRefreshToken(session.ID)
-	session.TokenHash = tokenHash
-	UpdateSession(context.Background(), session)
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

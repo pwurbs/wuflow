@@ -16,6 +16,9 @@ const (
 	apiMaxRequests  = 60          // max requests per authenticated user per window
 	apiRateWindow   = time.Minute // sliding window for API rate limiting
 	apiCleanupEvery = 200         // run lazy cleanup every N allow() calls
+
+	refreshIPMax    = 10           // max refresh attempts per IP per window
+	refreshIPWindow = time.Minute  // sliding window for refresh rate limiting
 )
 
 type failEntry struct {
@@ -159,6 +162,47 @@ func (rl *rateLimiter) cleanup() {
 	for k, e := range rl.byIPAndEmail {
 		if e.windowEnd.Before(cutoff) {
 			delete(rl.byIPAndEmail, k)
+		}
+	}
+}
+
+// ipLimiter is a per-IP sliding-window rate limiter.
+// Used for unauthenticated endpoints where only the IP is known (e.g. token refresh).
+type ipLimiter struct {
+	mu    sync.Mutex
+	byIP  map[string]*failEntry
+	calls int
+}
+
+var refreshLimiter = &ipLimiter{byIP: make(map[string]*failEntry)}
+
+// allow records one attempt for ip and returns true if the IP is within the limit.
+func (rl *ipLimiter) allow(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	e, ok := rl.byIP[ip]
+	if !ok || now.After(e.windowEnd) {
+		rl.byIP[ip] = &failEntry{count: 1, windowEnd: now.Add(refreshIPWindow)}
+	} else {
+		e.count++
+	}
+
+	rl.calls++
+	if rl.calls%rlCleanupEvery == 0 {
+		rl.cleanup()
+	}
+
+	return rl.byIP[ip].count <= refreshIPMax
+}
+
+// cleanup removes stale entries. Must be called with rl.mu held.
+func (rl *ipLimiter) cleanup() {
+	cutoff := time.Now().Add(-rlMaxAge)
+	for k, e := range rl.byIP {
+		if e.windowEnd.Before(cutoff) {
+			delete(rl.byIP, k)
 		}
 	}
 }

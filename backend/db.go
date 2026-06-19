@@ -226,6 +226,7 @@ func createTables(ctx context.Context) error {
 	CREATE TABLE IF NOT EXISTS sessions (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_id INTEGER NOT NULL,
+		session_token TEXT NOT NULL DEFAULT '',
 		token_hash TEXT NOT NULL,
 		expires_at DATETIME NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -238,6 +239,11 @@ func createTables(ctx context.Context) error {
 	// Create index on user_id to speed up session revocation by user (e.g., logout all devices)
 	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
 		LogError("Failed to create index on sessions(user_id)", "error", err)
+		return err
+	}
+	// Create index on session_token for fast token-based session lookups
+	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);"); err != nil {
+		LogError("Failed to create index on sessions(session_token)", "error", err)
 		return err
 	}
 
@@ -264,6 +270,10 @@ func runMigrations(ctx context.Context) error {
 	}
 	// TODO: Migration code for 1.3.0 , can be removed in a later version.
 	if err := migrateLabelsAddProjectForeignKey(ctx); err != nil {
+		return err
+	}
+	// TODO: Migration code for 1.4.0 , can be removed in a later version.
+	if err := migrateSessionsAddTokenColumn(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -385,6 +395,28 @@ func migrateLabelsAddProjectForeignKey(ctx context.Context) error {
 		return err
 	}
 	LogInfo("Migrated labels table: added ON DELETE CASCADE foreign key for project_id")
+	return nil
+}
+
+// migrateSessionsAddTokenColumn adds session_token to existing databases that predate the column.
+func migrateSessionsAddTokenColumn(ctx context.Context) error {
+	var count int
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='session_token'`).Scan(&count); err != nil {
+		LogError("Failed to check for session_token column in sessions", "error", err)
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	if _, err := DB.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN session_token TEXT NOT NULL DEFAULT ''`); err != nil {
+		LogError("Failed to add session_token column to sessions", "error", err)
+		return err
+	}
+	if _, err := DB.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token)`); err != nil {
+		LogError("Failed to create index on sessions(session_token)", "error", err)
+		return err
+	}
+	LogInfo("Migrated sessions table: added session_token column (existing sessions invalidated)")
 	return nil
 }
 
@@ -531,10 +563,10 @@ const issueSelectBase = `
 		LEFT JOIN releases r ON i.release_id = r.id`
 
 const (
-	queryActiveIssues   = issueSelectBase + ` WHERE i.status NOT IN (?, ?) AND i.project_id = ? ORDER BY i.position ASC`
-	queryArchivedIssues = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
-	queryOpenIssues     = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
-	queryIssueByID      = issueSelectBase + ` WHERE i.id = ?`
+	queryActiveIssues       = issueSelectBase + ` WHERE i.status NOT IN (?, ?) AND i.project_id = ? ORDER BY i.position ASC`
+	queryArchivedIssues     = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
+	queryOpenIssues         = issueSelectBase + ` WHERE i.status = ? AND i.project_id = ? ORDER BY i.position ASC`
+	queryIssueByID          = issueSelectBase + ` WHERE i.id = ?`
 	queryIssueByIDInProject = issueSelectBase + ` WHERE i.id = ? AND i.project_id = ?`
 )
 
@@ -1052,7 +1084,6 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 	return i, nil
 }
 
-
 // CreateUser inserts a new user into the database.
 func CreateUser(ctx context.Context, u *User) error {
 	u.UpdatedAt = time.Now().UTC()
@@ -1182,8 +1213,8 @@ func CreateSession(ctx context.Context, s *Session) error {
 	s.ExpiresAt = s.ExpiresAt.UTC()
 
 	res, err := DB.ExecContext(ctx,
-		"INSERT INTO sessions(user_id, token_hash, expires_at, created_at) VALUES(?, ?, ?, ?)",
-		s.UserID, s.TokenHash, s.ExpiresAt, s.CreatedAt,
+		"INSERT INTO sessions(user_id, session_token, token_hash, expires_at, created_at) VALUES(?, ?, ?, ?, ?)",
+		s.UserID, s.SessionToken, s.TokenHash, s.ExpiresAt, s.CreatedAt,
 	)
 	if err != nil {
 		LogError("Database Error: CreateSession", "error", err)
@@ -1199,17 +1230,33 @@ func CreateSession(ctx context.Context, s *Session) error {
 	return nil
 }
 
-// GetSessionByID retrieves a session by its ID.
+// GetSessionByID retrieves a session by its integer primary key.
 func GetSessionByID(ctx context.Context, id int) (*Session, error) {
-	row := DB.QueryRowContext(ctx, "SELECT id, user_id, token_hash, expires_at, created_at FROM sessions WHERE id = ?", id)
+	row := DB.QueryRowContext(ctx, "SELECT id, user_id, session_token, token_hash, expires_at, created_at FROM sessions WHERE id = ?", id)
 
 	var s Session
-	err := row.Scan(&s.ID, &s.UserID, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
+	err := row.Scan(&s.ID, &s.UserID, &s.SessionToken, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		LogError("Database Error: GetSessionByID", "error", err)
+		return nil, err
+	}
+	return &s, nil
+}
+
+// GetSessionByToken retrieves a session by its unguessable session_token lookup key.
+func GetSessionByToken(ctx context.Context, token string) (*Session, error) {
+	row := DB.QueryRowContext(ctx, "SELECT id, user_id, session_token, token_hash, expires_at, created_at FROM sessions WHERE session_token = ?", token)
+
+	var s Session
+	err := row.Scan(&s.ID, &s.UserID, &s.SessionToken, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		LogError("Database Error: GetSessionByToken", "error", err)
 		return nil, err
 	}
 	return &s, nil
