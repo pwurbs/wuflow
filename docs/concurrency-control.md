@@ -42,6 +42,8 @@ sequenceDiagram
 -   **GET /api/issues/{id}**: Returns the issue JSON and sets the `ETag` header based on the `updated_at` timestamp.
 -   **PUT /api/issues/{id}**: Checks the `If-Match` header against the current issue's ETag. Returns `409 Conflict` if they do not match.
 
+> **Proxy note:** Reverse proxies such as Traefik may convert strong ETags to weak ETags (e.g. `"v1"` → `W/"v1"`) when applying response transformations. The server normalises the comparison by stripping the `W/` prefix so that proxy-induced weakening does not produce false conflicts.
+
 ### Frontend
 -   **Fetching**: The `openModal` function fetches the latest issue data and stores the `ETag`.
 -   **Saving**: The `saveIssueWithConflictCheck` helper sends the `If-Match` header. If a 409 error occurs, it displays a conflict resolution dialog to the user, allowing them to reload the data.

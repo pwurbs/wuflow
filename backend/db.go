@@ -241,13 +241,13 @@ func createTables(ctx context.Context) error {
 		LogError("Failed to create index on sessions(user_id)", "error", err)
 		return err
 	}
-	// Create index on session_token for fast token-based session lookups
-	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);"); err != nil {
-		LogError("Failed to create index on sessions(session_token)", "error", err)
-		return err
-	}
 
 	if err := runMigrations(ctx); err != nil {
+		return err
+	}
+	// Create index on session_token after migrations so the column is guaranteed to exist on existing DBs.
+	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);"); err != nil {
+		LogError("Failed to create index on sessions(session_token)", "error", err)
 		return err
 	}
 	return nil

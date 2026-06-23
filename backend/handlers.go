@@ -647,7 +647,11 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
 // Returns true if a conflict is detected (and sends 409 response), false otherwise.
 func checkIfMatchConflict(w http.ResponseWriter, current *Issue, ifMatch string) bool {
 	currentEtag := formatETag(current.UpdatedAt)
-	if ifMatch != currentEtag {
+	// Traefik (and other proxies) may convert strong ETags to weak ETags (W/"...") when
+	// applying response transformations. Strip the W/ prefix before comparing so that
+	// proxy-induced weakening does not trigger false conflicts.
+	normalize := func(e string) string { return strings.TrimPrefix(e, "W/") }
+	if normalize(ifMatch) != normalize(currentEtag) {
 		LogInfo("Conflict detected", "id", current.ID)
 		http.Error(w, "Issue has been modified by another user", http.StatusConflict)
 		return true

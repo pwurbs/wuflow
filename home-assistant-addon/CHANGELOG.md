@@ -4,7 +4,8 @@
 - Added Helm Chart and deploy script
 - Now built and pushed a multi-platform image (linux/amd64,linux/arm64)
 - Added API health endpoint
-- Fix Refresh Token DoS attack surface
+- Fixed Refresh Token DoS attack surface
+- Fixed the issue when reverse proxies like Traefik manipulate ETags which caused false issue edit conflict detection
 
 ## 1.3.1
 
