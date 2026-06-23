@@ -1,5 +1,6 @@
 
-# 1.4.0
+
+# 1.3.2
 
 - Added Helm Chart and deploy script
 - Now built and pushed a multi-platform image (linux/amd64,linux/arm64)
