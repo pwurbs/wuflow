@@ -7,6 +7,7 @@
 - Added API health endpoint
 - Fixed Refresh Token DoS attack surface
 - Fixed the issue when reverse proxies like Traefik manipulate ETags which caused false issue edit conflict detection
+- Removed database migration code from v1.2.0 and v.1.3.0 (see migration notes)
 
 # 1.3.1
 
