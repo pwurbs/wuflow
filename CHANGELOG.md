@@ -8,6 +8,9 @@
 - Fixed Refresh Token DoS attack surface
 - Fixed the issue when reverse proxies like Traefik manipulate ETags which caused false issue edit conflict detection
 - Removed database migration code from v1.2.0 and v.1.3.0 (see migration notes)
+- Bumped dompurify to 3.4.11
+- Bumped direct Go package dependencies go-sqlite3 and x/crypto
+- Bumped vitest and playwright packages
 
 # 1.3.1
 
