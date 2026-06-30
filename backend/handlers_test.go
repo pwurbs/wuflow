@@ -51,6 +51,19 @@ const (
 	expectedCodeMsg      = "expected code %v, got %v"
 )
 
+func TestHandleHealth(t *testing.T) {
+	req := httptest.NewRequest("GET", "/api/health", nil)
+	rr := httptest.NewRecorder()
+	HandleHealth(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %q", ct)
+	}
+}
+
 func TestHandleActiveIssuesGet(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()

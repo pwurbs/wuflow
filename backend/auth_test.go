@@ -498,6 +498,37 @@ func TestHandleLoginMethodNotAllowed(t *testing.T) {
 
 // --- Logout Handler ---
 
+func TestHandleLogoutInvalidRefreshToken(t *testing.T) {
+	// Cookie present but invalid base64 → revokeSessionFromCookie returns early (line 991-992).
+	req := httptest.NewRequest("POST", apiAuthLogout, nil)
+	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: "!!!not-valid-base64!!!"})
+	rr := httptest.NewRecorder()
+	HandleLogout(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleLogoutNoSession(t *testing.T) {
+	// Valid-format token but no matching session → GetSessionByToken returns nil (line 995-996).
+	setupTestDB()
+	defer teardownTestDB()
+	InitSecretKey("")
+
+	sessionTok := generateSessionToken()
+	refreshToken, _, _ := GenerateRefreshToken(sessionTok)
+
+	req := httptest.NewRequest("POST", apiAuthLogout, nil)
+	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: refreshToken})
+	rr := httptest.NewRecorder()
+	HandleLogout(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+}
+
 func TestHandleLogoutSuccess(t *testing.T) {
 	InitSecretKey("")
 
@@ -557,6 +588,23 @@ func TestHandleRefreshSuccess(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+}
+
+func TestHandleRefreshRateLimit(t *testing.T) {
+	// Pre-exhaust the refresh limiter for the default test IP (192.0.2.1).
+	orig := refreshLimiter
+	refreshLimiter = &ipLimiter{byIP: map[string]*failEntry{
+		"192.0.2.1": {count: refreshIPMax + 1, windowEnd: time.Now().Add(time.Minute)},
+	}}
+	defer func() { refreshLimiter = orig }()
+
+	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
+	rr := httptest.NewRecorder()
+	HandleRefresh(rr, req)
+
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusTooManyRequests)
 	}
 }
 
@@ -1604,6 +1652,51 @@ func TestTryRefreshSessionInvalidToken(t *testing.T) {
 }
 
 // TestDeleteSessionSafeError covers the warning-log branch when DeleteSession fails.
+func TestValidateRefreshTokenTooLong(t *testing.T) {
+	long := strings.Repeat("a", MaxRefreshTokenLength+1)
+	_, _, err := ValidateRefreshToken(long)
+	if err == nil {
+		t.Error("expected error for token exceeding MaxRefreshTokenLength, got nil")
+	}
+	if !strings.Contains(err.Error(), "token too long") {
+		t.Errorf("expected 'token too long', got %q", err.Error())
+	}
+}
+
+func TestRefreshSessionExpired(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitSecretKey("")
+
+	hash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true})
+	user, _ := GetUserByEmail(context.Background(), testEmail)
+
+	sessionTok := generateSessionToken()
+	refreshToken, tokenHash, _ := GenerateRefreshToken(sessionTok)
+	session := &Session{
+		UserID:       user.ID,
+		SessionToken: sessionTok,
+		TokenHash:    tokenHash,
+		ExpiresAt:    time.Now().Add(-time.Hour), // already expired
+	}
+	CreateSession(context.Background(), session)
+
+	_, _, _, err := RefreshSession(context.Background(), refreshToken)
+	if err == nil {
+		t.Fatal("expected error for expired session, got nil")
+	}
+	if !strings.Contains(err.Error(), "session expired") {
+		t.Errorf("expected 'session expired', got %q", err.Error())
+	}
+
+	// Session should have been deleted
+	s, _ := GetSessionByID(context.Background(), session.ID)
+	if s != nil {
+		t.Error("expected expired session to be deleted")
+	}
+}
+
 func TestDeleteSessionSafeError(t *testing.T) {
 	oldDB := DB
 	defer func() { DB = oldDB }()

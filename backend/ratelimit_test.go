@@ -210,6 +210,26 @@ func TestRateLimiterCleanup(t *testing.T) {
 	}
 }
 
+func TestIPLimiterCleanupTriggered(t *testing.T) {
+	rl := &ipLimiter{byIP: make(map[string]*failEntry)}
+
+	// Pre-seed a stale entry (window ended more than rlMaxAge ago).
+	rl.byIP["stale"] = &failEntry{count: 1, windowEnd: time.Now().Add(-(rlMaxAge + time.Second))}
+	// Pre-seed a fresh entry that must survive cleanup.
+	rl.byIP["fresh"] = &failEntry{count: 1, windowEnd: time.Now().Add(refreshIPWindow)}
+	// Set calls so the next allow() call is the rlCleanupEvery-th, triggering cleanup.
+	rl.calls = rlCleanupEvery - 1
+
+	rl.allow("trigger")
+
+	if _, ok := rl.byIP["stale"]; ok {
+		t.Error("stale entry should have been removed by ipLimiter cleanup")
+	}
+	if _, ok := rl.byIP["fresh"]; !ok {
+		t.Error("fresh entry should not have been removed by ipLimiter cleanup")
+	}
+}
+
 func TestRateLimiterCleanupPreservesActiveEntries(t *testing.T) {
 	rl := newTestLimiter()
 	rl.byIP["active"] = &failEntry{count: 1, windowEnd: time.Now().Add(ipWindow)}
