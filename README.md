@@ -149,11 +149,16 @@ go run . -initial-admin-password "secure-pssw0rd" -secure-cookie=false
 The same way, you can access the app at `http://localhost:8080` and login with email `admin@local` and the configured password.
 
 ### Reverse Proxy
-As the app only offers unencrypted HTTP, **it is mandatory to run it behind a reverse proxy** (e.g. Nginx, Caddy, Traefik) that **handles TLS termination** and forwards requests to the app. Otherwise, it would not be possible to use the secure cookie flag, which is mandatory for the security of the application. The reverse proxy should also be configured to forward the actual client IP to the app using the configured **Remote IP Header**.
+As the app only offers unencrypted HTTP, **it is mandatory to run it behind a reverse proxy** (e.g. Nginx, Traefik) within the same envirnment that **handles TLS termination** and forwards requests to the app. Otherwise, it would not be possible to use the secure cookie flag, which is mandatory for the security of the application. The reverse proxy should also be configured to forward the actual client IP to the app using the configured **Remote IP Header**.
 
 For the Remote IP Header to work correctly and securely:
-- **Firewall wuFlow's port** so it is only reachable from the reverse proxy, not directly from the internet or untrusted networks.
-- **Configure the proxy to overwrite the header**, not append to it. For example, in Nginx use `proxy_set_header X-Forwarded-For $remote_addr;` rather than `proxy_add_header`. If the proxy appends its value to any client-supplied header, wuFlow cannot distinguish the real client IP from an attacker-controlled value, and all clients through the proxy will share a single rate-limit bucket.
+- **Block direct access to wuFlow's port** — bind it to `localhost` or a private interface, or restrict it with a firewall rule, so it is not reachable from the internet. This is the foundational requirement: if an attacker can connect to wuFlow directly, they can set any `X-Forwarded-For` header they like, bypassing IP-based rate limiting entirely.
+- **The proxy that sees the real client IP must set the header authoritatively.** wuFlow reads the first entry of a comma-separated `X-Forwarded-For` value. That entry is only trustworthy if the proxy closest to the client strips any client-supplied header and sets its own. If your reverse proxy itself sits behind a CDN or runs as a container (so its direct peer is a bridge or node IP, not the real client), then it must be configured to trust and preserve the upstream header rather than overwrite it — the CDN or outermost layer is then responsible for the authoritative first entry:
+  - **Cloudflare** strips client-supplied forwarded headers and sets its own — no extra configuration needed on your reverse proxy for the first entry.
+  - **Nginx**: use `proxy_set_header X-Forwarded-For $remote_addr;` (not `$proxy_add_x_forwarded_for`, which appends to the existing header).
+  - **Traefik**: configure `trustedIPs` on the entry point to include the upstream peer's IP (CDN edge or container bridge). This tells Traefik to trust and preserve the existing `X-Forwarded-For` chain rather than stripping it. Without `trustedIPs`, Traefik strips forwarded headers from untrusted peers and the real client IP is lost (see [Traefik docs on forwarded headers](https://doc.traefik.io/traefik/routing/entrypoints/#forwarded-headers)).
+
+  If the outermost proxy appends its value to any client-supplied header, wuFlow cannot distinguish the real client IP from an attacker-controlled value, and all clients through the proxy will share a single rate-limit bucket.
 
 ## Home Assistant Add-on
 For instructions on how to deploy wuFlow as a Home Assistant Add-on, please refer to the [Home Assistant Add-on documentation](home-assistant-addon/README.md).

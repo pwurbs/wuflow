@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // safeLogger uses an explicitly-instantiated slog.JSONHandler so gosec G706
@@ -40,11 +41,16 @@ func LogDebug(msg string, args ...any) { safeLogger.Debug(msg, args...) }
 func GetClientIP(r *http.Request) string {
 	if remoteIPHeader != "" {
 		if headerIP := r.Header.Get(remoteIPHeader); headerIP != "" {
-			if net.ParseIP(headerIP) == nil {
+			// X-Forwarded-For may contain multiple IPs (e.g. "client, proxy1").
+			// Take the leftmost entry — the original client IP.
+			// This is only trustworthy when the outermost trusted proxy strips
+			// any client-supplied header before appending its own
+			firstIP := strings.TrimSpace(strings.SplitN(headerIP, ",", 2)[0])
+			if net.ParseIP(firstIP) == nil {
 				LogWarn("GetClientIP: invalid IP in header, falling back to RemoteAddr",
 					"header", remoteIPHeader, "value", headerIP)
 			} else {
-				return headerIP
+				return firstIP
 			}
 		}
 	}

@@ -1,5 +1,4 @@
 
-
 # 1.3.2
 
 - Added Helm Chart and deploy script
@@ -11,6 +10,7 @@
 - Bumped dompurify to 3.4.11
 - Bumped direct Go package dependencies go-sqlite3 and x/crypto
 - Bumped vitest and playwright packages
+- Fixed: GetClientIP now handles comma-separated X-Forwarded-For headers and updated reverse proxy documentation
 
 # 1.3.1
 

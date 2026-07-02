@@ -16,30 +16,18 @@ if [[ -z "$NEW_VERSION" ]]; then
     exit 1
 fi
 
-# Prompt for changelog entry
-CHANGELOG=$(osascript -e "display dialog \"Changelog:\" default answer \"\"" -e "text returned of result")
-
-if [[ -z "$CHANGELOG" ]]; then
-    echo "No changelog entry entered. Aborting."
-    exit 1
-fi
-
 # 1. Update VERSION file
 echo "$NEW_VERSION" > VERSION
 
 # 2. Update Home Assistant Add-on config
 sed -i '' "s/^version: \".*\"/version: \"$NEW_VERSION\"/" home-assistant-addon/config.yaml
 
-# 3. Update Home Assistant Add-on CHANGELOG.md (## header)
-printf '\n## %s\n\n%s\n' "$NEW_VERSION" "$CHANGELOG" | cat - home-assistant-addon/CHANGELOG.md > CHANGELOG.tmp
-mv CHANGELOG.tmp home-assistant-addon/CHANGELOG.md
-
-# 4. Update Root CHANGELOG.md (# header)
-printf '\n# %s\n\n%s\n' "$NEW_VERSION" "$CHANGELOG" | cat - CHANGELOG.md > CHANGELOG_ROOT.tmp
-mv CHANGELOG_ROOT.tmp CHANGELOG.md
-
-# 5. Update Helm chart version, appVersion and image tag
-sed -i '' "s/^version: .*/version: ${NEW_VERSION}00/" chart/Chart.yaml
+# 3. Update Helm chart version, appVersion and image tag
+# Chart version format: <base>00<pre-suffix> e.g. 1.3.2-pre1 → 1.3.200-pre1
+BASE_VERSION="${NEW_VERSION%%-*}"
+PRE_SUFFIX="${NEW_VERSION#"$BASE_VERSION"}"
+CHART_VERSION="${BASE_VERSION}00${PRE_SUFFIX}"
+sed -i '' "s/^version: .*/version: ${CHART_VERSION}/" chart/Chart.yaml
 sed -i '' "s/^appVersion: \".*\"/appVersion: \"$NEW_VERSION\"/" chart/Chart.yaml
 sed -i '' "s/^  tag: \".*\"/  tag: \"$NEW_VERSION\"/" deploy/values.dev.yaml
 
