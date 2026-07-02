@@ -954,6 +954,11 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	SetAuthCookies(w, accessToken, refreshToken)
 	LogInfo("Successful login", "email", user.Email, "session_id", session.ID)
 
+	// Non-critical bookkeeping: don't fail the login if this write fails.
+	if err := UpdateUserLastLogin(r.Context(), user.ID); err != nil {
+		LogError("Login: failed to update last_login", "error", err, "user_id", user.ID)
+	}
+
 	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(map[string]any{
 		"user": user,

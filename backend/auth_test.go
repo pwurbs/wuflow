@@ -425,6 +425,41 @@ func TestHandleLoginSuccess(t *testing.T) {
 	}
 }
 
+func TestHandleLoginSetsLastLogin(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitSecretKey("")
+
+	hash, _ := HashPassword(testPassword)
+	u := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleAdmin, Active: true}
+	CreateUser(context.Background(), u)
+
+	before, err := GetUserByEmail(context.Background(), testEmail)
+	if err != nil {
+		t.Fatalf("GetUserByEmail failed: %v", err)
+	}
+	if before.LastLogin != nil {
+		t.Fatalf("Expected nil LastLogin before first login, got %v", before.LastLogin)
+	}
+
+	body, _ := json.Marshal(map[string]string{"email": testEmail, "password": testPassword})
+	req := httptest.NewRequest("POST", apiAuthLogin, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+	HandleLogin(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+
+	after, err := GetUserByEmail(context.Background(), testEmail)
+	if err != nil {
+		t.Fatalf("GetUserByEmail failed: %v", err)
+	}
+	if after.LastLogin == nil {
+		t.Error("Expected non-nil LastLogin after successful login")
+	}
+}
+
 func TestHandleLoginInvalidPassword(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()

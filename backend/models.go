@@ -54,7 +54,7 @@ type Issue struct {
 	Updater      *User         `json:"updater,omitempty"`  // Populated for API responses to avoid N+1 queries
 	Label        *Label        `json:"label"`              // Pointer to manage nil label
 	Release      *Release      `json:"release"`            // Pointer to manage nil release
-	Project      *Project      `json:"project,omitempty"` // Populated for API responses
+	Project      *Project      `json:"project,omitempty"`  // Populated for API responses
 	Tasks        []Task        `json:"tasks"`
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
@@ -152,15 +152,16 @@ func roleRank(r UserRole) int {
 
 // User represents an authenticated user of the application.
 type User struct {
-	ID           int       `json:"id"`
-	Email        string    `json:"email"`
-	FirstName    string    `json:"first_name"`
-	LastName     string    `json:"last_name"`
-	PasswordHash string    `json:"-"` // never exposed via API
-	Role         UserRole  `json:"role"`
-	Active       bool      `json:"active"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID           int        `json:"id"`
+	Email        string     `json:"email"`
+	FirstName    string     `json:"first_name"`
+	LastName     string     `json:"last_name"`
+	PasswordHash string     `json:"-"` // never exposed via API
+	Role         UserRole   `json:"role"`
+	Active       bool       `json:"active"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	LastLogin    *time.Time `json:"last_login"`
 }
 
 // Session represents an active user session (refresh token).

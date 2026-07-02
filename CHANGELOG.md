@@ -11,6 +11,7 @@
 - Bumped direct Go package dependencies go-sqlite3 and x/crypto
 - Bumped vitest and playwright packages
 - Fixed: GetClientIP now handles comma-separated X-Forwarded-For headers and updated reverse proxy documentation
+- Added last login information to the users list and aligned items in users and projcts list
 
 # 1.3.1
 

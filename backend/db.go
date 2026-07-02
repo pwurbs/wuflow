@@ -215,7 +215,8 @@ func createTables(ctx context.Context) error {
 		role TEXT NOT NULL DEFAULT 'user',
 		active BOOLEAN NOT NULL DEFAULT 1,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		last_login DATETIME
 	);`
 	if _, err := DB.ExecContext(ctx, createUsersTable); err != nil {
 		LogError("Failed to create users table", "error", err)
@@ -260,6 +261,10 @@ func runMigrations(ctx context.Context) error {
 	if err := migrateSessionsAddTokenColumn(ctx); err != nil {
 		return err
 	}
+	// TODO: Migration code for 1.3.2 , can be removed in a later version.
+	if err := migrateUsersAddLastLogin(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -282,6 +287,24 @@ func migrateSessionsAddTokenColumn(ctx context.Context) error {
 		return err
 	}
 	LogInfo("Migrated sessions table: added session_token column (existing sessions invalidated)")
+	return nil
+}
+
+// migrateUsersAddLastLogin adds last_login to existing databases that predate the column.
+func migrateUsersAddLastLogin(ctx context.Context) error {
+	var count int
+	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='last_login'`).Scan(&count); err != nil {
+		LogError("Failed to check for last_login column in users", "error", err)
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	if _, err := DB.ExecContext(ctx, `ALTER TABLE users ADD COLUMN last_login DATETIME`); err != nil {
+		LogError("Failed to add last_login column to users", "error", err)
+		return err
+	}
+	LogInfo("Migrated users table: added last_login column")
 	return nil
 }
 
@@ -975,10 +998,11 @@ func CreateUser(ctx context.Context, u *User) error {
 
 // GetUserByEmail retrieves a user by their email address.
 func GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	row := DB.QueryRowContext(ctx, "SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE email = ?", email)
+	row := DB.QueryRowContext(ctx, "SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at, last_login FROM users WHERE email = ?", email)
 
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt)
+	var lastLogin sql.NullTime // last_login is nullable (NULL until first login)
+	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &lastLogin)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -986,15 +1010,19 @@ func GetUserByEmail(ctx context.Context, email string) (*User, error) {
 		LogError("Database Error: GetUserByEmail", "error", err)
 		return nil, err
 	}
+	if lastLogin.Valid {
+		u.LastLogin = &lastLogin.Time
+	}
 	return &u, nil
 }
 
 // GetUserByID retrieves a user by their ID.
 func GetUserByID(ctx context.Context, id int) (*User, error) {
-	row := DB.QueryRowContext(ctx, "SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at FROM users WHERE id = ?", id)
+	row := DB.QueryRowContext(ctx, "SELECT id, email, first_name, last_name, password_hash, role, active, created_at, updated_at, last_login FROM users WHERE id = ?", id)
 
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt)
+	var lastLogin sql.NullTime
+	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &lastLogin)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1002,12 +1030,15 @@ func GetUserByID(ctx context.Context, id int) (*User, error) {
 		LogError("Database Error: GetUserByID", "error", err)
 		return nil, err
 	}
+	if lastLogin.Valid {
+		u.LastLogin = &lastLogin.Time
+	}
 	return &u, nil
 }
 
 // GetAllUsers retrieves all users from the database.
 func GetAllUsers(ctx context.Context) ([]User, error) {
-	rows, err := DB.QueryContext(ctx, "SELECT id, email, first_name, last_name, role, active, created_at, updated_at FROM users ORDER BY id ASC")
+	rows, err := DB.QueryContext(ctx, "SELECT id, email, first_name, last_name, role, active, created_at, updated_at, last_login FROM users ORDER BY id ASC")
 	if err != nil {
 		LogError("Database Error: GetAllUsers", "error", err)
 		return nil, err
@@ -1017,13 +1048,26 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 	users := []User{}
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		var lastLogin sql.NullTime
+		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &lastLogin); err != nil {
 			LogError("Database Error: GetAllUsers Scan", "error", err)
 			return nil, err
+		}
+		if lastLogin.Valid {
+			u.LastLogin = &lastLogin.Time
 		}
 		users = append(users, u)
 	}
 	return users, nil
+}
+
+// UpdateUserLastLogin records the current time as the user's last successful login.
+func UpdateUserLastLogin(ctx context.Context, userID int) error {
+	_, err := DB.ExecContext(ctx, "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", userID)
+	if err != nil {
+		LogError("Database Error: UpdateUserLastLogin", "error", err)
+	}
+	return err
 }
 
 // UpdateUser updates an existing user in the database.

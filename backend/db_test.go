@@ -1102,6 +1102,127 @@ func TestProjectsCRUD(t *testing.T) {
 	}
 }
 
+func TestUpdateUserLastLogin(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	hash, _ := HashPassword(testPassword)
+	u := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: hash, Role: RoleUser, Active: true}
+	if err := CreateUser(context.Background(), u); err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+
+	// 1. Newly created users have no last_login, across every read path.
+	byEmail, err := GetUserByEmail(context.Background(), testEmail)
+	if err != nil {
+		t.Fatalf("GetUserByEmail failed: %v", err)
+	}
+	if byEmail.LastLogin != nil {
+		t.Errorf("Expected nil LastLogin for new user, got %v", byEmail.LastLogin)
+	}
+
+	byID, err := GetUserByID(context.Background(), u.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if byID.LastLogin != nil {
+		t.Errorf("Expected nil LastLogin for new user, got %v", byID.LastLogin)
+	}
+
+	all, err := GetAllUsers(context.Background())
+	if err != nil {
+		t.Fatalf("GetAllUsers failed: %v", err)
+	}
+	for _, listed := range all {
+		if listed.Email == testEmail && listed.LastLogin != nil {
+			t.Errorf("Expected nil LastLogin for new user in GetAllUsers, got %v", listed.LastLogin)
+		}
+	}
+
+	// 2. UpdateUserLastLogin stamps the current time, reflected everywhere.
+	before := time.Now().UTC().Add(-time.Second)
+	if err := UpdateUserLastLogin(context.Background(), u.ID); err != nil {
+		t.Fatalf("UpdateUserLastLogin failed: %v", err)
+	}
+	after := time.Now().UTC().Add(time.Second)
+
+	byEmail, err = GetUserByEmail(context.Background(), testEmail)
+	if err != nil {
+		t.Fatalf("GetUserByEmail failed: %v", err)
+	}
+	if byEmail.LastLogin == nil {
+		t.Fatal("Expected non-nil LastLogin after UpdateUserLastLogin")
+	}
+	if byEmail.LastLogin.Before(before) || byEmail.LastLogin.After(after) {
+		t.Errorf("LastLogin %v not within expected window [%v, %v]", byEmail.LastLogin, before, after)
+	}
+
+	byID, err = GetUserByID(context.Background(), u.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if byID.LastLogin == nil {
+		t.Error("Expected non-nil LastLogin from GetUserByID after UpdateUserLastLogin")
+	}
+
+	all, err = GetAllUsers(context.Background())
+	if err != nil {
+		t.Fatalf("GetAllUsers failed: %v", err)
+	}
+	found := false
+	for _, listed := range all {
+		if listed.Email == testEmail {
+			found = true
+			if listed.LastLogin == nil {
+				t.Error("Expected non-nil LastLogin from GetAllUsers after UpdateUserLastLogin")
+			}
+		}
+	}
+	if !found {
+		t.Error("Test user not found in GetAllUsers")
+	}
+
+	// 3. Updating a non-existent user is a no-op, not an error.
+	if err := UpdateUserLastLogin(context.Background(), 999999); err != nil {
+		t.Errorf("UpdateUserLastLogin for nonexistent user should not error, got %v", err)
+	}
+}
+
+func TestMigrateUsersAddLastLogin(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	// Simulate a pre-1.3.2 database: drop the last_login column that InitDB
+	// already created, matching the state runMigrations must upgrade from.
+	if _, err := DB.Exec("ALTER TABLE users DROP COLUMN last_login"); err != nil {
+		t.Fatalf("Failed to drop last_login column for test setup: %v", err)
+	}
+
+	var count int
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='last_login'`).Scan(&count); err != nil {
+		t.Fatalf("Failed to check column: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("Expected last_login column to be absent before migration, found %d", count)
+	}
+
+	// 1. Migration adds the column.
+	if err := migrateUsersAddLastLogin(context.Background()); err != nil {
+		t.Fatalf("migrateUsersAddLastLogin failed: %v", err)
+	}
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='last_login'`).Scan(&count); err != nil {
+		t.Fatalf("Failed to check column: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected last_login column to exist after migration, found %d", count)
+	}
+
+	// 2. Migration is idempotent — running it again on an already-migrated DB is a no-op.
+	if err := migrateUsersAddLastLogin(context.Background()); err != nil {
+		t.Errorf("Second migrateUsersAddLastLogin call should be a no-op, got error: %v", err)
+	}
+}
+
 func TestProjectErrors(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()

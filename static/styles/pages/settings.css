@@ -280,6 +280,7 @@
   flex-direction: row;
   align-items: center;
   gap: 12px;
+  width: 100%;
 }
 
 .settings-entry-title {
@@ -291,6 +292,68 @@
 .settings-entry-subtitle {
   font-size: 13px;
   color: var(--muted-text);
+}
+
+/* User list: table-like grid so email / name / role / last-login columns line up
+   across rows, sized to the widest actual value in each column (not fixed pixels). */
+#users-list.settings-list {
+  display: grid;
+  /* avatar, email, name, role, last-login, trailing spacer that soaks up
+     leftover width so every row's border still spans the full list width */
+  grid-template-columns: max-content max-content minmax(0, 240px) max-content max-content minmax(0, 1fr);
+  column-gap: 20px;
+  row-gap: 12px;
+}
+
+#users-list .settings-entry {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+#users-list .settings-entry-info {
+  display: contents;
+}
+
+.settings-entry-col-email,
+.settings-entry-col-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-entry-col-lastlogin {
+  white-space: nowrap;
+}
+
+.settings-entry-col-role {
+  display: flex;
+  align-items: center;
+}
+
+/* Project list: same table-like grid — name, description, then the default
+   badge last, sized to the widest actual value in each column. */
+#projects-list.settings-list {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr) max-content;
+  column-gap: 20px;
+  row-gap: 12px;
+}
+
+#projects-list .settings-entry {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+#projects-list .settings-entry-info {
+  display: contents;
+}
+
+.settings-entry-col-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-entry-meta {
@@ -312,14 +375,18 @@
   background-color: #4c1d95;
   color: #f5f3ff;
   border: 1px solid #7c3aed;
-  margin-left: 8px;
 }
 
 .settings-entry-badge.sysadmin {
   background-color: #0e4f6e;
   color: #e0f2fe;
   border: 1px solid #0284c7;
-  margin-left: 8px;
+}
+
+.settings-entry-badge.user {
+  background-color: var(--card-bg);
+  color: var(--muted-text);
+  border: 1px solid var(--card-border);
 }
 
 .settings-entry.user-inactive .settings-entry-title,

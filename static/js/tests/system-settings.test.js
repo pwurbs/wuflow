@@ -173,6 +173,63 @@ describe('system-settings.js component', () => {
       // Reset mocks to avoid breaking subsequent tests
       utils.getUserInitials.mockReturnValue('AD');
     });
+
+    it('should render a formatted last login for a user who has logged in', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'seen@test.com', first_name: 'Seen', last_name: 'User', role: 'user', active: true, last_login: '2026-07-02T17:27:00Z' }
+      ];
+      api.fetchUsers.mockResolvedValue(users);
+
+      await renderSystemSettingsView();
+
+      const row = document.querySelector('.settings-entry');
+      expect(row.textContent).toContain('Last login:');
+      expect(row.textContent).not.toContain('Last login: Never');
+    });
+
+    it('should render "Never" as the last login for a user who has not logged in', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'unseen@test.com', first_name: 'Unseen', last_name: 'User', role: 'user', active: true, last_login: null }
+      ];
+      api.fetchUsers.mockResolvedValue(users);
+
+      await renderSystemSettingsView();
+
+      const row = document.querySelector('.settings-entry');
+      expect(row.textContent).toContain('Last login: Never');
+    });
+
+    it('should show a "User" badge for the base user role, matching admin/sysadmin badges', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'plain@test.com', first_name: 'Plain', last_name: 'User', role: 'user', active: true }
+      ];
+      api.fetchUsers.mockResolvedValue(users);
+
+      await renderSystemSettingsView();
+
+      const row = document.querySelector('.settings-entry');
+      expect(row.innerHTML).toContain('settings-entry-badge user');
+      expect(row.textContent).toContain('User');
+    });
+
+    it('should render the role badge before the last-login column', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'order@test.com', first_name: 'Order', last_name: 'Test', role: 'admin', active: true, last_login: null }
+      ];
+      api.fetchUsers.mockResolvedValue(users);
+
+      await renderSystemSettingsView();
+
+      const row = document.querySelector('.settings-entry');
+      const roleIndex = row.innerHTML.indexOf('settings-entry-badge admin');
+      const lastLoginIndex = row.innerHTML.indexOf('Last login:');
+      expect(roleIndex).toBeGreaterThan(-1);
+      expect(lastLoginIndex).toBeGreaterThan(roleIndex);
+    });
   });
 
   describe('User Modal', () => {
@@ -1002,6 +1059,19 @@ describe('Project Management', () => {
       const row = document.querySelector('#projects-list .settings-entry');
       expect(row.textContent).toContain('default');
       expect(row.innerHTML).toContain('admin');
+    });
+
+    it('should render the default badge as the last column, after name and description', async () => {
+      api.fetchProjects.mockResolvedValue([{ id: 1, name: 'default', description: 'The default project' }]);
+      await renderSystemSettingsView();
+
+      const row = document.querySelector('#projects-list .settings-entry');
+      const nameIndex = row.innerHTML.indexOf('settings-entry-col-name');
+      const descIndex = row.innerHTML.indexOf('settings-entry-col-description');
+      const badgeIndex = row.innerHTML.indexOf('settings-entry-badge admin');
+      expect(nameIndex).toBeGreaterThan(-1);
+      expect(descIndex).toBeGreaterThan(nameIndex);
+      expect(badgeIndex).toBeGreaterThan(descIndex);
     });
 
     it('should show error message when fetchProjects fails', async () => {

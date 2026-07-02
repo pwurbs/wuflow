@@ -244,6 +244,65 @@ test.describe('User Management', () => {
     await expect(badge).toHaveText('BT');
   });
 
+  test('Newly created user shows "Never" as last login and a User role badge', async ({ page }) => {
+    await page.click('#add-user-btn');
+    const testEmail = `never_login_${Date.now()}@example.com`;
+    await page.fill('#user-email', testEmail);
+    await page.fill('#user-first-name', 'Never');
+    await page.fill('#user-last-name', 'Login');
+    await page.fill('#user-password', generatePassword());
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    const userRow = page.locator(`.settings-entry:has-text("${testEmail}")`);
+    await expect(userRow).toBeVisible();
+    await expect(userRow).toContainText('Last login: Never');
+    await expect(userRow.locator('.settings-entry-badge.user')).toBeVisible();
+    await expect(userRow.locator('.settings-entry-badge.user')).toContainText('User');
+  });
+
+  test('Last login is recorded and displayed after the user logs in', async ({ page, workerServer }) => {
+    // 1. Create a test user
+    await page.click('#add-user-btn');
+    const testEmail = `last_login_${Date.now()}@example.com`;
+    const testPassword = generatePassword();
+    await page.fill('#user-email', testEmail);
+    await page.fill('#user-first-name', 'Last');
+    await page.fill('#user-last-name', 'Login');
+    await page.fill('#user-password', testPassword);
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    const userRowBeforeLogin = page.locator(`.settings-entry:has-text("${testEmail}")`);
+    await expect(userRowBeforeLogin).toContainText('Last login: Never');
+
+    // 2. Log out sysadmin, log in as the new user, then log back out
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+
+    await page.fill('#login-email', testEmail);
+    await page.fill('#login-password', testPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+
+    // 3. Log back in as sysadmin and verify the row no longer shows "Never"
+    await page.fill('#login-email', workerServer.adminEmail);
+    await page.fill('#login-password', workerServer.adminPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
+    await page.click('#nav-system-settings');
+
+    const userRowAfterLogin = page.locator(`.settings-entry:has-text("${testEmail}")`);
+    await expect(userRowAfterLogin).toBeVisible();
+    await expect(userRowAfterLogin).toContainText('Last login:');
+    await expect(userRowAfterLogin).not.toContainText('Last login: Never');
+  });
+
   test('Admin confirmation dialog is required when changing a user password', async ({ page, workerServer }) => {
     // Create a test user to edit
     await page.click('#add-user-btn');

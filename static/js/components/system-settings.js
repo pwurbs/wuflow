@@ -223,9 +223,9 @@ async function renderProjectList(refreshCallback) {
 
       row.innerHTML = `
         <div class="settings-entry-info">
-          <span class="settings-entry-title">${escapeHtml(project.name)}</span>
-          ${isDefault ? '<span class="settings-entry-badge admin">default</span>' : ''}
-          <span class="settings-entry-subtitle">${desc}</span>
+          <span class="settings-entry-title settings-entry-col-name" title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</span>
+          <span class="settings-entry-subtitle settings-entry-col-description">${desc}</span>
+          <span class="settings-entry-col-role">${isDefault ? '<span class="settings-entry-badge admin">default</span>' : ''}</span>
         </div>
       `;
 
@@ -593,15 +593,24 @@ async function renderUserList(refreshCallback) {
       const row = document.createElement('div');
       row.className = user.active ? 'settings-entry' : 'settings-entry user-inactive';
 
-      const roleBadgeMap = { sysadmin: '<span class="settings-entry-badge sysadmin">Sysadmin</span>', admin: '<span class="settings-entry-badge admin">Admin</span>' };
-      const adminBadge = roleBadgeMap[user.role] ?? '';
+      const roleBadgeMap = {
+        sysadmin: '<span class="settings-entry-badge sysadmin">Sysadmin</span>',
+        admin: '<span class="settings-entry-badge admin">Admin</span>',
+        user: '<span class="settings-entry-badge user">User</span>',
+      };
+      const roleBadge = roleBadgeMap[user.role] ?? '';
+
+      const lastLoginText = user.last_login
+        ? new Date(user.last_login).toLocaleDateString(navigator.language) + ' / ' + new Date(user.last_login).toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' })
+        : 'Never';
 
       row.innerHTML = `
         <div class="settings-entry-info">
           <div class="user-badge">${escapeHtml(getUserInitials(user))}</div>
-          <span class="settings-entry-title">${escapeHtml(user.email)}</span>
-          <span class="settings-entry-subtitle">(${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)})</span>
-          ${adminBadge}
+          <span class="settings-entry-title settings-entry-col-email" title="${escapeHtml(user.email)}">${escapeHtml(user.email)}</span>
+          <span class="settings-entry-subtitle settings-entry-col-name" title="${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}">${escapeHtml(user.first_name)} ${escapeHtml(user.last_name)}</span>
+          <span class="settings-entry-col-role">${roleBadge}</span>
+          <span class="settings-entry-subtitle settings-entry-col-lastlogin">Last login: ${lastLoginText}</span>
         </div>
       `;
 
