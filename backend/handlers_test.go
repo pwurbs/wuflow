@@ -1701,6 +1701,131 @@ func TestHandleUpdateUserPasswordSuccess(t *testing.T) {
 	}
 }
 
+func TestHandleUpdateUserDeactivateRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	const adminPass = "AdminPassword123!"
+	adminHash, _ := HashPassword(adminPass)
+	admin := &User{Email: "admin@t.com", PasswordHash: adminHash, Active: true, Role: RoleSysAdmin}
+	CreateUser(context.Background(), admin)
+
+	hash, _ := HashPassword("oldpass")
+	user := &User{Email: "t@t.com", PasswordHash: hash, Active: true, Role: RoleUser}
+	CreateUser(context.Background(), user)
+	path := apiUsersBase + strconv.Itoa(user.ID)
+
+	baseBody := map[string]any{
+		"email":      "t@t.com",
+		"first_name": "Test",
+		"last_name":  "User",
+		"role":       "user",
+		"active":     false, // deactivating
+	}
+
+	// Without admin_password: rejected
+	body, _ := json.Marshal(baseBody)
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
+	ctx = context.WithValue(ctx, contextKeyEmail, admin.Email)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	stillActive, _ := GetUserByID(context.Background(), user.ID)
+	if !stillActive.Active {
+		t.Error("User should not have been deactivated without admin_password confirmation")
+	}
+
+	// With wrong admin_password: rejected
+	wrongBody := map[string]any{}
+	for k, v := range baseBody {
+		wrongBody[k] = v
+	}
+	wrongBody["admin_password"] = "WrongPassword123!"
+	body, _ = json.Marshal(wrongBody)
+	req = httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request with wrong admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// With correct admin_password: succeeds
+	correctBody := map[string]any{}
+	for k, v := range baseBody {
+		correctBody[k] = v
+	}
+	correctBody["admin_password"] = adminPass
+	body, _ = json.Marshal(correctBody)
+	req = httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	deactivated, _ := GetUserByID(context.Background(), user.ID)
+	if deactivated.Active {
+		t.Error("User should have been deactivated after admin_password confirmation")
+	}
+}
+
+func TestHandleUpdateUserReactivateRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	const adminPass = "AdminPassword123!"
+	adminHash, _ := HashPassword(adminPass)
+	admin := &User{Email: "admin@t.com", PasswordHash: adminHash, Active: true, Role: RoleSysAdmin}
+	CreateUser(context.Background(), admin)
+
+	hash, _ := HashPassword("oldpass")
+	user := &User{Email: "t@t.com", PasswordHash: hash, Active: false, Role: RoleUser}
+	CreateUser(context.Background(), user)
+	path := apiUsersBase + strconv.Itoa(user.ID)
+
+	// Without admin_password: rejected
+	updateBody := map[string]any{
+		"email":      "t@t.com",
+		"first_name": "Test",
+		"last_name":  "User",
+		"role":       "user",
+		"active":     true, // reactivating
+	}
+	body, _ := json.Marshal(updateBody)
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
+	ctx = context.WithValue(ctx, contextKeyEmail, admin.Email)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// With correct admin_password: succeeds
+	updateBody["admin_password"] = adminPass
+	body, _ = json.Marshal(updateBody)
+	req = httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
+	req = req.WithContext(ctx)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	reactivated, _ := GetUserByID(context.Background(), user.ID)
+	if !reactivated.Active {
+		t.Error("User should have been reactivated after admin_password confirmation")
+	}
+}
+
 func TestHandleUpdateSelf(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
@@ -2727,11 +2852,15 @@ func TestHandleProjectDelete(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
 	p := &Project{Name: toDelete}
 	CreateProject(context.Background(), p)
 
 	path := apiProjectsBase + strconv.Itoa(p.ID)
-	req, _ := http.NewRequest("DELETE", path, nil)
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req, _ := http.NewRequest("DELETE", path, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
@@ -2769,12 +2898,16 @@ func TestHandleProjectDeleteWithIssuesBlocked(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
 	p := &Project{Name: "Has Issues"}
 	CreateProject(context.Background(), p)
 	CreateIssue(context.Background(), &Issue{Title: "I1", ProjectID: p.ID})
 
 	path := apiProjectsBase + strconv.Itoa(p.ID)
-	req, _ := http.NewRequest("DELETE", path, nil)
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req, _ := http.NewRequest("DELETE", path, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
@@ -2931,16 +3064,70 @@ func TestHandleUpdateProjectDuplicateName(t *testing.T) {
 	}
 }
 
+func TestHandleDeleteProjectRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
+	p := &Project{Name: "ToDeleteProtected"}
+	CreateProject(context.Background(), p)
+	path := apiProjectsBase + strconv.Itoa(p.ID)
+
+	// No admin_password: rejected, project not deleted
+	req := httptest.NewRequest("DELETE", path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if p2, _ := GetProjectByID(context.Background(), p.ID); p2 == nil {
+		t.Error("Project should not have been deleted without admin_password confirmation")
+	}
+
+	// Wrong admin_password: rejected
+	body, _ := json.Marshal(map[string]string{"admin_password": "WrongPassword123!"})
+	req = httptest.NewRequest("DELETE", path, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request with wrong admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Correct admin_password: succeeds
+	body, _ = json.Marshal(map[string]string{"admin_password": testPassword})
+	req = httptest.NewRequest("DELETE", path, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if p2, _ := GetProjectByID(context.Background(), p.ID); p2 != nil {
+		t.Error("Project should have been deleted after admin_password confirmation")
+	}
+}
+
 func TestHandleDeleteProjectNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
+
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
 
 	p := &Project{Name: "GoneProject"}
 	CreateProject(context.Background(), p)
 	path := apiProjectsBase + strconv.Itoa(p.ID)
 	DeleteProject(context.Background(), p.ID) // pre-delete so the handler hits ErrProjectNotFound
 
-	req := httptest.NewRequest("DELETE", path, nil)
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req := httptest.NewRequest("DELETE", path, bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
@@ -3460,6 +3647,9 @@ func TestHandleDeleteProjectCountDBError(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
 	p := &Project{Name: "CountFail"}
 	CreateProject(context.Background(), p)
 
@@ -3468,7 +3658,8 @@ func TestHandleDeleteProjectCountDBError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
@@ -3485,6 +3676,9 @@ func TestHandleDeleteProjectGenericDBError(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
 	p := &Project{Name: "DeleteFail"}
 	CreateProject(context.Background(), p)
 
@@ -3494,7 +3688,8 @@ func TestHandleDeleteProjectGenericDBError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
@@ -3511,10 +3706,14 @@ func TestHandleDeleteProjectEncodeError(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
 	p := &Project{Name: "EncodeErrDel"}
 	CreateProject(context.Background(), p)
 
-	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), nil)
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req := httptest.NewRequest("DELETE", apiProjectsBase+strconv.Itoa(p.ID), bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	handleDeleteProject(&failWriter{ResponseWriter: httptest.NewRecorder()}, req, p.ID)
 }

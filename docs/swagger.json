@@ -49,6 +49,12 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "last_login": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Timestamp of the user's last successful login. Null if the user has never logged in."
           }
         }
       },
@@ -369,7 +375,7 @@
           },
           "admin_password": {
             "type": "string",
-            "description": "Required when 'password' is provided or the role is being promoted (user→admin, user→sysadmin, admin→sysadmin). The requesting sysadmin's own current password for confirmation."
+            "description": "Required when 'password' is provided, the role is being promoted (user→admin, user→sysadmin, admin→sysadmin), or 'active' is being changed. The requesting sysadmin's own current password for confirmation."
           },
           "role": {
             "type": "string",
@@ -534,6 +540,16 @@
           }
         },
         "required": ["name"]
+      },
+      "ProjectDeleteRequest": {
+        "type": "object",
+        "properties": {
+          "admin_password": {
+            "type": "string",
+            "description": "Required. The requesting sysadmin's own current password for confirmation."
+          }
+        },
+        "required": ["admin_password"]
       },
       "StatusConfigUpdateRequest": {
         "type": "object",
@@ -1700,12 +1716,22 @@
         "description": "Requires sysadmin role.",
         "x-required-role": "sysadmin",
         "tags": ["Projects"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectDeleteRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Project deleted"
           },
           "400": {
-            "description": "Bad Request - cannot delete default project (id=1) or project still has assigned issues"
+            "description": "Bad Request - cannot delete default project (id=1), project still has assigned issues, or admin_password missing/incorrect"
           },
           "401": {
             "description": "Unauthorized"

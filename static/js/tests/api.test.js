@@ -338,14 +338,16 @@ describe('api', () => {
   });
 
   describe('deleteProject', () => {
-    it('sends DELETE and resolves on success', async () => {
+    it('sends DELETE with admin_password body and resolves on success', async () => {
       fetch.mockResolvedValue(makeResponse(200, ''));
-      await expect(deleteProject(1)).resolves.not.toThrow();
+      await expect(deleteProject(1, 'AdminPass123!')).resolves.not.toThrow();
+      expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ admin_password: 'AdminPass123!' });
     });
 
     it('throws on failure', async () => {
       fetch.mockResolvedValue(makeResponse(403, 'No permission'));
-      await expect(deleteProject(1)).rejects.toThrow('No permission');
+      await expect(deleteProject(1, 'AdminPass123!')).rejects.toThrow('No permission');
     });
   });
 

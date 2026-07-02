@@ -54,16 +54,22 @@ test.describe('User Management', () => {
     await expect(userRow.locator('.settings-entry-badge.admin')).toBeVisible();
     await expect(userRow.locator('.settings-entry-badge.sysadmin')).toBeHidden();
 
-    // 3. Deactivate User
+    // 3. Deactivate User (requires admin password confirmation)
     await userRow.click();
     await page.uncheck('#user-active');
     await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await expect(userRow).toHaveClass(/user-inactive/);
 
-    // 4. Reactivate User
+    // 4. Reactivate User (requires admin password confirmation)
     await userRow.click();
     await page.check('#user-active');
     await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await expect(userRow).not.toHaveClass(/user-inactive/);
 
     // 5. Cleanup: Demote and Deactivate so it doesn't interfere with other tests
@@ -72,10 +78,14 @@ test.describe('User Management', () => {
     await page.click('.custom-option[data-value="user"]');
     await page.uncheck('#user-active');
     await page.click('#user-modal-save');
+    // Deactivating requires admin password confirmation even though the role demotion alone would not
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
   });
 
-  test('Sysadmin cannot deactivate the last active sysadmin', async ({ page }) => {
+  test('Sysadmin cannot deactivate the last active sysadmin', async ({ page, workerServer }) => {
     // We expect the configured sysadmin to be the only active sysadmin here.
     const sysadminRow = page.locator(`.settings-entry:has-text("${adminEmail}")`);
     await expect(sysadminRow).toBeVisible();
@@ -83,9 +93,14 @@ test.describe('User Management', () => {
     await sysadminRow.click();
     await expect(page.locator('#user-modal-overlay')).toBeVisible();
 
-    // Attempt Deactivate
+    // Attempt Deactivate — the active toggle requires admin password confirmation
+    // before the request is even sent, but the backend still rejects it because
+    // this is the last active sysadmin.
     await page.uncheck('#user-active');
     await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
 
     // Check for error
     const errorDisplay = page.locator('#user-modal-error');
@@ -377,6 +392,79 @@ test.describe('User Management', () => {
     await page.click('.custom-option[data-value="user"]');
     await page.click('#user-modal-save');
     await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+  });
+
+  test('Admin confirmation dialog is required when activating or deactivating a user', async ({ page, workerServer }) => {
+    // Create a test user
+    await page.click('#add-user-btn');
+    const testEmail = `confirm_active_${Date.now()}@example.com`;
+    await page.fill('#user-email', testEmail);
+    await page.fill('#user-first-name', 'Active');
+    await page.fill('#user-last-name', 'Confirm');
+    await page.fill('#user-password', generatePassword());
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    const userRow = page.locator(`.settings-entry:has-text("${testEmail}")`);
+
+    // Saving without changing active status does NOT require confirmation
+    await userRow.click();
+    await page.fill('#user-first-name', 'ActiveEdited');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    // Deactivating requires confirmation — cancel aborts the save
+    await userRow.click();
+    await page.uncheck('#user-active');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.click('#admin-confirm-cancel-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-overlay')).toBeVisible();
+    await expect(userRow).not.toHaveClass(/user-inactive/);
+    await page.click('#user-modal-cancel');
+
+    // Deactivating with the wrong admin password is rejected
+    await userRow.click();
+    await page.uncheck('#user-active');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', 'WrongAdminPass123!');
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-error')).toBeVisible();
+    await expect(userRow).not.toHaveClass(/user-inactive/);
+    await page.click('#user-modal-cancel');
+
+    // Deactivating with the correct admin password succeeds
+    await userRow.click();
+    await page.uncheck('#user-active');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+    await expect(userRow).toHaveClass(/user-inactive/);
+
+    // Reactivating also requires confirmation
+    await userRow.click();
+    await page.check('#user-active');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+    await expect(userRow).not.toHaveClass(/user-inactive/);
+
+    // Cleanup: deactivate so it doesn't interfere with other tests
+    await userRow.click();
+    await page.uncheck('#user-active');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
   });
 

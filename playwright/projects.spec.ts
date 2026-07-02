@@ -78,7 +78,7 @@ test.describe('Project Management', () => {
     await expect(page.locator('#projects-list')).toContainText('Updated description');
   });
 
-  test('Delete a project', async ({ page }) => {
+  test('Delete a project', async ({ page, workerServer }) => {
     // Create a project to delete
     await page.click('#add-project-btn');
     const name = `del_${Date.now()}`.slice(0, 15);
@@ -97,6 +97,44 @@ test.describe('Project Management', () => {
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.click('#confirm-ok-btn');
 
+    // Deletion requires admin password confirmation
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
+
+    await expect(page.locator('#projects-list')).not.toContainText(name);
+  });
+
+  test('Deleting a project is rejected with the wrong admin password', async ({ page, workerServer }) => {
+    // Create a project to attempt to delete
+    await page.click('#add-project-btn');
+    const name = `delfail_${Date.now()}`.slice(0, 15);
+    await page.fill('#project-name', name);
+    await page.click('#project-modal-save');
+    await expect(page.locator('#project-modal-overlay')).toBeHidden();
+    await expect(page.locator('#projects-list')).toContainText(name);
+
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
+    await projectRow.click();
+    await page.click('#project-modal-delete');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.click('#confirm-ok-btn');
+
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', 'WrongAdminPass123!');
+    await page.click('#admin-confirm-ok-btn');
+
+    // Rejected — project modal reopens with an error, project still listed
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#project-modal-error')).toBeVisible();
+    await expect(page.locator('#projects-list')).toContainText(name);
+
+    // Cleanup — delete it for real
+    await page.click('#project-modal-delete');
+    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await expect(page.locator('#projects-list')).not.toContainText(name);
   });
 
@@ -111,7 +149,7 @@ test.describe('Project Management', () => {
     await page.click('#project-modal-cancel');
   });
 
-  test('Duplicate project name shows an error', async ({ page }) => {
+  test('Duplicate project name shows an error', async ({ page, workerServer }) => {
     // Create first project
     await page.click('#add-project-btn');
     const name = `dup_${Date.now()}`.slice(0, 15);
@@ -134,6 +172,9 @@ test.describe('Project Management', () => {
     await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
   });
 });
 
@@ -163,7 +204,7 @@ test.describe('Project Selector', () => {
     await expect(selectorText).not.toBeEmpty();
   });
 
-  test('Newly created project appears in the project selector', async ({ page }) => {
+  test('Newly created project appears in the project selector', async ({ page, workerServer }) => {
     // Create a project
     await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
@@ -183,9 +224,12 @@ test.describe('Project Selector', () => {
     await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
   });
 
-  test('Selecting a project updates the selector label', async ({ page }) => {
+  test('Selecting a project updates the selector label', async ({ page, workerServer }) => {
     // Create a second project to switch to
     await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
@@ -206,6 +250,9 @@ test.describe('Project Selector', () => {
     await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
   });
 });
 
@@ -238,7 +285,7 @@ test.describe('Issues with Projects', () => {
     await page.click('#done-btn');
   });
 
-  test('Issues from another project are not shown when a different project is selected', async ({ page }) => {
+  test('Issues from another project are not shown when a different project is selected', async ({ page, workerServer }) => {
     // Create a second project
     await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
@@ -266,6 +313,9 @@ test.describe('Issues with Projects', () => {
     await projectRow.click();
     await page.click('#project-modal-delete');
     await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
   });
 });
 

@@ -89,6 +89,7 @@ Refreshes the access token using the refresh token cookie.
 - **Response**: Sets new access token cookie
 - **Errors**:
   - `401 Unauthorized` - Invalid or expired refresh token, or inactive user
+  - `429 Too Many Requests` - Rate limit exceeded (10 attempts per minute per IP)
 
 ### Get Current User
 Retrieves the authenticated user's details.
@@ -170,7 +171,7 @@ Updates an existing user (Sysadmin only).
   ```
 - **Notes**:
   - `password` is optional; leave empty to keep current password
-  - `admin_password` is required when `password` is non-empty **or** when the role is being promoted (`user→admin`, `user→sysadmin`, `admin→sysadmin`) — the requesting sysadmin must confirm their own current password to authorise the change
+  - `admin_password` is required when `password` is non-empty, the role is being promoted (`user→admin`, `user→sysadmin`, `admin→sysadmin`), **or** the `active` flag is being changed (activating or deactivating the user) — the requesting sysadmin must confirm their own current password to authorise the change
   - Cannot deactivate or demote the last active sysadmin
 - **Response**: Updated user object
 - **Errors**:
@@ -453,9 +454,17 @@ Updates an existing project (Sysadmin only).
 Deletes a project (Sysadmin only).
 - **DELETE** `/projects/:pId`
 - **Path parameters**: `pId` (project)
+- **Body**:
+  ```json
+  {
+    "admin_password": "YourOwnPassword123!"
+  }
+  ```
+- **Notes**:
+  - `admin_password` is always required — the requesting sysadmin must confirm their own current password to authorise the deletion
 - **Response**: `200 OK` with confirmation message
 - **Errors**:
-  - `400 Bad Request` - Cannot delete the default project (id=1) or project still has assigned issues
+  - `400 Bad Request` - Cannot delete the default project (id=1), project still has assigned issues, or `admin_password` missing/incorrect
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not a sysadmin
   - `404 Not Found` - Project doesn't exist

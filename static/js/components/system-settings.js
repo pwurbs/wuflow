@@ -160,8 +160,12 @@ function handleDeleteProject(refreshCallback) {
   confirmMessage.textContent = 'Are you sure you want to delete this project?';
 
   const handleOk = async () => {
+    cleanup();
+    const adminPassword = await promptAdminPasswordConfirmation();
+    if (adminPassword === null) return;
+
     try {
-      await deleteProject(editingProjectId);
+      await deleteProject(editingProjectId, adminPassword);
       showNotification('Project deleted', 'success');
       closeProjectModal();
       renderSystemSettingsView(refreshCallback);
@@ -169,8 +173,6 @@ function handleDeleteProject(refreshCallback) {
     } catch (err) {
       const errorDisplay = document.getElementById('project-modal-error');
       showProjectError(errorDisplay, err.message);
-    } finally {
-      cleanup();
     }
   };
 
@@ -248,6 +250,7 @@ async function renderProjectList(refreshCallback) {
 
 let editingUserId = null;
 let editingUserOriginalRole = null;
+let editingUserOriginalActive = null;
 
 const ROLE_RANK = { user: 0, admin: 1, sysadmin: 2 };
 function isRolePromotion(fromRole, toRole) {
@@ -308,6 +311,7 @@ function openUserModal(user) {
   if (user) {
     editingUserId = user.id;
     editingUserOriginalRole = user.role;
+    editingUserOriginalActive = user.active;
     modalTitle.textContent = 'Edit User';
     emailInput.value = user.email;
     firstNameInput.value = user.first_name;
@@ -329,6 +333,7 @@ function openUserModal(user) {
   } else {
     editingUserId = null;
     editingUserOriginalRole = null;
+    editingUserOriginalActive = null;
     modalTitle.textContent = 'New User';
     userForm.reset();
     activeInput.checked = true; // Default to active
@@ -357,6 +362,7 @@ function closeUserModal() {
   overlay.classList.add('hidden');
   editingUserId = null;
   editingUserOriginalRole = null;
+  editingUserOriginalActive = null;
 }
 
 async function handleUserSubmit(refreshCallback) {
@@ -404,7 +410,7 @@ async function handleUserSubmit(refreshCallback) {
 }
 
 async function applyUserUpdate(userData) {
-  if (userData.password || isRolePromotion(editingUserOriginalRole, userData.role)) {
+  if (userData.password || isRolePromotion(editingUserOriginalRole, userData.role) || userData.active !== editingUserOriginalActive) {
     const adminPassword = await promptAdminPasswordConfirmation();
     if (adminPassword === null) return false;
     userData.admin_password = adminPassword;

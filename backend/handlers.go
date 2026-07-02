@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1370,6 +1371,7 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	}
 
 	originalRole := existing.Role
+	originalActive := existing.Active
 	existing.Role = req.Role
 	existing.Active = req.Active
 
@@ -1384,7 +1386,7 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 		revokeSessions = true
 	}
 
-	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) {
+	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) || req.Active != originalActive {
 		adminUser, err := GetUserByEmail(ctx, userEmail)
 		if err != nil || adminUser == nil {
 			return false, errAdminCheckDB
@@ -1780,6 +1782,11 @@ func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {
 	}
 }
 
+// projectDeleteRequest is the expected JSON body for DELETE /api/projects/{pId}.
+type projectDeleteRequest struct {
+	AdminPassword string `json:"admin_password"`
+}
+
 func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
 	userEmail := GetEmailFromContext(r.Context())
 
@@ -1787,6 +1794,25 @@ func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
 	if id == 1 {
 		LogWarn("Attempt to delete default project blocked", "id", id, "user_email", userEmail)
 		http.Error(w, errMsgDefaultProject, http.StatusBadRequest)
+		return
+	}
+
+	var req projectDeleteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		LogWarn("DeleteProject: failed to decode request", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+		return
+	}
+
+	adminUser, err := GetUserByEmail(r.Context(), userEmail)
+	if err != nil || adminUser == nil {
+		LogError("DeleteProject: failed to load requesting admin", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if req.AdminPassword == "" || !CheckPassword(adminUser.PasswordHash, req.AdminPassword) {
+		LogWarn("DeleteProject: admin password confirmation failed", "id", id, "user_email", userEmail)
+		http.Error(w, "admin password confirmation required", http.StatusBadRequest)
 		return
 	}
 

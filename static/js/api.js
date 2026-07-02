@@ -362,9 +362,11 @@ export async function updateProject(id, project) {
   return await res.json();
 }
 
-export async function deleteProject(id) {
+export async function deleteProject(id, adminPassword) {
   const res = await authFetch(`${API_URL}/projects/${id}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_password: adminPassword })
   });
   if (!res.ok) {
     const text = await res.text();
