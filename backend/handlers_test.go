@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -1742,9 +1743,7 @@ func TestHandleUpdateUserDeactivateRequiresAdminPassword(t *testing.T) {
 
 	// With wrong admin_password: rejected
 	wrongBody := map[string]any{}
-	for k, v := range baseBody {
-		wrongBody[k] = v
-	}
+	maps.Copy(wrongBody, baseBody)
 	wrongBody["admin_password"] = "WrongPassword123!"
 	body, _ = json.Marshal(wrongBody)
 	req = httptest.NewRequest("PUT", path, bytes.NewBuffer(body))
@@ -1757,9 +1756,7 @@ func TestHandleUpdateUserDeactivateRequiresAdminPassword(t *testing.T) {
 
 	// With correct admin_password: succeeds
 	correctBody := map[string]any{}
-	for k, v := range baseBody {
-		correctBody[k] = v
-	}
+	maps.Copy(correctBody, baseBody)
 	correctBody["admin_password"] = adminPass
 	body, _ = json.Marshal(correctBody)
 	req = httptest.NewRequest("PUT", path, bytes.NewBuffer(body))

@@ -10,7 +10,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ -z "${1}" ]; then
+if [[ -z "${1}" ]]; then
     echo "Usage: bash deploy/helm_deploy.sh [dev|prod]"
     exit 1
 fi
@@ -18,15 +18,15 @@ ENV=${1}
 KUBECONFIG_PATH="${HOME}/.kube/wuflow-${ENV}.yaml"
 SECRETS_FILE="${SCRIPT_DIR}/secrets.${ENV}.yaml"
 
-if [ ! -f "${KUBECONFIG_PATH}" ]; then
-    echo "Error: Kubeconfig not found: ${KUBECONFIG_PATH}"
-    echo "Download the kubeconfig from your cluster management UI."
+if [[ ! -f "${KUBECONFIG_PATH}" ]]; then
+    echo "Error: Kubeconfig not found: ${KUBECONFIG_PATH}" >&2
+    echo "Download the kubeconfig from your cluster management UI." >&2
     exit 1
 fi
 
-if [ ! -f "${SECRETS_FILE}" ]; then
-    echo "Error: ${SECRETS_FILE} not found."
-    echo "See chart/README.md for the required file structure."
+if [[ ! -f "${SECRETS_FILE}" ]]; then
+    echo "Error: ${SECRETS_FILE} not found." >&2
+    echo "See chart/README.md for the required file structure." >&2
     exit 1
 fi
 

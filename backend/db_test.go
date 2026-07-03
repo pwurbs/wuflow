@@ -1102,6 +1102,81 @@ func TestProjectsCRUD(t *testing.T) {
 	}
 }
 
+// assertLastLoginNilEverywhere checks that a user's LastLogin is nil across
+// every read path: GetUserByEmail, GetUserByID, and GetAllUsers.
+func assertLastLoginNilEverywhere(t *testing.T, email string, userID int) {
+	t.Helper()
+
+	byEmail, err := GetUserByEmail(context.Background(), email)
+	if err != nil {
+		t.Fatalf("GetUserByEmail failed: %v", err)
+	}
+	if byEmail.LastLogin != nil {
+		t.Errorf("Expected nil LastLogin for new user, got %v", byEmail.LastLogin)
+	}
+
+	byID, err := GetUserByID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if byID.LastLogin != nil {
+		t.Errorf("Expected nil LastLogin for new user, got %v", byID.LastLogin)
+	}
+
+	listed := findUserByEmail(t, email)
+	if listed.LastLogin != nil {
+		t.Errorf("Expected nil LastLogin for new user in GetAllUsers, got %v", listed.LastLogin)
+	}
+}
+
+// assertLastLoginSetEverywhere checks that a user's LastLogin is non-nil across
+// every read path, and that the value from GetUserByEmail falls within [before, after].
+func assertLastLoginSetEverywhere(t *testing.T, email string, userID int, before, after time.Time) {
+	t.Helper()
+
+	byEmail, err := GetUserByEmail(context.Background(), email)
+	if err != nil {
+		t.Fatalf("GetUserByEmail failed: %v", err)
+	}
+	if byEmail.LastLogin == nil {
+		t.Fatal("Expected non-nil LastLogin after UpdateUserLastLogin")
+	}
+	if byEmail.LastLogin.Before(before) || byEmail.LastLogin.After(after) {
+		t.Errorf("LastLogin %v not within expected window [%v, %v]", byEmail.LastLogin, before, after)
+	}
+
+	byID, err := GetUserByID(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if byID.LastLogin == nil {
+		t.Error("Expected non-nil LastLogin from GetUserByID after UpdateUserLastLogin")
+	}
+
+	listed := findUserByEmail(t, email)
+	if listed.LastLogin == nil {
+		t.Error("Expected non-nil LastLogin from GetAllUsers after UpdateUserLastLogin")
+	}
+}
+
+// findUserByEmail returns the user with the given email from GetAllUsers,
+// failing the test if the user isn't listed.
+func findUserByEmail(t *testing.T, email string) User {
+	t.Helper()
+
+	all, err := GetAllUsers(context.Background())
+	if err != nil {
+		t.Fatalf("GetAllUsers failed: %v", err)
+	}
+	for _, listed := range all {
+		if listed.Email == email {
+			return listed
+		}
+	}
+	t.Fatalf("Test user %q not found in GetAllUsers", email)
+	return User{}
+}
+
 func TestUpdateUserLastLogin(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
@@ -1113,31 +1188,7 @@ func TestUpdateUserLastLogin(t *testing.T) {
 	}
 
 	// 1. Newly created users have no last_login, across every read path.
-	byEmail, err := GetUserByEmail(context.Background(), testEmail)
-	if err != nil {
-		t.Fatalf("GetUserByEmail failed: %v", err)
-	}
-	if byEmail.LastLogin != nil {
-		t.Errorf("Expected nil LastLogin for new user, got %v", byEmail.LastLogin)
-	}
-
-	byID, err := GetUserByID(context.Background(), u.ID)
-	if err != nil {
-		t.Fatalf("GetUserByID failed: %v", err)
-	}
-	if byID.LastLogin != nil {
-		t.Errorf("Expected nil LastLogin for new user, got %v", byID.LastLogin)
-	}
-
-	all, err := GetAllUsers(context.Background())
-	if err != nil {
-		t.Fatalf("GetAllUsers failed: %v", err)
-	}
-	for _, listed := range all {
-		if listed.Email == testEmail && listed.LastLogin != nil {
-			t.Errorf("Expected nil LastLogin for new user in GetAllUsers, got %v", listed.LastLogin)
-		}
-	}
+	assertLastLoginNilEverywhere(t, testEmail, u.ID)
 
 	// 2. UpdateUserLastLogin stamps the current time, reflected everywhere.
 	before := time.Now().UTC().Add(-time.Second)
@@ -1145,42 +1196,7 @@ func TestUpdateUserLastLogin(t *testing.T) {
 		t.Fatalf("UpdateUserLastLogin failed: %v", err)
 	}
 	after := time.Now().UTC().Add(time.Second)
-
-	byEmail, err = GetUserByEmail(context.Background(), testEmail)
-	if err != nil {
-		t.Fatalf("GetUserByEmail failed: %v", err)
-	}
-	if byEmail.LastLogin == nil {
-		t.Fatal("Expected non-nil LastLogin after UpdateUserLastLogin")
-	}
-	if byEmail.LastLogin.Before(before) || byEmail.LastLogin.After(after) {
-		t.Errorf("LastLogin %v not within expected window [%v, %v]", byEmail.LastLogin, before, after)
-	}
-
-	byID, err = GetUserByID(context.Background(), u.ID)
-	if err != nil {
-		t.Fatalf("GetUserByID failed: %v", err)
-	}
-	if byID.LastLogin == nil {
-		t.Error("Expected non-nil LastLogin from GetUserByID after UpdateUserLastLogin")
-	}
-
-	all, err = GetAllUsers(context.Background())
-	if err != nil {
-		t.Fatalf("GetAllUsers failed: %v", err)
-	}
-	found := false
-	for _, listed := range all {
-		if listed.Email == testEmail {
-			found = true
-			if listed.LastLogin == nil {
-				t.Error("Expected non-nil LastLogin from GetAllUsers after UpdateUserLastLogin")
-			}
-		}
-	}
-	if !found {
-		t.Error("Test user not found in GetAllUsers")
-	}
+	assertLastLoginSetEverywhere(t, testEmail, u.ID, before, after)
 
 	// 3. Updating a non-existent user is a no-op, not an error.
 	if err := UpdateUserLastLogin(context.Background(), 999999); err != nil {

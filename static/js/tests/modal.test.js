@@ -850,7 +850,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       const container = document.getElementById('planned-dates-container');
-      expect(container.querySelectorAll('.date-chip').length).toBe(1);
+      expect(container.querySelectorAll('.date-chip')).toHaveLength(1);
       expect(container.querySelector('.date-chip').dataset.date).toBe('2024-02-01');
       expect(document.getElementById('deadline').value).toBe('2024-02-15');
       expect(utils.updateDateInputStyle).toHaveBeenCalled();
@@ -1168,7 +1168,7 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalled();
 
       const container = document.getElementById('planned-dates-container');
-      expect(container.querySelectorAll('.date-chip').length).toBe(1);
+      expect(container.querySelectorAll('.date-chip')).toHaveLength(1);
     });
 
     it('should remove a date via chip in existing issue mode', async () => {
@@ -1184,7 +1184,7 @@ describe('Modal Component', () => {
 
       expect(issue.planned_dates).not.toContain('2025-05-20');
       expect(api.updateIssue).toHaveBeenCalled();
-      expect(container.querySelectorAll('.date-chip').length).toBe(0);
+      expect(container.querySelectorAll('.date-chip')).toHaveLength(0);
     });
 
     it('should add/remove dates in New Issue mode (state-less)', async () => {
@@ -1195,7 +1195,7 @@ describe('Modal Component', () => {
       picker.dispatchEvent(new Event('change'));
 
       const container = document.getElementById('planned-dates-container');
-      expect(container.querySelectorAll('.date-chip').length).toBe(1);
+      expect(container.querySelectorAll('.date-chip')).toHaveLength(1);
 
       const chip = container.querySelector('.date-chip');
       expect(chip.dataset.date).toBe('2025-06-01');
@@ -1203,7 +1203,7 @@ describe('Modal Component', () => {
       const removeBtn = chip.querySelector('.remove');
       await removeBtn.click();
 
-      expect(container.querySelectorAll('.date-chip').length).toBe(0);
+      expect(container.querySelectorAll('.date-chip')).toHaveLength(0);
       expect(api.updateIssue).not.toHaveBeenCalled();
     });
   });

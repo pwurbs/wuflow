@@ -146,7 +146,7 @@ describe('system-settings.js component', () => {
 
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(false);
       const rows = document.querySelectorAll('.settings-entry');
-      expect(rows.length).toBe(3);
+      expect(rows).toHaveLength(3);
       // Users are sorted by email: admin < sysadmin < user
       expect(rows[0].textContent).toContain('admin@test.com');
       expect(rows[0].textContent).toContain('Admin');
@@ -1145,7 +1145,7 @@ describe('Project Management', () => {
       await renderSystemSettingsView();
 
       const rows = document.querySelectorAll('#projects-list .settings-entry');
-      expect(rows.length).toBe(2);
+      expect(rows).toHaveLength(2);
       expect(rows[0].textContent).toContain('default');
       expect(rows[1].textContent).toContain('Alpha');
     });

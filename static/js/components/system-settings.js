@@ -536,7 +536,7 @@ export function validatePasswordPolicy(password, email) {
   return null;
 }
 
-const PASSWORD_BLACKLIST = [
+const PASSWORD_BLACKLIST = new Set([
   'password', 'qwerty', 'admin', 'welcome', 'login',
   'manager', 'master', 'dragon', 'baseball', 'football',
   'shadow', 'sunshine', 'freedom', 'charlie', 'iloveyou',
@@ -547,7 +547,7 @@ const PASSWORD_BLACKLIST = [
   'schatz', 'liebe', 'sonne', 'mond', 'sterne',
   'qwertz', 'asdfgh', 'yxcvbn',
   'fussball', 'musik', 'schule', 'arbeit',
-];
+]);
 
 const LEET_REPLACEMENTS = {
   '0': 'o', '1': 'i', '3': 'e', '4': 'a',
@@ -558,7 +558,7 @@ export function isBlacklistedPassword(pw) {
   let normalized = pw.toLowerCase();
 
   // Check exact match before leet speak replacement (fixes numeric passwords like 123456)
-  if (PASSWORD_BLACKLIST.includes(normalized)) return true;
+  if (PASSWORD_BLACKLIST.has(normalized)) return true;
 
   for (const [from, to] of Object.entries(LEET_REPLACEMENTS)) {
     normalized = normalized.replaceAll(from, to);
