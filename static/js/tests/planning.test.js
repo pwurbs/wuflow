@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard } from '../components/planning.js';
+import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard, setupPlanningPanel } from '../components/planning.js';
 import * as api from '../api.js';
 import * as utils from '../utils.js';
 import { state } from '../state.js'; // Imported from mock
@@ -299,6 +299,26 @@ describe('planning.js', () => {
       expect(api.updateIssue).toHaveBeenCalled();
     });
 
+    it('setupPlanningPanel wires up the callbacks used when rendering without args', async () => {
+      const openModal = vi.fn();
+      const rerenderActiveView = vi.fn();
+      setupPlanningPanel(vi.fn(), openModal, rerenderActiveView);
+
+      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' };
+      state.issues = [issue];
+
+      // Render with no args — must reuse the callbacks set via setupPlanningPanel.
+      renderPlanningPanel();
+
+      const list = document.getElementById('planning-list');
+      const item = list.querySelector('.planning-item');
+      item.click();
+      expect(openModal).toHaveBeenCalledWith(issue);
+
+      const removeBtn = item.querySelector('.planning-item-remove');
+      await removeBtn.click();
+      expect(rerenderActiveView).toHaveBeenCalled();
+    });
 
     it('filters issues based on state filter', () => {
       state.issues = [
@@ -320,10 +340,11 @@ describe('planning.js', () => {
     it('should revert planned_dates and show notification when remove date button fails', async () => {
       state.filter.search = ''; // prevent leak from previous filter test
       const refreshApp = vi.fn();
+      const rerenderActiveView = vi.fn();
       const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' };
       state.issues = [issue];
 
-      renderPlanningPanel(refreshApp, vi.fn());
+      renderPlanningPanel(refreshApp, vi.fn(), rerenderActiveView);
 
       api.updateIssue.mockRejectedValueOnce(new Error('Remove failed'));
 
@@ -333,7 +354,9 @@ describe('planning.js', () => {
 
       expect(issue.planned_dates).toEqual(['2023-10-10']); // reverted
       expect(utils.showNotification).toHaveBeenCalledWith('Remove failed', 'error');
-      expect(refreshApp).toHaveBeenCalled();
+      // Local state is already reverted, so only a light re-render is needed — not a full refresh.
+      expect(rerenderActiveView).toHaveBeenCalled();
+      expect(refreshApp).not.toHaveBeenCalled();
     });
 
     it('should show notification and call refreshApp when planning drop fails', async () => {

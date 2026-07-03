@@ -111,7 +111,8 @@ describe('Backlog Component', () => {
       state.state.issues = structuredClone(issues); // Deep copy
 
       const refreshApp = vi.fn();
-      await renderBacklog(refreshApp, vi.fn());
+      const rerenderActiveView = vi.fn();
+      await renderBacklog(refreshApp, vi.fn(), rerenderActiveView);
 
       const backlogList = document.getElementById('backlog-list');
       const card3 = backlogList.children[2]; // Item 3
@@ -127,8 +128,9 @@ describe('Backlog Component', () => {
       // All changed.
       expect(api.updateIssue).toHaveBeenCalledTimes(3);
 
-      // Check if refresh was called
-      expect(refreshApp).toHaveBeenCalled();
+      // On success, only the light local re-render fires — not the full app refresh.
+      expect(rerenderActiveView).toHaveBeenCalled();
+      expect(refreshApp).not.toHaveBeenCalled();
     });
 
     it('handleMoveTop should be null if already at top', async () => {
@@ -154,7 +156,8 @@ describe('Backlog Component', () => {
       state.state.issues = structuredClone(issues);
 
       const refreshApp = vi.fn();
-      await renderBacklog(refreshApp, vi.fn());
+      const rerenderActiveView = vi.fn();
+      await renderBacklog(refreshApp, vi.fn(), rerenderActiveView);
 
       const backlogList = document.getElementById('backlog-list');
       const card1 = backlogList.children[0]; // Item 1
@@ -166,7 +169,8 @@ describe('Backlog Component', () => {
       // Item 1 moves to end (pos 2).
       // Item 2 moves to 0. Item 3 moves to 1.
       expect(api.updateIssue).toHaveBeenCalledTimes(3);
-      expect(refreshApp).toHaveBeenCalled();
+      expect(rerenderActiveView).toHaveBeenCalled();
+      expect(refreshApp).not.toHaveBeenCalled();
     });
 
     it('should deduplicate open issues already present in state', async () => {
@@ -201,6 +205,36 @@ describe('Backlog Component', () => {
 
       expect(card2._callbacks.onMoveBottom).toBeNull();
       expect(api.updateIssue).not.toHaveBeenCalled();
+    });
+
+    it('handleTogglePriority should flip priority and call updateIssue', async () => {
+      const issues = [{ id: 1, title: 'Item 1', status: 'Open', position: 0, priority: 'Normal' }];
+      state.state.issues = structuredClone(issues);
+
+      const rerenderActiveView = vi.fn();
+      await renderBacklog(vi.fn(), vi.fn(), rerenderActiveView);
+
+      const card1 = document.getElementById('backlog-list').children[0];
+      await card1._callbacks.onTogglePriority();
+
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ priority: 'High' }));
+      expect(rerenderActiveView).toHaveBeenCalled();
+    });
+
+    it('handleAssignToMe should assign the issue to the current user and call updateIssue', async () => {
+      state.state.currentUser = { id: 5, first_name: 'Me', last_name: 'User', role: 'admin' };
+      const issues = [{ id: 1, title: 'Item 1', status: 'Open', position: 0, assignee_id: 7 }];
+      state.state.issues = structuredClone(issues);
+
+      const rerenderActiveView = vi.fn();
+      await renderBacklog(vi.fn(), vi.fn(), rerenderActiveView);
+
+      const card1 = document.getElementById('backlog-list').children[0];
+      expect(card1._callbacks.onAssignToMe).toBeDefined();
+      await card1._callbacks.onAssignToMe();
+
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ assignee_id: 5 }));
+      expect(rerenderActiveView).toHaveBeenCalled();
     });
   });
 
@@ -382,7 +416,8 @@ describe('Backlog Component', () => {
 
     it('should handle drop on section (planning item -> backlog)', async () => {
       const refreshApp = vi.fn();
-      setupBacklogView(refreshApp, vi.fn());
+      const rerenderActiveView = vi.fn();
+      setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
 
       const openSection = document.getElementById('backlog-open-section');
 
@@ -412,7 +447,9 @@ describe('Backlog Component', () => {
         status: 'Open',
         planned_dates: []
       }));
-      expect(refreshApp).toHaveBeenCalled();
+      // On success, only the light local re-render fires — not the full app refresh.
+      expect(rerenderActiveView).toHaveBeenCalled();
+      expect(refreshApp).not.toHaveBeenCalled();
     });
 
     it('should handle drop on list (reorder within list)', async () => {

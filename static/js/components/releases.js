@@ -1,13 +1,13 @@
-import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
+import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchArchivedIssuesByProject, fetchOpenIssuesByProject, fetchActiveIssuesByProject, fetchReleases } from '../api.js';
 import { sortReleasesByDate } from '../list-utils.js';
 import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials } from '../utils.js';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
-import { state } from '../state.js';
+import { state, setIssues, setReleases } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
 import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE, IN_PROGRESS_STATUSES } from '../status-config.js';
 import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
+import { updateReleaseFilterOptions } from './toolbar.js';
 
-let refreshCallback = null;
 let editingReleaseId = null;
 let cachedAllIssues = null;
 
@@ -15,9 +15,15 @@ export function invalidateReleaseIssueCache() {
   cachedAllIssues = null;
 }
 
-export async function setupReleasesView(callback) {
-  refreshCallback = callback;
+// Issues assigned to a release can change status/release_id as a side effect of a release
+// action on the backend (delete clears release_id, triggering can archive Done issues) —
+// unlike the other release actions below, this can't be resolved from already-known data.
+async function refreshIssuesAfterReleaseSideEffect() {
+  invalidateReleaseIssueCache();
+  setIssues(await fetchActiveIssuesByProject(state.selectedProjectId));
+}
 
+export async function setupReleasesView() {
   setupOwnerDropdown();
 
   const cancelBtn = document.getElementById('release-modal-cancel');
@@ -62,9 +68,12 @@ export async function setupReleasesView(callback) {
       if (!confirmed) return;
       closeReleaseModal();
       try {
-        await reopenRelease(rel.project_id, rel.id);
+        const updated = await reopenRelease(rel.project_id, rel.id);
+        const idx = state.releases.findIndex(r => r.id === updated.id);
+        if (idx !== -1) state.releases[idx] = updated;
         showNotification('Release reopened', 'success');
-        if (refreshCallback) refreshCallback();
+        updateReleaseFilterOptions(state.releases);
+        renderReleasesView();
       } catch (err) {
         showNotification(err.message || 'Failed to reopen release', 'error');
       }
@@ -362,13 +371,18 @@ async function handleReleaseSubmit() {
     const projectId = state.selectedProjectId ?? 1;
     const isEdit = !!editingReleaseId;
     if (isEdit) {
-      await updateRelease(projectId, editingReleaseId, payload);
+      const updated = await updateRelease(projectId, editingReleaseId, payload);
+      const idx = state.releases.findIndex(r => r.id === updated.id);
+      if (idx !== -1) state.releases[idx] = updated;
     } else {
+      // The create response isn't owner-hydrated, so re-fetch the release list instead.
       await createRelease(projectId, payload);
+      setReleases(await fetchReleases(projectId));
     }
     closeReleaseModal();
     showNotification(isEdit ? 'Release updated' : 'Release created', 'success');
-    if (refreshCallback) refreshCallback();
+    updateReleaseFilterOptions(state.releases);
+    renderReleasesView();
   } catch (err) {
     if (errorDisplay) {
       errorDisplay.textContent = err.message || 'Failed to save release.';
@@ -465,8 +479,13 @@ async function handleDeleteRelease(rel) {
   if (!confirmed) return;
   try {
     await deleteRelease(rel.project_id, rel.id);
+    const idx = state.releases.findIndex(r => r.id === rel.id);
+    if (idx !== -1) state.releases.splice(idx, 1);
+    // Deleting cascades release_id = NULL onto its issues server-side.
+    await refreshIssuesAfterReleaseSideEffect();
     showNotification('Release deleted', 'success');
-    if (refreshCallback) refreshCallback();
+    updateReleaseFilterOptions(state.releases);
+    renderReleasesView(true);
   } catch (err) {
     showNotification(err.message || 'Failed to delete release', 'error');
   }
@@ -526,9 +545,14 @@ async function handleTriggerReleaseDialog(rel) {
       const archiveDone = overlay.querySelector('#release-archive-done').checked;
       overlay.remove();
       try {
-        await triggerRelease(rel.project_id, rel.id, archiveDone);
+        const updated = await triggerRelease(rel.project_id, rel.id, archiveDone);
+        const idx = state.releases.findIndex(r => r.id === updated.id);
+        if (idx !== -1) state.releases[idx] = updated;
+        // Triggering can archive this release's Done issues server-side.
+        await refreshIssuesAfterReleaseSideEffect();
         showNotification('Release closed', 'success');
-        if (refreshCallback) refreshCallback();
+        updateReleaseFilterOptions(state.releases);
+        renderReleasesView(true);
       } catch (err) {
         showNotification(err.message || 'Failed to release', 'error');
       }

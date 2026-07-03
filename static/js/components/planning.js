@@ -8,6 +8,13 @@ import { filterIssues } from '../filters.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
+let rerenderActiveViewCallback = null;
+
+export function setupPlanningPanel(refreshApp, openModal, rerenderActiveView) {
+  if (refreshApp) refreshAppCallback = refreshApp;
+  if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
+}
 
 export function getEffectiveDeadlineInfo(issue) {
   let minInfo = null;
@@ -33,9 +40,10 @@ export function getEffectiveDeadlineInfo(issue) {
   return minInfo;
 }
 
-export function renderPlanningPanel(refreshApp, openModal) {
+export function renderPlanningPanel(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   const planningList = document.getElementById('planning-list');
   const planningCount = document.getElementById('planning-count');
@@ -323,11 +331,11 @@ function createPlanningItem(issue, dateStr) {
       issue.planned_dates = issue.planned_dates.filter(d => d !== dateStr);
       try {
         await updateIssue(issue.project_id, issue);
-        if (refreshAppCallback) refreshAppCallback();
+        if (rerenderActiveViewCallback) rerenderActiveViewCallback();
       } catch (err) {
-        issue.planned_dates = prevDates; // revert local state
+        issue.planned_dates = prevDates; // already reverted locally, no need for a full re-fetch
         showNotification(err.message, 'error');
-        if (refreshAppCallback) refreshAppCallback();
+        if (rerenderActiveViewCallback) rerenderActiveViewCallback();
       }
     }
   });
@@ -539,6 +547,6 @@ export async function processDroppedCard(draggedCard, targetDateStr) {
     newDates.sort((a, b) => a.localeCompare(b));
     issue.planned_dates = newDates;
     await updateIssue(issue.project_id, issue);
-    if (refreshAppCallback) refreshAppCallback();
+    if (rerenderActiveViewCallback) rerenderActiveViewCallback();
   }
 }

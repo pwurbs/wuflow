@@ -3,7 +3,7 @@ import { renderMarkdown } from './markdown.js';
 import { state, setIssues, setFilterSearch, setCurrentUser, setStatusConfig, setReleases, setFilterRelease, setFilterReleaseOwner, setFilterReleaseSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView, resetOpenLoaded } from './components/backlog.js';
-import { renderPlanningPanel } from './components/planning.js';
+import { renderPlanningPanel, setupPlanningPanel } from './components/planning.js';
 import { renderArchive, setupArchiveView, resetArchivedLoaded } from './components/archive.js';
 import { setupSystemSettingsView, renderSystemSettingsView } from './components/system-settings.js';
 import { setupProjectSettingsView, renderProjectSettingsView } from './components/project-settings.js';
@@ -34,6 +34,7 @@ const searchInput = document.getElementById('search-input');
 const releaseSearchInput = document.getElementById('release-search-input');
 
 let cachedUsers = [];
+let cachedLabels = [];
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -58,18 +59,19 @@ async function init() {
     }
 
     setupEventListeners();
-    initLabelFilter(refreshApp);
-    initPriorityFilter(refreshApp);
-    initUserFilter(refreshApp);
-    initReleaseFilter(refreshApp);
+    initLabelFilter(rerenderActiveView);
+    initPriorityFilter(rerenderActiveView);
+    initUserFilter(rerenderActiveView);
+    initReleaseFilter(rerenderActiveView);
     initProjectSelector(refreshApp);
-    setupBoardView(refreshApp, openModal);
-    setupBacklogView(refreshApp, openModal);
-    setupArchiveView(refreshApp, openModal);
+    setupBoardView(refreshApp, openModal, rerenderActiveView);
+    setupBacklogView(refreshApp, openModal, rerenderActiveView);
+    setupArchiveView(refreshApp, openModal, rerenderActiveView);
+    setupPlanningPanel(refreshApp, openModal, rerenderActiveView);
     setupSystemSettingsView(refreshApp);
-    setupProjectSettingsView(refreshApp);
-    setupReleasesView(refreshApp);
-    setupModal(refreshApp, rerenderAfterTaskUpdate);
+    setupProjectSettingsView();
+    setupReleasesView();
+    setupModal(refreshApp, rerenderAfterIssueChange);
     setupUserMenu(user);
 
     // Fetch and display version
@@ -116,6 +118,7 @@ async function refreshApp() {
 
         setIssues(issues);
 
+        cachedLabels = labels;
         updateLabelFilterOptions(labels);
 
         setReleases(releases);
@@ -132,12 +135,12 @@ async function refreshApp() {
         // but let's do it to be safe if we add dynamic priorities later or reset logic.
         updatePriorityFilterOptions();
 
-        renderBoard(refreshApp, openModal);
+        renderBoard(refreshApp, openModal, rerenderActiveView);
         if (!backlogView.classList.contains('hidden')) {
-            await renderBacklog(refreshApp, openModal);
+            await renderBacklog(refreshApp, openModal, rerenderActiveView);
         }
         if (!archiveView.classList.contains('hidden')) {
-            await renderArchive(refreshApp, openModal);
+            await renderArchive(refreshApp, openModal, rerenderActiveView);
         }
         if (projectSettingsView && !projectSettingsView.classList.contains('hidden')) {
             await renderProjectSettingsView();
@@ -145,16 +148,45 @@ async function refreshApp() {
         if (releasesView && !releasesView.classList.contains('hidden')) {
             renderReleasesView();
         }
-        renderPlanningPanel(refreshApp, openModal);
+        renderPlanningPanel();
     } catch (err) {
         console.error('Failed to refresh app:', err);
     }
 }
 
-function rerenderAfterTaskUpdate() {
+// Re-renders whatever view is currently visible from already-loaded state, with zero API calls.
+function rerenderActiveView() {
+    // The label/user/release filter buttons only rebuild their "selected + clear icon"
+    // display as a side effect of these calls, so a filter change must still trigger them —
+    // just reusing already-cached data instead of re-fetching it.
+    updateLabelFilterOptions(cachedLabels);
+    updateReleaseFilterOptions(state.releases);
+    const isReleasesView = releasesView && !releasesView.classList.contains('hidden');
+    updateUserFilterOptions(cachedUsers, isReleasesView ? 'releases' : 'issues');
+
+    renderBoard();
+    if (!backlogView.classList.contains('hidden')) {
+        renderBacklog();
+    }
+    if (!archiveView.classList.contains('hidden')) {
+        renderArchive();
+    }
+    if (projectSettingsView && !projectSettingsView.classList.contains('hidden')) {
+        renderProjectSettingsView();
+    }
+    if (isReleasesView) {
+        renderReleasesView();
+    }
+    renderPlanningPanel();
+}
+
+// Used by the issue modal: state.currentIssue is a separate object from its state.issues
+// entry (fetched independently), so field/task edits made in the modal must be merged back
+// before the board/planning panel behind the modal re-render.
+function rerenderAfterIssueChange() {
     if (state.currentIssue) {
-        const stateIssue = state.issues.find(i => i.id === state.currentIssue.id);
-        if (stateIssue) stateIssue.tasks = state.currentIssue.tasks;
+        const idx = state.issues.findIndex(i => i.id === state.currentIssue.id);
+        if (idx !== -1) state.issues[idx] = { ...state.issues[idx], ...state.currentIssue };
     }
     renderBoard();
     renderPlanningPanel();
@@ -176,7 +208,7 @@ function setupEventListeners() {
     if (searchInput) {
         searchInput.addEventListener('input', debounce((e) => {
             setFilterSearch(e.target.value);
-            refreshApp();
+            rerenderActiveView();
         }, 300));
     }
 

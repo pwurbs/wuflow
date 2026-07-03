@@ -4,13 +4,13 @@ import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX
 import { state, setStatusConfig } from '../state.js';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.js';
 import { STATUS_SLOTS, getDefaultStatusConfig } from '../status-config.js';
+import { updateLabelFilterOptions } from './toolbar.js';
+import { renderBoard } from './board.js';
 
 let projectSettingsContainer = null;
-let refreshCallback = null;
 
-export function setupProjectSettingsView(callback) {
+export function setupProjectSettingsView() {
   projectSettingsContainer = document.getElementById('project-settings-view');
-  refreshCallback = callback;
 
   const addLabelInput = document.getElementById('ps-new-label-input');
 
@@ -33,7 +33,7 @@ export function setupProjectSettingsView(callback) {
           await createLabel(projectId, { name, color });
           addLabelInput.value = '';
           renderProjectSettingsView();
-          if (refreshCallback) refreshCallback();
+          updateLabelFilterOptions(await fetchLabelsByProject(projectId));
           showNotification('Label created', 'success');
         } catch (err) {
           console.error(err);
@@ -97,7 +97,7 @@ export async function renderProjectSettingsView() {
             try {
               await deleteLabel(projectId, label.id);
               renderProjectSettingsView();
-              if (refreshCallback) refreshCallback();
+              updateLabelFilterOptions(await fetchLabelsByProject(projectId));
               showNotification('Label deleted', 'success');
             } catch (err) {
               console.error(err);
@@ -230,7 +230,7 @@ async function handleSaveStatusConfig(projectId, previousCfg) {
     const updated = await updateStatusConfig(projectId, payload);
     setStatusConfig(updated);
     showNotification('Column configuration saved', 'success');
-    if (refreshCallback) refreshCallback();
+    renderBoard();
   } catch (err) {
     showNotification(err.message || 'Failed to save column configuration', 'error');
   }

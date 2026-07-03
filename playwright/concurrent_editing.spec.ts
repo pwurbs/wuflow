@@ -56,11 +56,9 @@ test.describe('Concurrent Editing', () => {
     await openIssueByTitle(page, 'Normal Edit Issue');
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
-    // Wait for PUT and GET responses (normal flow)
-    const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
-    ]);
+    // Wait for the save (a field change now only re-renders locally; the app-wide
+    // issues refresh is deferred until the modal closes, not fired per-field).
+    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
 
     // Change priority
     await selectPriority(page, 'High');

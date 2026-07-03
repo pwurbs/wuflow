@@ -6,6 +6,7 @@ import * as card from '../components/card.js';
 import * as filters from '../filters.js';
 import * as drag from '../drag.js';
 import * as api from '../api.js';
+import * as listUtils from '../list-utils.js';
 import * as utils from '../utils.js';
 
 // Mock dependencies
@@ -368,17 +369,36 @@ describe('Board Component', () => {
 
 
     it('should pass onMoveTop, onMoveBottom, onTogglePriority to createCardElement', () => {
-      const issues = [{ id: 1, title: 'Task 1', status: 'Todo', position: 0 }];
+      // Two issues in the same column so onMoveTop/onMoveBottom aren't both null
+      // (a lone issue is simultaneously first and last in its column).
+      const issues = [
+        { id: 1, title: 'Task 1', status: 'Todo', position: 0, priority: 'Normal' },
+        { id: 2, title: 'Task 2', status: 'Todo', position: 1, priority: 'Normal' }
+      ];
       state.state.issues = issues;
       filters.filterIssues.mockReturnValue(issues);
       filters.sortByPosition.mockReturnValue(issues);
 
-      renderBoard();
+      renderBoard(vi.fn(), vi.fn(), vi.fn());
 
-      const options = card.createCardElement.mock.lastCall[2];
-      expect(options.onMoveTop).toBeDefined();
-      expect(options.onMoveBottom).toBeDefined();
-      expect(options.onTogglePriority).toBeDefined();
+      const calls = card.createCardElement.mock.calls;
+      const optionsFirst  = calls.find(c => c[0].id === 1)[2];
+      const optionsSecond = calls.find(c => c[0].id === 2)[2];
+
+      expect(optionsFirst.onMoveTop).toBeNull();
+      expect(optionsSecond.onMoveTop).toBeDefined();
+      expect(optionsSecond.onMoveBottom).toBeNull();
+      expect(optionsFirst.onMoveBottom).toBeDefined();
+      expect(optionsFirst.onTogglePriority).toBeDefined();
+
+      optionsSecond.onMoveTop();
+      expect(listUtils.handleMoveTop).toHaveBeenCalledWith(issues[1], issues, expect.any(Function), expect.any(Function));
+
+      optionsFirst.onMoveBottom();
+      expect(listUtils.handleMoveBottom).toHaveBeenCalledWith(issues[0], issues, expect.any(Function), expect.any(Function));
+
+      optionsFirst.onTogglePriority();
+      expect(listUtils.handleTogglePriority).toHaveBeenCalledWith(issues[0], expect.any(Function));
     });
 
     it('should pass onAssignToMe only when user is not the assignee', () => {
@@ -399,6 +419,9 @@ describe('Board Component', () => {
 
       expect(optionsAssigned.onAssignToMe).toBeUndefined();
       expect(optionsUnassigned.onAssignToMe).toBeDefined();
+
+      optionsUnassigned.onAssignToMe();
+      expect(listUtils.handleAssignToMe).toHaveBeenCalledWith(issues[1], state.state.currentUser, expect.any(Function));
     });
 
     it('should not process dragover if dragged element is not a card', () => {

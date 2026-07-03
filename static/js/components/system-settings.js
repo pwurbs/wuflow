@@ -4,6 +4,7 @@ import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EM
 import { state } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
+import { updateProjectSelectorOptions } from './toolbar.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
 const HINT_NEW_USER = 'Minimum 12 characters. No common passwords.';
@@ -135,7 +136,9 @@ async function handleProjectSubmit(refreshCallback) {
     }
     closeProjectModal();
     renderSystemSettingsView(refreshCallback);
-    if (refreshCallback) refreshCallback();
+    // Refreshes the project selector dropdown; its own fallback logic triggers a full
+    // refresh only if the currently selected project was affected (e.g. deleted elsewhere).
+    updateProjectSelectorOptions(await fetchProjects());
   } catch (err) {
     showProjectError(errorDisplay, err.message);
   }
@@ -169,7 +172,9 @@ function handleDeleteProject(refreshCallback) {
       showNotification('Project deleted', 'success');
       closeProjectModal();
       renderSystemSettingsView(refreshCallback);
-      if (refreshCallback) refreshCallback();
+      // Refreshes the project selector dropdown; its own fallback logic triggers a full
+      // refresh if the deleted project was the currently selected one.
+      updateProjectSelectorOptions(await fetchProjects());
     } catch (err) {
       const errorDisplay = document.getElementById('project-modal-error');
       showProjectError(errorDisplay, err.message);

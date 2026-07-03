@@ -14,6 +14,12 @@ vi.mock('../api.js', () => ({
   reopenRelease: vi.fn(),
   fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
   fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchReleases: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../components/toolbar.js', () => ({
+  updateReleaseFilterOptions: vi.fn(),
 }));
 
 vi.mock('../utils.js', () => ({
@@ -38,6 +44,8 @@ vi.mock('../state.js', () => ({
     issues: [],
     filter: { releaseOwnerFilter: null, releaseSearch: '' },
   },
+  setIssues: vi.fn(),
+  setReleases: vi.fn(),
 }));
 
 vi.mock('../permissions.js', () => ({
@@ -64,6 +72,7 @@ vi.mock('../status-config.js', () => ({
 import { state } from '../state.js';
 import * as api from '../api.js';
 import * as utils from '../utils.js';
+import * as toolbar from '../components/toolbar.js';
 
 function buildDOM() {
   document.body.innerHTML = `
@@ -344,15 +353,17 @@ describe('releases', () => {
       );
     });
 
-    it('calls createRelease and refresh callback on successful new release submit', async () => {
+    it('calls createRelease and refreshes the release list on successful new release submit', async () => {
       api.createRelease.mockResolvedValue({ id: 99, name: 'v1.0' });
-      const callback = vi.fn();
-      await setupReleasesView(callback);
+      api.fetchReleases.mockResolvedValue([{ id: 99, name: 'v1.0' }]);
+      await setupReleasesView();
       document.getElementById('release-modal-name').value = 'v1.0';
       document.getElementById('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       expect(api.createRelease).toHaveBeenCalled();
-      expect(callback).toHaveBeenCalled();
+      // Create doesn't return an owner-hydrated release, so it re-fetches the list instead.
+      expect(api.fetchReleases).toHaveBeenCalledWith(1);
+      expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
     it('shows inline error when createRelease rejects', async () => {
@@ -471,21 +482,23 @@ describe('releases', () => {
   // ─── handleReleaseSubmit (update / closed) ────────────────────────────────────
 
   describe('handleReleaseSubmit (update)', () => {
-    it('calls updateRelease and refresh callback when editing an open release', async () => {
-      api.updateRelease.mockResolvedValue({});
-      const callback = vi.fn();
+    it('merges the updated release locally and refreshes the filter/view when editing an open release', async () => {
+      api.updateRelease.mockResolvedValue({ id: 10, name: 'v2.1', status: 'open' });
       state.releases = [{
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
       }];
-      await setupReleasesView(callback);
+      await setupReleasesView();
       await renderReleasesView();
       document.querySelector('.release-card-left').click();
       document.getElementById('release-modal-name').value = 'v2.1';
       document.getElementById('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       expect(api.updateRelease).toHaveBeenCalledWith(1, 10, expect.objectContaining({ name: 'v2.1' }));
-      expect(callback).toHaveBeenCalled();
+      // The update response is already owner-hydrated, so it's merged in locally — no re-fetch.
+      expect(api.fetchReleases).not.toHaveBeenCalled();
+      expect(state.releases[0]).toEqual(expect.objectContaining({ id: 10, name: 'v2.1' }));
+      expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
     it('closes the modal immediately when save is clicked for a closed release', async () => {
@@ -506,22 +519,24 @@ describe('releases', () => {
   // ─── handleDeleteRelease ──────────────────────────────────────────────────────
 
   describe('handleDeleteRelease', () => {
-    it('calls deleteRelease and refresh callback when deletion is confirmed', async () => {
+    it('removes the release locally and refreshes issues/filter when deletion is confirmed', async () => {
       api.deleteRelease.mockResolvedValue({});
       utils.showConfirm.mockResolvedValue(true);
-      const callback = vi.fn();
       state.releases = [{
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
       }];
-      await setupReleasesView(callback);
+      await setupReleasesView();
       await renderReleasesView();
       document.querySelector('.release-card-left').click(); // sets editingReleaseId = 10
       document.getElementById('release-modal-delete').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(api.deleteRelease).toHaveBeenCalledWith(undefined, 10);
-      expect(callback).toHaveBeenCalled();
+      expect(state.releases).toHaveLength(0);
+      // Deleting a release clears release_id on its issues server-side, so issues are re-fetched.
+      expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(1);
+      expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
     it('does not call deleteRelease when the confirm is cancelled', async () => {
@@ -584,10 +599,9 @@ describe('releases', () => {
       expect(api.triggerRelease).not.toHaveBeenCalled();
     });
 
-    it('calls triggerRelease and refresh callback when Confirm Release is clicked', async () => {
-      api.triggerRelease.mockResolvedValue({});
-      const callback = vi.fn();
-      await setupReleasesView(callback);
+    it('merges the closed release locally and refreshes issues/filter when Confirm Release is clicked', async () => {
+      api.triggerRelease.mockResolvedValue({ id: 10, name: 'v2.0', status: 'closed' });
+      await setupReleasesView();
       state.releases = [{
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
@@ -598,7 +612,10 @@ describe('releases', () => {
       document.getElementById('release-dialog-confirm').click();
       await new Promise(process.nextTick);
       expect(api.triggerRelease).toHaveBeenCalledWith(undefined, 10, false);
-      expect(callback).toHaveBeenCalled();
+      expect(state.releases[0]).toEqual(expect.objectContaining({ id: 10, status: 'closed' }));
+      // Triggering can archive Done issues server-side, so issues are re-fetched.
+      expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(1);
+      expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
     it('shows status breakdown in dialog for releases with issues', async () => {
@@ -638,22 +655,24 @@ describe('releases', () => {
   // ─── setupReleasesView (reopen button) ───────────────────────────────────────
 
   describe('setupReleasesView (reopen button)', () => {
-    it('calls reopenRelease and refresh callback when reopen is confirmed', async () => {
-      api.reopenRelease.mockResolvedValue({});
+    it('merges the reopened release locally and refreshes the filter/view when reopen is confirmed', async () => {
+      api.reopenRelease.mockResolvedValue({ id: 11, name: 'v1.0', status: 'open' });
       utils.showConfirm.mockResolvedValue(true);
-      const callback = vi.fn();
       state.releases = [{
         id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       }];
-      await setupReleasesView(callback);
+      await setupReleasesView();
       await renderReleasesView();
       document.querySelector('.release-card-left').click(); // opens modal for closed release
       document.getElementById('release-modal-reopen').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(api.reopenRelease).toHaveBeenCalledWith(undefined, 11);
-      expect(callback).toHaveBeenCalled();
+      // Reopening doesn't touch issues, so only the release itself is merged in locally.
+      expect(api.fetchActiveIssuesByProject).not.toHaveBeenCalled();
+      expect(state.releases[0]).toEqual(expect.objectContaining({ id: 11, status: 'open' }));
+      expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
     it('does not call reopenRelease when reopen confirm is cancelled', async () => {

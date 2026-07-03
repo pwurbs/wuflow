@@ -5,7 +5,7 @@ import { STATUS_ARCHIVE } from './status-config.js';
 import { getDraggedCard, getDraggedCardOrigin, getDragAfterElement } from './drag.js';
 import { showNotification } from './utils.js';
 
-export async function handleMoveTop(issue, allIssuesInList, refreshCallback) {
+export async function handleMoveTop(issue, allIssuesInList, rerenderCallback, refreshCallback) {
   if (allIssuesInList.length <= 1 || allIssuesInList[0].id === issue.id) return;
 
   // Create a new array without the issue
@@ -14,14 +14,16 @@ export async function handleMoveTop(issue, allIssuesInList, refreshCallback) {
   const newOrder = [issue, ...otherIssues];
 
   try {
-    await updatePositions(newOrder, refreshCallback);
+    await updatePositions(newOrder, rerenderCallback);
   } catch (err) {
     showNotification(err.message, 'error');
-    if (refreshCallback) refreshCallback(); // re-render to restore actual server state
+    // A partial Promise.all failure can't be safely reverted locally (some positions
+    // may have already persisted server-side), so re-fetch the actual server state.
+    if (refreshCallback) refreshCallback();
   }
 }
 
-export async function handleMoveBottom(issue, allIssuesInList, refreshCallback) {
+export async function handleMoveBottom(issue, allIssuesInList, rerenderCallback, refreshCallback) {
   if (allIssuesInList.length <= 1 || allIssuesInList[allIssuesInList.length - 1].id === issue.id) return;
 
   // Create a new array without the issue
@@ -30,43 +32,43 @@ export async function handleMoveBottom(issue, allIssuesInList, refreshCallback) 
   const newOrder = [...otherIssues, issue];
 
   try {
-    await updatePositions(newOrder, refreshCallback);
+    await updatePositions(newOrder, rerenderCallback);
   } catch (err) {
     showNotification(err.message, 'error');
-    if (refreshCallback) refreshCallback(); // re-render to restore actual server state
+    if (refreshCallback) refreshCallback();
   }
 }
 
-export async function handleTogglePriority(issue, refreshCallback) {
+export async function handleTogglePriority(issue, rerenderCallback) {
   const originalPriority = issue.priority;
   issue.priority = issue.priority === PRIORITY_HIGH ? PRIORITY_NORMAL : PRIORITY_HIGH;
   try {
     await updateIssue(issue.project_id, issue);
-    if (refreshCallback) refreshCallback();
+    if (rerenderCallback) rerenderCallback();
   } catch (err) {
-    issue.priority = originalPriority;
+    issue.priority = originalPriority; // already reverted locally, no need for a full re-fetch
     showNotification(err.message, 'error');
-    if (refreshCallback) refreshCallback();
+    if (rerenderCallback) rerenderCallback();
   }
 }
 
-export async function handleAssignToMe(issue, currentUser, refreshCallback) {
+export async function handleAssignToMe(issue, currentUser, rerenderCallback) {
   const originalAssigneeId = issue.assignee_id;
   const originalAssignee = issue.assignee;
   issue.assignee_id = currentUser.id;
   issue.assignee = currentUser;
   try {
     await updateIssue(issue.project_id, issue);
-    if (refreshCallback) refreshCallback();
+    if (rerenderCallback) rerenderCallback();
   } catch (err) {
     issue.assignee_id = originalAssigneeId;
-    issue.assignee = originalAssignee;
+    issue.assignee = originalAssignee; // already reverted locally, no need for a full re-fetch
     showNotification(err.message, 'error');
-    if (refreshCallback) refreshCallback();
+    if (rerenderCallback) rerenderCallback();
   }
 }
 
-export async function updatePositions(orderedIssues, refreshCallback) {
+export async function updatePositions(orderedIssues, rerenderCallback) {
   const updates = [];
   orderedIssues.forEach((issue, index) => {
     if (issue.position !== index) {
@@ -77,7 +79,7 @@ export async function updatePositions(orderedIssues, refreshCallback) {
 
   if (updates.length > 0) {
     await Promise.all(updates);
-    if (refreshCallback) refreshCallback();
+    if (rerenderCallback) rerenderCallback();
   }
 }
 
@@ -116,7 +118,8 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
   if (!section) return;
 
   const list = section.querySelector('.backlog-list');
-  const { onDrop, onValidate, refreshApp, showDragHighlight = true } = options;
+  const { onDrop, onValidate, refreshApp, rerenderCallback, showDragHighlight = true } = options;
+  const rerenderOrRefresh = () => { if (rerenderCallback) rerenderCallback(); else if (refreshApp) refreshApp(); };
 
   section.addEventListener('dragover', (e) => {
     if (section.offsetParent === null) return;
@@ -153,7 +156,7 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
     if (!issue || issue.status === targetStatus) return;
 
     if (onValidate && !(await onValidate(issue, targetStatus))) {
-      if (refreshApp) refreshApp();
+      rerenderOrRefresh();
       return;
     }
 
@@ -165,11 +168,12 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
         issue.planned_dates = [];
         await updateIssue(issue.project_id, issue);
       }
-      if (refreshApp) refreshApp();
+      rerenderOrRefresh();
       if (onDrop) onDrop(issue);
     } catch (err) {
       showNotification(err.message, 'error');
-      if (refreshApp) refreshApp(); // re-render to restore actual server state
+      // No local revert here, so fall back to the full refresh to resync with the server.
+      if (refreshApp) refreshApp();
     }
   });
 }
@@ -181,7 +185,8 @@ export function setupListDrag(listId, targetStatus, options = {}) {
   const list = document.getElementById(listId);
   if (!list) return;
 
-  const { onDrop, onValidate, refreshApp, performReorder = true, showDragHighlight = true } = options;
+  const { onDrop, onValidate, refreshApp, rerenderCallback, performReorder = true, showDragHighlight = true } = options;
+  const rerenderOrRefresh = () => { if (rerenderCallback) rerenderCallback(); else if (refreshApp) refreshApp(); };
 
   list.addEventListener('dragover', (e) => {
     if (list.offsetParent === null) return;
@@ -219,7 +224,7 @@ export function setupListDrag(listId, targetStatus, options = {}) {
     const issue = state.issues.find(i => i.id === issueId);
 
     if (onValidate && !(await onValidate(issue, targetStatus))) {
-      if (refreshApp) refreshApp();
+      rerenderOrRefresh();
       return;
     }
 
@@ -229,11 +234,12 @@ export function setupListDrag(listId, targetStatus, options = {}) {
       } else {
         const updates = getListUpdates(listId, targetStatus);
         await Promise.all(updates);
-        if (refreshApp) refreshApp();
+        rerenderOrRefresh();
       }
     } catch (err) {
       showNotification(err.message, 'error');
-      if (refreshApp) refreshApp(); // re-render to restore actual server state
+      // No local revert here, so fall back to the full refresh to resync with the server.
+      if (refreshApp) refreshApp();
     }
   });
 }

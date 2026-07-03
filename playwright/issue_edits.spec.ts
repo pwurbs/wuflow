@@ -121,11 +121,9 @@ test.describe('Issue Edit Operations', () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const deadlineStr = tomorrow.toISOString().split('T')[0];
 
-    // Wait for the PUT request (save) and GET request (refresh)
-    const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
-    ]);
+    // Wait for the save (a field change now only re-renders locally; the app-wide
+    // issues refresh is deferred until the modal closes, not fired per-field).
+    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
 
     await page.fill('#deadline', deadlineStr);
 
@@ -160,11 +158,9 @@ test.describe('Issue Edit Operations', () => {
     nextWeek.setDate(nextWeek.getDate() + 7);
     const newDeadline = nextWeek.toISOString().split('T')[0];
 
-    // Wait for save and refresh
-    const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
-    ]);
+    // Wait for the save (a field change now only re-renders locally; the app-wide
+    // issues refresh is deferred until the modal closes, not fired per-field).
+    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
 
     await page.fill('#deadline', newDeadline);
 
@@ -200,11 +196,9 @@ test.describe('Issue Edit Operations', () => {
     await openIssueByTitle(page, 'Remove Deadline Issue');
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
-    // Clear the deadline
-    const savePromise = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
-    ]);
+    // Clear the deadline — wait for the save (a field change now only re-renders
+    // locally; the app-wide issues refresh is deferred until the modal closes).
+    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
 
     await page.fill('#deadline', '');
 

@@ -458,7 +458,7 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
   currentEtag = result.etag;
   hasSavedDuringSession = true;
   if (successMessage) showNotification(successMessage);
-  if (refreshAppCallback) refreshAppCallback();
+  if (rerenderViewsCallback) rerenderViewsCallback();
   return true;
 }
 
@@ -528,7 +528,6 @@ async function handleIssueSubmit(e) {
       showNotification(`Issue #${newIssue.id} created successfully`);
     }
     closeModal();
-    if (refreshAppCallback) refreshAppCallback();
   } catch (err) {
     showNotification(err.message, 'error');
   }
@@ -1288,7 +1287,7 @@ async function handleTaskSubmit(e) {
     resetTaskForm();
     const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
     showNotification(taskDlStatus.late ? `Task created — ${taskDlStatus.reason}` : 'Task created', taskDlStatus.late ? 'warning' : 'success');
-    if (refreshAppCallback) refreshAppCallback();
+    if (rerenderViewsCallback) rerenderViewsCallback();
   } catch (err) {
     showNotification(err.message, 'error');
   }

@@ -11,6 +11,7 @@ import { escapeHtml } from '../utils.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
+let rerenderActiveViewCallback = null;
 let openLoaded = false;
 
 export function resetOpenLoaded() {
@@ -94,9 +95,10 @@ function renderBacklogReleaseLanes() {
   list.appendChild(buildLaneCard(null, 'No Release', countsByRelease[null] || 0));
 }
 
-export async function renderBacklog(refreshApp, openModal) {
+export async function renderBacklog(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   // Lazy-load open issues if not already loaded
   if (!openLoaded) {
@@ -134,12 +136,12 @@ export async function renderBacklog(refreshApp, openModal) {
     const isLast  = issuesInList[issuesInList.length - 1]?.id === issue.id;
     const cb = {
       openModal:        openModalCallback,
-      onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInList, refreshAppCallback),
-      onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInList, refreshAppCallback),
-      onTogglePriority: () => handleTogglePriority(issue, refreshAppCallback)
+      onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),
+      onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),
+      onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback)
     };
     if (state.currentUser && issue.assignee_id !== state.currentUser.id) {
-      cb.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, refreshAppCallback);
+      cb.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, rerenderActiveViewCallback);
     }
     return cb;
   }
@@ -164,14 +166,16 @@ export async function renderBacklog(refreshApp, openModal) {
 
 
 
-export function setupBacklogView(refreshApp, openModal) {
+export function setupBacklogView(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   const validateUpdate = () => userCan(state.currentUser, ACTION_UPDATE_ISSUE);
 
   const dropOptions = {
     refreshApp: refreshAppCallback,
+    rerenderCallback: rerenderActiveViewCallback,
     onValidate: validateUpdate,
     onDrop: async () => {
       const updates = [
@@ -183,8 +187,8 @@ export function setupBacklogView(refreshApp, openModal) {
     }
   };
 
-  setupSectionDrop('backlog-open-section', STATUS_OPEN, { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
-  setupSectionDrop('backlog-todo-section', STATUS_TODO, { refreshApp: refreshAppCallback, onValidate: validateUpdate, showDragHighlight: false });
+  setupSectionDrop('backlog-open-section', STATUS_OPEN, { refreshApp: refreshAppCallback, rerenderCallback: rerenderActiveViewCallback, onValidate: validateUpdate, showDragHighlight: false });
+  setupSectionDrop('backlog-todo-section', STATUS_TODO, { refreshApp: refreshAppCallback, rerenderCallback: rerenderActiveViewCallback, onValidate: validateUpdate, showDragHighlight: false });
 
   setupListDrag('backlog-list', STATUS_OPEN, { ...dropOptions, showDragHighlight: false });
   setupListDrag('move-to-todo-list', STATUS_TODO, { ...dropOptions, showDragHighlight: false });

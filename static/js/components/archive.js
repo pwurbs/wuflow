@@ -9,15 +9,17 @@ import { userCan, ACTION_ARCHIVE_ISSUE } from '../permissions.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
+let rerenderActiveViewCallback = null;
 let archivedLoaded = false;
 
 export function resetArchivedLoaded() {
   archivedLoaded = false;
 }
 
-export async function renderArchive(refreshApp, openModal) {
+export async function renderArchive(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   // Lazy-load archived issues if not already loaded
   if (!archivedLoaded) {
@@ -127,22 +129,26 @@ async function performDropUpdate() {
   renderArchive();
 }
 
-export function setupArchiveView(refreshApp, openModal) {
+export function setupArchiveView(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   setupSectionDrop('archive-archive-section', STATUS_ARCHIVE, {
     refreshApp: refreshAppCallback,
+    rerenderCallback: rerenderActiveViewCallback,
     onValidate: validateArchiveDrop
   });
   setupSectionDrop('archive-done-section', STATUS_DONE, {
     refreshApp: refreshAppCallback,
+    rerenderCallback: rerenderActiveViewCallback,
     onValidate: validateArchiveDrop,
     showDragHighlight: false
   });
 
   setupListDrag('archive-list', STATUS_ARCHIVE, {
     refreshApp: refreshAppCallback,
+    rerenderCallback: rerenderActiveViewCallback,
     onValidate: validateArchiveDrop,
     performReorder: false,
     onDrop: async () => {
@@ -157,6 +163,7 @@ export function setupArchiveView(refreshApp, openModal) {
 
   setupListDrag('archive-done-list', STATUS_DONE, {
     refreshApp: refreshAppCallback,
+    rerenderCallback: rerenderActiveViewCallback,
     onValidate: validateArchiveDrop,
     showDragHighlight: false,
     onDrop: async () => {

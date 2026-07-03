@@ -2,6 +2,7 @@
 # 1.3.3
 
 - Switched build and runtime base images from Debian to Alpine to reduce container vulnerabilities and image size
+- Reduced redundant API calls fired after issue, release, project and filter actions across the app
 
 # 1.3.2
 

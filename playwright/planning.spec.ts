@@ -412,10 +412,9 @@ test.describe('Planning Panel', () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dateStr1 = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
 
-    const savePromise1 = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
-    ]);
+    // Wait for the save (a field change now only re-renders locally; the app-wide
+    // issues refresh is deferred until the modal closes, not fired per-field).
+    const savePromise1 = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
     await page.fill('#deadline', dateStr1);
     await savePromise1;
 
@@ -424,10 +423,7 @@ test.describe('Planning Panel', () => {
     dayAfter.setDate(dayAfter.getDate() + 2);
     const dateStr2 = `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
 
-    const savePromise2 = Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT'),
-      page.waitForResponse(resp => resp.url().includes('/issues/active') && resp.request().method() === 'GET')
-    ]);
+    const savePromise2 = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
     await page.fill('#planned-date-picker', dateStr2, { force: true });
     await savePromise2;
 

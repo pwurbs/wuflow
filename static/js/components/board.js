@@ -11,10 +11,12 @@ import { renderPlanningPanel } from './planning.js';
 
 let refreshAppCallback = null;
 let openModalCallback = null;
+let rerenderActiveViewCallback = null;
 
-export function renderBoard(refreshApp, openModal) {
+export function renderBoard(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   const boardColumns = document.querySelector('.board-columns');
   boardColumns.querySelectorAll('.column').forEach(c => c.remove());
@@ -84,12 +86,12 @@ export function renderBoard(refreshApp, openModal) {
             }
           }
         },
-        onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInColumn, refreshAppCallback),
-        onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInColumn, refreshAppCallback),
-        onTogglePriority: () => handleTogglePriority(issue, refreshAppCallback)
+        onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInColumn, rerenderActiveViewCallback, refreshAppCallback),
+        onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInColumn, rerenderActiveViewCallback, refreshAppCallback),
+        onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback)
       };
       if (state.currentUser && issue.assignee_id !== state.currentUser.id) {
-        cardCallbacks.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, refreshAppCallback);
+        cardCallbacks.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, rerenderActiveViewCallback);
       }
       const card = createCardElement(issue, true, cardCallbacks);
       columns[issue.status].appendChild(card);
@@ -166,9 +168,10 @@ function attachColumnDragListeners(colContent) {
 }
 
 // setupBoardView stores callbacks; drag listeners are now attached per-render in renderBoard.
-export function setupBoardView(refreshApp, openModal) {
+export function setupBoardView(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 }
 
 function getBoardUpdates() {
