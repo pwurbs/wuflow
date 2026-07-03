@@ -35,8 +35,13 @@ RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
 FROM docker.io/library/alpine:3.24.1
 
 # Create a non-login, non-root user and group
-RUN addgroup -S appuser && \
-    adduser -S -G appuser -s /sbin/nologin appuser
+# Pinned to uid/gid 999 to match the previous Debian-based image, so existing
+# /data volumes (owned by uid/gid 999 on the host) remain writable after upgrading.
+# gid 999 is reserved by Alpine's built-in "ping" group (unprivileged ICMP), which
+# this image doesn't use, so it's removed to free the gid for appuser.
+RUN delgroup ping && \
+    addgroup -S -g 999 appuser && \
+    adduser -S -u 999 -G appuser -s /sbin/nologin appuser
 
 WORKDIR /app
 

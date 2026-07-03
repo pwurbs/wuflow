@@ -2,5 +2,5 @@ apiVersion: v2
 name: wuflow
 description: wuFlow Agile board deployment
 type: application
-version: 1.3.300-pre1
-appVersion: "1.3.3-pre1"
+version: 1.3.300-pre2
+appVersion: "1.3.3-pre2"
