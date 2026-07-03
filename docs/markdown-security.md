@@ -19,6 +19,15 @@ The description field in wuFlow natively supports Markdown to allow rich-text fo
    - **Sanitization**: The raw HTML is passed through `DOMPurify` (in `markdown.js`), which acts as an air-tight security boundary.
    - The safe, purified HTML is then injected into the DOM for viewing.
 
+## API Consumers & Trust Boundary
+
+The description field returned by the API is **untrusted raw Markdown source**. This is intentional and matches common industry practice (GitHub, GitLab, Jira, and Stack Overflow all store and serve the raw Markdown source unmodified): sanitization happens at *output time, for the specific output context* — never at input time.
+
+- **Consumer responsibility**: Any consumer that renders the description as HTML **must sanitize it in its own context**, exactly as the bundled frontend does via `marked` + DOMPurify. A string inside a JSON response is inert data; it only becomes dangerous when a consumer injects it into an HTML page unescaped — and only the consumer knows its output context (HTML, email, PDF, terminal).
+- **Server-side guarantees**: The server ensures its own responses can never be interpreted as an HTML context: API responses are served with `Content-Type: application/json`, and the server sets `X-Content-Type-Options: nosniff` and a Content-Security-Policy (see `backend/server.go`).
+- **Why no input sanitization**: Write-time HTML filtering would corrupt legitimate content (e.g., `<script>` inside code fences — see the test cases below), cannot be fixed retroactively for already-stored data if the filter turns out to be flawed, and trains consumers into a false sense of security. Output-time sanitization via DOMPurify means a future DOMPurify security fix instantly protects all stored data.
+- **Future renderers rule**: Any new feature that renders descriptions (email notifications, PDF export, webhook receivers, mobile clients) constitutes its own security boundary and needs its own context-appropriate sanitization step.
+
 ## Supported Markdown & HTML Mappings
 
 Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements produced by Markdown or embedded HTML is allowed. All other tags and potentially dangerous attributes (e.g., event handlers or `javascript:` / `data:` URIs) are completely stripped.
