@@ -28,7 +28,7 @@ func init() {
 	flag.StringVar(&logLevel, "log-level", "", "Log level (debug, info, warn, error)")
 	flag.StringVar(&secureCookieStr, "secure-cookie", "", "Set Secure flag on auth cookies (true/false, default: true)")
 	flag.StringVar(&apiRateLimitStr, "api-rate-limit", "", "Enable per-user API rate limiting (true/false, default: true)")
-	flag.StringVar(&remoteIPHeader, "remote-ip-header", "", "Trusted HTTP header for client IP (must contain a single IP address)")
+	flag.StringVar(&remoteIPHeader, "remote-ip-header", "", "Trusted HTTP header for client IP (first entry of comma-separated values is used)")
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.

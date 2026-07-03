@@ -14,6 +14,7 @@
 - Added last login information to the users list and aligned items in users and projcts list
 - Added an admin password legitimation step for a project deletion attempt
 - Added an admin password legitimation step when an admin wants to activate or deactive a user
+- Added Fable security audit report
 
 # 1.3.1
 
