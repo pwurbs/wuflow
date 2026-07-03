@@ -127,10 +127,10 @@ func TestRateLimiterNoDoS(t *testing.T) {
 	}
 }
 
-// --- requestLimiter tests ---
+// --- keyedLimiter (apiLimiter) tests ---
 
-func newTestRequestLimiter() *requestLimiter {
-	return &requestLimiter{byUser: make(map[int]*failEntry)}
+func newTestRequestLimiter() *keyedLimiter[int] {
+	return newKeyedLimiter[int](apiMaxRequests, apiRateWindow, apiCleanupEvery)
 }
 
 func TestRequestLimiterAllowsUnderLimit(t *testing.T) {
@@ -154,7 +154,7 @@ func TestRequestLimiterBlocksAtLimit(t *testing.T) {
 
 func TestRequestLimiterWindowExpiry(t *testing.T) {
 	rl := newTestRequestLimiter()
-	rl.byUser[1] = &failEntry{count: apiMaxRequests + 1, windowEnd: time.Now().Add(-time.Second)}
+	rl.counts[1] = &failEntry{count: apiMaxRequests + 1, windowEnd: time.Now().Add(-time.Second)}
 	if !rl.allow(1) {
 		t.Error("expired window should reset counter and allow request")
 	}
@@ -172,22 +172,22 @@ func TestRequestLimiterIndependentUsers(t *testing.T) {
 
 func TestRequestLimiterCleanup(t *testing.T) {
 	rl := newTestRequestLimiter()
-	rl.byUser[99] = &failEntry{count: 1, windowEnd: time.Now().Add(-(rlMaxAge + time.Second))}
+	rl.counts[99] = &failEntry{count: 1, windowEnd: time.Now().Add(-(rlMaxAge + time.Second))}
 	rl.mu.Lock()
 	rl.cleanup()
 	rl.mu.Unlock()
-	if _, ok := rl.byUser[99]; ok {
+	if _, ok := rl.counts[99]; ok {
 		t.Error("stale entry should have been evicted")
 	}
 }
 
 func TestRequestLimiterCleanupPreservesActive(t *testing.T) {
 	rl := newTestRequestLimiter()
-	rl.byUser[42] = &failEntry{count: 1, windowEnd: time.Now().Add(apiRateWindow)}
+	rl.counts[42] = &failEntry{count: 1, windowEnd: time.Now().Add(apiRateWindow)}
 	rl.mu.Lock()
 	rl.cleanup()
 	rl.mu.Unlock()
-	if _, ok := rl.byUser[42]; !ok {
+	if _, ok := rl.counts[42]; !ok {
 		t.Error("active entry should not be evicted")
 	}
 }
@@ -211,22 +211,22 @@ func TestRateLimiterCleanup(t *testing.T) {
 }
 
 func TestIPLimiterCleanupTriggered(t *testing.T) {
-	rl := &ipLimiter{byIP: make(map[string]*failEntry)}
+	rl := newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)
 
 	// Pre-seed a stale entry (window ended more than rlMaxAge ago).
-	rl.byIP["stale"] = &failEntry{count: 1, windowEnd: time.Now().Add(-(rlMaxAge + time.Second))}
+	rl.counts["stale"] = &failEntry{count: 1, windowEnd: time.Now().Add(-(rlMaxAge + time.Second))}
 	// Pre-seed a fresh entry that must survive cleanup.
-	rl.byIP["fresh"] = &failEntry{count: 1, windowEnd: time.Now().Add(refreshIPWindow)}
+	rl.counts["fresh"] = &failEntry{count: 1, windowEnd: time.Now().Add(refreshIPWindow)}
 	// Set calls so the next allow() call is the rlCleanupEvery-th, triggering cleanup.
 	rl.calls = rlCleanupEvery - 1
 
 	rl.allow("trigger")
 
-	if _, ok := rl.byIP["stale"]; ok {
-		t.Error("stale entry should have been removed by ipLimiter cleanup")
+	if _, ok := rl.counts["stale"]; ok {
+		t.Error("stale entry should have been removed by refreshLimiter cleanup")
 	}
-	if _, ok := rl.byIP["fresh"]; !ok {
-		t.Error("fresh entry should not have been removed by ipLimiter cleanup")
+	if _, ok := rl.counts["fresh"]; !ok {
+		t.Error("fresh entry should not have been removed by refreshLimiter cleanup")
 	}
 }
 

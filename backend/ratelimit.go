@@ -38,53 +38,59 @@ var loginLimiter = &rateLimiter{
 	byIPAndEmail: make(map[string]*failEntry),
 }
 
-// requestLimiter counts requests per authenticated user.
-// It is intentionally separate from rateLimiter to keep the two threat models
-// (brute-force login vs. authenticated API abuse) decoupled.
-type requestLimiter struct {
-	mu     sync.Mutex
-	byUser map[int]*failEntry // keyed by user ID
-	calls  int
+// keyedLimiter is a generic per-key sliding-window rate limiter, shared by the
+// per-authenticated-user and per-IP limiters below. It is intentionally
+// separate from rateLimiter to keep the two threat models (brute-force login
+// vs. authenticated API abuse / unauthenticated endpoint abuse) decoupled.
+type keyedLimiter[K comparable] struct {
+	mu           sync.Mutex
+	counts       map[K]*failEntry
+	calls        int
+	max          int
+	window       time.Duration
+	cleanupEvery int
 }
 
-var apiLimiter = &requestLimiter{
-	byUser: make(map[int]*failEntry),
+func newKeyedLimiter[K comparable](max int, window time.Duration, cleanupEvery int) *keyedLimiter[K] {
+	return &keyedLimiter[K]{counts: make(map[K]*failEntry), max: max, window: window, cleanupEvery: cleanupEvery}
 }
 
-// allow records one write request for userID and returns true if the user is
-// within their rate limit, false if they have exceeded it.
-func (rl *requestLimiter) allow(userID int) bool {
+var apiLimiter = newKeyedLimiter[int](apiMaxRequests, apiRateWindow, apiCleanupEvery)
+
+// allow records one attempt for key and returns true if it is within the
+// limiter's rate limit, false if it has exceeded it.
+func (rl *keyedLimiter[K]) allow(key K) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	e, ok := rl.byUser[userID]
+	e, ok := rl.counts[key]
 	if !ok || now.After(e.windowEnd) {
-		rl.byUser[userID] = &failEntry{count: 1, windowEnd: now.Add(apiRateWindow)}
+		rl.counts[key] = &failEntry{count: 1, windowEnd: now.Add(rl.window)}
 		rl.recordCall()
 		return true
 	}
 	e.count++
 	rl.recordCall()
-	return e.count <= apiMaxRequests
+	return e.count <= rl.max
 }
 
 // recordCall increments the call counter and triggers lazy cleanup.
 // Must be called with rl.mu held.
-func (rl *requestLimiter) recordCall() {
+func (rl *keyedLimiter[K]) recordCall() {
 	rl.calls++
-	if rl.calls%apiCleanupEvery == 0 {
+	if rl.calls%rl.cleanupEvery == 0 {
 		rl.cleanup()
 	}
 }
 
 // cleanup removes entries whose window ended more than rlMaxAge ago.
 // Must be called with rl.mu held.
-func (rl *requestLimiter) cleanup() {
+func (rl *keyedLimiter[K]) cleanup() {
 	cutoff := time.Now().Add(-rlMaxAge)
-	for k, e := range rl.byUser {
+	for k, e := range rl.counts {
 		if e.windowEnd.Before(cutoff) {
-			delete(rl.byUser, k)
+			delete(rl.counts, k)
 		}
 	}
 }
@@ -166,43 +172,6 @@ func (rl *rateLimiter) cleanup() {
 	}
 }
 
-// ipLimiter is a per-IP sliding-window rate limiter.
-// Used for unauthenticated endpoints where only the IP is known (e.g. token refresh).
-type ipLimiter struct {
-	mu    sync.Mutex
-	byIP  map[string]*failEntry
-	calls int
-}
-
-var refreshLimiter = &ipLimiter{byIP: make(map[string]*failEntry)}
-
-// allow records one attempt for ip and returns true if the IP is within the limit.
-func (rl *ipLimiter) allow(ip string) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	now := time.Now()
-	e, ok := rl.byIP[ip]
-	if !ok || now.After(e.windowEnd) {
-		rl.byIP[ip] = &failEntry{count: 1, windowEnd: now.Add(refreshIPWindow)}
-	} else {
-		e.count++
-	}
-
-	rl.calls++
-	if rl.calls%rlCleanupEvery == 0 {
-		rl.cleanup()
-	}
-
-	return rl.byIP[ip].count <= refreshIPMax
-}
-
-// cleanup removes stale entries. Must be called with rl.mu held.
-func (rl *ipLimiter) cleanup() {
-	cutoff := time.Now().Add(-rlMaxAge)
-	for k, e := range rl.byIP {
-		if e.windowEnd.Before(cutoff) {
-			delete(rl.byIP, k)
-		}
-	}
-}
+// refreshLimiter is a per-IP sliding-window rate limiter used for
+// unauthenticated endpoints where only the IP is known (e.g. token refresh).
+var refreshLimiter = newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)

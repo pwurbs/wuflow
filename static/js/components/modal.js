@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus, formatDateTime } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
@@ -371,8 +371,7 @@ function renderTimestampEntry(container, dateStr, user) {
     return;
   }
   container.innerHTML = '';
-  const date = new Date(dateStr);
-  const dateText = date.toLocaleDateString(navigator.language) + ' / ' + date.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+  const dateText = formatDateTime(dateStr);
 
   const dateSpan = document.createElement('span');
   dateSpan.textContent = dateText;

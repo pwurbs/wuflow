@@ -48,6 +48,22 @@ const (
 // internal error detail to the client.
 var errAdminCheckDB = errors.New("internal admin count check failed")
 
+// verifyAdminPassword confirms adminEmail's account matches providedPassword,
+// used to re-authenticate an admin before a sensitive action. Returns
+// errAdminCheckDB if the admin's account can't be loaded (existing sentinel,
+// already handled via errors.Is by callers), or a plain error if the password
+// is missing or incorrect.
+func verifyAdminPassword(ctx context.Context, adminEmail, providedPassword string) error {
+	adminUser, err := GetUserByEmail(ctx, adminEmail)
+	if err != nil || adminUser == nil {
+		return errAdminCheckDB
+	}
+	if providedPassword == "" || !CheckPassword(adminUser.PasswordHash, providedPassword) {
+		return errors.New("admin password confirmation required")
+	}
+	return nil
+}
+
 // formatETag returns the ETag header value for a timestamp (quoted RFC3339Nano).
 func formatETag(t time.Time) string {
 	return `"` + t.UTC().Format(time.RFC3339Nano) + `"`
@@ -1387,11 +1403,10 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	}
 
 	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) || req.Active != originalActive {
-		adminUser, err := GetUserByEmail(ctx, userEmail)
-		if err != nil || adminUser == nil {
-			return false, errAdminCheckDB
-		}
-		if req.AdminPassword == "" || !CheckPassword(adminUser.PasswordHash, req.AdminPassword) {
+		if err := verifyAdminPassword(ctx, userEmail, req.AdminPassword); err != nil {
+			if errors.Is(err, errAdminCheckDB) {
+				return false, errAdminCheckDB
+			}
 			LogWarn("UpdateUser: admin password confirmation failed", "admin_email", userEmail, "target_id", existing.ID)
 			return false, errors.New("admin password confirmation required")
 		}
@@ -1804,13 +1819,12 @@ func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	adminUser, err := GetUserByEmail(r.Context(), userEmail)
-	if err != nil || adminUser == nil {
-		LogError("DeleteProject: failed to load requesting admin", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	if req.AdminPassword == "" || !CheckPassword(adminUser.PasswordHash, req.AdminPassword) {
+	if err := verifyAdminPassword(r.Context(), userEmail, req.AdminPassword); err != nil {
+		if errors.Is(err, errAdminCheckDB) {
+			LogError("DeleteProject: failed to load requesting admin", "user_email", userEmail)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return
+		}
 		LogWarn("DeleteProject: admin password confirmation failed", "id", id, "user_email", userEmail)
 		http.Error(w, "admin password confirmation required", http.StatusBadRequest)
 		return

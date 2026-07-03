@@ -740,7 +740,7 @@ func TestMiddlewareIntegration(t *testing.T) {
 
 func TestUserRateLimitMiddleware(t *testing.T) {
 	origLimiter := apiLimiter
-	apiLimiter = &requestLimiter{byUser: make(map[int]*failEntry)}
+	apiLimiter = newKeyedLimiter[int](apiMaxRequests, apiRateWindow, apiCleanupEvery)
 	origEnabled := apiRateLimitEnabled
 	apiRateLimitEnabled = true
 	defer func() {
@@ -770,7 +770,7 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 
 	t.Run("GET bypasses rate limiter even when quota exhausted", func(t *testing.T) {
 		const uid = 30
-		apiLimiter.byUser[uid] = &failEntry{count: apiMaxRequests + 10, windowEnd: time.Now().Add(apiRateWindow)}
+		apiLimiter.counts[uid] = &failEntry{count: apiMaxRequests + 10, windowEnd: time.Now().Add(apiRateWindow)}
 		req := httptest.NewRequest(http.MethodGet, apiIssues+"/active", nil)
 		req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, uid))
 		rr := httptest.NewRecorder()
@@ -789,7 +789,7 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 	})
 
 	t.Run("POST blocked after limit", func(t *testing.T) {
-		apiLimiter.byUser[20] = &failEntry{count: apiMaxRequests, windowEnd: time.Now().Add(apiRateWindow)}
+		apiLimiter.counts[20] = &failEntry{count: apiMaxRequests, windowEnd: time.Now().Add(apiRateWindow)}
 		rr := httptest.NewRecorder()
 		mw.ServeHTTP(rr, ctxWith(20))
 		if rr.Code != http.StatusTooManyRequests {
@@ -808,7 +808,7 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 
 	t.Run("disabled rate limit passes through even when quota exhausted", func(t *testing.T) {
 		const uid = 99
-		apiLimiter.byUser[uid] = &failEntry{count: apiMaxRequests + 10, windowEnd: time.Now().Add(apiRateWindow)}
+		apiLimiter.counts[uid] = &failEntry{count: apiMaxRequests + 10, windowEnd: time.Now().Add(apiRateWindow)}
 		apiRateLimitEnabled = false
 		defer func() { apiRateLimitEnabled = true }()
 		req := httptest.NewRequest(http.MethodPost, apiIssues, nil)

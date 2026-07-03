@@ -6,6 +6,12 @@ function startOfDay(date) {
   return d;
 }
 
+// Formats a date string as "<locale date> / <locale time>", e.g. for last-login or activity timestamps.
+export function formatDateTime(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString(navigator.language) + ' / ' + d.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
+}
+
 // Returns { late: false } or { late: true, reason: string } for an issue deadline.
 export function getDeadlineStatus(issue) {
   if (!issue?.deadline) return { late: false };

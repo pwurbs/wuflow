@@ -629,9 +629,9 @@ func TestHandleRefreshSuccess(t *testing.T) {
 func TestHandleRefreshRateLimit(t *testing.T) {
 	// Pre-exhaust the refresh limiter for the default test IP (192.0.2.1).
 	orig := refreshLimiter
-	refreshLimiter = &ipLimiter{byIP: map[string]*failEntry{
-		"192.0.2.1": {count: refreshIPMax + 1, windowEnd: time.Now().Add(time.Minute)},
-	}}
+	replacement := newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)
+	replacement.counts["192.0.2.1"] = &failEntry{count: refreshIPMax + 1, windowEnd: time.Now().Add(time.Minute)}
+	refreshLimiter = replacement
 	defer func() { refreshLimiter = orig }()
 
 	req := httptest.NewRequest("POST", apiAuthRefresh, nil)

@@ -1,5 +1,5 @@
 import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout } from '../api.js';
-import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints } from '../utils.js';
+import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
@@ -606,9 +606,7 @@ async function renderUserList(refreshCallback) {
       };
       const roleBadge = roleBadgeMap[user.role] ?? '';
 
-      const lastLoginText = user.last_login
-        ? new Date(user.last_login).toLocaleDateString(navigator.language) + ' / ' + new Date(user.last_login).toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' })
-        : 'Never';
+      const lastLoginText = user.last_login ? formatDateTime(user.last_login) : 'Never';
 
       row.innerHTML = `
         <div class="settings-entry-info">

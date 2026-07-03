@@ -39,7 +39,8 @@ vi.mock('../utils.js', () => ({
     ];
     const unused = palette.filter(c => !usedColors.includes(c));
     return unused.length > 0 ? unused[0] : palette[0];
-  }
+  },
+  formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString())
 }));
 
 vi.mock('../permissions.js', async (importOriginal) => {
