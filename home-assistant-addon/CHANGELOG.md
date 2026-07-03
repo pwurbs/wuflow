@@ -7,6 +7,16 @@
 - Fixed Refresh Token DoS attack surface
 - Fixed the issue when reverse proxies like Traefik manipulate ETags which caused false issue edit conflict detection
 - Removed database migration code from v1.2.0 and v.1.3.0 (see migration notes)
+- Bumped dompurify to 3.4.11
+- Bumped direct Go package dependencies go-sqlite3 and x/crypto
+- Bumped vitest and playwright packages
+- Fixed: GetClientIP now handles comma-separated X-Forwarded-For headers and updated reverse proxy documentation
+- Added last login information to the users list and aligned items in users and projcts list
+- Added an admin password legitimation step for a project deletion attempt
+- Added an admin password legitimation step when an admin wants to activate or deactive a user
+- Added Fable security audit report
+- Added a "API Consumers & Trust Boundary" section in markdown-security.md
+- Added dedicated favicon files
 
 ## 1.3.1
 
