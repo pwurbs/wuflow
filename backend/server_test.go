@@ -487,6 +487,9 @@ func TestIsPublicAsset(t *testing.T) {
 		expected bool
 	}{
 		{"/logo.png", true},
+		{"/favicon.ico", true},
+		{"/favicon-16x16.png", true},
+		{"/favicon-32x32.png", true},
 		{"/js/login.js", true},
 		{"/styles/pages/login.css", true},
 		{"/js/app.js", false},

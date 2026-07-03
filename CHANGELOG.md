@@ -16,6 +16,7 @@
 - Added an admin password legitimation step when an admin wants to activate or deactive a user
 - Added Fable security audit report
 - Added a "API Consumers & Trust Boundary" section in markdown-security.md
+- Added dedicated favicon files
 
 # 1.3.1
 

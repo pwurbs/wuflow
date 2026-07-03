@@ -343,6 +343,9 @@ func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 func isPublicAsset(path string) bool {
 	publicAssets := map[string]bool{
 		"/logo.png":                       true,
+		"/favicon.ico":                    true,
+		"/favicon-16x16.png":              true,
+		"/favicon-32x32.png":              true,
 		"/js/login.js":                    true,
 		"/styles/abstracts/variables.css": true,
 		"/styles/base/reset.css":          true,
