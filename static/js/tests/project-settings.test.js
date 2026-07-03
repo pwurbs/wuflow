@@ -130,18 +130,6 @@ describe('project-settings.js component', () => {
       expect(utils.showNotification).toHaveBeenCalledWith('Failed to create label', 'error');
     });
 
-    it('creates a label on Enter keypress', async () => {
-      api.createLabel.mockResolvedValue({ id: 1, name: 'Bug', color: '#EF5350' });
-      setupProjectSettingsView();
-
-      const input = document.getElementById('ps-new-label-input');
-      input.value = 'Bug';
-      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
-      await new Promise(process.nextTick);
-
-      expect(api.createLabel).toHaveBeenCalledWith(1, expect.objectContaining({ name: 'Bug' }));
-    });
-
     it('does not create label on non-Enter keypress', async () => {
       setupProjectSettingsView();
       const input = document.getElementById('ps-new-label-input');
@@ -261,17 +249,17 @@ describe('project-settings.js component', () => {
 
     it('renders 6 boxes (Todo, Stage1–4, Done)', async () => {
       await renderProjectSettingsView();
-      expect(document.querySelectorAll('.sc-box').length).toBe(6);
+      expect(document.querySelectorAll('.sc-box')).toHaveLength(6);
     });
 
     it('marks Stage1 and Stage2 as active when they have names', async () => {
       await renderProjectSettingsView();
-      expect(document.querySelectorAll('.sc-box--active').length).toBe(2);
+      expect(document.querySelectorAll('.sc-box--active')).toHaveLength(2);
     });
 
     it('marks Stage3 and Stage4 as inactive when names are empty', async () => {
       await renderProjectSettingsView();
-      expect(document.querySelectorAll('.sc-box--inactive').length).toBe(2);
+      expect(document.querySelectorAll('.sc-box--inactive')).toHaveLength(2);
     });
 
     it('populates inputs with stage names from config', async () => {

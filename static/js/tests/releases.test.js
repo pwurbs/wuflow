@@ -118,11 +118,11 @@ describe('releases', () => {
       const callsAfterFirst = api.fetchArchivedIssuesByProject.mock.calls.length;
 
       await renderReleasesView(); // should use cache — no extra fetch
-      expect(api.fetchArchivedIssuesByProject.mock.calls.length).toBe(callsAfterFirst);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(callsAfterFirst);
 
       invalidateReleaseIssueCache();
       await renderReleasesView(); // cache cleared — must refetch
-      expect(api.fetchArchivedIssuesByProject.mock.calls.length).toBe(callsAfterFirst + 1);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(callsAfterFirst + 1);
     });
   });
 
@@ -239,7 +239,7 @@ describe('releases', () => {
       await renderReleasesView(); // populate cache
       const callsBefore = api.fetchArchivedIssuesByProject.mock.calls.length;
       await renderReleasesView(true);
-      expect(api.fetchArchivedIssuesByProject.mock.calls.length).toBe(callsBefore + 1);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(callsBefore + 1);
     });
 
     it('filters releases by owner "me"', async () => {

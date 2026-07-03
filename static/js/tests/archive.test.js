@@ -83,8 +83,8 @@ describe('Archive Component', () => {
       const doneList = document.getElementById('archive-done-list');
 
       // 1 archived issue + 1 month header
-      expect(archiveList.children.length).toBe(2);
-      expect(doneList.children.length).toBe(1);
+      expect(archiveList.children).toHaveLength(2);
+      expect(doneList.children).toHaveLength(1);
       expect(document.getElementById('archive-count').textContent).toBe('1');
       expect(document.getElementById('done-count-archive').textContent).toBe('1');
 

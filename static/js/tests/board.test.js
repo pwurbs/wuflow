@@ -95,10 +95,10 @@ describe('Board Component', () => {
 
       renderBoard();
 
-      expect(document.querySelector('.column[data-status="Todo"] .column-content').children.length).toBe(1);
-      expect(document.querySelector('.column[data-status="Stage1"] .column-content').children.length).toBe(0);
-      expect(document.querySelector('.column[data-status="Stage2"] .column-content').children.length).toBe(1);
-      expect(document.querySelector('.column[data-status="Done"] .column-content').children.length).toBe(1);
+      expect(document.querySelector('.column[data-status="Todo"] .column-content').children).toHaveLength(1);
+      expect(document.querySelector('.column[data-status="Stage1"] .column-content').children).toHaveLength(0);
+      expect(document.querySelector('.column[data-status="Stage2"] .column-content').children).toHaveLength(1);
+      expect(document.querySelector('.column[data-status="Done"] .column-content').children).toHaveLength(1);
 
       expect(card.createCardElement).toHaveBeenCalledTimes(3);
     });
@@ -129,7 +129,7 @@ describe('Board Component', () => {
 
       renderBoard();
 
-      expect(document.querySelector('.column[data-status="Todo"] .column-content').children.length).toBe(0);
+      expect(document.querySelector('.column[data-status="Todo"] .column-content').children).toHaveLength(0);
       expect(filters.filterIssues).toHaveBeenCalled();
     });
   });

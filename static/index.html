@@ -85,11 +85,11 @@
                     <div id="search-filter-wrapper" class="toolbar-input-wrapper">
                         <!-- maxlength: sync with search limit (50) documented in input-validation.md -->
                         <input type="search" id="search-input" placeholder="Search..." class="search-input"
-                            maxlength="50" autocomplete="off">
+                            maxlength="50" autocomplete="off" aria-label="Search issues">
                     </div>
                     <div id="release-search-wrapper" class="toolbar-input-wrapper hidden">
                         <input type="search" id="release-search-input" placeholder="Search releases..." class="search-input"
-                            maxlength="50" autocomplete="off">
+                            maxlength="50" autocomplete="off" aria-label="Search releases">
                     </div>
                 </div>
 
@@ -237,7 +237,7 @@
                         <div class="label-input-group">
                             <div class="label-input-wrapper">
                                 <input type="text" id="ps-new-label-input" placeholder="Add a new label, press Enter to save"
-                                    class="settings-input">
+                                    class="settings-input" aria-label="New label name">
                             </div>
                         </div>
                         <div id="ps-labels-list" class="labels-grid">
@@ -636,13 +636,13 @@
                                 <div class="input-group">
                                     <div class="task-title-input-wrapper">
                                         <input type="text" id="new-task-title" name="task_title"
-                                            placeholder="Add a task...">
+                                            placeholder="Add a task..." aria-label="Task title">
                                     </div>
                                     <div class="custom-date-input task-input-date">
                                         <span id="new-task-deadline-display"
                                             class="custom-date-display placeholder"></span>
                                         <input type="date" id="new-task-deadline" name="task_deadline"
-                                            title="Task Deadline">
+                                            title="Task Deadline" aria-label="Task deadline">
                                     </div>
                                     <button type="button" id="add-task-btn" class="btn primary add-task-btn">+ Add</button>
                                 </div>
@@ -808,9 +808,9 @@
             <div class="admin-confirm-body">
                 <p>Enter your own password to authorize this change.</p>
                 <form id="admin-confirm-form">
-                    <input type="text" id="admin-confirm-username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" readonly>
+                    <input type="text" id="admin-confirm-username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" readonly aria-label="Username">
                     <div class="form-group">
-                        <input type="password" id="admin-confirm-password" required placeholder="Enter your password" maxlength="128" autocomplete="current-password">
+                        <input type="password" id="admin-confirm-password" required placeholder="Enter your password" maxlength="128" autocomplete="current-password" aria-label="Password">
                         <div id="admin-confirm-error" class="form-error hidden" role="alert"></div>
                     </div>
                     <div class="form-actions">
@@ -829,7 +829,7 @@
                 <h2>Change Password</h2>
             </div>
             <form id="password-form">
-                <input type="text" id="password-form-username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" readonly>
+                <input type="text" id="password-form-username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" readonly aria-label="Username">
                 <div class="form-group">
                     <label for="current-password">Current Password</label>
                     <input type="password" id="current-password" required placeholder="Enter your current password" maxlength="128" autocomplete="current-password">

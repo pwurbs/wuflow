@@ -88,12 +88,12 @@ describe('Backlog Component', () => {
       await renderBacklog(refreshApp, openModal);
 
       const backlogList = document.getElementById('backlog-list');
-      expect(backlogList.children.length).toBe(2);
+      expect(backlogList.children).toHaveLength(2);
 
       // Check if createCardElement was called with move callbacks
       // The 3rd argument is 'callbacks'
       const calls = card.createCardElement.mock.calls;
-      expect(calls.length).toBe(3);
+      expect(calls).toHaveLength(3);
 
       // Check for callbacks existence
       calls.forEach(call => {
@@ -185,7 +185,7 @@ describe('Backlog Component', () => {
       await renderBacklog(vi.fn(), vi.fn());
 
       // id=1 must not be added again; id=2 must be merged in
-      expect(state.state.issues.length).toBe(2);
+      expect(state.state.issues).toHaveLength(2);
       expect(state.state.issues.find(i => i.id === 2)).toBeDefined();
     });
 

@@ -633,7 +633,7 @@ describe('initCharCounter', () => {
     initCharCounter(input, 2);
     input.value = '😀😀😀'; // 3 emoji, limit is 2
     input.dispatchEvent(new Event('input'));
-    expect([...input.value].length).toBe(2);
+    expect([...input.value]).toHaveLength(2);
     expect(input.value).toBe('😀😀');
   });
 });

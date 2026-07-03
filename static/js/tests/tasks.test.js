@@ -63,7 +63,7 @@ describe('Tasks Component', () => {
     renderTasks(issue.tasks, container, issue, callbacks);
 
     const items = container.querySelectorAll('.task-item');
-    expect(items.length).toBe(2);
+    expect(items).toHaveLength(2);
 
     // Task B should be first (pos 0)
     expect(items[0].querySelector('.task-title-input').value).toBe('Task B');
@@ -114,7 +114,7 @@ describe('Tasks Component', () => {
     await new Promise(process.nextTick);
 
     expect(api.deleteTask).toHaveBeenCalledWith(7, 1, 10);
-    expect(issue.tasks.length).toBe(1); // Should be removed from local array
+    expect(issue.tasks).toHaveLength(1); // Should be removed from local array
     expect(callbacks.onTaskUpdate).toHaveBeenCalled();
   });
 
@@ -355,7 +355,7 @@ describe('Tasks Component', () => {
     await new Promise(process.nextTick);
 
     expect(api.deleteTask).toHaveBeenCalledWith(7, 1, 10);
-    expect(issue.tasks.length).toBe(2); // not removed on failure
+    expect(issue.tasks).toHaveLength(2); // not removed on failure
     expect(utils.showNotification).toHaveBeenCalledWith('Delete failed', 'error');
     expect(callbacks.onTaskUpdate).not.toHaveBeenCalled();
   });

@@ -198,7 +198,7 @@ describe('planning.js', () => {
       // Near term should be directly in the content
       const planningItems = unscheduledSection.querySelectorAll('.planning-item');
       // Both are in the DOM, but one is in the far-term container
-      expect(planningItems.length).toBe(2);
+      expect(planningItems).toHaveLength(2);
 
       const farHeader = unscheduledSection.querySelector('.planning-section-subheader');
       expect(farHeader).not.toBeNull();
@@ -239,7 +239,7 @@ describe('planning.js', () => {
 
       const dayToday = list.querySelector('#day-2023-10-10');
       expect(dayToday).not.toBeNull();
-      expect(dayToday.querySelectorAll('.planning-item').length).toBe(1);
+      expect(dayToday.querySelectorAll('.planning-item')).toHaveLength(1);
       expect(dayToday.textContent).toContain('Planned Today');
 
       const dayTomorrow = list.querySelector('#day-2023-10-11');
@@ -312,7 +312,7 @@ describe('planning.js', () => {
       const list = document.getElementById('planning-list');
       const dayToday = list.querySelector('#day-2023-10-10');
 
-      expect(dayToday.querySelectorAll('.planning-item').length).toBe(1);
+      expect(dayToday.querySelectorAll('.planning-item')).toHaveLength(1);
       expect(dayToday.textContent).toContain('Keep');
       expect(dayToday.textContent).not.toContain('Filtered');
     });

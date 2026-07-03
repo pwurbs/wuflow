@@ -391,7 +391,7 @@ test.describe('Move issue – permission gate', () => {
     await createIssue(page, { title: 'MovePermIssue', status: 'Todo' });
 
     const card = page.locator('.column[data-status="Todo"] .card:has-text("MovePermIssue")');
-    await card.click({ force: true });
+    await card.click();
     await expect(page.locator('#issue-modal')).toBeVisible();
 
     // RoleUser cannot move — project dropdown must be disabled
