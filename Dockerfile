@@ -1,12 +1,15 @@
 
 #------- Build stage ---------------------------------------------------------
-# Use Debian-based Go image to match the runtime and ensure libc compatibility for CGO
-FROM docker.io/library/golang:1.25.11-bookworm AS builder
+# Use Alpine-based Go image to match the runtime and ensure musl libc compatibility for CGO
+FROM docker.io/library/golang:1.25.11-alpine3.24 AS builder
 
 # Arguments for cross-compilation
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
+
+# CGO needs a C toolchain and musl libc headers to compile mattn/go-sqlite3
+RUN apk add --no-cache gcc musl-dev
 
 # Set working directory to separate build from GOPATH
 WORKDIR /app
@@ -28,12 +31,12 @@ RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
 
 #------- Package stage ---------------------------------------------------------
 
-# Slim Debian Trixie image
-FROM docker.io/library/debian:13.5-slim
+# Slim Alpine image
+FROM docker.io/library/alpine:3.24.1
 
 # Create a non-login, non-root user and group
-RUN groupadd -r appuser && \
-    useradd -r -g appuser -s /usr/sbin/nologin appuser
+RUN addgroup -S appuser && \
+    adduser -S -G appuser -s /sbin/nologin appuser
 
 WORKDIR /app
 
