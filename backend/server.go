@@ -349,6 +349,7 @@ func isPublicAsset(path string) bool {
 		"/js/login.js":                    true,
 		"/styles/abstracts/variables.css": true,
 		"/styles/base/reset.css":          true,
+		"/styles/base/typography.css":     true,
 		"/styles/pages/login.css":         true,
 	}
 	return publicAssets[path]
