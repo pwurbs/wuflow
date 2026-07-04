@@ -84,7 +84,7 @@
 .release-lane-name {
   font-size: var(--fs-md);
   font-weight: var(--fw-medium);
-  color: var(--header-text);
+  color: var(--text-color);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -187,7 +187,7 @@
 }
 
 .backlog-card-title {
-  color: var(--header-text);
+  color: var(--text-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
