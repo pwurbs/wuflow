@@ -3,8 +3,6 @@
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 14px;
   transition: background-color 0.2s;
 }
 
@@ -41,6 +39,6 @@
 
 .btn--sm {
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   min-width: unset;
 }

@@ -12,8 +12,6 @@
 }
 
 #tasks-section h3 {
-  font-size: 14px;
-  font-weight: 500;
   margin-bottom: 8px;
 }
 
@@ -27,7 +25,7 @@
   align-items: center;
   gap: 8px;
   padding: 2px 8px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   border-radius: 4px;
   background-color: rgb(16, 22, 35);
   /* Match Assignee placeholder opacity */
@@ -63,7 +61,7 @@
   cursor: grab;
   color: var(--muted-text);
   padding: 0;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   opacity: 0;
   transition: opacity 0.2s;
   margin-right: 0;
@@ -90,18 +88,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 200;
-  /* Match input font weight */
 }
 
 .task-title-input {
   flex: 1;
   border: 1px solid transparent;
   background: transparent;
-  font-size: 14px;
-  font-weight: 200;
   color: var(--text-color);
-  font-family: inherit;
   padding: 1px 4px;
   border-radius: 4px;
   outline: none;
@@ -166,7 +159,7 @@
 }
 
 .task-deadline {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted-text);
   white-space: nowrap;
 }
@@ -174,7 +167,7 @@
 .delete-task-btn {
   cursor: pointer;
   color: var(--muted-text);
-  font-size: 14px;
+  font-size: var(--fs-base);
   padding: 4px;
   border-radius: 4px;
   display: flex;
@@ -195,8 +188,8 @@
 
 .input-group #new-task-deadline {
   width: 140px;
-  font-size: 13px;
-  font-weight: 400;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-regular);
 }
 
 /* Task Input Date Specifics */
@@ -205,9 +198,9 @@
   /* Override the global 38px min-height so row matches existing task item height */
   min-height: unset;
   padding: 4px 6px;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .input-group .custom-date-input.task-input-date .custom-date-display::before {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }

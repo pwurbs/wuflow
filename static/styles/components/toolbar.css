@@ -37,8 +37,6 @@
 }
 
 .toolbar-label {
-  font-size: 16px;
-  font-weight: 600;
   color: var(--accent-blue);
   text-transform: uppercase;
 }
@@ -47,8 +45,6 @@
   position: relative;
   display: flex;
   /* Ensures it shrinks to content */
-  font-family: inherit;
-  /* Inherit font settings */
 }
 
 .custom-select-wrapper {
@@ -63,9 +59,6 @@
   color: var(--text-color);
   padding: 6px 12px;
   border-radius: 4px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 200;
   cursor: pointer;
   min-width: 120px;
   text-align: left;
@@ -102,13 +95,13 @@
 }
 
 .toolbar-icon-arrow {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   opacity: 0.7;
 }
 
 .toolbar-icon-clear {
-  font-size: 16px;
-  font-weight: bold;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
   color: var(--muted-text);
   cursor: pointer;
   line-height: 1;
@@ -143,10 +136,8 @@
 .custom-option {
   padding: 4px 12px;
   cursor: pointer;
-  font-size: 14px;
   color: var(--text-color);
   transition: background-color 0.2s;
-  font-weight: 200;
 }
 
 .custom-option:hover {
@@ -176,9 +167,6 @@
   color: var(--text-color);
   padding: 6px 12px;
   border-radius: 4px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 200;
   cursor: text;
   min-width: 120px;
   text-align: left;

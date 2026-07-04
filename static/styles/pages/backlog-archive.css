@@ -82,8 +82,8 @@
 }
 
 .release-lane-name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
   color: var(--header-text);
   flex: 1;
   min-width: 0;
@@ -93,7 +93,7 @@
 }
 
 .release-lane-count {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted-text);
   background: var(--column-bg);
   border: 1px solid var(--card-border);
@@ -122,8 +122,6 @@
 
 /* Shared Header Styling */
 .backlog-header h2 {
-  font-size: 16px;
-  font-weight: 600;
   color: var(--accent-blue);
   text-transform: uppercase;
   margin: 0;
@@ -139,8 +137,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .backlog-list {
@@ -186,13 +182,11 @@
 
 .backlog-card-left .user-badge,
 .backlog-badge-placeholder {
-  width: 22px;
+  width: 20px;
   flex-shrink: 0;
 }
 
 .backlog-card-title {
-  font-size: 14px;
-  font-weight: 500;
   color: var(--header-text);
   white-space: nowrap;
   overflow: hidden;
@@ -215,7 +209,7 @@
 }
 
 .backlog-card-deadline {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted-text);
 }
 
@@ -232,11 +226,11 @@
 
 /* Subtask icon/count: match compact row size */
 .backlog-list .board-task-icon {
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .backlog-list .board-task-info {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   align-items: center;
 }
 
@@ -247,8 +241,8 @@
 
 /* Archive Month Headers */
 .archive-month-header {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
   color: var(--muted-text);
   margin: 24px 0 16px 0;
   text-transform: uppercase;
@@ -283,8 +277,8 @@
   background-color: var(--column-bg);
   border: 1px solid var(--card-border);
   color: var(--muted-text);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
   letter-spacing: 0.3px;
   white-space: nowrap;
   user-select: none;

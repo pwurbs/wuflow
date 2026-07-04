@@ -1,5 +1,5 @@
 .large-input {
-  font-size: 18px;
+  font-size: var(--fs-xl);
   padding: 10px;
 }
 
@@ -11,8 +11,6 @@
 .form-group .form-label {
   display: block;
   margin-bottom: 8px;
-  font-weight: 500;
-  font-size: 14px;
 }
 
 .form-group input,
@@ -24,9 +22,6 @@
   background-color: rgb(16, 22, 35);
   color: var(--text-color);
   border-radius: 4px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 200;
 }
 
 .form-group input:focus,
@@ -122,9 +117,6 @@ input:-webkit-autofill:active,
   color: var(--text-color);
   padding: 4px 8px;
   border-radius: 4px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 200;
 }
 
 .input-group .btn {
@@ -146,8 +138,6 @@ input:-webkit-autofill:active,
   background-color: rgb(16, 22, 35);
   color: var(--text-color);
   border-radius: 4px;
-  font-size: 14px;
-  font-weight: 200;
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -173,7 +163,7 @@ input:-webkit-autofill:active,
 
 .custom-date-display::before {
   content: '📅';
-  font-size: 14px;
+  font-size: var(--fs-base);
   opacity: 0.7;
 }
 
@@ -202,8 +192,6 @@ input:-webkit-autofill:active,
 .form-label {
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text-color);
 }
 
 .read-only-meta {
@@ -212,9 +200,6 @@ input:-webkit-autofill:active,
   color: var(--muted-text);
   padding: 6px 12px;
   border-radius: 4px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 200;
   min-height: 38px;
   display: flex;
   align-items: center;
@@ -223,7 +208,7 @@ input:-webkit-autofill:active,
 .char-counter {
   display: none;
   text-align: right;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1;
   color: var(--muted-text);
   margin-top: 2px;
@@ -273,5 +258,5 @@ input:-webkit-autofill:active,
   transform: translateY(-50%);
   margin: 0;
   background: transparent;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }

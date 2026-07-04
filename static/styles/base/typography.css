@@ -1,4 +1,106 @@
+/* Page title */
 h1 {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+}
+
+/* Section headers */
+.column-header h2,
+.backlog-header h2,
+.sidebar-header h3,
+.toolbar-label {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+/* Modal / dialog titles */
+.modal-content.confirm h2,
+.release-dialog-header h2,
+.settings-modal-header h2 {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+}
+
+/* Count badges */
+.sidebar-header .count,
+.column-header .count,
+.backlog-header .count {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+/* Form labels — tag-style: differentiated from field values by size/case/
+   spacing (not just weight/color), so the hierarchy reads clearly even
+   though it's a smaller, muted-grey label next to a brighter, larger value. */
+.form-group label,
+.form-group .form-label,
+.form-label,
+.login-card .form-group label,
+.form-checkbox label,
+.release-archive-label,
+.release-stat-name,
+#tasks-section h3 {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-text);
+}
+
+/* Error banners */
+.login-error,
+.form-error {
+  font-size: var(--fs-md);
+}
+
+/* Body / input text */
+.form-group input,
+.form-group select,
+.form-group textarea,
+.input-group input,
+.custom-date-input,
+.read-only-meta,
+.custom-select-trigger,
+.custom-option,
+.search-input,
+.task-title-input,
+.task-title-text,
+.rich-editor,
+.md-preview,
+.login-card .form-group input,
+.release-dialog,
+.modal-content.confirm p,
+.admin-confirm-body p,
+.dropdown-item {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-regular);
+}
+
+/* Card / issue titles */
+.board-card-title,
+.backlog-card-title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+/* Buttons & primary menu actions */
+.btn,
+.user-menu-btn,
+.login-btn,
+.settings-entry-title {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+/* Code / monospace */
+code,
+kbd,
+pre,
+.md-textarea,
+.rich-editor code,
+.md-preview code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
 }

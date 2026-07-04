@@ -24,11 +24,11 @@
   margin-bottom: 6px;
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .planning-date {
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--primary-color);
 }
 
@@ -52,7 +52,7 @@
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: grab;
   color: var(--text-color);
   overflow: hidden;
@@ -70,7 +70,7 @@
 }
 
 .planning-item-deadline {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--primary-color);
   white-space: nowrap;
   padding: 2px 6px;
@@ -87,7 +87,7 @@
 .planning-item-remove {
   color: var(--danger-color);
   cursor: pointer;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   line-height: 1;
   opacity: 0.7;
   transition: opacity 0.2s;
@@ -143,8 +143,8 @@
 }
 
 .planning-section-title {
-  font-weight: 500;
-  font-size: 13px;
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-md);
   color: var(--primary-color);
 }
 
@@ -152,7 +152,7 @@
   display: flex;
   align-items: center;
   color: var(--primary-color);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .planning-section-subtitle {

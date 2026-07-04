@@ -31,8 +31,6 @@
 }
 
 .login-header h1 {
-  font-size: 1.5rem;
-  font-weight: 500;
   color: var(--header-text);
 }
 
@@ -45,9 +43,6 @@
 .login-card .form-group label {
   display: block;
   margin-bottom: 8px;
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--text-color);
 }
 
 .login-card .form-group input {
@@ -57,8 +52,6 @@
   background-color: rgb(16, 22, 35);
   color: var(--text-color);
   border-radius: 6px;
-  font-family: inherit;
-  font-size: 14px;
   transition: border-color 0.15s ease;
 }
 
@@ -86,9 +79,6 @@
   color: white;
   border: none;
   border-radius: 6px;
-  font-size: 15px;
-  font-weight: 500;
-  font-family: inherit;
   cursor: pointer;
   transition: background-color 0.15s ease;
   margin-top: 8px;
@@ -109,7 +99,6 @@
   color: var(--danger-color);
   padding: 10px 12px;
   border-radius: 6px;
-  font-size: 13px;
   margin-bottom: 12px;
 }
 

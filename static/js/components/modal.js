@@ -383,7 +383,7 @@ function renderTimestampEntry(container, dateStr, user) {
     container.appendChild(bySpan);
 
     const badge = document.createElement('div');
-    badge.className = 'user-badge small';
+    badge.className = 'user-badge';
     badge.textContent = getUserInitials(user);
     badge.title = `${user.first_name} ${user.last_name}`;
     badge.style.display = 'inline-flex';

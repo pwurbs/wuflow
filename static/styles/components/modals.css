@@ -101,7 +101,7 @@
 }
 
 .sidebar-placeholder .placeholder-label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted-text);
   margin-bottom: 4px;
   display: block;
@@ -112,7 +112,7 @@
   border: 1px solid var(--card-border);
   padding: 8px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--muted-text);
 }
 
@@ -133,14 +133,11 @@
 }
 
 .modal-content.confirm h2 {
-  font-size: 18px;
-  font-weight: 600;
   color: var(--text-color);
   margin-bottom: 12px;
 }
 
 .modal-content.confirm p {
-  font-size: 14px;
   line-height: 1.6;
   margin-bottom: 24px;
   color: var(--muted-text);
@@ -177,8 +174,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--muted-text);
-  font-size: 13px;
+  color: var(--text-color);
+  font-size: var(--fs-md);
   line-height: 1;
   cursor: default;
 }
@@ -211,7 +208,7 @@
   border: 1px solid var(--card-border);
   padding: 1px 6px 1px 10px;
   border-radius: 16px;
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -232,7 +229,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   line-height: 1;
   transition: color 0.2s;
 }
@@ -254,8 +251,8 @@
   cursor: pointer;
   position: relative;
   transition: all 0.2s;
-  font-size: 16px;
-  font-weight: 300;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-regular);
 }
 
 .date-chip-add:hover {
@@ -282,6 +279,6 @@
   border-radius: 4px;
   border: 1px solid var(--card-border);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   z-index: 10;
 }

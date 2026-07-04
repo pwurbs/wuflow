@@ -41,7 +41,7 @@
 }
 
 .release-badge-placeholder {
-    width: 22px;
+    width: 20px;
     flex-shrink: 0;
 }
 
@@ -67,7 +67,7 @@
     border: 1px solid var(--card-border);
     border-radius: 4px;
     padding: 3px 8px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
@@ -102,7 +102,7 @@
 }
 
 .release-card-desc {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted-text);
     white-space: nowrap;
     overflow: hidden;
@@ -127,7 +127,7 @@
 }
 
 .release-dates {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted-text);
 }
 
@@ -136,7 +136,7 @@
 }
 
 .release-count {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted-text);
     white-space: nowrap;
 }
@@ -182,7 +182,7 @@
     border: 1px solid var(--card-border);
     border-radius: 4px;
     padding: 3px 8px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
@@ -221,7 +221,7 @@
 
 .releases-empty {
     color: var(--muted-text);
-    font-size: 13px;
+    font-size: var(--fs-md);
     padding: 8px 0;
 }
 
@@ -234,11 +234,11 @@
 }
 
 .release-modal-stats .release-dialog-intro {
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .release-modal-stats .release-stat-row {
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 /* ── Release trigger dialog ── */
@@ -250,8 +250,6 @@
     width: 400px;
     max-width: 90%;
     overflow: hidden;
-    font-family: inherit;
-    font-size: 14px;
     line-height: 1.6;
 }
 
@@ -261,8 +259,6 @@
 }
 
 .release-dialog-header h2 {
-    font-size: 18px;
-    font-weight: 600;
     color: var(--text-color);
     margin: 0;
 }
@@ -298,11 +294,12 @@
 }
 
 .release-stat-count {
-    font-weight: 600;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    color: var(--text-color);
 }
 
 .release-dialog-warning {
-    font-size: 13px;
     color: var(--danger-color);
     margin: 4px 0 0;
 }
@@ -311,7 +308,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--muted-text);
+    padding-top: 6px;
     cursor: pointer;
 }
 

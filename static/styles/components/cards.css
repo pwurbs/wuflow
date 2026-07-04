@@ -60,16 +60,10 @@ body:not(.is-dragging) .card.is-archived:hover {
 }
 
 .card-id {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted-text);
   margin-right: 4px;
-  font-weight: 400;
-}
-
-.card-title {
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--header-text);
+  font-weight: var(--fw-regular);
 }
 
 .card-description {
@@ -79,18 +73,18 @@ body:not(.is-dragging) .card.is-archived:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--muted-text);
   margin-top: 4px;
   line-height: 1.4;
-  max-height: calc(1.4 * 13px * 2);
+  max-height: calc(1.4 * var(--fs-md) * 2);
 }
 
 .card-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted-text);
   margin-top: 8px;
 }
@@ -107,13 +101,13 @@ body:not(.is-dragging) .card.is-archived:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted-text);
   padding: 2px 0;
 }
 
 .card-task-icon {
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1;
 }
 
@@ -124,14 +118,14 @@ body:not(.is-dragging) .card.is-archived:hover {
 }
 
 .card-task-deadline {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--muted-text);
   margin-left: auto;
 }
 
 /* Task Deadlines - Keeping consistent with original override */
 .task-deadline {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted-text);
   margin-left: 8px;
 }
@@ -141,8 +135,8 @@ body:not(.is-dragging) .card.is-archived:hover {
   display: inline-block;
   padding: 1px 8px 2px 8px;
   border-radius: 3px;
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
   line-height: 1.2;
   border: 1px solid var(--muted-text);
   color: var(--muted-text);
@@ -152,7 +146,7 @@ body:not(.is-dragging) .card.is-archived:hover {
 .release-chip-check {
   color: #4caf50;
   margin-right: 3px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
 }
 
 /* Label Styles */
@@ -160,8 +154,8 @@ body:not(.is-dragging) .card.is-archived:hover {
   display: inline-block;
   padding: 1px 8px 2px 8px;
   border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
   line-height: 1.2;
 }
 
@@ -218,7 +212,7 @@ body:not(.is-dragging) .card.high-priority:hover {
   background: none;
   border: none;
   color: var(--text-color);
-  font-size: 14px;
+  font-size: var(--fs-base);
   cursor: pointer;
   border-radius: 4px;
 }

@@ -60,8 +60,8 @@
     padding: 8px;
     border: 1px solid var(--card-border);
     border-radius: 4px;
-    font-size: 14px;
-    font-weight: 200;
+    font-size: var(--fs-base);
+    font-weight: var(--fw-regular);
     background-color: var(--bg-color);
     color: var(--text-color);
     transition: border-color 0.2s, box-shadow 0.2s;
@@ -93,9 +93,9 @@
 
     border-radius: 12px;
     /* Matches board */
-    font-size: 11px;
+    font-size: var(--fs-xs);
     /* Matches board */
-    font-weight: 500;
+    font-weight: var(--fw-medium);
     line-height: 1.2;
     /* Matches board */
     /* color, bg, border set in JS */
@@ -124,7 +124,7 @@
     border: none;
     color: inherit;
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--fs-base);
     line-height: 1;
     padding: 0;
     width: 18px;
@@ -197,15 +197,15 @@
 }
 
 .sc-box-label {
-    font-size: 10px;
+    font-size: var(--fs-2xs);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--muted-text);
 }
 
 .sc-fixed-name {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
     color: var(--text-color);
 }
 
@@ -214,7 +214,7 @@
     padding: 4px 6px;
     border: 1px solid var(--card-border);
     border-radius: 4px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     text-align: center;
     background-color: var(--bg-color);
     color: var(--text-color);
@@ -231,7 +231,7 @@
 }
 
 .sc-hint {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted-text);
     margin-bottom: 12px;
 }
@@ -243,8 +243,8 @@
     margin-left: 4px;
     padding: 1px 5px;
     border-radius: 8px;
-    font-size: 10px;
-    font-weight: 600;
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semibold);
     background-color: var(--danger-color);
     color: #fff;
     vertical-align: middle;
@@ -284,13 +284,11 @@
 }
 
 .settings-entry-title {
-  font-weight: 500;
-  font-size: 14px;
   color: var(--text-color);
 }
 
 .settings-entry-subtitle {
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--muted-text);
 }
 
@@ -363,8 +361,8 @@
 }
 
 .settings-entry-badge {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
   padding: 2px 8px;
   border-radius: 4px;
@@ -411,7 +409,7 @@
   border: 1px solid var(--card-border);
   border-radius: 4px;
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
@@ -446,8 +444,6 @@
 }
 
 .settings-modal-header h2 {
-  font-size: 18px;
-  font-weight: 600;
   color: var(--text-color);
   margin: 0;
 }
@@ -476,7 +472,7 @@
 .form-hint {
   display: block;
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--muted-text);
 }
 
@@ -491,7 +487,6 @@
 
 .admin-confirm-body p {
   margin: 0 0 16px;
-  font-size: 14px;
   color: var(--muted-text);
 }
 
@@ -501,8 +496,6 @@
   border: none;
   padding: 8px 20px;
   border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
@@ -539,8 +532,6 @@
 .form-checkbox label {
   margin-bottom: 0;
   cursor: pointer;
-  color: var(--text-color);
-  font-weight: 500;
 }
 
 .user-options-row .role-group {
@@ -568,6 +559,5 @@
   color: var(--danger-color);
   padding: 10px 12px;
   border-radius: 6px;
-  font-size: 13px;
   margin-bottom: 12px;
 }

@@ -41,8 +41,6 @@
 
 /* Shared Header Styling (replicated from style.css lines 234-241) */
 .column-header h2 {
-  font-size: 16px;
-  font-weight: 600;
   color: var(--accent-blue);
   text-transform: uppercase;
   margin: 0;
@@ -59,8 +57,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .column-content {
@@ -82,9 +78,7 @@
 }
 
 .board-card-title {
-  font-weight: 500;
   color: var(--header-text);
-  font-size: 14px;
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -92,7 +86,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  height: calc(1.4 * 14px * 2);
+  height: calc(1.4 * var(--fs-base) * 2);
   margin-bottom: 8px;
 }
 
@@ -102,7 +96,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--muted-text);
   margin-top: auto;
 }
@@ -164,7 +158,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   margin-bottom: 4px;
   color: var(--text-color);
   line-height: 1.4;
@@ -180,7 +174,7 @@
 }
 
 .board-task-tooltip .tooltip-icon {
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1;
   flex-shrink: 0;
 }
@@ -194,14 +188,14 @@
 
 .tooltip-deadline {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--muted-text);
   white-space: nowrap;
 }
 
 .board-task-icon {
   color: #3b82f6;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   position: relative;
   top: -1px;
 }

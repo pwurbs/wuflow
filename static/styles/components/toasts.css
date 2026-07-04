@@ -6,8 +6,8 @@
   border-radius: 4px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   z-index: 2000;
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-base);
   border: none;
   transition: opacity 0.3s ease, transform 0.3s ease;
   opacity: 1;

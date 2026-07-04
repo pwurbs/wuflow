@@ -28,7 +28,7 @@
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 3px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   transition: background-color 0.2s;
   display: flex;
   align-items: center;
@@ -62,7 +62,7 @@
 .separator {
   color: var(--muted-text);
   margin: 0 4px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .rich-editor {
@@ -70,10 +70,7 @@
   padding: 12px;
   overflow-y: auto;
   outline: none;
-  font-family: inherit;
-  font-size: 14px;
   color: var(--text-color);
-  font-weight: 200;
   line-height: 1.4;
   white-space: pre-wrap;
 }
@@ -97,7 +94,7 @@
 
 .rich-editor b,
 .rich-editor strong {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .rich-editor i,
@@ -155,7 +152,7 @@
   justify-content: center;
   border-radius: 4px;
   transition: background-color 0.2s;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   width: 28px;
   height: 28px;
 }
@@ -214,8 +211,6 @@
   flex: 1;
   padding: 12px;
   outline: none;
-  font-family: monospace;
-  font-size: 13px;
   color: var(--text-color);
   background-color: rgb(16, 22, 35);
   border: none;
@@ -237,10 +232,7 @@
   flex: 1;
   padding: 12px;
   overflow-y: auto;
-  font-family: inherit;
-  font-size: 14px;
   color: var(--text-color);
-  font-weight: 200;
   line-height: 1.4;
   white-space: normal;
   /* Change from pre-wrap to normal to avoid text node spacing between blocks */
@@ -259,7 +251,7 @@
 .md-preview h4,
 .md-preview h5,
 .md-preview h6 {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   margin: 12px 0 6px;
   line-height: 1.3;
 }
@@ -298,7 +290,7 @@
 
 .md-preview b,
 .md-preview strong {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .md-preview i,
@@ -318,16 +310,11 @@
 }
 
 /* Code styles */
-/* Code styles */
 .rich-editor code,
 .md-preview code {
-  font-family: monospace;
-  /* Ensure uniform monospace font */
   background-color: var(--card-bg);
   padding: 2px 4px;
   border-radius: 4px;
-  font-size: 13px;
-  /* Match both sizes */
   color: var(--text-color);
   /* Match text colors */
   border: 1px solid var(--card-border);
@@ -348,7 +335,7 @@
   background-color: transparent;
   padding: 0;
   color: var(--text-color);
-  font-size: 13px;
+  font-size: var(--fs-md);
   border: none;
   /* Strip inner borders on pre > code containers */
 }
@@ -359,7 +346,7 @@
   border-collapse: collapse;
   margin-bottom: 8px;
   width: 100%;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .md-preview th,
@@ -373,7 +360,7 @@
 .md-preview thead tr,
 .rich-editor thead tr {
   background-color: var(--column-bg);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .md-preview tbody tr:nth-child(even),

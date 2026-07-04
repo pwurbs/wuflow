@@ -398,7 +398,7 @@ export function setupUserMenu(user) {
   if (userEmailSpan) {
     const initials = getUserInitials(user);
     const badge = document.createElement('div');
-    badge.className = 'user-badge header';
+    badge.className = 'user-badge';
     badge.textContent = initials;
 
     userEmailSpan.innerHTML = '';
