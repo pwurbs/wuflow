@@ -32,8 +32,8 @@ export function setupProjectSettingsView() {
           const color = getUnusedColor(usedColors);
           await createLabel(projectId, { name, color });
           addLabelInput.value = '';
-          renderProjectSettingsView();
-          updateLabelFilterOptions(await fetchLabelsByProject(projectId));
+          const labels = await renderProjectSettingsView();
+          updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
           showNotification('Label created', 'success');
         } catch (err) {
           console.error(err);
@@ -96,8 +96,8 @@ export async function renderProjectSettingsView() {
           if (confirmed) {
             try {
               await deleteLabel(projectId, label.id);
-              renderProjectSettingsView();
-              updateLabelFilterOptions(await fetchLabelsByProject(projectId));
+              const labels = await renderProjectSettingsView();
+              updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
               showNotification('Label deleted', 'success');
             } catch (err) {
               console.error(err);
@@ -109,6 +109,8 @@ export async function renderProjectSettingsView() {
 
       labelsList.appendChild(labelEl);
     });
+
+    return labels;
   } catch (err) {
     console.error(err);
     labelsList.innerHTML = '<div class="error">Failed to load labels.</div>';

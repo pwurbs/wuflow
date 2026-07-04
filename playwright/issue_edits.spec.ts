@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, navigateTo, openIssueByTitle, selectPriority, waitForToast } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, openIssueByTitle, selectPriority, waitForIssueSave, waitForToast } from './helpers/test-utils';
 
 test.describe('Issue Edit Operations', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -123,7 +123,7 @@ test.describe('Issue Edit Operations', () => {
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
-    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+    const savePromise = waitForIssueSave(page);
 
     await page.fill('#deadline', deadlineStr);
 
@@ -160,7 +160,7 @@ test.describe('Issue Edit Operations', () => {
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
-    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+    const savePromise = waitForIssueSave(page);
 
     await page.fill('#deadline', newDeadline);
 
@@ -198,7 +198,7 @@ test.describe('Issue Edit Operations', () => {
 
     // Clear the deadline — wait for the save (a field change now only re-renders
     // locally; the app-wide issues refresh is deferred until the modal closes).
-    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+    const savePromise = waitForIssueSave(page);
 
     await page.fill('#deadline', '');
 

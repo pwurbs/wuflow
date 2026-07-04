@@ -99,6 +99,17 @@ async function loadStatusConfig() {
     }
 }
 
+// Single source of truth for which view is currently visible, shared by
+// refreshApp() and rerenderActiveView() so they can't drift out of sync.
+function getVisibleViews() {
+    return {
+        backlog: !backlogView.classList.contains('hidden'),
+        archive: !archiveView.classList.contains('hidden'),
+        projectSettings: !!(projectSettingsView && !projectSettingsView.classList.contains('hidden')),
+        releases: !!(releasesView && !releasesView.classList.contains('hidden')),
+    };
+}
+
 async function refreshApp() {
     try {
         await loadStatusConfig();
@@ -125,9 +136,9 @@ async function refreshApp() {
         updateReleaseFilterOptions(releases);
 
         cachedUsers = users;
-        const isReleasesView = releasesView && !releasesView.classList.contains('hidden');
-        updateUserFilterOptions(cachedUsers, isReleasesView ? 'releases' : 'issues');
-        if (isReleasesView) renderReleaseOwnerOptions(cachedUsers);
+        const visible = getVisibleViews();
+        updateUserFilterOptions(cachedUsers, visible.releases ? 'releases' : 'issues');
+        if (visible.releases) renderReleaseOwnerOptions(cachedUsers);
 
         updateProjectSelectorOptions(projects);
 
@@ -136,16 +147,16 @@ async function refreshApp() {
         updatePriorityFilterOptions();
 
         renderBoard(refreshApp, openModal, rerenderActiveView);
-        if (!backlogView.classList.contains('hidden')) {
+        if (visible.backlog) {
             await renderBacklog(refreshApp, openModal, rerenderActiveView);
         }
-        if (!archiveView.classList.contains('hidden')) {
+        if (visible.archive) {
             await renderArchive(refreshApp, openModal, rerenderActiveView);
         }
-        if (projectSettingsView && !projectSettingsView.classList.contains('hidden')) {
+        if (visible.projectSettings) {
             await renderProjectSettingsView();
         }
-        if (releasesView && !releasesView.classList.contains('hidden')) {
+        if (visible.releases) {
             renderReleasesView();
         }
         renderPlanningPanel();
@@ -161,20 +172,20 @@ function rerenderActiveView() {
     // just reusing already-cached data instead of re-fetching it.
     updateLabelFilterOptions(cachedLabels);
     updateReleaseFilterOptions(state.releases);
-    const isReleasesView = releasesView && !releasesView.classList.contains('hidden');
-    updateUserFilterOptions(cachedUsers, isReleasesView ? 'releases' : 'issues');
+    const visible = getVisibleViews();
+    updateUserFilterOptions(cachedUsers, visible.releases ? 'releases' : 'issues');
 
     renderBoard();
-    if (!backlogView.classList.contains('hidden')) {
+    if (visible.backlog) {
         renderBacklog();
     }
-    if (!archiveView.classList.contains('hidden')) {
+    if (visible.archive) {
         renderArchive();
     }
-    if (projectSettingsView && !projectSettingsView.classList.contains('hidden')) {
+    if (visible.projectSettings) {
         renderProjectSettingsView();
     }
-    if (isReleasesView) {
+    if (visible.releases) {
         renderReleasesView();
     }
     renderPlanningPanel();

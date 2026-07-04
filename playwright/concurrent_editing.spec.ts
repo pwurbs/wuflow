@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createProjectViaAPI, openIssueByTitle, selectPriority } from './helpers/test-utils';
+import { createIssue, createProjectViaAPI, openIssueByTitle, selectPriority, waitForIssueSave } from './helpers/test-utils';
 
 test.describe('Concurrent Editing', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -58,7 +58,7 @@ test.describe('Concurrent Editing', () => {
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
-    const savePromise = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+    const savePromise = waitForIssueSave(page);
 
     // Change priority
     await selectPriority(page, 'High');
@@ -92,7 +92,7 @@ test.describe('Concurrent Editing', () => {
     ]);
 
     // Edit another field immediately after the move
-    const savePromise = page.waitForResponse(r => r.url().includes('/issues/') && r.request().method() === 'PUT');
+    const savePromise = waitForIssueSave(page);
     await selectPriority(page, 'High');
     await savePromise;
 
@@ -123,7 +123,7 @@ test.describe('Concurrent Editing', () => {
     await selectPriority(page, 'High');
 
     // Wait for the request to complete
-    await page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+    await waitForIssueSave(page);
 
     // Verify If-Match header was sent
     expect(ifMatchHeader).not.toBeNull();

@@ -24,8 +24,9 @@ export function setupSystemSettingsView(refreshCallback) {
 export async function renderSystemSettingsView(refreshCallback) {
   if (!systemSettingsViewContainer) return;
 
-  await renderProjectList(refreshCallback);
+  const projects = await renderProjectList(refreshCallback);
   await renderUserList(refreshCallback);
+  return projects;
 }
 
 // --- Project Management ---
@@ -135,10 +136,10 @@ async function handleProjectSubmit(refreshCallback) {
       showNotification('Project created', 'success');
     }
     closeProjectModal();
-    renderSystemSettingsView(refreshCallback);
+    const projects = await renderSystemSettingsView(refreshCallback);
     // Refreshes the project selector dropdown; its own fallback logic triggers a full
     // refresh only if the currently selected project was affected (e.g. deleted elsewhere).
-    updateProjectSelectorOptions(await fetchProjects());
+    updateProjectSelectorOptions(projects ?? await fetchProjects());
   } catch (err) {
     showProjectError(errorDisplay, err.message);
   }
@@ -171,10 +172,10 @@ function handleDeleteProject(refreshCallback) {
       await deleteProject(editingProjectId, adminPassword);
       showNotification('Project deleted', 'success');
       closeProjectModal();
-      renderSystemSettingsView(refreshCallback);
+      const projects = await renderSystemSettingsView(refreshCallback);
       // Refreshes the project selector dropdown; its own fallback logic triggers a full
       // refresh if the deleted project was the currently selected one.
-      updateProjectSelectorOptions(await fetchProjects());
+      updateProjectSelectorOptions(projects ?? await fetchProjects());
     } catch (err) {
       const errorDisplay = document.getElementById('project-modal-error');
       showProjectError(errorDisplay, err.message);
@@ -245,6 +246,7 @@ async function renderProjectList(refreshCallback) {
       projectsList.appendChild(row);
     });
 
+    return projects;
   } catch (err) {
     console.error(err);
     projectsList.innerHTML = '<div class="error">Failed to load projects.</div>';

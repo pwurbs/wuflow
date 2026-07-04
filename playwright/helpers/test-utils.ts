@@ -132,6 +132,13 @@ export async function waitForToastHidden(page: Page): Promise<void> {
 }
 
 /**
+ * Returns a promise that resolves when an issue PUT save request completes.
+ */
+export function waitForIssueSave(page: Page) {
+  return page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+}
+
+/**
  * Gets the count of cards in a specific column
  * Card class is 'card' or 'board-card', not 'issue-card'
  */

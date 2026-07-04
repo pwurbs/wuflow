@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, selectAssignee } from './helpers/test-utils';
+import { createIssue, selectAssignee, waitForIssueSave } from './helpers/test-utils';
 
 test.describe('Planning Panel', () => {
   // Helper to format date as YYYY-MM-DD for input and ID matching
@@ -414,7 +414,7 @@ test.describe('Planning Panel', () => {
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
-    const savePromise1 = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+    const savePromise1 = waitForIssueSave(page);
     await page.fill('#deadline', dateStr1);
     await savePromise1;
 
@@ -423,7 +423,7 @@ test.describe('Planning Panel', () => {
     dayAfter.setDate(dayAfter.getDate() + 2);
     const dateStr2 = `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
 
-    const savePromise2 = page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+    const savePromise2 = waitForIssueSave(page);
     await page.fill('#planned-date-picker', dateStr2, { force: true });
     await savePromise2;
 

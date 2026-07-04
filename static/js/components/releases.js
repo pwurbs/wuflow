@@ -23,6 +23,16 @@ async function refreshIssuesAfterReleaseSideEffect() {
   setIssues(await fetchActiveIssuesByProject(state.selectedProjectId));
 }
 
+function mergeReleaseIntoState(updated) {
+  const idx = state.releases.findIndex(r => r.id === updated.id);
+  if (idx !== -1) state.releases[idx] = updated;
+}
+
+function removeReleaseFromState(id) {
+  const idx = state.releases.findIndex(r => r.id === id);
+  if (idx !== -1) state.releases.splice(idx, 1);
+}
+
 export async function setupReleasesView() {
   setupOwnerDropdown();
 
@@ -69,8 +79,7 @@ export async function setupReleasesView() {
       closeReleaseModal();
       try {
         const updated = await reopenRelease(rel.project_id, rel.id);
-        const idx = state.releases.findIndex(r => r.id === updated.id);
-        if (idx !== -1) state.releases[idx] = updated;
+        mergeReleaseIntoState(updated);
         showNotification('Release reopened', 'success');
         updateReleaseFilterOptions(state.releases);
         renderReleasesView();
@@ -372,8 +381,7 @@ async function handleReleaseSubmit() {
     const isEdit = !!editingReleaseId;
     if (isEdit) {
       const updated = await updateRelease(projectId, editingReleaseId, payload);
-      const idx = state.releases.findIndex(r => r.id === updated.id);
-      if (idx !== -1) state.releases[idx] = updated;
+      mergeReleaseIntoState(updated);
     } else {
       // The create response isn't owner-hydrated, so re-fetch the release list instead.
       await createRelease(projectId, payload);
@@ -479,8 +487,7 @@ async function handleDeleteRelease(rel) {
   if (!confirmed) return;
   try {
     await deleteRelease(rel.project_id, rel.id);
-    const idx = state.releases.findIndex(r => r.id === rel.id);
-    if (idx !== -1) state.releases.splice(idx, 1);
+    removeReleaseFromState(rel.id);
     // Deleting cascades release_id = NULL onto its issues server-side.
     await refreshIssuesAfterReleaseSideEffect();
     showNotification('Release deleted', 'success');
@@ -546,8 +553,7 @@ async function handleTriggerReleaseDialog(rel) {
       overlay.remove();
       try {
         const updated = await triggerRelease(rel.project_id, rel.id, archiveDone);
-        const idx = state.releases.findIndex(r => r.id === updated.id);
-        if (idx !== -1) state.releases[idx] = updated;
+        mergeReleaseIntoState(updated);
         // Triggering can archive this release's Done issues server-side.
         await refreshIssuesAfterReleaseSideEffect();
         showNotification('Release closed', 'success');

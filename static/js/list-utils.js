@@ -5,6 +5,10 @@ import { STATUS_ARCHIVE } from './status-config.js';
 import { getDraggedCard, getDraggedCardOrigin, getDragAfterElement } from './drag.js';
 import { showNotification } from './utils.js';
 
+function createRerenderOrRefresh(rerenderCallback, refreshApp) {
+  return () => { if (rerenderCallback) rerenderCallback(); else if (refreshApp) refreshApp(); };
+}
+
 export async function handleMoveTop(issue, allIssuesInList, rerenderCallback, refreshCallback) {
   if (allIssuesInList.length <= 1 || allIssuesInList[0].id === issue.id) return;
 
@@ -119,7 +123,7 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
 
   const list = section.querySelector('.backlog-list');
   const { onDrop, onValidate, refreshApp, rerenderCallback, showDragHighlight = true } = options;
-  const rerenderOrRefresh = () => { if (rerenderCallback) rerenderCallback(); else if (refreshApp) refreshApp(); };
+  const rerenderOrRefresh = createRerenderOrRefresh(rerenderCallback, refreshApp);
 
   section.addEventListener('dragover', (e) => {
     if (section.offsetParent === null) return;
@@ -186,7 +190,7 @@ export function setupListDrag(listId, targetStatus, options = {}) {
   if (!list) return;
 
   const { onDrop, onValidate, refreshApp, rerenderCallback, performReorder = true, showDragHighlight = true } = options;
-  const rerenderOrRefresh = () => { if (rerenderCallback) rerenderCallback(); else if (refreshApp) refreshApp(); };
+  const rerenderOrRefresh = createRerenderOrRefresh(rerenderCallback, refreshApp);
 
   list.addEventListener('dragover', (e) => {
     if (list.offsetParent === null) return;
