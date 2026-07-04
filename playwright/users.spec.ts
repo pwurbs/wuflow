@@ -474,7 +474,9 @@ test.describe('User Management', () => {
     await page.click('#user-menu-password');
     await expect(page.locator('#password-modal')).toBeVisible();
     await page.fill('#current-password', 'WrongCurrentPass123!');
-    await page.fill('#new-password', generatePassword());
+    const rejectedPassword = generatePassword();
+    await page.fill('#new-password', rejectedPassword);
+    await page.fill('#confirm-new-password', rejectedPassword);
     await page.locator('#password-form button[type="submit"]').click();
     await expect(page.locator('#password-modal-error')).toBeVisible();
     await page.click('#password-cancel-btn');
@@ -505,9 +507,27 @@ test.describe('User Management', () => {
     await page.click('#user-menu-password');
     await expect(page.locator('#password-modal')).toBeVisible();
     await page.fill('#current-password', testPassword);
-    await page.fill('#new-password', generatePassword());
+    const newPassword = generatePassword();
+    await page.fill('#new-password', newPassword);
+    await page.fill('#confirm-new-password', newPassword);
     await page.locator('#password-form button[type="submit"]').click();
     await expect(page).toHaveURL(/\/login/);
+  });
+
+  test('Self-service password change rejects a mismatched confirmation', async ({ page, workerServer }) => {
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-password');
+    await expect(page.locator('#password-modal')).toBeVisible();
+    await page.fill('#current-password', workerServer.adminPassword);
+    await page.fill('#new-password', generatePassword());
+    await page.fill('#confirm-new-password', generatePassword());
+    await page.locator('#password-form button[type="submit"]').click();
+    await expect(page.locator('#password-modal-error')).toBeVisible();
+    await expect(page.locator('#password-modal-error')).toHaveText('New password and confirmation do not match.');
+    // Modal stays open — no logout/redirect happened
+    await expect(page.locator('#password-modal')).toBeVisible();
+    await expect(page).not.toHaveURL(/\/login/);
+    await page.click('#password-cancel-btn');
   });
 
 });

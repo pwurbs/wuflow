@@ -747,6 +747,7 @@ describe('User Menu', () => {
         <form id="password-form">
           <input type="password" id="current-password">
           <input type="password" id="new-password">
+          <input type="password" id="confirm-new-password">
           <div id="password-modal-error" class="hidden"></div>
           <button type="button" id="password-cancel-btn">Cancel</button>
           <button type="submit">Save</button>
@@ -827,6 +828,7 @@ describe('User Menu', () => {
     setupUserMenu(mockUser);
     document.getElementById('current-password').value = 'CurrentPass123!';
     document.getElementById('new-password').value = TEST_PW_VALID;
+    document.getElementById('confirm-new-password').value = TEST_PW_VALID;
     document.getElementById('password-form').dispatchEvent(new Event('submit'));
 
     await Promise.resolve(); // flush microtasks so the async handler completes
@@ -846,6 +848,7 @@ describe('User Menu', () => {
 
     setupUserMenu(mockUser);
     document.getElementById('new-password').value = TEST_PW_WEAK;
+    document.getElementById('confirm-new-password').value = TEST_PW_WEAK;
     document.getElementById('password-form').dispatchEvent(new Event('submit'));
 
     await Promise.resolve();
@@ -865,11 +868,30 @@ describe('User Menu', () => {
     document.getElementById('password-modal-error').remove();
 
     document.getElementById('new-password').value = TEST_PW_BAD;
+    document.getElementById('confirm-new-password').value = TEST_PW_BAD;
     document.getElementById('password-form').dispatchEvent(new Event('submit'));
 
     await Promise.resolve();
 
     expect(showNotification).toHaveBeenCalledWith('Some policy error', 'error');
+  });
+
+  it('shows inline error and does not submit when new password and confirmation do not match', async () => {
+    const { updateCurrentUser } = await import('../api.js');
+    updateCurrentUser.mockClear();
+
+    setupUserMenu(mockUser);
+    document.getElementById('current-password').value = 'CurrentPass123!';
+    document.getElementById('new-password').value = TEST_PW_VALID;
+    document.getElementById('confirm-new-password').value = `${TEST_PW_VALID}x`;
+    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+
+    await Promise.resolve();
+
+    const errorDisplay = document.getElementById('password-modal-error');
+    expect(errorDisplay.textContent).toBe('New password and confirmation do not match.');
+    expect(errorDisplay.classList.contains('hidden')).toBe(false);
+    expect(updateCurrentUser).not.toHaveBeenCalled();
   });
 });
 

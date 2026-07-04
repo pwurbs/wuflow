@@ -4,6 +4,7 @@
 - Switched build and runtime base images from Debian to Alpine to reduce container vulnerabilities and image size
 - Reduced redundant API calls fired after issue, release, project and filter actions across the app
 - Harmonized typography across the app with a shared font-size/weight system, and fixed inconsistent font rendering
+- Added a "Confirm New Password" field to the self-service change password dialog to prevent unintended passwords from typos
 
 # 1.3.2
 

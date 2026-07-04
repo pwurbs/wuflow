@@ -454,8 +454,13 @@ function setupPasswordModal(user) {
     e.preventDefault();
     const currentPassword = document.getElementById('current-password').value;
     const newPassword = document.getElementById('new-password').value;
+    const confirmNewPassword = document.getElementById('confirm-new-password').value;
 
     try {
+      if (newPassword !== confirmNewPassword) {
+        throw new Error('New password and confirmation do not match.');
+      }
+
       const pwError = validatePasswordPolicy(newPassword, user ? user.email : '');
       if (pwError) {
         throw new Error(pwError);

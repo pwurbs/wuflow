@@ -840,6 +840,11 @@
                     <input type="password" id="new-password" required placeholder="Enter new password" maxlength="128" autocomplete="new-password">
                     <small class="form-hint">Minimum 12 characters. No common passwords.</small>
                 </div>
+                <div class="form-group">
+                    <label for="confirm-new-password">Confirm New Password</label>
+                    <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
+                    <input type="password" id="confirm-new-password" required placeholder="Re-enter new password" maxlength="128" autocomplete="new-password">
+                </div>
                 <div id="password-modal-error" class="form-error hidden" role="alert"></div>
                 <div class="form-actions">
                     <button type="button" id="password-cancel-btn" class="btn secondary">Cancel</button>
