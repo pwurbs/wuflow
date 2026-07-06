@@ -390,6 +390,145 @@ describe('Activity Component', () => {
     expect(utils.showNotification).toHaveBeenCalledWith('network down', 'error');
   });
 
+  it('hides edit/delete actions on other comments while one is being edited, and restores them on cancel', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' },
+      { id: 2, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'second', edited: false, created_at: '2026-01-02T09:00:00Z' }
+    ]);
+    await loadActivity(issue);
+
+    const items = document.querySelectorAll('.comment-item');
+    items[0].querySelector('.comment-edit-btn').click();
+    expect(items[1].querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(true);
+
+    document.querySelector('#comment-list .inline-cancel-btn').click();
+    expect(items[1].querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(false);
+  });
+
+  it('blocks editing a second comment while another is already being edited', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' },
+      { id: 2, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'second', edited: false, created_at: '2026-01-02T09:00:00Z' }
+    ]);
+    await loadActivity(issue);
+
+    const items = document.querySelectorAll('.comment-item');
+    items[0].querySelector('.comment-edit-btn').click();
+    items[1].querySelector('.comment-edit-btn').click();
+
+    expect(utils.showNotification).toHaveBeenCalledWith('Finish editing the other comment first', 'error');
+    expect(document.querySelectorAll('.comment-edit-input')).toHaveLength(1);
+  });
+
+  it('shows an error notification when saving an edited comment fails', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    api.updateComment.mockRejectedValue(new Error('save failed'));
+
+    await loadActivity(issue);
+    document.querySelector('.comment-edit-btn').click();
+
+    const textarea = document.querySelector('.comment-edit-input');
+    textarea.value = 'edited text';
+    document.querySelector('#comment-list .inline-save-btn').click();
+
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledWith('save failed', 'error');
+    // Edit mode is left open so the user doesn't lose their unsaved text.
+    expect(document.querySelector('.comment-edit-input')).not.toBeNull();
+  });
+
+  it('shows an error notification when deleting a comment fails', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'mine', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    utils.showConfirm.mockResolvedValue(true);
+    api.deleteComment.mockRejectedValue(new Error('delete failed'));
+
+    await loadActivity(issue);
+    document.querySelector('.comment-delete-btn').click();
+
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledWith('delete failed', 'error');
+  });
+
+  it('shows an error notification when submitting a new comment fails', async () => {
+    api.createComment.mockRejectedValue(new Error('create failed'));
+
+    await loadActivity(issue);
+    document.getElementById('new-comment-body').value = 'new comment';
+    document.getElementById('add-comment-btn').click();
+
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledWith('create failed', 'error');
+  });
+
+  it('shows an error notification when the comment list re-fetch fails after a successful create', async () => {
+    api.createComment.mockResolvedValue({ id: 5 });
+    api.fetchComments
+      .mockResolvedValueOnce([]) // initial load
+      .mockRejectedValueOnce(new Error('refresh failed'));
+
+    await loadActivity(issue);
+    document.getElementById('new-comment-body').value = 'new comment';
+    document.getElementById('add-comment-btn').click();
+
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledWith('refresh failed', 'error');
+  });
+
+  describe('history sentence text for less common event and field types', () => {
+    it('renders an unarchived event', async () => {
+      api.fetchHistory.mockResolvedValue([
+        { id: 1, event: 'unarchived', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }
+      ]);
+      await loadActivity(issue);
+      document.getElementById('tab-history').click();
+      expect(document.querySelector('.history-text').textContent).toBe('Issue: Unarchived');
+    });
+
+    it('falls back to the raw event name for an unrecognized event type', async () => {
+      api.fetchHistory.mockResolvedValue([
+        { id: 1, event: 'some_future_event', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }
+      ]);
+      await loadActivity(issue);
+      document.getElementById('tab-history').click();
+      expect(document.querySelector('.history-text').textContent).toBe('some_future_event');
+    });
+
+    it.each([
+      ['description', {}, 'Description: Changed'],
+      ['priority', { from: 'Low', to: 'High' }, 'Priority: Changed Low → High'],
+      ['deadline', { from: '2026-01-01', to: '2026-02-01' }, 'Deadline: Changed 2026-01-01 → 2026-02-01'],
+      ['assignee', { from: 'Ann', to: 'Bob' }, 'Assignee: Changed Ann → Bob'],
+      ['label', { from: 'Bug', to: 'Feature' }, 'Label: Changed Bug → Feature'],
+      ['release', { from: 'v1', to: 'v2' }, 'Release: Changed v1 → v2']
+    ])('renders a %s change sentence', async (field, fromTo, expected) => {
+      api.fetchHistory.mockResolvedValue([
+        { id: 1, event: 'updated', data: { field, ...fromTo }, user: null, created_at: '2026-01-01T09:00:00Z' }
+      ]);
+      await loadActivity(issue);
+      document.getElementById('tab-history').click();
+      expect(document.querySelector('.history-text').textContent).toBe(expected);
+    });
+
+    it('falls back to a generic "Issue: Updated" sentence for an unrecognized field', async () => {
+      api.fetchHistory.mockResolvedValue([
+        { id: 1, event: 'updated', data: { field: 'some_future_field' }, user: null, created_at: '2026-01-01T09:00:00Z' }
+      ]);
+      await loadActivity(issue);
+      document.getElementById('tab-history').click();
+      expect(document.querySelector('.history-text').textContent).toBe('Issue: Updated');
+    });
+  });
+
   describe('refreshHistory', () => {
     it('re-fetches and re-renders the History tab for the currently loaded issue', async () => {
       api.fetchHistory.mockResolvedValueOnce([]);
@@ -404,6 +543,16 @@ describe('Activity Component', () => {
 
       expect(api.fetchHistory).toHaveBeenCalledWith(7, 1);
       expect(document.querySelectorAll('.history-item')).toHaveLength(1);
+    });
+
+    it('shows an error notification when the re-fetch fails', async () => {
+      api.fetchHistory.mockResolvedValueOnce([]);
+      await loadActivity(issue);
+
+      api.fetchHistory.mockRejectedValueOnce(new Error('history refresh failed'));
+      await refreshHistory();
+
+      expect(utils.showNotification).toHaveBeenCalledWith('history refresh failed', 'error');
     });
 
     it('discards a stale result if a newer loadActivity call resolves first', async () => {

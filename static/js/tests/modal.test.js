@@ -92,6 +92,14 @@ async function openModalWithMock(issue) {
   await openModal(issue);
 }
 
+// jsdom never lays out content, so scrollHeight/clientHeight/scrollTop must be
+// stubbed manually to simulate overflow states in the Scroll Cue tests below.
+function setScrollMetrics(el, { scrollHeight, clientHeight, scrollTop }) {
+  Object.defineProperty(el, 'scrollHeight', { value: scrollHeight, configurable: true });
+  Object.defineProperty(el, 'clientHeight', { value: clientHeight, configurable: true });
+  Object.defineProperty(el, 'scrollTop', { value: scrollTop, configurable: true });
+}
+
 describe('Modal Component', () => {
   beforeEach(() => {
     // Setup DOM
@@ -147,14 +155,17 @@ describe('Modal Component', () => {
               <input type="hidden" id="release-select">
             </div>
 
-            <div id="tasks-section">
-              <div id="task-form-container">
-                <input id="new-task-title" type="text">
-                <input id="new-task-deadline" type="date">
-                <button id="add-task-btn" type="button"></button>
+            <div class="modal-main-scroll">
+              <div id="tasks-section">
+                <div id="task-form-container">
+                  <input id="new-task-title" type="text">
+                  <input id="new-task-deadline" type="date">
+                  <button id="add-task-btn" type="button"></button>
+                </div>
+                <ul id="task-list"></ul>
               </div>
-              <ul id="task-list"></ul>
             </div>
+            <div class="scroll-cue"></div>
 
             <button id="delete-issue-btn" type="button"></button>
             <button id="archive-issue-btn" type="button"></button>
@@ -958,6 +969,57 @@ describe('Modal Component', () => {
       titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
       expect(removeSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+    });
+  });
+
+  describe('Scroll Cue', () => {
+    it('is hidden when the content does not overflow', () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      const cue = document.querySelector('.scroll-cue');
+      setScrollMetrics(scrollEl, { scrollHeight: 200, clientHeight: 200, scrollTop: 0 });
+
+      scrollEl.dispatchEvent(new Event('scroll'));
+
+      expect(cue.classList.contains('visible')).toBe(false);
+    });
+
+    it('becomes visible once there is more content below the fold', () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      const cue = document.querySelector('.scroll-cue');
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
+
+      scrollEl.dispatchEvent(new Event('scroll'));
+
+      expect(cue.classList.contains('visible')).toBe(true);
+    });
+
+    it('hides again once scrolled down to the bottom', () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      const cue = document.querySelector('.scroll-cue');
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
+      scrollEl.dispatchEvent(new Event('scroll'));
+      expect(cue.classList.contains('visible')).toBe(true);
+
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 400 });
+      scrollEl.dispatchEvent(new Event('scroll'));
+
+      expect(cue.classList.contains('visible')).toBe(false);
+    });
+
+    it('re-evaluates when content is added dynamically (e.g. a loaded comment)', async () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      const cue = document.querySelector('.scroll-cue');
+      setScrollMetrics(scrollEl, { scrollHeight: 200, clientHeight: 200, scrollTop: 0 });
+      scrollEl.dispatchEvent(new Event('scroll'));
+      expect(cue.classList.contains('visible')).toBe(false);
+
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
+      scrollEl.appendChild(document.createElement('div'));
+
+      // MutationObserver callbacks run as a microtask.
+      await Promise.resolve();
+
+      expect(cue.classList.contains('visible')).toBe(true);
     });
   });
 

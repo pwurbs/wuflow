@@ -37,6 +37,7 @@ export function setupModal(refreshApp, rerenderViews) {
   setupEditorToolbar();
   setupSidebarImmediateSave();
   setupActivity();
+  setupScrollCue();
 
   // Character counters
   initCharCounter(document.getElementById('description-editor'), MAX_DESC_LENGTH, { className: 'editor-counter' });
@@ -104,6 +105,21 @@ export function setupModal(refreshApp, rerenderViews) {
       }
     });
   });
+}
+
+function setupScrollCue() {
+  const scrollEl = document.querySelector('.modal-main-scroll');
+  const cue = document.querySelector('.scroll-cue');
+  if (!scrollEl || !cue) return;
+
+  const update = () => {
+    const hasMore = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight > 4;
+    cue.classList.toggle('visible', hasMore);
+  };
+
+  scrollEl.addEventListener('scroll', update, { passive: true });
+  new MutationObserver(update).observe(scrollEl, { childList: true, subtree: true });
+  update();
 }
 
 export async function openModal(issue = null) {

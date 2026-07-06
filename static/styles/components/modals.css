@@ -70,12 +70,20 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.modal-main-scroll {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   overflow-y: auto;
   min-height: 0;
+  flex: 1;
 }
 
-.modal-main > .form-group:first-child {
+.modal-main-scroll > .form-group:first-child {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -83,6 +91,31 @@
   padding-bottom: 12px;
   margin-bottom: -12px;
   border-bottom: 1px solid var(--card-border);
+}
+
+/* Small floating icon hinting that the main column has more content below;
+   toggled by JS based on scroll position. */
+.scroll-cue {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--hover-bg);
+  border: 1px solid var(--card-border);
+  color: var(--muted-text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.scroll-cue.visible {
+  opacity: 1;
 }
 
 .modal-main .form-group,
