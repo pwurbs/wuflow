@@ -54,6 +54,36 @@ describe('context-menu', () => {
     expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(true);
   });
 
+  it('hides on scroll that actually changes position', () => {
+    showCardContextMenu(0, 0, [{ label: 'X', action: vi.fn() }]);
+    const scroller = document.createElement('div');
+    scroller.scrollTop = 0;
+    document.body.appendChild(scroller);
+    // Establish the baseline for this element (its already-settled position).
+    scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(false);
+    // A real further scroll changes scrollTop and should dismiss the menu.
+    scroller.scrollTop = 40;
+    scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(true);
+  });
+
+  it('does not hide on a stale scroll notification for an already-settled position', () => {
+    // e.g. right-clicking a card far down a long column auto-scrolls it into
+    // view as part of opening the menu; the browser can dispatch the 'scroll'
+    // event for that already-completed scroll after the menu opens rather
+    // than before it, so it must not be treated as a new dismissal gesture.
+    showCardContextMenu(0, 0, [{ label: 'X', action: vi.fn() }]);
+    const scroller = document.createElement('div');
+    scroller.scrollTop = 950;
+    document.body.appendChild(scroller);
+    scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(false);
+    // Dispatching again with the same, unchanged position stays a no-op.
+    scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(false);
+  });
+
   it('hideCardContextMenu is safe when no menu exists', () => {
     expect(() => hideCardContextMenu()).not.toThrow();
   });
