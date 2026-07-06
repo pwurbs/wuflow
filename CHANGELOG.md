@@ -3,6 +3,7 @@
 
 - Added an Activity area to each issue, including a Comments and a History tab (see usage guide for more details)
 - Fixed the card context menu occasionally closing itself right after opening on a card that needed scrolling into view
+- Removed the now obsolete Created/Updated timestamp block and optimized scrolling behavior in the issue details view
 
 # 1.3.3
 

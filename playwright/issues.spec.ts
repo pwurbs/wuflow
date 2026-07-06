@@ -113,21 +113,12 @@ test.describe('Issue CRUD Operations', () => {
     await expect(page.locator(`.board-card:has-text("${title}")`)).toHaveCount(0);
   });
 
-  test('creator and assignee fields in modal', async ({ page }) => {
+  test('assignee field in modal', async ({ page }) => {
     const title = `User Binding Test ${Date.now()}`;
     await createIssue(page, { title, status: 'Todo' });
 
     // Open the issue
     await openIssueByTitle(page, title);
-
-    // Verify creator display (Read-only Status - Case 1.2)
-    // Verify creator display (Now part of timestamp)
-    const createdAtDisplay = page.locator('#created-at-display');
-    await expect(createdAtDisplay).toBeVisible();
-    await expect(createdAtDisplay).toContainText('by');
-    const creatorBadge = createdAtDisplay.locator('.user-badge');
-    await expect(creatorBadge).toHaveAttribute('title', 'Admin User');
-    await expect(creatorBadge).toHaveText('AU');
 
     // Verify assignee selection (using the new "Me" option)
     const updatePromise = page.waitForResponse(response =>
@@ -147,31 +138,6 @@ test.describe('Issue CRUD Operations', () => {
     await selectAssignee(page, 'Unassigned');
     await expect(assigneeText).toContainText('Unassigned');
 
-    // Verify Updater Display
-    // Change title to trigger an update
-    const newTitle = title + ' Updated';
-    await page.click('#title');
-    await page.fill('#title', newTitle);
-
-    // Blur to trigger autosave
-    const savePromise = page.waitForResponse(r =>
-      r.url().includes('/issues/') && r.request().method() === 'PUT'
-    );
-    await page.click('#modal-title');
-    await savePromise;
-
-    // Close and reopen to fetch fresh data
-    await page.click('#done-btn');
-    await openIssueByTitle(page, newTitle);
-
-    // Check updated timestamp
-    const updatedAtDisplay = page.locator('#updated-at-display');
-    await expect(updatedAtDisplay).toBeVisible();
-    await expect(updatedAtDisplay).toContainText('by');
-    const updaterBadge = updatedAtDisplay.locator('.user-badge');
-    await expect(updaterBadge).toHaveAttribute('title', 'Admin User');
-    await expect(updaterBadge).toHaveText('AU');
-
     await page.click('#done-btn');
   });
 
@@ -182,12 +148,14 @@ test.describe('Issue CRUD Operations', () => {
     await createIssue(page, { title: titleA, status: 'Todo' });
     await createIssue(page, { title: titleB, status: 'Todo' });
 
-    // Record titleA's last-changed display before any drag
+    // Record titleA's updated_at via the API before any drag
     await openIssueByTitle(page, titleA);
-    const updatedAtDisplay = page.locator('#updated-at-display');
-    await expect(updatedAtDisplay).not.toBeEmpty();
-    const updatedAtBefore = await updatedAtDisplay.textContent();
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
+    const issueId = await page.inputValue('#issue-id');
     await page.click('#done-btn');
+
+    const before = await page.request.get(`/api/projects/1/issues/${issueId}`);
+    const { updated_at: updatedAtBefore } = await before.json();
 
     // Drag titleB onto titleA, shifting titleA's position within the same column
     const cardA = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleA}")`);
@@ -201,10 +169,9 @@ test.describe('Issue CRUD Operations', () => {
     await cardB.dragTo(cardA);
     await Promise.all(putPromises);
 
-    // Reopen titleA — last-changed must be unchanged since only position shifted
-    await openIssueByTitle(page, titleA);
-    const updatedAtAfter = await page.locator('#updated-at-display').textContent();
+    // updated_at must be unchanged since only position shifted
+    const after = await page.request.get(`/api/projects/1/issues/${issueId}`);
+    const { updated_at: updatedAtAfter } = await after.json();
     expect(updatedAtAfter).toBe(updatedAtBefore);
-    await page.click('#done-btn');
   });
 });

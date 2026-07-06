@@ -2148,10 +2148,6 @@ func TestHandleCreateIssueSetsCreator(t *testing.T) {
 	if created.CreatorID != user.ID {
 		t.Errorf("Expected CreatorID %d, got %d", user.ID, created.CreatorID)
 	}
-	// Verify Creator struct in response
-	if created.Creator == nil || created.Creator.Email != user.Email {
-		t.Error("Expected Creator struct in response")
-	}
 }
 
 func TestHandleIssueUpdateAssignee(t *testing.T) {

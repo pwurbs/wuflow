@@ -559,7 +559,15 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 }
 
 // issueContentHash serializes all meaningful issue fields into a comparable string.
-// Position and audit fields (updated_at, updated_by) are excluded by design.
+// Position and audit fields (updated_at, updated_by) are excluded by design: skipping
+// the timestamp/ETag bump on a position-only change avoids invalidating other clients'
+// ETags (false "modified by another user" conflicts) and avoids reshuffling the Archive
+// view's sort/month-grouping, for a change that isn't meaningful content.
+// CreatorID is omitted because handlePutIssue pins it to current.CreatorID before this
+// check ever runs, so it can never differ. Tasks and comments are omitted because they
+// are mutated exclusively through their own endpoints, never through this Issue PUT body;
+// comments in particular must stay excluded, since routing comment activity through this
+// hash would falsely invalidate other clients' ETags for a non-conflicting, additive action.
 func issueContentHash(i *Issue) string {
 	var labelID int
 	if i.Label != nil {
@@ -754,6 +762,9 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 }
 
 // handlePutTask updates an existing task.
+// Unlike handlePutIssue, this does not check If-Match/ETag: concurrent edits to the same
+// task are last-write-wins, the only conflict feedback being ErrTaskNotFound (404) if the
+// task was deleted by someone else first. Known/intentional, not an oversight.
 func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, issue *Issue) {
 	var t Task
 	if !decodeAndValidate(w, r, &t, validateTask) {
@@ -887,6 +898,9 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request, _ int, issueID 
 
 // handlePutComment edits a comment. A regular user may edit only their own; an
 // admin/sysadmin may edit any (author filter = nil).
+// Unlike handlePutIssue, this does not check If-Match/ETag: concurrent edits to the same
+// comment are last-write-wins, the only conflict feedback being ErrCommentNotFound (404)
+// if the comment was deleted by someone else first. Known/intentional, not an oversight.
 func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, _ *Issue) {
 	var c Comment
 	if !decodeAndValidate(w, r, &c, validateComment) {

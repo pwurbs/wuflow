@@ -60,7 +60,6 @@
   gap: 24px;
   margin-bottom: 20px;
   flex: 1;
-  overflow-y: auto;
   min-height: 0;
   padding-right: 4px;
 }
@@ -72,6 +71,18 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.modal-main > .form-group:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--column-bg);
+  padding-bottom: 12px;
+  margin-bottom: -12px;
+  border-bottom: 1px solid var(--card-border);
 }
 
 .modal-main .form-group,
@@ -94,6 +105,7 @@
   gap: 16px;
   padding-left: 20px;
   border-left: 1px solid var(--card-border);
+  overflow-y: auto;
 }
 
 .sidebar-placeholder {
@@ -154,42 +166,6 @@
 /* Custom Dropdown in Modal Sidebar */
 .modal-sidebar .custom-select-trigger {
   width: 100%;
-}
-
-/* Timestamp Container */
-.timestamp-container {
-  margin-top: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--card-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.timestamp-container.hidden {
-  display: none;
-}
-
-.timestamp-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-color);
-  font-size: var(--fs-md);
-  line-height: 1;
-  cursor: default;
-}
-
-#created-at-display,
-#updated-at-display {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.timestamp-item svg {
-  color: var(--text-color);
-  opacity: 1;
 }
 
 /* Chip Styles */

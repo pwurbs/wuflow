@@ -159,11 +159,7 @@ describe('Modal Component', () => {
             <button id="delete-issue-btn" type="button"></button>
             <button id="archive-issue-btn" type="button"></button>
             <button id="unarchive-issue-btn" type="button"></button>
-            <div id="timestamp-container" class="hidden">
-                 <div class="timestamp-item"><span id="created-at-display"></span></div>
-                 <div class="timestamp-item"><span id="updated-at-display"></span></div>
-            </div>
-            
+
             <button id="cancel-btn" type="button"></button>
             <button id="save-issue-btn" type="submit"></button>
             <button id="done-btn" type="button"></button>
@@ -649,7 +645,7 @@ describe('Modal Component', () => {
       expect(document.getElementById('project-trigger').disabled).toBe(false);
     });
 
-    it('should setup edit modal with timestamps', async () => {
+    it('should setup edit modal button visibility', async () => {
       const issue = {
         id: 5,
         title: 'Edit Test',
@@ -668,12 +664,6 @@ describe('Modal Component', () => {
       expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(true);
       expect(document.getElementById('archive-issue-btn').classList.contains('hidden')).toBe(false);
       expect(document.getElementById('unarchive-issue-btn').classList.contains('hidden')).toBe(true);
-
-      // Check timestamps are rendered
-      const createdDisplay = document.getElementById('created-at-display');
-      const updatedDisplay = document.getElementById('updated-at-display');
-      expect(createdDisplay.textContent).not.toBe('');
-      expect(updatedDisplay.textContent).not.toBe('');
     });
 
     it('should show unarchive button when issue is already archived', async () => {
@@ -777,23 +767,6 @@ describe('Modal Component', () => {
       expect(titleInput.readOnly).toBe(false);
       expect(descContainer.classList.contains('inline-editable')).toBe(false);
       expect(descEditor.classList.contains('hidden')).toBe(false);
-    });
-
-    it('should render timestamps with missing data gracefully', async () => {
-      const issue = {
-        id: 6,
-        title: 'No Timestamps',
-        status: 'Todo',
-        tasks: []
-      };
-
-      await openModalWithMock(issue);
-
-      const createdDisplay = document.getElementById('created-at-display');
-      const updatedDisplay = document.getElementById('updated-at-display');
-
-      expect(createdDisplay.textContent).toBe('-');
-      expect(updatedDisplay.textContent).toBe('-');
     });
 
     it('should handle issue with null priority gracefully', async () => {
@@ -1299,56 +1272,6 @@ describe('Modal Component', () => {
   });
 
   describe('Additional Coverage Improvements', () => {
-    it('should handle creator display in new modal', () => {
-      state.currentUser = { first_name: 'John', last_name: 'Doe' };
-      openModal(null);
-      // New modal should not display creator name in timestamps (hidden)
-      const timestampContainer = document.getElementById('timestamp-container');
-      expect(timestampContainer.classList.contains('hidden')).toBe(true);
-      // And element #creator-display should not exist or be empty if we removed it
-      const creatorDisplay = document.getElementById('creator-display');
-      expect(creatorDisplay).toBeNull();
-    });
-
-    it('should handle creator display in edit modal', async () => {
-      const issue = {
-        id: 1,
-        title: 'Test',
-        creator: { first_name: 'Jane', last_name: 'Smith' },
-        created_at: '2023-01-01T12:00:00Z'
-      };
-      await openModalWithMock(issue);
-      const createdAtDisplay = document.getElementById('created-at-display');
-      expect(createdAtDisplay.textContent).toContain('by');
-      const badge = createdAtDisplay.querySelector('.user-badge');
-      expect(badge).toBeTruthy();
-      expect(badge.textContent).toBe('JS');
-      expect(badge.title).toBe('Jane Smith');
-    });
-
-    it('should handle updater display in edit modal', async () => {
-      const issue = {
-        id: 1,
-        title: 'Test',
-        updater: { first_name: 'Bob', last_name: 'Jones' },
-        updated_at: '2023-01-02T12:00:00Z'
-      };
-      await openModalWithMock(issue);
-      const updatedAtDisplay = document.getElementById('updated-at-display');
-      expect(updatedAtDisplay.textContent).toContain('by');
-      const badge = updatedAtDisplay.querySelector('.user-badge');
-      expect(badge).toBeTruthy();
-      expect(badge.textContent).toBe('BJ');
-      expect(badge.title).toBe('Bob Jones');
-    });
-
-    it('should handle unknown creator in edit modal', async () => {
-      const issue = { id: 1, title: 'Test', creator: null, created_at: '2023-01-01T12:00:00Z' };
-      await openModalWithMock(issue);
-      const createdAtDisplay = document.getElementById('created-at-display');
-      expect(createdAtDisplay.textContent).not.toContain('by');
-    });
-
     it('should handle link click in description editor in read-only mode', async () => {
       const issue = { id: 1, description: '<a id="test-link" href="https://example.com">Link</a>' };
       await openModalWithMock(issue);
@@ -2289,10 +2212,6 @@ describe('release-select change handler', () => {
             <button id="delete-issue-btn" type="button"></button>
             <button id="archive-issue-btn" type="button"></button>
             <button id="unarchive-issue-btn" type="button"></button>
-            <div id="timestamp-container" class="hidden">
-              <div class="timestamp-item"><span id="created-at-display"></span></div>
-              <div class="timestamp-item"><span id="updated-at-display"></span></div>
-            </div>
             <button id="cancel-btn" type="button"></button>
             <button id="save-issue-btn" type="submit"></button>
             <button id="done-btn" type="button"></button>

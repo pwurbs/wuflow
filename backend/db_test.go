@@ -872,10 +872,7 @@ func TestCreateIssueWithCreatorAndAssignee(t *testing.T) {
 		t.Errorf("Expected AssigneeID %d, got %v", assignee.ID, stored.AssigneeID)
 	}
 
-	// Verify User Structs populated
-	if stored.Creator == nil || stored.Creator.Email != creator.Email {
-		t.Error("Expected Creator struct to be populated")
-	}
+	// Verify User Struct populated
 	if stored.Assignee == nil || stored.Assignee.Email != assignee.Email {
 		t.Error("Expected Assignee struct to be populated")
 	}
@@ -1341,8 +1338,8 @@ func TestScanIssueNulls(t *testing.T) {
 	for _, i := range issues {
 		if i.Title == "Null fields" {
 			found = true
-			if i.Label != nil || i.Assignee != nil || i.Updater != nil {
-				t.Errorf("Expected nil for optional fields, got Label:%v, Assignee:%v, Updater:%v", i.Label, i.Assignee, i.Updater)
+			if i.Label != nil || i.Assignee != nil {
+				t.Errorf("Expected nil for optional fields, got Label:%v, Assignee:%v", i.Label, i.Assignee)
 			}
 			break
 		}

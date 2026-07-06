@@ -445,16 +445,13 @@ func CreateIssue(ctx context.Context, i *Issue) error {
 const issueSelectBase = `
 		SELECT i.id, i.title, i.description, i.status, i.position, i.deadline, i.planned_dates, i.priority, i.created_at, i.updated_at,
 		       l.id, l.name, l.color,
-		       c.id, c.email, c.first_name, c.last_name,
+		       i.creator_id, i.updated_by,
 		       a.id, a.email, a.first_name, a.last_name,
-		       u.id, u.email, u.first_name, u.last_name,
 		       p.id, p.name, p.description,
 		       r.id, r.name, r.status, r.release_date
 		FROM issues i
 		LEFT JOIN labels l ON i.label_id = l.id
-		LEFT JOIN users c ON i.creator_id = c.id
 		LEFT JOIN users a ON i.assignee_id = a.id
-		LEFT JOIN users u ON i.updated_by = u.id
 		LEFT JOIN projects p ON i.project_id = p.id
 		LEFT JOIN releases r ON i.release_id = r.id`
 
@@ -1157,11 +1154,9 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 	var lName, lColor sql.NullString
 	var priority sql.NullString
 	var cID sql.NullInt64
-	var cEmail, cFirstName, cLastName sql.NullString
 	var aID sql.NullInt64
 	var aEmail, aFirstName, aLastName sql.NullString
 	var uID sql.NullInt64
-	var uEmail, uFirstName, uLastName sql.NullString
 	var pID sql.NullInt64
 	var pName, pDesc sql.NullString
 	var rID sql.NullInt64
@@ -1170,9 +1165,8 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 
 	if err := s.Scan(&i.ID, &i.Title, &desc, &i.Status, &i.Position, &deadline, &plannedDatesStr, &priority, &i.CreatedAt, &i.UpdatedAt,
 		&lID, &lName, &lColor,
-		&cID, &cEmail, &cFirstName, &cLastName,
+		&cID, &uID,
 		&aID, &aEmail, &aFirstName, &aLastName,
-		&uID, &uEmail, &uFirstName, &uLastName,
 		&pID, &pName, &pDesc,
 		&rID, &rName, &rStatus, &rReleaseDate); err != nil {
 		return Issue{}, err
@@ -1197,7 +1191,6 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 	}
 	if cID.Valid {
 		i.CreatorID = int(cID.Int64)
-		i.Creator = &User{ID: int(cID.Int64), Email: cEmail.String, FirstName: cFirstName.String, LastName: cLastName.String}
 	}
 	if aID.Valid {
 		id := int(aID.Int64)
@@ -1207,7 +1200,6 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 	if uID.Valid {
 		id := int(uID.Int64)
 		i.UpdaterID = &id
-		i.Updater = &User{ID: id, Email: uEmail.String, FirstName: uFirstName.String, LastName: uLastName.String}
 	}
 	if pID.Valid {
 		i.ProjectID = int(pID.Int64)

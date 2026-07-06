@@ -49,9 +49,7 @@ type Issue struct {
 	UpdaterID    *int          `json:"updated_by"`         // Pointer to allow null (if user deleted)
 	ProjectID    int           `json:"project_id"`         // Every issue belongs to a project
 	ReleaseID    *int          `json:"release_id"`         // Pointer to allow null (no release)
-	Creator      *User         `json:"creator,omitempty"`  // Populated for API responses to avoid N+1 queries
 	Assignee     *User         `json:"assignee,omitempty"` // Populated for API responses to avoid N+1 queries
-	Updater      *User         `json:"updater,omitempty"`  // Populated for API responses to avoid N+1 queries
 	Label        *Label        `json:"label"`              // Pointer to manage nil label
 	Release      *Release      `json:"release"`            // Pointer to manage nil release
 	Project      *Project      `json:"project,omitempty"`  // Populated for API responses

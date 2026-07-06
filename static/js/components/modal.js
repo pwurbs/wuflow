@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus, formatDateTime, continueListOnEnter } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
@@ -278,8 +278,6 @@ function setupEditModal(issue) {
   document.getElementById('archive-issue-btn').classList.toggle('hidden', !canArchBtn);
   document.getElementById('unarchive-issue-btn').classList.toggle('hidden', !canUnarchBtn);
 
-  renderModalTimestamps(issue);
-
   // Read-Only UI Adjustments
   const dateInputs = document.querySelectorAll('.custom-date-input');
   dateInputs.forEach(el => {
@@ -318,7 +316,6 @@ function setupNewModal() {
   document.getElementById('delete-issue-btn').classList.add('hidden');
   document.getElementById('archive-issue-btn').classList.add('hidden');
   document.getElementById('unarchive-issue-btn').classList.add('hidden');
-  document.getElementById('timestamp-container')?.classList.add('hidden');
 
   toggleInlineEditMode(false);
 
@@ -372,45 +369,6 @@ function toggleInlineEditMode(enable) {
     descPreview.classList.add('hidden');
     descEditActions.classList.add('hidden');
   }
-}
-
-function renderTimestampEntry(container, dateStr, user) {
-  if (!dateStr) {
-    container.textContent = '-';
-    return;
-  }
-  container.innerHTML = '';
-  const dateText = formatDateTime(dateStr);
-
-  const dateSpan = document.createElement('span');
-  dateSpan.textContent = dateText;
-  container.appendChild(dateSpan);
-
-  if (user) {
-    const bySpan = document.createElement('span');
-    bySpan.textContent = 'by';
-    container.appendChild(bySpan);
-
-    const badge = document.createElement('div');
-    badge.className = 'user-badge';
-    badge.textContent = getUserInitials(user);
-    badge.title = `${user.first_name} ${user.last_name}`;
-    badge.style.display = 'inline-flex';
-    container.appendChild(badge);
-  }
-}
-
-function renderModalTimestamps(issue) {
-  const timestampContainer = document.getElementById('timestamp-container');
-  const createdAtDisplay = document.getElementById('created-at-display');
-  const updatedAtDisplay = document.getElementById('updated-at-display');
-
-  if (!timestampContainer || !createdAtDisplay || !updatedAtDisplay) return;
-
-  renderTimestampEntry(createdAtDisplay, issue.created_at, issue.creator);
-  renderTimestampEntry(updatedAtDisplay, issue.updated_at, issue.updater);
-
-  timestampContainer.classList.remove('hidden');
 }
 
 export function closeModal() {
