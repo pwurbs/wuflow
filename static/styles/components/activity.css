@@ -153,7 +153,7 @@
 }
 
 .comment-body {
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .comment-edit-input {
@@ -324,5 +324,5 @@
   font-size: var(--fs-md);
   color: var(--text-color);
   margin-top: 2px;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }

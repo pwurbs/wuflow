@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -408,7 +409,7 @@ func TestHistoryOnArchiveUnarchive(t *testing.T) {
 	for _, e := range historyEvents(t, issue.ID) {
 		events = append(events, e.Event)
 	}
-	if !contains(events, EventArchived) || !contains(events, EventUnarchived) {
+	if !slices.Contains(events, EventArchived) || !slices.Contains(events, EventUnarchived) {
 		t.Errorf("expected archived + unarchived events, got %v", events)
 	}
 }
@@ -593,13 +594,4 @@ func TestHandleActivityDBErrors(t *testing.T) {
 func mustMarshal(v any) []byte {
 	b, _ := json.Marshal(v)
 	return b
-}
-
-func contains(s []string, v string) bool {
-	for _, x := range s {
-		if x == v {
-			return true
-		}
-	}
-	return false
 }

@@ -16,40 +16,40 @@ import (
 )
 
 const (
-	apiIssues            = "/api/projects/1/issues"
-	apiIssuesBase        = "/api/projects/1/issues/"
-	apiIssues1           = apiIssuesBase + "1"
-	archiveSuffix        = "/archive"
-	unarchiveSuffix      = "/unarchive"
-	apiIssues1Archive    = apiIssues1 + archiveSuffix
-	apiIssues1Unarchive  = apiIssues1 + unarchiveSuffix
-	apiIssues1Move       = apiIssues1 + "/move"
-	invalidIssuePath     = apiIssuesBase + "999"
-	apiTasks             = "/api/projects/1/issues/1/tasks"
-	apiTasksBase         = "/api/projects/1/issues/1/tasks/"
-	apiTasks1            = apiTasksBase + "1"
-	apiLabels            = "/api/projects/1/labels"
-	apiLabelsBase        = "/api/projects/1/labels/"
-	apiLabels1           = apiLabelsBase + "1"
-	apiProjects               = "/api/projects"
-	apiProjectsBase           = "/api/projects/"
-	apiProjects1              = apiProjectsBase + "1"
+	apiIssues                  = "/api/projects/1/issues"
+	apiIssuesBase              = "/api/projects/1/issues/"
+	apiIssues1                 = apiIssuesBase + "1"
+	archiveSuffix              = "/archive"
+	unarchiveSuffix            = "/unarchive"
+	apiIssues1Archive          = apiIssues1 + archiveSuffix
+	apiIssues1Unarchive        = apiIssues1 + unarchiveSuffix
+	apiIssues1Move             = apiIssues1 + "/move"
+	invalidIssuePath           = apiIssuesBase + "999"
+	apiTasks                   = "/api/projects/1/issues/1/tasks"
+	apiTasksBase               = "/api/projects/1/issues/1/tasks/"
+	apiTasks1                  = apiTasksBase + "1"
+	apiLabels                  = "/api/projects/1/labels"
+	apiLabelsBase              = "/api/projects/1/labels/"
+	apiLabels1                 = apiLabelsBase + "1"
+	apiProjects                = "/api/projects"
+	apiProjectsBase            = "/api/projects/"
+	apiProjects1               = apiProjectsBase + "1"
 	apiProjects1IssuesActive   = apiProjectsBase + "1/issues/active"
 	apiProjects1IssuesArchived = apiProjectsBase + "1/issues/archived"
 	apiProjects1IssuesOpen     = apiProjectsBase + "1/issues/open"
-	invalidJSON          = "invalid json"
-	wrongStatusCode      = "handler returned wrong status code: got %v want %v"
-	toDelete             = "To Delete"
-	expectedTitleUpdated = "expected title 'Updated', got '%s'"
-	testDBPath           = ":memory:"
-	testIssueTitleNew    = "New Issue"
-	testTaskTitleNew     = "New Task"
-	testAssigneeEmail    = "user@example.com"
-	expectedFalseDBError  = "expected false on DB error"
-	dropIssuesTable       = "DROP TABLE issues"
-	dropProjectsTable     = "DROP TABLE projects"
-	expectedResMsg       = "expected %v, got %v"
-	expectedCodeMsg      = "expected code %v, got %v"
+	invalidJSON                = "invalid json"
+	wrongStatusCode            = "handler returned wrong status code: got %v want %v"
+	toDelete                   = "To Delete"
+	expectedTitleUpdated       = "expected title 'Updated', got '%s'"
+	testDBPath                 = ":memory:"
+	testIssueTitleNew          = "New Issue"
+	testTaskTitleNew           = "New Task"
+	testAssigneeEmail          = "user@example.com"
+	expectedFalseDBError       = "expected false on DB error"
+	dropIssuesTable            = "DROP TABLE issues"
+	dropProjectsTable          = "DROP TABLE projects"
+	expectedResMsg             = "expected %v, got %v"
+	expectedCodeMsg            = "expected code %v, got %v"
 )
 
 func TestHandleHealth(t *testing.T) {
@@ -3978,7 +3978,7 @@ func TestHandleProjectStatusConfigMethodNotAllowed(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 const (
-	apiReleases       = "/api/projects/1/releases/"
+	apiReleases        = "/api/projects/1/releases/"
 	apiProjectReleases = "/api/projects/1/releases"
 )
 
@@ -4012,7 +4012,6 @@ func TestHandleProjectReleasesGet(t *testing.T) {
 		t.Errorf("expected 1 release, got %d", len(releases))
 	}
 }
-
 
 func TestHandleProjectReleasesPost(t *testing.T) {
 	setupTestDB()

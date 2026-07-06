@@ -353,6 +353,7 @@ async function submitNewComment() {
 }
 
 async function refreshComments() {
+  if (!ctx.issue) return;
   const seq = nextSeq();
   const issue = ctx.issue;
   try {

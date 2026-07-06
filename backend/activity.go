@@ -116,7 +116,7 @@ func findIssueTask(issue *Issue, id int) *Task {
 // taskUpdateChange builds the history entry for a task update, or a zero-value
 // ChangeData (Field == "") when the change is not worth recording (e.g. only
 // position/deadline changed).
-func taskUpdateChange(old *Task, updated *Task) ChangeData {
+func taskUpdateChange(old, updated *Task) ChangeData {
 	if old != nil && old.Done != updated.Done {
 		if updated.Done {
 			return ChangeData{Field: "task_completed", Detail: "Task: Completed '" + updated.Title + "'"}

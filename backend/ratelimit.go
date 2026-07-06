@@ -17,8 +17,8 @@ const (
 	apiRateWindow   = time.Minute // sliding window for API rate limiting
 	apiCleanupEvery = 200         // run lazy cleanup every N allow() calls
 
-	refreshIPMax    = 10           // max refresh attempts per IP per window
-	refreshIPWindow = time.Minute  // sliding window for refresh rate limiting
+	refreshIPMax    = 10          // max refresh attempts per IP per window
+	refreshIPWindow = time.Minute // sliding window for refresh rate limiting
 )
 
 type failEntry struct {

@@ -356,16 +356,24 @@ func TestDBErrors(t *testing.T) {
 		{"LabelExistsInProject", func() error { _, err := LabelExistsInProject(context.Background(), 1, 1); return err }},
 		{"ProjectExists", func() error { _, err := ProjectExists(context.Background(), 1); return err }},
 		{"ReleaseExistsInProject", func() error { _, err := ReleaseExistsInProject(context.Background(), 1, 1); return err }},
-		{"CreateUser", func() error { return CreateUser(context.Background(), &User{Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser}) }},
+		{"CreateUser", func() error {
+			return CreateUser(context.Background(), &User{Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser})
+		}},
 		{"GetUserByEmail", func() error { _, err := GetUserByEmail(context.Background(), "x@y.z"); return err }},
 		{"GetUserByID", func() error { _, err := GetUserByID(context.Background(), 1); return err }},
 		{"GetAllUsers", func() error { _, err := GetAllUsers(context.Background()); return err }},
-		{"UpdateUser", func() error { return UpdateUser(context.Background(), &User{ID: 1, Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser}) }},
+		{"UpdateUser", func() error {
+			return UpdateUser(context.Background(), &User{ID: 1, Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser})
+		}},
 		{"CountUsers", func() error { _, err := CountUsers(context.Background()); return err }},
 		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(context.Background()); return err }},
-		{"CreateSession", func() error { return CreateSession(context.Background(), &Session{UserID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)}) }},
+		{"CreateSession", func() error {
+			return CreateSession(context.Background(), &Session{UserID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)})
+		}},
 		{"GetSessionByID", func() error { _, err := GetSessionByID(context.Background(), 1); return err }},
-		{"UpdateSession", func() error { return UpdateSession(context.Background(), &Session{ID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)}) }},
+		{"UpdateSession", func() error {
+			return UpdateSession(context.Background(), &Session{ID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)})
+		}},
 		{"DeleteSession", func() error { return DeleteSession(context.Background(), 1) }},
 		{"DeleteSessionsByUserID", func() error { return DeleteSessionsByUserID(context.Background(), 1) }},
 		{"DeleteExpiredSessions", func() error { _, err := DeleteExpiredSessions(context.Background()); return err }},
