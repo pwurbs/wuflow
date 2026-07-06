@@ -6,7 +6,6 @@
 - Removed the now obsolete Created/Updated timestamp block and optimized scrolling behavior in the issue details view
 - Added a scroll indicator to the issue modal's main column to hint when there is more content below the fold
 
-
 # 1.3.3
 
 - Switched build and runtime base images from Debian to Alpine to reduce container vulnerabilities and image size

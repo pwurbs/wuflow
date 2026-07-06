@@ -38,3 +38,6 @@ backend/testdata
 
 # Helm secrets (per-environment, contain passwords)
 deploy/secrets.*.yaml
+
+# local Databases
+local-databases

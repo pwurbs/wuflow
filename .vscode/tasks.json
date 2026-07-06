@@ -161,7 +161,7 @@
     {
       "label": "Run locally",
       "type": "shell",
-      "command": "go run -ldflags=\"-w -s -X main.Version=$(cat VERSION)\" . -secret-key 12345 -dbpath ./wuflow-test.db",
+      "command": "go run -ldflags=\"-w -s -X main.Version=$(cat VERSION)\" . -secret-key 12345 -dbpath ./local-databases/wuflow-test.db",
       "group": "build",
       "presentation": {
         "reveal": "always",
