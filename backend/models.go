@@ -72,6 +72,56 @@ type Task struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
+// History event kinds recorded in the issue_history table.
+const (
+	// EventCreated is recorded when an issue is created.
+	EventCreated = "created"
+	// EventUpdated is recorded once per changed field when an issue is edited.
+	EventUpdated = "updated"
+	// EventArchived is recorded when an issue is archived.
+	EventArchived = "archived"
+	// EventUnarchived is recorded when an issue is unarchived.
+	EventUnarchived = "unarchived"
+	// EventMoved is recorded when an issue is moved to another project.
+	EventMoved = "moved"
+	// EventTask is recorded for task add/complete/rename/delete changes.
+	EventTask = "task"
+)
+
+// ChangeData is the event-specific JSON payload stored in issue_history.data.
+// Fields use omitempty so each event carries only what it needs. from/to values
+// are human-readable and captured at write time so history stays stable even if
+// the referenced entity is later renamed or deleted.
+type ChangeData struct {
+	Field  string `json:"field,omitempty"`
+	From   string `json:"from,omitempty"`
+	To     string `json:"to,omitempty"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// HistoryEntry is one immutable, system-generated audit-trail record for an issue.
+type HistoryEntry struct {
+	ID        int        `json:"id"`
+	IssueID   int        `json:"issue_id"`
+	UserID    *int       `json:"user_id"`        // actor; nil if the user was deleted
+	User      *User      `json:"user,omitempty"` // hydrated for API responses
+	Event     string     `json:"event"`          // see Event* constants
+	Data      ChangeData `json:"data"`           // event-specific payload
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// Comment is a user-authored markdown note on an issue.
+type Comment struct {
+	ID        int       `json:"id"`
+	IssueID   int       `json:"issue_id"`
+	UserID    *int      `json:"user_id"`        // author; nil if the user was deleted
+	User      *User     `json:"user,omitempty"` // hydrated for API responses
+	Body      string    `json:"body"`           // raw markdown
+	Edited    bool      `json:"edited"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // Label represents a tag that can be assigned to an issue.
 type Label struct {
 	ID        int    `json:"id"`

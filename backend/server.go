@@ -288,6 +288,13 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 	hf("PUT", "/api/projects/{pId}/issues/{iId}/tasks/{id}", withIssueResource(ActionUpdateTask, handlePutTask), authAPI)
 	hf("DELETE", "/api/projects/{pId}/issues/{iId}/tasks/{id}", withIssueResource(ActionDeleteTask, handleDeleteTask), authAPI)
 
+	// --- Project- and issue-scoped history + comments -------------------------
+	hf("GET", "/api/projects/{pId}/issues/{iId}/history", withIssue(ActionListHistory, handleListHistory), authAPI)
+	hf("GET", "/api/projects/{pId}/issues/{iId}/comments", withIssue(ActionListComments, handleListComments), authAPI)
+	hf("POST", "/api/projects/{pId}/issues/{iId}/comments", withIssue(ActionCreateComment, handleCreateComment), authAPI)
+	hf("PUT", "/api/projects/{pId}/issues/{iId}/comments/{id}", withIssueResource(ActionUpdateComment, handlePutComment), authAPI)
+	hf("DELETE", "/api/projects/{pId}/issues/{iId}/comments/{id}", withIssueResource(ActionDeleteComment, handleDeleteComment), authAPI)
+
 	// --- Misc -----------------------------------------------------------------
 	hf("GET", "/api/version", HandleGetVersion(version), authAPI)
 

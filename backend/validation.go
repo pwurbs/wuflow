@@ -27,6 +27,7 @@ const (
 	MaxReleaseNameLen     = 20
 	MaxReleaseDescLen     = 200
 	MaxPlannedDates       = 100
+	MaxCommentLength      = 500
 )
 
 // Validation errors
@@ -65,6 +66,9 @@ var (
 	ErrInvalidReleaseName = errors.New("release name is required")
 	ErrReleaseNameTooLong = fmt.Errorf("release name must not exceed %d characters", MaxReleaseNameLen)
 	ErrReleaseDescTooLong = fmt.Errorf("release description must not exceed %d characters", MaxReleaseDescLen)
+
+	ErrInvalidComment = errors.New("comment must not be empty")
+	ErrCommentTooLong = fmt.Errorf("comment must not exceed %d characters", MaxCommentLength)
 )
 
 // Compiled regexes (package-level, compiled once).
@@ -193,6 +197,21 @@ func validateTask(t *Task) error {
 	}
 	if t.Deadline != nil && (t.Deadline.Year() < 2000 || t.Deadline.Year() > 2100) {
 		return errors.New("deadline year must be between 2000 and 2100")
+	}
+	return nil
+}
+
+// validateComment normalises and length-checks a user comment body. Like an issue
+// description, the body is plain Markdown text — no HTML filtering here; DOMPurify
+// sanitises the rendered output on the frontend.
+func validateComment(c *Comment) error {
+	c.Body = strings.ReplaceAll(c.Body, "\x00", "")
+	c.Body = strings.TrimSpace(c.Body)
+	if c.Body == "" {
+		return ErrInvalidComment
+	}
+	if utf8.RuneCountInString(c.Body) > MaxCommentLength {
+		return ErrCommentTooLong
 	}
 	return nil
 }

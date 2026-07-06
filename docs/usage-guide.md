@@ -100,6 +100,13 @@ Tasks can also be deleted by clicking the cross icon in the task card. This acti
 
 The number of tasks is shown on the Issue card in the Board view. When you hover over this number, then the tasks including possible deadline are listed in a popup.
 
+### Activity
+Below the Tasks list, every issue has an Activity area with two tabs: **Comments** and **History**.
+
+**Comments** let you and your team leave notes on an issue — a quick question, a status update, a decision. Write your comment in the text box (max. 500 chars) using simple Markdown like in the issue description. Each comment shows who wrote it and when. You can edit or delete your own comments afterward; users with the Admin or Sysadmin role can edit or delete *any* comment, e.g. to correct a typo or remove an inappropriate note on behalf of a teammate who's unavailable. Comments are ordered oldest first, so the conversation reads top to bottom like a chat. The comment box is hidden on archived issues — archived issues are read-only.
+
+**History** is an automatic, read-only audit trail of everything that happened to the issue: creation, every field you edit (status, priority, deadline, assignee, label, release, title, description), archiving/unarchiving, moving to another project, and task changes (added, completed, reopened, renamed, deleted). Each entry shows who did it and when, oldest first. Unlike comments, history entries can't be edited or deleted by anyone — it's a permanent record of what happened.
+
 ## Planning Sidebar
 
 <img src="screenshots/planning.png" alt="Planning Sidebar" width="300" align="right" style="margin-left: 20px; margin-bottom: 20px;">
@@ -246,6 +253,10 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | View issues & tasks | ✓ | ✓ | ✓ |
 | Create / edit issues | ✓ | ✓ | ✓ |
 | Create / edit / delete tasks | ✓ | ✓ | ✓ |
+| View issue history & comments | ✓ | ✓ | ✓ |
+| Add a comment | ✓ | ✓ | ✓ |
+| Edit / delete own comment | ✓ | ✓ | ✓ |
+| Edit / delete any comment | — | ✓ | ✓ |
 | View labels, users & projects | ✓ | ✓ | ✓ |
 | Archive an issue | — | ✓ | ✓ |
 | Unarchive an issue | — | ✓ | ✓ |

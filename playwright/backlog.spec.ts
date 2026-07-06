@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, navigateTo, selectStatus } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, selectStatus, waitForIssueSave } from './helpers/test-utils';
 
 test.describe('Backlog View', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -51,7 +51,9 @@ test.describe('Backlog View', () => {
     await expect(page.locator('#issue-modal')).toBeVisible();
 
     // Change status to To-Do
+    const statusSavePromise = waitForIssueSave(page);
     await selectStatus(page, 'Todo');
+    await statusSavePromise;
 
     // Close modal
     await page.click('#done-btn');
@@ -61,7 +63,9 @@ test.describe('Backlog View', () => {
     await navigateTo(page, 'board');
 
     // Verify issue is now in To-Do column on Board
-    await expect(page.locator('.column[data-status="Todo"] .card')).toContainText('Move to Board Issue');
+    await expect(
+      page.locator('.column[data-status="Todo"] .card').filter({ hasText: 'Move to Board Issue' })
+    ).toBeVisible();
   });
 
   test('backlog counts are displayed', async ({ page }) => {

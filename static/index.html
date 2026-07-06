@@ -649,6 +649,34 @@
                             </div>
                         </div>
 
+                        <div id="activity-section" class="hidden">
+                            <div class="activity-tabs">
+                                <button type="button" id="tab-comments" class="activity-tab active">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                    Comments
+                                </button>
+                                <button type="button" id="tab-history" class="activity-tab">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                    History
+                                </button>
+                            </div>
+                            <ul id="comment-list" class="comment-list"></ul>
+                            <ul id="history-list" class="history-timeline hidden"></ul>
+                            <div id="comment-form-container">
+                                <div class="comment-editor-container">
+                                    <div class="comment-input-wrapper">
+                                        <textarea id="new-comment-body" name="comment_body" rows="3" maxlength="500"
+                                            placeholder="Add a comment... (Markdown supported)"
+                                            aria-label="New comment"></textarea>
+                                    </div>
+                                    <div id="new-comment-actions" class="comment-edit-actions">
+                                        <button type="button" id="add-comment-btn" class="inline-edit-btn inline-save-btn"
+                                            title="Add comment">✓</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
 
                     </div>
 

@@ -211,6 +211,45 @@ export async function deleteIssue(projectId, id) {
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete issue');
 }
 
+// --- Issue activity: history (audit trail) + comments ---------------------
+
+export async function fetchHistory(projectId, issueId) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/history`);
+  if (!res.ok) throw new Error(await res.text() || 'Failed to fetch history');
+  return res.json();
+}
+
+export async function fetchComments(projectId, issueId) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments`);
+  if (!res.ok) throw new Error(await res.text() || 'Failed to fetch comments');
+  return res.json();
+}
+
+export async function createComment(projectId, issueId, body) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body })
+  });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to add comment');
+  return res.json();
+}
+
+export async function updateComment(projectId, issueId, commentId, body) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments/${commentId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body })
+  });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to update comment');
+  return res.json();
+}
+
+export async function deleteComment(projectId, issueId, commentId) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments/${commentId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to delete comment');
+}
+
 export async function fetchLabelsByProject(projectId) {
   const response = await authFetch(`${API_URL}/projects/${projectId}/labels`);
   if (!response.ok) throw new Error(await response.text() || 'Failed to fetch labels');

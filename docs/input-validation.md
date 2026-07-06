@@ -32,11 +32,12 @@
 | **Project Description** | 100 chars | Brief tagline shown in project overview. |
 | **Release Name** | 20 chars | UI space constraint (release cards, headers). |
 | **Release Description** | 200 chars | Brief summary shown in the release modal. |
+| **Comment** | 500 chars | Keeps the activity feed scannable; a comment is a quick note, not a description. |
 | **Request Body** | 32 KB | Hard limit on all incoming requests to prevent memory exhaustion attacks. |
 
-## Description Sanitization
+## Markdown Field Sanitization
 
-To prevent XSS while allowing rich text editing, the description field uses Markdown natively instead of HTML. 
+To prevent XSS while allowing rich text editing, both the issue **description** and **comment** bodies use Markdown natively instead of HTML. Comments follow the exact same pipeline as descriptions: no regex-based HTML filtering at write time, sanitization happens once at render time via DOMPurify.
 
 For full details on the end-to-end data flow, frontend sanitization layers (using DOMPurify), and allowed Markdown/HTML mappings, please refer to the comprehensive [Markdown Security & Sanitization](markdown-security.md) documentation.
 

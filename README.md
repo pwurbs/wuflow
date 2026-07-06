@@ -61,6 +61,7 @@ We developed this tool having the following goals in mind:
 - **Configurable Board Columns**: Adapt the board per project according to your workflow.
 - **Release Management**: Group issues into named, time-boxed releases, track progress with a visual indicator and assign an owner responsible for a release.
 - **Subtasks & Deadlines**: Break down larger issues into smaller, actionable tasks or checklists with individual deadlines.
+- **Activity & Comments**: Discuss an issue with Markdown comments and track a full, automatic history of every status, field, and task change.
 - **Custom Labels**: Categorize and color-code issues with an easy-to-use label management system per project.
 - **Advanced Filtering & Search**: Quickly find issues by filtering based on labels, priority, assignees, or text search.
 - **Multi-user Support**: Built-in user management with role-based access, allowing safe concurrent editing of issues.
@@ -184,8 +185,6 @@ For deeper technical insights, architecture overviews, and detailed functional d
 We plan to add the following features in the future:
 - Dependencies between Issues
 - Links between issues
-- Comments and activity in issues
-- Helm Chart
 - Light mode
 - Private Issues
 - Postgres support

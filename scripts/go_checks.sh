@@ -26,6 +26,10 @@ gosec -fmt sonarqube -out backend/test-results/gosec-report.json ./...
 section "gosec (console output)"
 gosec ./...
 
+# gofmt — silent for already-formatted files; shows a diff for anything that isn't
+section "gofmt -d backend/*.go (diff of formatting issues, if any)"
+gofmt -d backend/*.go
+
 # go vet
 section "go vet ./..."
 go vet ./...

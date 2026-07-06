@@ -163,6 +163,41 @@ export function countCodepoints(str) {
   return [...str].length;
 }
 
+// continueListOnEnter auto-continues a bullet/numbered markdown list when Enter
+// is pressed on a list-item line (or ends the list when the item is empty).
+// Shared by the issue-description editor and comment textareas. Returns true
+// if it handled the keypress (caller should already have it prevented via e),
+// false to let the default Enter behavior happen.
+export function continueListOnEnter(textarea, e) {
+  const start = textarea.selectionStart;
+  const value = textarea.value;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const currentLine = value.substring(lineStart, start);
+
+  const bulletMatch = currentLine.match(/^(\s*)([-*+]) (.*)$/);
+  const numberedMatch = currentLine.match(/^(\s*)(\d+)\. (.*)$/);
+  if (!bulletMatch && !numberedMatch) return false;
+
+  e.preventDefault();
+  const [, indent, marker, content] = bulletMatch ?? numberedMatch;
+  const isBullet = !!bulletMatch;
+
+  if (content === '') {
+    // Empty list item: remove marker, stop list
+    textarea.value = value.substring(0, lineStart) + value.substring(start);
+    textarea.selectionStart = textarea.selectionEnd = lineStart;
+  } else {
+    // Continue list
+    const nextPrefix = isBullet
+      ? `\n${indent}${marker} `
+      : `\n${indent}${Number.parseInt(marker, 10) + 1}. `;
+    textarea.value = value.substring(0, start) + nextPrefix + value.substring(start);
+    textarea.selectionStart = textarea.selectionEnd = start + nextPrefix.length;
+  }
+  textarea.dispatchEvent(new Event('input'));
+  return true;
+}
+
 export function initCharCounter(el, maxLength, options = {}) {
   const counter = document.createElement('span');
   counter.className = 'char-counter';

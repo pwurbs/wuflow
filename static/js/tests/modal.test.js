@@ -28,7 +28,9 @@ vi.mock('../api.js', () => ({
   fetchStatusConfig: vi.fn().mockResolvedValue(null),
   fetchUsers: vi.fn(),
   fetchProjects: vi.fn(),
-  fetchIssueById: vi.fn()
+  fetchIssueById: vi.fn(),
+  fetchHistory: vi.fn().mockResolvedValue([]),
+  fetchComments: vi.fn().mockResolvedValue([])
 }));
 
 vi.mock('../state.js', () => ({
@@ -41,22 +43,27 @@ vi.mock('../state.js', () => ({
   setCurrentIssue: vi.fn()
 }));
 
-vi.mock('../utils.js', () => ({
-  showNotification: vi.fn(),
-  showConfirm: vi.fn(),
-  updateDateInputStyle: vi.fn(),
-  escapeHtml: vi.fn(s => s),
-  canArchive: vi.fn().mockReturnValue({ allowed: true }),
-  initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
-  countCodepoints: vi.fn(s => [...s].length),
-  getUserInitials: vi.fn(user => {
-    if (!user) return '??';
-    return ((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || '??';
-  }),
-  getDeadlineStatus: vi.fn(() => ({ late: false })),
-  getTaskDeadlineStatus: vi.fn(() => ({ late: false })),
-  formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString())
-}));
+vi.mock('../utils.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    showNotification: vi.fn(),
+    showConfirm: vi.fn(),
+    updateDateInputStyle: vi.fn(),
+    escapeHtml: vi.fn(s => s),
+    canArchive: vi.fn().mockReturnValue({ allowed: true }),
+    initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+    countCodepoints: vi.fn(s => [...s].length),
+    getUserInitials: vi.fn(user => {
+      if (!user) return '??';
+      return ((user.first_name?.[0] || '') + (user.last_name?.[0] || '')).toUpperCase() || '??';
+    }),
+    getDeadlineStatus: vi.fn(() => ({ late: false })),
+    getTaskDeadlineStatus: vi.fn(() => ({ late: false })),
+    formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString()),
+    // Real implementation — the list auto-continue tests assert on its actual behavior.
+    continueListOnEnter: actual.continueListOnEnter
+  };
+});
 
 vi.mock('../markdown.js', () => ({
   renderMarkdown: vi.fn((s, returnObject = false) => {
@@ -228,7 +235,7 @@ describe('Modal Component', () => {
     await openModal(issue);
 
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('modal-title').textContent).toBe('Edit Issue #123');
+    expect(document.getElementById('modal-title').textContent).toBe('Issue Details #123');
     expect(document.getElementById('title').value).toBe('Test Issue');
     expect(document.getElementById('description-editor').value).toBe('Test Desc');
     expect(setCurrentIssue).toHaveBeenCalledWith(issue);
@@ -297,6 +304,7 @@ describe('Modal Component', () => {
     document.getElementById('new-task-title').value = 'Subtask 1';
 
     api.createTask.mockResolvedValue({ id: 101, title: 'Subtask 1', done: false });
+    const historyCallsBeforeAdd = api.fetchHistory.mock.calls.length;
 
     // Click add
     document.getElementById('add-task-btn').click();
@@ -308,6 +316,9 @@ describe('Modal Component', () => {
       issue_id: 1
     }));
     expect(tasks.renderTasks).toHaveBeenCalled();
+    // Adding a task must refresh the History tab immediately, same as every
+    // other task/field mutation, instead of only showing up on modal reopen.
+    expect(api.fetchHistory.mock.calls.length).toBeGreaterThan(historyCallsBeforeAdd);
   });
 
   it('should delete issue after confirmation', async () => {
@@ -651,7 +662,7 @@ describe('Modal Component', () => {
 
       await openModalWithMock(issue);
 
-      expect(document.getElementById('modal-title').textContent).toBe('Edit Issue #5');
+      expect(document.getElementById('modal-title').textContent).toBe('Issue Details #5');
       expect(document.getElementById('delete-issue-btn').classList.contains('hidden')).toBe(false);
       expect(document.getElementById('done-btn').classList.contains('hidden')).toBe(false);
       expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(true);
@@ -1869,7 +1880,7 @@ describe('Modal Component', () => {
         'Cancel',
         'primary'
       );
-      expect(document.getElementById('modal-title').textContent).toContain('Edit Issue #1');
+      expect(document.getElementById('modal-title').textContent).toContain('Issue Details #1');
     });
 
     it('should handle sidebar save failures', async () => {

@@ -16,6 +16,10 @@ Three roles are available, ordered from least to most privileged:
 | View issues & tasks | ✓ | ✓ | ✓ |
 | Create / edit issues | ✓ | ✓ | ✓ |
 | Create / edit / delete tasks | ✓ | ✓ | ✓ |
+| View issue history & comments | ✓ | ✓ | ✓ |
+| Add a comment | ✓ | ✓ | ✓ |
+| Edit / delete own comment | ✓ | ✓ | ✓ |
+| Edit / delete any comment | — | ✓ | ✓ |
 | View labels, users & projects | ✓ | ✓ | ✓ |
 | Archive an issue | — | ✓ | ✓ |
 | Unarchive an issue | — | ✓ | ✓ |

@@ -23,6 +23,11 @@ export const ACTION_MOVE_ISSUE      = 'issue:move';
 export const ACTION_CREATE_TASK     = 'task:create';
 export const ACTION_UPDATE_TASK     = 'task:update';
 export const ACTION_DELETE_TASK     = 'task:delete';
+export const ACTION_LIST_HISTORY    = 'history:list';
+export const ACTION_LIST_COMMENTS   = 'comment:list';
+export const ACTION_CREATE_COMMENT  = 'comment:create';
+export const ACTION_UPDATE_COMMENT  = 'comment:update';
+export const ACTION_DELETE_COMMENT  = 'comment:delete';
 export const ACTION_LIST_LABELS     = 'label:list';
 export const ACTION_CREATE_LABEL    = 'label:create';
 export const ACTION_DELETE_LABEL    = 'label:delete';
@@ -64,6 +69,12 @@ const rolePermissions = {
     [ACTION_CREATE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     [ACTION_UPDATE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     [ACTION_DELETE_TASK]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    // Issue history + comments (author-vs-admin scope handled per-comment in the UI)
+    [ACTION_LIST_HISTORY]:    [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_LIST_COMMENTS]:   [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_CREATE_COMMENT]:  [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_UPDATE_COMMENT]:  [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
+    [ACTION_DELETE_COMMENT]:  [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     // Labels
     [ACTION_LIST_LABELS]:     [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     [ACTION_CREATE_LABEL]:    [ROLE_SYSADMIN, ROLE_ADMIN],
@@ -113,4 +124,17 @@ export function can(role, action) {
  */
 export function userCan(user, action) {
     return can(user?.role ?? null, action);
+}
+
+/**
+ * Returns true if the user is an admin/sysadmin, i.e. may moderate (edit or
+ * delete) any comment — not just their own. Mirrors isCommentModerator in
+ * backend/activity.go.
+ *
+ * @param {object|null} user - User object with a .role property
+ * @returns {boolean}
+ */
+export function isCommentModerator(user) {
+    const role = user?.role ?? null;
+    return role === ROLE_SYSADMIN || role === ROLE_ADMIN;
 }

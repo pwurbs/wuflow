@@ -18,6 +18,7 @@ const (
 	errMsgInvalidID             = "Invalid ID"
 	errMsgIssueNotFound         = "Issue not found"
 	errMsgTaskNotFound          = "Task not found"
+	errMsgCommentNotFound       = "Comment not found"
 	errMsgArchivedReadOnly      = "Archived issues are read-only"
 	errMsgInternalServerError   = "Internal server error"
 	errMsgUserNotFound          = "User not found"
@@ -396,6 +397,8 @@ func handleCreateIssue(w http.ResponseWriter, r *http.Request, projectID int) {
 		return
 	}
 
+	recordHistory(r.Context(), i.ID, i.CreatorID, EventCreated, ChangeData{})
+
 	LogInfo("Issue created", "id", i.ID, "user_email", userEmail)
 	w.Header().Set(headerContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
@@ -431,6 +434,7 @@ type archiveToggleOpts struct {
 	badMsg     string
 	logAction  string
 	respondMsg string
+	event      string // history event: EventArchived or EventUnarchived
 }
 
 // handleIssueArchiveToggle is the shared implementation for archive and unarchive.
@@ -458,6 +462,7 @@ func handleIssueArchiveToggle(w http.ResponseWriter, r *http.Request, projectID,
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
+	recordHistory(r.Context(), id, GetUserIDFromContext(r.Context()), opts.event, ChangeData{})
 	respondWithUpdatedIssue(r.Context(), w, id, opts.respondMsg, userEmail)
 }
 
@@ -469,6 +474,7 @@ func handleArchiveIssue(w http.ResponseWriter, r *http.Request, projectID, id in
 		badMsg:     "Issue is already archived",
 		logAction:  "archive",
 		respondMsg: "Issue archived",
+		event:      EventArchived,
 	})
 }
 
@@ -480,6 +486,7 @@ func handleUnarchiveIssue(w http.ResponseWriter, r *http.Request, projectID, id 
 		badMsg:     "Issue is not archived",
 		logAction:  "unarchive",
 		respondMsg: "Issue unarchived",
+		event:      EventUnarchived,
 	})
 }
 
@@ -515,13 +522,13 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 		return
 	}
 
-	exists, err := ProjectExists(r.Context(), req.NewProjectID)
+	newProject, err := GetProjectByID(r.Context(), req.NewProjectID)
 	if err != nil {
-		LogError("ProjectExists failed for move", "new_project_id", req.NewProjectID, "error", err, "user_email", userEmail)
+		LogError("GetProjectByID failed for move", "new_project_id", req.NewProjectID, "error", err, "user_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
-	if !exists {
+	if newProject == nil {
 		http.Error(w, "target project not found", http.StatusBadRequest)
 		return
 	}
@@ -538,6 +545,12 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
+
+	var fromProjectName string
+	if current.Project != nil {
+		fromProjectName = current.Project.Name
+	}
+	recordHistory(r.Context(), id, updaterID, EventMoved, ChangeData{Field: "project", From: fromProjectName, To: newProject.Name})
 
 	LogInfo("Issue moved", "id", id, "from_project_id", projectID, "to_project_id", req.NewProjectID, "user_email", userEmail)
 	// respondWithUpdatedIssue uses GetIssueByID (not project-scoped), so it
@@ -657,6 +670,7 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	if !persistIssueUpdate(r.Context(), w, &i, current, userEmail) {
 		return
 	}
+	recordIssueEditHistory(r.Context(), current, id, updaterID)
 	respondWithUpdatedIssue(r.Context(), w, id, "Issue updated", userEmail)
 }
 
@@ -730,6 +744,7 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
+	recordHistory(r.Context(), issueID, GetUserIDFromContext(r.Context()), EventTask, ChangeData{Field: "task_added", Detail: "Task: Added '" + t.Title + "'"})
 	LogInfo("Task created", "id", t.ID, "issue_id", issueID, "user_email", userEmail)
 	w.Header().Set(headerContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
@@ -755,6 +770,7 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 
 	t.ID = id
 	t.IssueID = issueID
+	oldTask := findIssueTask(issue, id)
 	if err := UpdateTask(r.Context(), &t, issueID); err != nil {
 		if err == ErrTaskNotFound {
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
@@ -763,6 +779,9 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 		LogError("UpdateTask failed", "id", id, "error", err, "user_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
+	}
+	if cd := taskUpdateChange(oldTask, &t); cd.Field != "" {
+		recordHistory(r.Context(), issueID, GetUserIDFromContext(r.Context()), EventTask, cd)
 	}
 	LogInfo("Task updated", "id", id, "user_email", userEmail)
 	w.Header().Set(headerContentType, contentTypeJSON)
@@ -780,6 +799,8 @@ func handleDeleteTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 
 	userEmail := GetEmailFromContext(r.Context())
 
+	deletedTask := findIssueTask(issue, id)
+
 	if err := DeleteTask(r.Context(), id, issueID); err != nil {
 		if err == ErrTaskNotFound {
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
@@ -789,8 +810,141 @@ func handleDeleteTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
+	deletedTitle := "a task"
+	if deletedTask != nil {
+		deletedTitle = "'" + deletedTask.Title + "'"
+	}
+	recordHistory(r.Context(), issueID, GetUserIDFromContext(r.Context()), EventTask, ChangeData{Field: "task_deleted", Detail: "Task: Deleted " + deletedTitle})
 	LogInfo("Task deleted", "id", id, "issue_id", issueID, "user_email", userEmail)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleListHistory returns an issue's audit trail (oldest first).
+func handleListHistory(w http.ResponseWriter, r *http.Request, _ int, issueID int, _ *Issue) {
+	history, err := GetHistoryByIssueID(r.Context(), issueID)
+	if err != nil {
+		LogError("GetHistoryByIssueID failed", "issue_id", issueID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(history); err != nil {
+		LogError("handleListHistory: failed to encode response", "issue_id", issueID, "error", err)
+	}
+}
+
+// handleListComments returns an issue's comments (oldest first).
+func handleListComments(w http.ResponseWriter, r *http.Request, _ int, issueID int, _ *Issue) {
+	comments, err := GetCommentsByIssueID(r.Context(), issueID)
+	if err != nil {
+		LogError("GetCommentsByIssueID failed", "issue_id", issueID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(comments); err != nil {
+		LogError("handleListComments: failed to encode response", "issue_id", issueID, "error", err)
+	}
+}
+
+// handleCreateComment adds a comment to a non-archived issue.
+func handleCreateComment(w http.ResponseWriter, r *http.Request, _ int, issueID int, issue *Issue) {
+	var c Comment
+	if !decodeAndValidate(w, r, &c, validateComment) {
+		return
+	}
+
+	userEmail := GetEmailFromContext(r.Context())
+	if issue.Status == StatusArchive {
+		LogWarn("Comment creation failed: Issue archived", "issue_id", issueID, "user_email", userEmail)
+		http.Error(w, "Cannot comment on archived issues", http.StatusForbidden)
+		return
+	}
+
+	userID := GetUserIDFromContext(r.Context())
+	c.IssueID = issueID
+	c.UserID = &userID
+
+	if err := CreateComment(r.Context(), &c); err != nil {
+		LogError("CreateComment failed", "issue_id", issueID, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	// The request context carries only user_id/email/role, so hydrate the author's
+	// name from the DB for the frontend comment header.
+	if u, err := GetUserByID(r.Context(), userID); err == nil && u != nil {
+		c.User = u
+	}
+
+	LogInfo("Comment created", "id", c.ID, "issue_id", issueID, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(c); err != nil {
+		LogError("handleCreateComment: failed to encode response", "id", c.ID, "error", err, "user_email", userEmail)
+	}
+}
+
+// handlePutComment edits a comment. A regular user may edit only their own; an
+// admin/sysadmin may edit any (author filter = nil).
+func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, _ *Issue) {
+	var c Comment
+	if !decodeAndValidate(w, r, &c, validateComment) {
+		return
+	}
+
+	userEmail := GetEmailFromContext(r.Context())
+	authorFilter := commentAuthorFilter(r)
+
+	if err := UpdateComment(r.Context(), id, issueID, authorFilter, c.Body); err != nil {
+		if err == ErrCommentNotFound {
+			http.Error(w, errMsgCommentNotFound, http.StatusNotFound)
+			return
+		}
+		LogError("UpdateComment failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	updated, err := GetCommentByID(r.Context(), id, issueID)
+	if err != nil {
+		LogError("handlePutComment: failed to fetch updated comment", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	LogInfo("Comment updated", "id", id, "issue_id", issueID, "user_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(updated); err != nil {
+		LogError("handlePutComment: failed to encode response", "id", id, "error", err, "user_email", userEmail)
+	}
+}
+
+// handleDeleteComment removes a comment, with the same author/admin scope as edit.
+func handleDeleteComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, _ *Issue) {
+	userEmail := GetEmailFromContext(r.Context())
+	authorFilter := commentAuthorFilter(r)
+
+	if err := DeleteComment(r.Context(), id, issueID, authorFilter); err != nil {
+		if err == ErrCommentNotFound {
+			http.Error(w, errMsgCommentNotFound, http.StatusNotFound)
+			return
+		}
+		LogError("DeleteComment failed", "id", id, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	LogInfo("Comment deleted", "id", id, "issue_id", issueID, "user_email", userEmail)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// commentAuthorFilter returns nil for admins/sysadmins (may act on any comment) or
+// a pointer to the requester's user ID for regular users (own comments only).
+func commentAuthorFilter(r *http.Request) *int {
+	if isCommentModerator(GetRoleFromContext(r.Context())) {
+		return nil
+	}
+	userID := GetUserIDFromContext(r.Context())
+	return &userID
 }
 
 // handleListLabels handles GET /api/projects/{pId}/labels.

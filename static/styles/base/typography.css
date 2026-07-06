@@ -39,7 +39,8 @@ h1 {
 .form-checkbox label,
 .release-archive-label,
 .release-stat-name,
-#tasks-section h3 {
+#tasks-section h3,
+.activity-tab {
   font-size: var(--fs-xs);
   font-weight: var(--fw-bold);
   text-transform: uppercase;
@@ -71,7 +72,9 @@ h1 {
 .release-dialog,
 .modal-content.confirm p,
 .admin-confirm-body p,
-.dropdown-item {
+.dropdown-item,
+#new-comment-body,
+.comment-edit-input {
   font-family: var(--font-sans);
   font-size: var(--fs-base);
   font-weight: var(--fw-regular);

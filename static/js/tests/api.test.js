@@ -27,6 +27,11 @@ import {
   deleteRelease,
   reopenRelease,
   triggerRelease,
+  fetchHistory,
+  fetchComments,
+  createComment,
+  updateComment,
+  deleteComment,
 } from '../api.js';
 
 function makeResponse(status, body, headers = {}) {
@@ -501,6 +506,84 @@ describe('api', () => {
     it('throws with server message on failure', async () => {
       fetch.mockResolvedValue(makeResponse(500, 'Failed to trigger release'));
       await expect(triggerRelease(1, 1, false)).rejects.toThrow('Failed to trigger release');
+    });
+  });
+
+  // --- Issue activity: history + comments ---
+
+  describe('fetchHistory', () => {
+    it('returns history entries on success', async () => {
+      const history = [{ id: 1, event: 'created' }];
+      fetch.mockResolvedValue(makeResponse(200, history));
+      expect(await fetchHistory(1, 5)).toEqual(history);
+      expect(fetch).toHaveBeenCalledWith('/api/projects/1/issues/5/history', {});
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(404, 'Not found'));
+      await expect(fetchHistory(1, 5)).rejects.toThrow('Not found');
+    });
+  });
+
+  describe('fetchComments', () => {
+    it('returns comments on success', async () => {
+      const comments = [{ id: 1, body: 'hi' }];
+      fetch.mockResolvedValue(makeResponse(200, comments));
+      expect(await fetchComments(1, 5)).toEqual(comments);
+      expect(fetch).toHaveBeenCalledWith('/api/projects/1/issues/5/comments', {});
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(500, 'Server error'));
+      await expect(fetchComments(1, 5)).rejects.toThrow('Server error');
+    });
+  });
+
+  describe('createComment', () => {
+    it('posts comment body and returns created data', async () => {
+      const comment = { id: 1, body: 'hello' };
+      fetch.mockResolvedValue(makeResponse(201, comment));
+      const result = await createComment(1, 5, 'hello');
+      expect(result).toEqual(comment);
+      expect(fetch.mock.calls[0][0]).toBe('/api/projects/1/issues/5/comments');
+      expect(fetch.mock.calls[0][1].method).toBe('POST');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ body: 'hello' });
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(400, 'Comment must not be empty'));
+      await expect(createComment(1, 5, '')).rejects.toThrow('Comment must not be empty');
+    });
+  });
+
+  describe('updateComment', () => {
+    it('puts comment body and returns updated data', async () => {
+      const comment = { id: 1, body: 'edited', edited: true };
+      fetch.mockResolvedValue(makeResponse(200, comment));
+      const result = await updateComment(1, 5, 1, 'edited');
+      expect(result).toEqual(comment);
+      expect(fetch.mock.calls[0][0]).toBe('/api/projects/1/issues/5/comments/1');
+      expect(fetch.mock.calls[0][1].method).toBe('PUT');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ body: 'edited' });
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(404, 'Comment not found'));
+      await expect(updateComment(1, 5, 1, 'edited')).rejects.toThrow('Comment not found');
+    });
+  });
+
+  describe('deleteComment', () => {
+    it('sends DELETE and resolves on success', async () => {
+      fetch.mockResolvedValue(makeResponse(200, ''));
+      await expect(deleteComment(1, 5, 1)).resolves.not.toThrow();
+      expect(fetch.mock.calls[0][0]).toBe('/api/projects/1/issues/5/comments/1');
+      expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(404, 'Comment not found'));
+      await expect(deleteComment(1, 5, 1)).rejects.toThrow('Comment not found');
     });
   });
 });

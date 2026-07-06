@@ -1,32 +1,32 @@
 # Markdown Security & Sanitization
 
 ## Overview
-The description field in wuFlow natively supports Markdown to allow rich-text formatting while mitigating XSS (Cross-Site Scripting) risks. This document summarizes the approach, the end-to-end data flow, supported mappings, and provides test cases for validating the implementation.
+The issue description **and** issue comments in wuFlow natively support Markdown to allow rich-text formatting while mitigating XSS (Cross-Site Scripting) risks. Both fields share the exact same sanitization pipeline described below. (Tasks have no description field — only a plain-text `Title` — so this document doesn't apply to them.) This document summarizes the approach, the end-to-end data flow, supported mappings, and provides test cases for validating the implementation.
 
 ## End-to-End Flow (Input to Rendering)
 
 1. **User Input (Client)**
-   - The user inputs text, including Markdown formatting, into the description editor on the frontend.
-   - The editor provides a preview mode by parsing the raw Markdown.
+   - The user inputs text, including Markdown formatting, into the description editor or the comment box on the frontend.
+   - The description editor additionally provides a preview mode by parsing the raw Markdown.
 2. **Backend Storage**
    - The payload is sent to the backend API.
-   - The backend treats the description strictly as plain Markdown text.
-   - **No regex-based HTML filtering** (like `sanitizeHTML`) is applied. The backend evaluates constraints using simple character counts.
+   - The backend treats the description/comment strictly as plain Markdown text.
+   - **No regex-based HTML filtering** (like `sanitizeHTML`) is applied. The backend evaluates constraints using simple character counts (`validateIssue` / `validateComment` in `backend/validation.go`).
    - The raw Markdown text is stored in the database exactly as submitted.
 3. **Retrieval and Client-Side Rendering**
    - Clients retrieve the raw Markdown string via the API.
    - **Parsing**: The `marked` library converts the Markdown string into raw HTML (GitHub Flavored Markdown is enabled).
-   - **Sanitization**: The raw HTML is passed through `DOMPurify` (in `markdown.js`), which acts as an air-tight security boundary.
+   - **Sanitization**: The raw HTML is passed through `DOMPurify` (in `markdown.js`), which acts as an air-tight security boundary. The issue description preview and the Activity area's comment bodies both call the same `renderMarkdown()` helper.
    - The safe, purified HTML is then injected into the DOM for viewing.
 
 ## API Consumers & Trust Boundary
 
-The description field returned by the API is **untrusted raw Markdown source**. This is intentional and matches common industry practice (GitHub, GitLab, Jira, and Stack Overflow all store and serve the raw Markdown source unmodified): sanitization happens at *output time, for the specific output context* — never at input time.
+The description and comment fields returned by the API are **untrusted raw Markdown source**. This is intentional and matches common industry practice (GitHub, GitLab, Jira, and Stack Overflow all store and serve the raw Markdown source unmodified): sanitization happens at *output time, for the specific output context* — never at input time.
 
-- **Consumer responsibility**: Any consumer that renders the description as HTML **must sanitize it in its own context**, exactly as the bundled frontend does via `marked` + DOMPurify. A string inside a JSON response is inert data; it only becomes dangerous when a consumer injects it into an HTML page unescaped — and only the consumer knows its output context (HTML, email, PDF, terminal).
+- **Consumer responsibility**: Any consumer that renders the description or a comment as HTML **must sanitize it in its own context**, exactly as the bundled frontend does via `marked` + DOMPurify. A string inside a JSON response is inert data; it only becomes dangerous when a consumer injects it into an HTML page unescaped — and only the consumer knows its output context (HTML, email, PDF, terminal).
 - **Server-side guarantees**: The server ensures its own responses can never be interpreted as an HTML context: API responses are served with `Content-Type: application/json`, and the server sets `X-Content-Type-Options: nosniff` and a Content-Security-Policy (see `backend/server.go`).
 - **Why no input sanitization**: Write-time HTML filtering would corrupt legitimate content (e.g., `<script>` inside code fences — see the test cases below), cannot be fixed retroactively for already-stored data if the filter turns out to be flawed, and trains consumers into a false sense of security. Output-time sanitization via DOMPurify means a future DOMPurify security fix instantly protects all stored data.
-- **Future renderers rule**: Any new feature that renders descriptions (email notifications, PDF export, webhook receivers, mobile clients) constitutes its own security boundary and needs its own context-appropriate sanitization step.
+- **Future renderers rule**: Any new feature that renders descriptions or comments (email notifications, PDF export, webhook receivers, mobile clients) constitutes its own security boundary and needs its own context-appropriate sanitization step.
 
 ## Supported Markdown & HTML Mappings
 
@@ -61,7 +61,7 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 
 ## Testing Scenarios
 
-Copy and paste the sections below (snippets within markdown code blocks) into an Issue/Task description field to visually verify that rendering and security policies are applied correctly.
+Copy and paste the sections below (snippets within markdown code blocks) into an Issue description field or a comment box to visually verify that rendering and security policies are applied correctly. Both fields render through the same `renderMarkdown()` + DOMPurify pipeline, so a scenario that passes for one passes for the other — note the comment box has a much shorter length limit (500 characters, see [Input Validation](input-validation.md)), so a couple of the larger snippets below may need trimming to fit.
 
 ### 🟢 1. Standard Markdown
 Tests basic formatting, headers, lists, code blocks, and links.

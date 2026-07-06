@@ -22,6 +22,15 @@ const (
 	ActionUpdateTask Action = "task:update"
 	ActionDeleteTask Action = "task:delete"
 
+	// Issue history actions
+	ActionListHistory Action = "history:list"
+
+	// Comment actions
+	ActionListComments  Action = "comment:list"
+	ActionCreateComment Action = "comment:create"
+	ActionUpdateComment Action = "comment:update"
+	ActionDeleteComment Action = "comment:delete"
+
 	// Label actions
 	ActionListLabels  Action = "label:list"
 	ActionCreateLabel Action = "label:create"
@@ -75,6 +84,16 @@ var rolePermissions = map[Action][]UserRole{
 	ActionCreateTask: {RoleSysAdmin, RoleAdmin, RoleUser},
 	ActionUpdateTask: {RoleSysAdmin, RoleAdmin, RoleUser},
 	ActionDeleteTask: {RoleSysAdmin, RoleAdmin, RoleUser},
+
+	// Issue history (read-only; append-only writes bypass the permission layer)
+	ActionListHistory: {RoleSysAdmin, RoleAdmin, RoleUser},
+
+	// Comments — all roles may act; the admin-any vs. author-own scope for
+	// update/delete is enforced by the SQL author filter chosen in the handler.
+	ActionListComments:  {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionCreateComment: {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionUpdateComment: {RoleSysAdmin, RoleAdmin, RoleUser},
+	ActionDeleteComment: {RoleSysAdmin, RoleAdmin, RoleUser},
 
 	// Labels
 	ActionListLabels:  {RoleSysAdmin, RoleAdmin, RoleUser},

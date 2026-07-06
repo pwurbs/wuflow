@@ -310,9 +310,14 @@
 }
 
 /* Code styles */
+/* A light overlay, not a dark one — on an already-dark background there's
+   little room to go darker before it just looks like flat black (as a plain
+   rgba(0,0,0,*) overlay did). Lightening instead reads as a distinct inlaid
+   surface regardless of the underlying shade (same convention as GitHub/VS
+   Code's dark themes). */
 .rich-editor code,
 .md-preview code {
-  background-color: var(--card-bg);
+  background-color: rgba(255, 255, 255, 0.1);
   padding: 2px 4px;
   border-radius: 4px;
   color: var(--text-color);
@@ -322,7 +327,7 @@
 
 .rich-editor pre,
 .md-preview pre {
-  background-color: var(--card-bg);
+  background-color: rgba(255, 255, 255, 0.08);
   padding: 12px;
   border-radius: 4px;
   overflow-x: auto;

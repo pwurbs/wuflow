@@ -1,12 +1,13 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus, formatDateTime } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getUserInitials, getDeadlineStatus, getTaskDeadlineStatus, formatDateTime, continueListOnEnter } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
+import { setupActivity, loadActivity, refreshHistory } from './activity.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
 let refreshAppCallback = null;
@@ -35,6 +36,7 @@ export function setupModal(refreshApp, rerenderViews) {
   setupInlineEditing();
   setupEditorToolbar();
   setupSidebarImmediateSave();
+  setupActivity();
 
   // Character counters
   initCharCounter(document.getElementById('description-editor'), MAX_DESC_LENGTH, { className: 'editor-counter' });
@@ -232,7 +234,7 @@ function renderModalDropdowns(issue) {
 
 function setupEditModal(issue) {
   const isArchived = issue.status === STATUS_ARCHIVE;
-  document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Edit Issue #${issue.id}`;
+  document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Issue Details #${issue.id}`;
   document.getElementById('issue-id').value = issue.id;
   document.getElementById('title').value = issue.title;
   document.getElementById('description-editor').value = issue.description || '';
@@ -254,12 +256,18 @@ function setupEditModal(issue) {
 
   renderTasks(issue.tasks || [], document.getElementById('task-list'), issue, {
     readOnly: isArchived,
-    onTaskUpdate: () => rerenderViewsCallback?.(),
+    onTaskUpdate: () => { rerenderViewsCallback?.(); refreshHistory(); },
     onTaskOrderSave: async () => {
       await saveTaskOrder(issue);
     },
     onTaskEditStart: () => addUnloadListener(),
     onTaskEditEnd: () => checkRemoveUnloadListener()
+  });
+
+  // Activity area (History + Comments) — fetches its own data lazily on open.
+  loadActivity(issue, {
+    onEditStart: () => addUnloadListener(),
+    onEditEnd: () => checkRemoveUnloadListener()
   });
 
   const user = state.currentUser;
@@ -306,6 +314,7 @@ function setupNewModal() {
   document.getElementById('deadline-display')?.classList.remove('overdue');
 
   document.getElementById('tasks-section').classList.add('hidden');
+  document.getElementById('activity-section')?.classList.add('hidden');
   document.getElementById('delete-issue-btn').classList.add('hidden');
   document.getElementById('archive-issue-btn').classList.add('hidden');
   document.getElementById('unarchive-issue-btn').classList.add('hidden');
@@ -459,6 +468,7 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
   hasSavedDuringSession = true;
   if (successMessage) showNotification(successMessage);
   if (rerenderViewsCallback) rerenderViewsCallback();
+  refreshHistory();
   return true;
 }
 
@@ -1008,32 +1018,7 @@ function setupEditorToolbar() {
   const preview = document.getElementById('description-preview');
 
   function handleEnterKey(e) {
-    const start = editor.selectionStart;
-    const value = editor.value;
-    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-    const currentLine = value.substring(lineStart, start);
-
-    const bulletMatch = currentLine.match(/^(\s*)([-*+]) (.*)$/);
-    const numberedMatch = currentLine.match(/^(\s*)(\d+)\. (.*)$/);
-    if (!bulletMatch && !numberedMatch) return;
-
-    e.preventDefault();
-    const [, indent, marker, content] = bulletMatch ?? numberedMatch;
-    const isBullet = !!bulletMatch;
-
-    if (content === '') {
-      // Empty list item: remove marker, stop list
-      editor.value = value.substring(0, lineStart) + value.substring(start);
-      editor.selectionStart = editor.selectionEnd = lineStart;
-    } else {
-      // Continue list
-      const nextPrefix = isBullet
-        ? `\n${indent}${marker} `
-        : `\n${indent}${Number.parseInt(marker, 10) + 1}. `;
-      editor.value = value.substring(0, start) + nextPrefix + value.substring(start);
-      editor.selectionStart = editor.selectionEnd = start + nextPrefix.length;
-    }
-    editor.dispatchEvent(new Event('input'));
+    continueListOnEnter(editor, e);
   }
 
   function handleTabKey(e) {
@@ -1279,7 +1264,7 @@ async function handleTaskSubmit(e) {
     if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
     state.currentIssue.tasks.push(newTask);
     renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
-      onTaskUpdate: () => rerenderViewsCallback?.(),
+      onTaskUpdate: () => { rerenderViewsCallback?.(); refreshHistory(); },
       onTaskOrderSave: () => saveTaskOrder(state.currentIssue),
       onTaskEditStart: () => addUnloadListener(),
       onTaskEditEnd: () => checkRemoveUnloadListener()
@@ -1288,6 +1273,7 @@ async function handleTaskSubmit(e) {
     const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
     showNotification(taskDlStatus.late ? `Task created — ${taskDlStatus.reason}` : 'Task created', taskDlStatus.late ? 'warning' : 'success');
     if (rerenderViewsCallback) rerenderViewsCallback();
+    refreshHistory();
   } catch (err) {
     showNotification(err.message, 'error');
   }

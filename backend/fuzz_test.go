@@ -253,6 +253,37 @@ func FuzzValidateIssue(f *testing.F) {
 	})
 }
 
+// FuzzValidateComment tests the comment validation logic, verifying that Body is
+// cleaned of null bytes and trimmed. Like Issue.Description, Body is intentionally
+// NOT stripped of HTML tags — it is plain Markdown, sanitized at render time via
+// DOMPurify on the frontend (see markdown-security.md).
+func FuzzValidateComment(f *testing.F) {
+	f.Add("Some **markdown** comment")
+	f.Add("<b>HTML in comment</b>")
+	f.Add("")
+	f.Add("   ")
+
+	// Null bytes (\x00) should be stripped from Body before validation.
+	f.Add("comment\x00with\x00nulls")
+
+	// Whitespace trimming
+	f.Add("  Trimmed comment  ")
+
+	// Length bounds testing (MaxCommentLength = 500)
+	f.Add(strings.Repeat("x", MaxCommentLength+1))
+
+	f.Fuzz(func(t *testing.T, body string) {
+		c := &Comment{Body: body}
+
+		// Validation should never panic on any input.
+		err := validateComment(c)
+
+		if err == nil {
+			checkValidatedCommentInvariants(t, c)
+		}
+	})
+}
+
 // FuzzValidateRelease tests the release validation logic for crashes and field sanitization.
 // Dates are passed as Unix timestamps (int64) paired with booleans that control whether
 // each date pointer is nil, because the Go fuzz engine only supports primitive types.
@@ -353,5 +384,25 @@ func checkValidatedIssueInvariants(t *testing.T, i *Issue) {
 	}
 	if utf8.RuneCountInString(i.Description) > MaxDescLength {
 		t.Errorf("Validated issue description exceeds max length: %q", i.Description)
+	}
+}
+
+// checkValidatedCommentInvariants asserts post-validation invariants on a successfully
+// validated comment. Body is intentionally NOT checked for HTML tags; that sanitization
+// is handled by DOMPurify on the frontend to support Markdown rendering.
+func checkValidatedCommentInvariants(t *testing.T, c *Comment) {
+	t.Helper()
+
+	if c.Body == "" {
+		t.Errorf("Validated comment has empty body (should have failed with ErrInvalidComment)")
+	}
+	if strings.Contains(c.Body, "\x00") {
+		t.Errorf("Validated comment body still contains null bytes: %q", c.Body)
+	}
+	if strings.TrimSpace(c.Body) != c.Body {
+		t.Errorf("Validated comment body is not trimmed: %q", c.Body)
+	}
+	if utf8.RuneCountInString(c.Body) > MaxCommentLength {
+		t.Errorf("Validated comment body exceeds max length: %q", c.Body)
 	}
 }

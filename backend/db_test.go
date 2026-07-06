@@ -329,6 +329,15 @@ func TestDBErrors(t *testing.T) {
 		{"CreateTask", func() error { return CreateTask(context.Background(), &Task{IssueID: 1, Title: "T"}) }},
 		{"UpdateTask", func() error { return UpdateTask(context.Background(), &Task{ID: 1, Title: "T"}, 1) }},
 		{"DeleteTask", func() error { return DeleteTask(context.Background(), 1, 1) }},
+		{"CreateHistoryEntry", func() error {
+			return CreateHistoryEntry(context.Background(), &HistoryEntry{IssueID: 1, Event: EventCreated})
+		}},
+		{"GetHistoryByIssueID", func() error { _, err := GetHistoryByIssueID(context.Background(), 1); return err }},
+		{"CreateComment", func() error { return CreateComment(context.Background(), &Comment{IssueID: 1, Body: "T"}) }},
+		{"GetCommentsByIssueID", func() error { _, err := GetCommentsByIssueID(context.Background(), 1); return err }},
+		{"GetCommentByID", func() error { _, err := GetCommentByID(context.Background(), 1, 1); return err }},
+		{"UpdateComment", func() error { return UpdateComment(context.Background(), 1, 1, nil, "T") }},
+		{"DeleteComment", func() error { return DeleteComment(context.Background(), 1, 1, nil) }},
 		{"GetLabelsByProject", func() error { _, err := GetLabelsByProject(context.Background(), 1); return err }},
 		{"CreateLabel", func() error { return CreateLabel(context.Background(), &Label{Name: "L", ProjectID: 1}) }},
 		{"DeleteLabel", func() error { return DeleteLabel(context.Background(), 1, 1) }},

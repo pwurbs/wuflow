@@ -22,6 +22,10 @@ var ErrIssueNotFound = errors.New("issue not found")
 // ErrTaskNotFound is returned when a task is not found.
 var ErrTaskNotFound = errors.New("task not found")
 
+// ErrCommentNotFound is returned when a comment is not found (or not owned by the
+// requesting non-admin user, which is deliberately indistinguishable).
+var ErrCommentNotFound = errors.New("comment not found")
+
 // ErrLabelNotFound is returned when a label is not found.
 var ErrLabelNotFound = errors.New("label not found")
 
@@ -240,6 +244,10 @@ func createTables(ctx context.Context) error {
 	// Create index on user_id to speed up session revocation by user (e.g., logout all devices)
 	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
 		LogError("Failed to create index on sessions(user_id)", "error", err)
+		return err
+	}
+
+	if err := createActivityTables(ctx); err != nil {
 		return err
 	}
 
@@ -725,6 +733,252 @@ func DeleteTask(ctx context.Context, id, issueID int) error {
 	}
 
 	return checkRowsAffected(res, "DeleteTask", ErrTaskNotFound)
+}
+
+// createActivityTables creates the issue_history and issue_comments tables and
+// their indexes. Both are children of issues (ON DELETE CASCADE) and reference
+// users with ON DELETE SET NULL so history/comments survive user deletion.
+func createActivityTables(ctx context.Context) error {
+	createIssueHistoryTable := `
+	CREATE TABLE IF NOT EXISTS issue_history (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		issue_id INTEGER NOT NULL,
+		user_id INTEGER,
+		event TEXT NOT NULL,
+		data TEXT NOT NULL DEFAULT '{}',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (issue_id) REFERENCES issues(id) ON DELETE CASCADE,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+	);`
+	if _, err := DB.ExecContext(ctx, createIssueHistoryTable); err != nil {
+		LogError("Failed to create issue_history table", "error", err)
+		return err
+	}
+	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_issue_history_issue ON issue_history(issue_id, created_at, id);"); err != nil {
+		LogError("Failed to create index on issue_history(issue_id)", "error", err)
+		return err
+	}
+
+	createIssueCommentsTable := `
+	CREATE TABLE IF NOT EXISTS issue_comments (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		issue_id INTEGER NOT NULL,
+		user_id INTEGER,
+		body TEXT NOT NULL,
+		edited BOOLEAN NOT NULL DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (issue_id) REFERENCES issues(id) ON DELETE CASCADE,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+	);`
+	if _, err := DB.ExecContext(ctx, createIssueCommentsTable); err != nil {
+		LogError("Failed to create issue_comments table", "error", err)
+		return err
+	}
+	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_issue_comments_issue ON issue_comments(issue_id, created_at, id);"); err != nil {
+		LogError("Failed to create index on issue_comments(issue_id)", "error", err)
+		return err
+	}
+	return nil
+}
+
+// nullableUserID converts a *int user id into a value suitable for a nullable FK
+// column: a nil pointer or a zero id becomes SQL NULL (mirrors CreateIssue's
+// handling of creator_id so an unauthenticated/zero id never violates the users FK).
+func nullableUserID(id *int) any {
+	if id == nil || *id == 0 {
+		return nil
+	}
+	return *id
+}
+
+// CreateHistoryEntry inserts an immutable audit-trail record for an issue.
+func CreateHistoryEntry(ctx context.Context, h *HistoryEntry) error {
+	dataJSON, err := json.Marshal(h.Data)
+	if err != nil {
+		LogError("Database Error: CreateHistoryEntry Marshal", "error", err)
+		return err
+	}
+	res, err := DB.ExecContext(ctx,
+		"INSERT INTO issue_history(issue_id, user_id, event, data) VALUES(?, ?, ?, ?)",
+		h.IssueID, nullableUserID(h.UserID), h.Event, string(dataJSON),
+	)
+	if err != nil {
+		LogError("Database Error: CreateHistoryEntry", "error", err)
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		LogError("Database Error: CreateHistoryEntry LastInsertId", "error", err)
+		return err
+	}
+	h.ID = int(id)
+	return nil
+}
+
+// activityUserCols / activityUserJoin hydrate the actor/author from a LEFT JOIN
+// on users, so a deleted user (NULL user_id) yields a nil User rather than an error.
+const activityUserCols = "usr.id, usr.email, usr.first_name, usr.last_name"
+const activityUserJoin = "LEFT JOIN users usr ON t.user_id = usr.id"
+
+// GetHistoryByIssueID returns an issue's history oldest-first, with the actor hydrated.
+func GetHistoryByIssueID(ctx context.Context, issueID int) ([]HistoryEntry, error) {
+	rows, err := DB.QueryContext(ctx,
+		"SELECT t.id, t.issue_id, t.user_id, t.event, t.data, t.created_at, "+activityUserCols+
+			" FROM issue_history t "+activityUserJoin+
+			" WHERE t.issue_id = ? ORDER BY t.created_at ASC, t.id ASC", issueID)
+	if err != nil {
+		LogError("Database Error: GetHistoryByIssueID", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	history := []HistoryEntry{}
+	for rows.Next() {
+		var h HistoryEntry
+		var dataJSON string
+		u, uid, uEmail, uFirst, uLast := sql.NullInt64{}, sql.NullInt64{}, sql.NullString{}, sql.NullString{}, sql.NullString{}
+		if err := rows.Scan(&h.ID, &h.IssueID, &u, &h.Event, &dataJSON, &h.CreatedAt, &uid, &uEmail, &uFirst, &uLast); err != nil {
+			LogError("Database Error: GetHistoryByIssueID Scan", "error", err)
+			return nil, err
+		}
+		if u.Valid {
+			id := int(u.Int64)
+			h.UserID = &id
+		}
+		h.User = hydrateActivityUser(uid, uEmail, uFirst, uLast)
+		if err := json.Unmarshal([]byte(dataJSON), &h.Data); err != nil {
+			LogError("Database Error: GetHistoryByIssueID Unmarshal", "error", err)
+			return nil, err
+		}
+		history = append(history, h)
+	}
+	return history, rows.Err()
+}
+
+// hydrateActivityUser builds a *User from the joined nullable user columns, or nil
+// when the user_id was NULL (deleted user).
+func hydrateActivityUser(id sql.NullInt64, email, first, last sql.NullString) *User {
+	if !id.Valid {
+		return nil
+	}
+	return &User{
+		ID:        int(id.Int64),
+		Email:     email.String,
+		FirstName: first.String,
+		LastName:  last.String,
+	}
+}
+
+// CreateComment inserts a new user comment on an issue.
+func CreateComment(ctx context.Context, c *Comment) error {
+	c.CreatedAt = time.Now().UTC()
+	c.UpdatedAt = c.CreatedAt
+	res, err := DB.ExecContext(ctx,
+		"INSERT INTO issue_comments(issue_id, user_id, body, edited, created_at, updated_at) VALUES(?, ?, ?, 0, ?, ?)",
+		c.IssueID, nullableUserID(c.UserID), c.Body, c.CreatedAt, c.UpdatedAt,
+	)
+	if err != nil {
+		LogError("Database Error: CreateComment", "error", err)
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		LogError("Database Error: CreateComment LastInsertId", "error", err)
+		return err
+	}
+	c.ID = int(id)
+	return nil
+}
+
+// GetCommentsByIssueID returns an issue's comments oldest-first, with the author hydrated.
+func GetCommentsByIssueID(ctx context.Context, issueID int) ([]Comment, error) {
+	rows, err := DB.QueryContext(ctx,
+		"SELECT t.id, t.issue_id, t.user_id, t.body, t.edited, t.created_at, t.updated_at, "+activityUserCols+
+			" FROM issue_comments t "+activityUserJoin+
+			" WHERE t.issue_id = ? ORDER BY t.created_at ASC, t.id ASC", issueID)
+	if err != nil {
+		LogError("Database Error: GetCommentsByIssueID", "error", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	comments := []Comment{}
+	for rows.Next() {
+		var c Comment
+		u, uid, uEmail, uFirst, uLast := sql.NullInt64{}, sql.NullInt64{}, sql.NullString{}, sql.NullString{}, sql.NullString{}
+		if err := rows.Scan(&c.ID, &c.IssueID, &u, &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, &uid, &uEmail, &uFirst, &uLast); err != nil {
+			LogError("Database Error: GetCommentsByIssueID Scan", "error", err)
+			return nil, err
+		}
+		if u.Valid {
+			id := int(u.Int64)
+			c.UserID = &id
+		}
+		c.User = hydrateActivityUser(uid, uEmail, uFirst, uLast)
+		comments = append(comments, c)
+	}
+	return comments, rows.Err()
+}
+
+// GetCommentByID returns a single comment scoped to its issue, with the author
+// hydrated. Returns ErrCommentNotFound when no matching row exists.
+func GetCommentByID(ctx context.Context, id, issueID int) (*Comment, error) {
+	row := DB.QueryRowContext(ctx,
+		"SELECT t.id, t.issue_id, t.user_id, t.body, t.edited, t.created_at, t.updated_at, "+activityUserCols+
+			" FROM issue_comments t "+activityUserJoin+
+			" WHERE t.id = ? AND t.issue_id = ?", id, issueID)
+	var c Comment
+	u, uid, uEmail, uFirst, uLast := sql.NullInt64{}, sql.NullInt64{}, sql.NullString{}, sql.NullString{}, sql.NullString{}
+	err := row.Scan(&c.ID, &c.IssueID, &u, &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, &uid, &uEmail, &uFirst, &uLast)
+	if err == sql.ErrNoRows {
+		return nil, ErrCommentNotFound
+	}
+	if err != nil {
+		LogError("Database Error: GetCommentByID", "error", err)
+		return nil, err
+	}
+	if u.Valid {
+		uidInt := int(u.Int64)
+		c.UserID = &uidInt
+	}
+	c.User = hydrateActivityUser(uid, uEmail, uFirst, uLast)
+	return &c, nil
+}
+
+// UpdateComment edits a comment's body. Scope is enforced in SQL: when authorID is
+// non-nil the update is restricted to that author (regular user editing own); a nil
+// authorID (admin) may edit any comment. Zero rows affected → ErrCommentNotFound.
+func UpdateComment(ctx context.Context, id, issueID int, authorID *int, body string) error {
+	now := time.Now().UTC()
+	query := "UPDATE issue_comments SET body = ?, edited = 1, updated_at = ? WHERE id = ? AND issue_id = ?"
+	args := []any{body, now, id, issueID}
+	if authorID != nil {
+		query += " AND user_id = ?"
+		args = append(args, *authorID)
+	}
+	res, err := DB.ExecContext(ctx, query, args...)
+	if err != nil {
+		LogError("Database Error: UpdateComment", "error", err)
+		return err
+	}
+	return checkRowsAffected(res, "UpdateComment", ErrCommentNotFound)
+}
+
+// DeleteComment removes a comment. Scope is enforced in SQL exactly as UpdateComment.
+func DeleteComment(ctx context.Context, id, issueID int, authorID *int) error {
+	query := "DELETE FROM issue_comments WHERE id = ? AND issue_id = ?"
+	args := []any{id, issueID}
+	if authorID != nil {
+		query += " AND user_id = ?"
+		args = append(args, *authorID)
+	}
+	res, err := DB.ExecContext(ctx, query, args...)
+	if err != nil {
+		LogError("Database Error: DeleteComment", "error", err)
+		return err
+	}
+	return checkRowsAffected(res, "DeleteComment", ErrCommentNotFound)
 }
 
 // CreateLabel inserts a new label into the database.

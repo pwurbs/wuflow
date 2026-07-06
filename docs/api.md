@@ -35,6 +35,11 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/projects/:pId/issues/:iId/tasks` | POST | `handleCreateTask` | Required | Create task under an issue |
 | `/projects/:pId/issues/:iId/tasks/:id` | PUT | `handlePutTask` | Required | Update task |
 | `/projects/:pId/issues/:iId/tasks/:id` | DELETE | `handleDeleteTask` | Required | Delete task |
+| `/projects/:pId/issues/:iId/history` | GET | `handleListHistory` | Required | List an issue's audit trail (oldest first) |
+| `/projects/:pId/issues/:iId/comments` | GET | `handleListComments` | Required | List an issue's comments (oldest first) |
+| `/projects/:pId/issues/:iId/comments` | POST | `handleCreateComment` | Required | Add a comment to a non-archived issue |
+| `/projects/:pId/issues/:iId/comments/:id` | PUT | `handlePutComment` | Required | Edit a comment (own only, unless Admin/Sysadmin) |
+| `/projects/:pId/issues/:iId/comments/:id` | DELETE | `handleDeleteComment` | Required | Delete a comment (own only, unless Admin/Sysadmin) |
 | `/projects/:pId/labels` | GET | `handleListLabels` | Required | List labels for a project |
 | `/projects/:pId/labels` | POST | `handleCreateLabel` | Admin | Create label for a project |
 | `/projects/:pId/labels/:id` | DELETE | `handleDeleteLabel` | Admin | Delete label from a project |
@@ -357,6 +362,77 @@ Deletes a task.
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Parent issue is archived
   - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
+
+## History & Comments
+
+Both are nested under their parent issue, in the same style as Tasks above. History is an immutable, system-generated audit trail (no create/update/delete endpoints — entries are recorded automatically on issue create/edit/archive/unarchive/move and on task changes). Comments are user-authored markdown notes.
+
+### List History
+Retrieves an issue's audit trail, oldest first.
+- **GET** `/projects/:pId/issues/:iId/history`
+- **Path parameters**: `pId` (project), `iId` (issue)
+- **Response**: Array of history entry objects, e.g.:
+  ```json
+  {
+    "id": 1,
+    "issue_id": 5,
+    "user_id": 2,
+    "user": { "id": 2, "email": "...", "first_name": "...", "last_name": "..." },
+    "event": "updated",
+    "data": { "field": "status", "from": "Stage1", "to": "Done" },
+    "created_at": "2026-01-01T09:00:00Z"
+  }
+  ```
+- **Events**: `created`, `updated` (one entry per changed field; `title`/`description` carry no `from`/`to`, other fields do), `archived`, `unarchived`, `moved` (`data.field` is `"project"`, `data.from`/`data.to` are the old/new project names), `task` (`data.field` is one of `task_added`/`task_completed`/`task_reopened`/`task_renamed`/`task_deleted`; `data.detail` is a human-readable summary)
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
+
+### List Comments
+Retrieves an issue's comments, oldest first.
+- **GET** `/projects/:pId/issues/:iId/comments`
+- **Path parameters**: `pId` (project), `iId` (issue)
+- **Response**: Array of comment objects
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
+
+### Create Comment
+Adds a comment to a non-archived issue.
+- **POST** `/projects/:pId/issues/:iId/comments`
+- **Path parameters**: `pId` (project), `iId` (issue)
+- **Body**:
+  ```json
+  {
+    "body": "Looks good **overall** — see the checklist below" // Markdown; max 500 characters
+  }
+  ```
+- **Response**: Created comment object (201 Created)
+- **Errors**:
+  - `400 Bad Request` - Body is empty or exceeds 500 characters
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Issue is archived
+  - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
+
+### Update Comment
+Edits a comment's body.
+- **PUT** `/projects/:pId/issues/:iId/comments/:id`
+- **Path parameters**: `pId` (project), `iId` (issue), `id` (comment)
+- **Body**: same shape as Create Comment
+- **Response**: Updated comment object
+- **Errors**:
+  - `400 Bad Request` - Body is empty or exceeds 500 characters
+  - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - Comment doesn't exist under this `iId`, or belongs to another user (Admin/Sysadmin may edit any comment; a regular user gets `404` rather than `403` for a comment they don't own — indistinguishable from "not found")
+
+### Delete Comment
+Deletes a comment.
+- **DELETE** `/projects/:pId/issues/:iId/comments/:id`
+- **Path parameters**: `pId` (project), `iId` (issue), `id` (comment)
+- **Response**: `204 No Content`
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - Comment doesn't exist under this `iId`, or belongs to another user (Admin/Sysadmin may delete any comment)
 
 ## Labels
 

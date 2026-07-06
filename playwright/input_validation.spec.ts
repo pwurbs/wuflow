@@ -285,7 +285,7 @@ test.describe('Markdown description rendering', () => {
     await expect(page.locator('#issue-modal')).toBeHidden();
 
     await openIssueByTitle(page, title);
-    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
+    await expect(page.locator('#modal-title')).toContainText('Issue Details', { timeout: 10000 });
 
     const anchor = page.locator('#description-preview a');
     await expect(anchor).toBeVisible();
@@ -338,7 +338,7 @@ test.describe('XSS and Sanitization', () => {
     await expect(page.locator('#issue-modal')).toBeHidden();
 
     await openIssueByTitle(page, rtTitle);
-    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
+    await expect(page.locator('#modal-title')).toContainText('Issue Details', { timeout: 10000 });
     await page.click('#description-preview');
     await page.fill('#description-editor', payload);
     await page.click('#desc-save-btn');
@@ -348,7 +348,7 @@ test.describe('XSS and Sanitization', () => {
 
     await page.reload({ waitUntil: 'networkidle' });
     await openIssueByTitle(page, rtTitle);
-    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
+    await expect(page.locator('#modal-title')).toContainText('Issue Details', { timeout: 10000 });
     const savedPreview = page.locator('#description-preview');
     expect(await savedPreview.innerHTML()).not.toContain('<script');
     expect(await savedPreview.innerHTML()).not.toContain('onerror');
@@ -482,7 +482,7 @@ test.describe('XSS and Sanitization', () => {
     await createIssue(page, { title: base, status: 'Todo' });
 
     await page.locator('.board-card', { hasText: base }).click();
-    await expect(page.locator('#modal-title')).toContainText('Edit Issue', { timeout: 10000 });
+    await expect(page.locator('#modal-title')).toContainText('Issue Details', { timeout: 10000 });
 
     // Enter inline edit mode and type XSS payload
     await page.click('#description-preview');

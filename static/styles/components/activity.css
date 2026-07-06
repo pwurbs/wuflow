@@ -1,0 +1,328 @@
+/* Issue activity area: History (audit trail) + Comments, with a tab switcher.
+   Reuses the design tokens and the .md-preview / .user-badge look. */
+
+#activity-section {
+  margin-top: 20px;
+}
+
+/* --- Tab bar --- */
+.activity-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: 12px;
+}
+
+.activity-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.activity-tab:hover {
+  color: var(--text-color);
+}
+
+.activity-tab.active {
+  color: var(--primary-hover);
+  border-bottom-color: var(--primary-color);
+}
+
+.activity-tab svg {
+  flex-shrink: 0;
+}
+
+.activity-empty {
+  list-style: none;
+  color: var(--muted-text);
+  font-size: var(--fs-md);
+  padding: 8px 2px;
+}
+
+/* --- Comments --- */
+.comment-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-item {
+  background: rgb(16, 22, 35);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.comment-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.comment-author {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-color);
+}
+
+.comment-time {
+  font-size: var(--fs-sm);
+  color: var(--muted-text);
+}
+
+.comment-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  /* Revealed on hover (see .comment-item:hover below) — kept out of layout
+     flow via visibility so hovering isn't needed to already know they exist
+     (e.g. keyboard tabbing still reaches them). */
+  visibility: hidden;
+}
+
+.comment-item:hover .comment-actions,
+.comment-actions:focus-within {
+  visibility: visible;
+}
+
+/* Suppressed while a different comment is being edited (higher specificity
+   than the :hover rule above so it wins regardless of mouse position). */
+.comment-actions.actions-hidden,
+.comment-item:hover .comment-actions.actions-hidden {
+  visibility: hidden;
+}
+
+/* Icon buttons — same shape/sizing as .delete-task-btn (tasks.css). */
+.comment-edit-btn,
+.comment-delete-btn {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.comment-edit-btn:hover {
+  color: var(--primary-hover);
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.comment-delete-btn:hover {
+  color: var(--danger-color);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Override .md-preview's min-height (sized for the large issue-description
+   editor) — comments are short, so the card should hug its actual content. */
+.comment-body.md-preview {
+  min-height: 0;
+  padding: 0;
+  flex: none;
+  overflow-y: visible;
+}
+
+/* .md-preview p/ul/ol carry a trailing margin-bottom for spacing between
+   blocks — but .comment-body is always the last thing in the card, so its
+   last child's trailing margin just adds dead space above the card border. */
+.comment-body.md-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.comment-body {
+  word-break: break-word;
+}
+
+.comment-edit-input {
+  display: block;
+  width: 100%;
+  field-sizing: content;
+  resize: none;
+  background: var(--bg-color);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  color: var(--text-color);
+  line-height: 1.4;
+  padding: 6px 8px;
+}
+
+.comment-edit-input:focus {
+  outline: none;
+}
+
+/* Matches the description editor's toolbar bar (.editor-toolbar) that holds
+   its ✓/✕ Save/Cancel buttons, so inline editing looks consistent everywhere.
+   Always used inside .comment-editor-container (below), which overrides the
+   border/background to connect flush with the textarea above it. */
+.comment-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 4px;
+}
+
+/* --- New comment form --- */
+#comment-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Positioned ancestor for the overlaid char counter (matches .editor-container /
+   .task-title-input-wrapper: the counter overlays inside the field instead of
+   pushing the layout below it around). */
+.comment-input-wrapper,
+.comment-edit-wrapper {
+  position: relative;
+}
+
+.comment-input-wrapper .char-counter,
+.comment-edit-wrapper .char-counter {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  margin: 0;
+  background: transparent;
+}
+
+/* Outer bordered box grouping the textarea and its ✓ action bar into one
+   connected control — matches .editor-container (description), which wraps
+   its toolbar and textarea the same way. */
+.comment-editor-container {
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* The textarea's own border was moved onto this container, so the usual
+   focus highlight (border-color: var(--primary-color), forms.css) has to be
+   applied here via :focus-within instead of a plain textarea :focus rule. */
+.comment-editor-container:focus-within {
+  border-color: var(--primary-color);
+}
+
+.comment-editor-container #new-comment-body,
+.comment-editor-container .comment-edit-input {
+  border: none;
+  border-radius: 0;
+}
+
+.comment-editor-container .comment-edit-actions {
+  border-top: 1px solid var(--card-border);
+  /* Match the textarea's own background so the shared border-top is the only
+     seam between the two areas. */
+  background-color: var(--bg-color);
+}
+
+#new-comment-body {
+  display: block;
+  width: 100%;
+  field-sizing: content;
+  resize: none;
+  background: var(--bg-color);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  color: var(--text-color);
+  line-height: 1.4;
+  padding: 8px 10px;
+}
+
+#new-comment-body:focus {
+  outline: none;
+}
+
+/* --- History timeline --- */
+.history-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+/* Vertical rail behind the markers. */
+.history-timeline::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--card-border);
+}
+
+.history-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 6px 0 6px 0;
+}
+
+/* Same look for every entry — the icon inside (not the marker color) carries
+   the action-type signal (creation / change / task added / task deleted). */
+.history-marker {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--column-bg);
+  border: 1px solid var(--card-border);
+  color: var(--primary-color);
+}
+
+.history-content {
+  min-width: 0;
+}
+
+.history-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.history-author {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-color);
+}
+
+.history-time {
+  font-size: var(--fs-sm);
+  color: var(--muted-text);
+}
+
+.history-text {
+  font-size: var(--fs-md);
+  color: var(--text-color);
+  margin-top: 2px;
+  word-break: break-word;
+}

@@ -113,6 +113,83 @@
           }
         }
       },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "issue_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Author; null if the user was later deleted"
+          },
+          "user": {
+            "nullable": true,
+            "description": "Embedded author user object",
+            "allOf": [{"$ref": "#/components/schemas/User"}]
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Markdown, sanitized on render (not on write)"
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HistoryEntry": {
+        "type": "object",
+        "description": "Immutable, system-generated audit-trail record. There is no create/update/delete endpoint for these; they are recorded automatically.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "issue_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Actor; null if the user was later deleted"
+          },
+          "user": {
+            "nullable": true,
+            "description": "Embedded actor user object",
+            "allOf": [{"$ref": "#/components/schemas/User"}]
+          },
+          "event": {
+            "type": "string",
+            "enum": ["created", "updated", "archived", "unarchived", "moved", "task"]
+          },
+          "data": {
+            "type": "object",
+            "description": "Event-specific payload. 'updated' carries field (+ from/to for valued fields; title/description carry field only). 'moved' carries field=\"project\" with the old/new project names as from/to. 'task' carries field (one of task_added/task_completed/task_reopened/task_renamed/task_deleted) plus a human-readable detail string.",
+            "properties": {
+              "field": { "type": "string" },
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "Release": {
         "type": "object",
         "properties": {
@@ -496,6 +573,18 @@
             "description": "Optional. Non-negative integer for ordering within the issue."
           }
         }
+      },
+      "CommentRequest": {
+        "type": "object",
+        "description": "Body for both create and update; used with POST and PUT /projects/{pId}/issues/{iId}/comments.",
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Markdown text"
+          }
+        },
+        "required": ["body"]
       },
       "LabelCreateRequest": {
         "type": "object",
@@ -1468,6 +1557,219 @@
           },
           "404": {
             "description": "Task not under this issue, or issue not in this project"
+          }
+        }
+      }
+    },
+    "/projects/{pId}/issues/{iId}/history": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "iId",
+          "in": "path",
+          "required": true,
+          "description": "Issue ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List an issue's audit trail (oldest first)",
+        "tags": ["History"],
+        "responses": {
+          "200": {
+            "description": "Array of history entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project or issue not found, or issue is not in this project"
+          }
+        }
+      }
+    },
+    "/projects/{pId}/issues/{iId}/comments": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "iId",
+          "in": "path",
+          "required": true,
+          "description": "Parent issue ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List an issue's comments (oldest first)",
+        "tags": ["Comments"],
+        "responses": {
+          "200": {
+            "description": "Array of comments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Comment"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Project or issue not found, or issue is not in this project"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a comment to a non-archived issue",
+        "tags": ["Comments"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created comment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is empty or exceeds 500 characters"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - issue is archived"
+          },
+          "404": {
+            "description": "Project or issue not found, or issue is not in this project"
+          }
+        }
+      }
+    },
+    "/projects/{pId}/issues/{iId}/comments/{id}": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "iId",
+          "in": "path",
+          "required": true,
+          "description": "Parent issue ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Comment ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "put": {
+        "summary": "Edit a comment (own only, unless Admin/Sysadmin)",
+        "tags": ["Comments"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated comment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is empty or exceeds 500 characters"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Comment not under this issue, or not owned by the requester (Admin/Sysadmin may edit any comment)"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a comment (own only, unless Admin/Sysadmin)",
+        "tags": ["Comments"],
+        "responses": {
+          "204": {
+            "description": "Comment deleted"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Comment not under this issue, or not owned by the requester (Admin/Sysadmin may delete any comment)"
           }
         }
       }

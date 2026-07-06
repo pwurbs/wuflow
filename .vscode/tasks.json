@@ -44,7 +44,7 @@
     {
       "label": "Go Fuzz",
       "type": "shell",
-      "command": "for t in FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue FuzzValidateProject FuzzValidateStatusConfig FuzzValidateRelease; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
+      "command": "for t in FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue FuzzValidateComment FuzzValidateProject FuzzValidateStatusConfig FuzzValidateRelease; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
       "group": "test",
       "presentation": {
         "reveal": "always",
