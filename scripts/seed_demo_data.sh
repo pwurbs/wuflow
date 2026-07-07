@@ -365,7 +365,43 @@ INSERT INTO issues (id, title, description, status, position, priority, label_id
 INSERT INTO issues (id, title, description, status, position, priority, label_id, creator_id, assignee_id, project_id, release_id, deadline, created_at) VALUES
   (13,
    'Multi-project support',
-   'Allow teams to create multiple independent projects, each with its own board, labels, and releases. Includes a project switcher in the nav bar.',
+   '## Scope
+
+Allow teams to create multiple **independent projects**, each with its own board, labels, and releases. Includes a project switcher in the nav bar.
+
+### Requirements
+
+1. Every issue, label, and release is scoped to exactly one project (`project_id` foreign key)
+2. Switching projects must not lose the current board filter state
+3. Existing single-project installations get a *transparent* migration to project id `1`
+
+### Out of scope
+
+- Per-project user permissions -- tracked separately, see the <u>project access</u> follow-up
+- Cross-project search -- originally planned for this release, ~~now~~ pushed out
+
+### Migration snippet
+
+```
+ALTER TABLE issues ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE labels ADD COLUMN project_id INTEGER NOT NULL DEFAULT 1;
+```
+
+### Data scoping reference
+
+| Resource | Scoped by | Cascade on project delete |
+| --- | --- | --- |
+| Issues | `project_id` | Yes |
+| Labels | `project_id` | Yes |
+| Releases | `project_id` | Yes |
+
+---
+
+See [Bounded Context](https://martinfowler.com/bliki/BoundedContext.html) for the general pattern this design follows.
+
+#### Note
+Ping the team once the switcher lands in staging.
+QA should cover switching mid-edit on an open issue.',
    'Stage3', 1, 'Normal', 2, 2, 3, 1, 2, datetime('now', '+2 days'),
    datetime('now', '-28 days'));
 
@@ -784,6 +820,14 @@ INSERT INTO issue_comments (issue_id, user_id, body, edited, created_at, updated
    datetime('now', '-5 days'), datetime('now', '-5 days')),
   (12, 4, 'Added field-level hints for every validation rule -- much clearer than the old generic Invalid input message.', 0,
    datetime('now', '-2 days'), datetime('now', '-2 days')),
+  (13, 2, 'Kicking this off -- Marcus is driving the backend and schema changes, I will handle the project switcher UI.', 0,
+   datetime('now', '-27 days'), datetime('now', '-27 days')),
+  (13, 5, 'Do we need a data migration path for existing single-project installations, or can we assume everyone starts fresh?', 0,
+   datetime('now', '-19 days'), datetime('now', '-19 days')),
+  (13, 3, 'Yes, added a migration step that backfills project_id = 1 for existing rows so upgrades are not disruptive.', 0,
+   datetime('now', '-18 days'), datetime('now', '-18 days')),
+  (13, 4, 'Project switcher looks great in the nav bar. Tested switching between two projects and labels and releases stay correctly scoped.', 0,
+   datetime('now', '-12 days'), datetime('now', '-12 days')),
   (13, 3, 'In staging now -- final smoke tests before this goes out with v1.3.0.', 0,
    datetime('now', '-3 days'), datetime('now', '-3 days')),
   (14, 2, 'Root cause was the refresh-token loop silently failing when the tab lost visibility -- added a visibilitychange listener to resume it. Shipped in v1.2.0.', 0,
@@ -817,7 +861,7 @@ INSERT INTO issue_comments (issue_id, user_id, body, edited, created_at, updated
   (31, 5, 'Legal reviewed and signed off -- added data-retention schedules, DPA contact details, and a full cookie inventory to the policy.', 0,
    datetime('now', '-32 days'), datetime('now', '-32 days'));
 
-INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('issue_comments', 26);
+INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('issue_comments', 30);
 
 COMMIT;
 PRAGMA foreign_keys = ON;
