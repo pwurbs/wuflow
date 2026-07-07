@@ -74,7 +74,7 @@ test.describe('Concurrent Editing', () => {
     await expect(page.locator('#priority-text')).toContainText('High');
   });
 
-  test('no conflict after moving issue to another project and editing a field', async ({ page }) => {
+  test('no conflict after moving issue to another project and editing a field', async ({ page, workerServer }) => {
     const secondProject = `ConcTest_${Date.now().toString().slice(-5)}`;
     await createProjectViaAPI(page.request, secondProject);
 
@@ -82,13 +82,14 @@ test.describe('Concurrent Editing', () => {
     await openIssueByTitle(page, 'Move And Edit Issue');
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
-    // Move to the second project — confirm the dialog
+    // Move to the second project — confirm the dialog and re-authorise with the admin password
     await page.click('#project-trigger');
     await page.click(`#project-options .custom-option:has-text("${secondProject}")`);
-    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
     await Promise.all([
       page.waitForResponse(r => r.url().includes('/move') && r.request().method() === 'POST'),
-      page.click('#confirm-ok-btn'),
+      page.click('#admin-confirm-ok-btn'),
     ]);
 
     // Edit another field immediately after the move

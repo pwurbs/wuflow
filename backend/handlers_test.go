@@ -259,11 +259,15 @@ func TestHandleIssueDelete(t *testing.T) {
 	issue := &Issue{Title: toDelete, Status: StatusOpen, ProjectID: 1}
 	CreateIssue(context.Background(), issue)
 
-	req, err := http.NewRequest("DELETE", apiIssues1, nil)
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req, err := http.NewRequest("DELETE", apiIssues1, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = makeAdminCtx(req)
 
 	rr := httptest.NewRecorder()
 
@@ -277,6 +281,52 @@ func TestHandleIssueDelete(t *testing.T) {
 	issues, _ := GetAllActiveIssues()
 	if len(issues) != 0 {
 		t.Errorf("expected 0 issues, got %d", len(issues))
+	}
+}
+
+func TestHandleIssueDeleteRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	issue := &Issue{Title: toDelete, Status: StatusOpen, ProjectID: 1}
+	CreateIssue(context.Background(), issue)
+
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	// No admin_password: rejected, issue not deleted
+	req := httptest.NewRequest("DELETE", apiIssues1, nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if issues, _ := GetAllActiveIssues(); len(issues) != 1 {
+		t.Errorf("expected 1 issue to remain without admin_password, got %d", len(issues))
+	}
+
+	// Wrong admin_password: rejected
+	body, _ := json.Marshal(map[string]string{"admin_password": "WrongPassword123!"})
+	req = httptest.NewRequest("DELETE", apiIssues1, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request with wrong admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Correct admin_password: succeeds
+	body, _ = json.Marshal(map[string]string{"admin_password": testPassword})
+	req = httptest.NewRequest("DELETE", apiIssues1, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Errorf("Expected 204 No Content with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if issues, _ := GetAllActiveIssues(); len(issues) != 0 {
+		t.Errorf("expected 0 issues after admin_password confirmation, got %d", len(issues))
 	}
 }
 
@@ -821,11 +871,16 @@ func TestHandleLabelDelete(t *testing.T) {
 	label := &Label{Name: toDelete, Color: "#FF00FF", ProjectID: 1}
 	CreateLabel(context.Background(), label)
 
-	req, err := http.NewRequest("DELETE", apiLabels1, nil)
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req, err := http.NewRequest("DELETE", apiLabels1, bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 
 	rr := httptest.NewRecorder()
 
@@ -838,6 +893,55 @@ func TestHandleLabelDelete(t *testing.T) {
 	labels, _ := GetLabelsByProject(context.Background(), 1)
 	if len(labels) != 0 {
 		t.Errorf("expected 0 labels, got %d", len(labels))
+	}
+}
+
+func TestHandleLabelDeleteRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	label := &Label{Name: toDelete, Color: "#FF00FF", ProjectID: 1}
+	CreateLabel(context.Background(), label)
+
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
+	// No admin_password: rejected, label not deleted
+	req := httptest.NewRequest("DELETE", apiLabels1, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if labels, _ := GetLabelsByProject(context.Background(), 1); len(labels) != 1 {
+		t.Errorf("expected 1 label to remain without admin_password, got %d", len(labels))
+	}
+
+	// Wrong admin_password: rejected
+	body, _ := json.Marshal(map[string]string{"admin_password": "WrongPassword123!"})
+	req = httptest.NewRequest("DELETE", apiLabels1, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request with wrong admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Correct admin_password: succeeds
+	body, _ = json.Marshal(map[string]string{"admin_password": testPassword})
+	req = httptest.NewRequest("DELETE", apiLabels1, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Errorf("Expected 204 No Content with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if labels, _ := GetLabelsByProject(context.Background(), 1); len(labels) != 0 {
+		t.Errorf("expected 0 labels after admin_password confirmation, got %d", len(labels))
 	}
 }
 
@@ -1153,9 +1257,14 @@ func TestHandleDeleteLabelWithNonExistentID(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleSysAdmin})
+
 	// DELETE non-existent label
-	req, _ := http.NewRequest("DELETE", "/api/projects/1/labels/999", nil)
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req, _ := http.NewRequest("DELETE", "/api/projects/1/labels/999", bytes.NewBuffer(body))
 	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 
@@ -4202,13 +4311,66 @@ func TestHandleReleaseDelete(t *testing.T) {
 		t.Fatalf("CreateRelease failed: %v", err)
 	}
 
-	req, _ := http.NewRequest("DELETE", apiReleases+strconv.Itoa(rel.ID), nil)
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req, _ := http.NewRequest("DELETE", apiReleases+strconv.Itoa(rel.ID), bytes.NewBuffer(body))
 	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNoContent {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusNoContent)
+	}
+}
+
+func TestHandleReleaseDeleteRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	rel := &Release{ProjectID: 1, Name: "v1.0"}
+	if err := CreateRelease(context.Background(), rel); err != nil {
+		t.Fatalf("CreateRelease failed: %v", err)
+	}
+
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+	path := apiReleases + strconv.Itoa(rel.ID)
+
+	// No admin_password: rejected, release not deleted
+	req := httptest.NewRequest("DELETE", path, nil)
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if r2, _ := GetReleaseByID(context.Background(), rel.ID); r2 == nil {
+		t.Error("Release should not have been deleted without admin_password confirmation")
+	}
+
+	// Wrong admin_password: rejected
+	body, _ := json.Marshal(map[string]string{"admin_password": "WrongPassword123!"})
+	req = httptest.NewRequest("DELETE", path, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request with wrong admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Correct admin_password: succeeds
+	body, _ = json.Marshal(map[string]string{"admin_password": testPassword})
+	req = httptest.NewRequest("DELETE", path, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Errorf("Expected 204 No Content with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if r2, _ := GetReleaseByID(context.Background(), rel.ID); r2 != nil {
+		t.Error("Release should have been deleted after admin_password confirmation")
 	}
 }
 
@@ -4908,9 +5070,12 @@ func TestHandleMoveIssueHappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, _ := json.Marshal(moveIssueRequest{NewProjectID: proj2.ID})
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: proj2.ID, AdminPassword: testPassword})
 	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 
@@ -4939,6 +5104,60 @@ func TestHandleMoveIssueHappyPath(t *testing.T) {
 	persisted, _ := GetIssueByID(context.Background(), issue.ID)
 	if persisted.ProjectID != proj2.ID {
 		t.Errorf("DB project_id: got %d want %d", persisted.ProjectID, proj2.ID)
+	}
+}
+
+func TestHandleMoveIssueRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	proj2 := &Project{Name: "project2", Description: "second"}
+	if err := CreateProject(context.Background(), proj2); err != nil {
+		t.Fatal(err)
+	}
+
+	issue := &Issue{Title: "ToMove", Status: StatusTodo, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	// No admin_password: rejected, issue not moved
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: proj2.ID})
+	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if persisted, _ := GetIssueByID(context.Background(), issue.ID); persisted.ProjectID != 1 {
+		t.Errorf("issue should not have moved without admin_password, got project_id %d", persisted.ProjectID)
+	}
+
+	// Wrong admin_password: rejected
+	body, _ = json.Marshal(moveIssueRequest{NewProjectID: proj2.ID, AdminPassword: "WrongPassword123!"})
+	req = httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request with wrong admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Correct admin_password: succeeds
+	body, _ = json.Marshal(moveIssueRequest{NewProjectID: proj2.ID, AdminPassword: testPassword})
+	req = httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr = httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if persisted, _ := GetIssueByID(context.Background(), issue.ID); persisted.ProjectID != proj2.ID {
+		t.Errorf("issue should have moved after admin_password confirmation, got project_id %d", persisted.ProjectID)
 	}
 }
 
@@ -4992,9 +5211,12 @@ func TestHandleMoveIssueUnknownTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, _ := json.Marshal(moveIssueRequest{NewProjectID: 999})
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: 999, AdminPassword: testPassword})
 	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 

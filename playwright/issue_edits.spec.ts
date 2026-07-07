@@ -221,7 +221,7 @@ test.describe('Project change resets project-scoped fields', () => {
     await login();
   });
 
-  test('changing project resets label, release and status to defaults', async ({ page }) => {
+  test('changing project resets label, release and status to defaults', async ({ page, workerServer }) => {
     // Create a second project
     await navigateTo(page, 'system-settings');
     await page.click('#add-project-btn');
@@ -262,12 +262,14 @@ test.describe('Project change resets project-scoped fields', () => {
     await expect(page.locator('#status-text')).toContainText('Todo');
 
     // Change the project inside the modal — confirm the destructive action
+    // and re-authorise it with the admin password
     await page.click('#project-trigger');
     await page.click(`#project-options .custom-option:has-text("${projectName}")`);
-    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
     await Promise.all([
       page.waitForResponse(r => r.url().includes('/move') && r.request().method() === 'POST'),
-      page.click('#confirm-ok-btn'),
+      page.click('#admin-confirm-ok-btn'),
     ]);
 
     // Toast must inform the user about the reset

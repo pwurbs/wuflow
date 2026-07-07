@@ -429,9 +429,12 @@ func TestHistoryOnMove(t *testing.T) {
 		t.Fatalf("CreateProject: %v", err)
 	}
 
-	body, _ := json.Marshal(map[string]int{"new_project_id": target.ID})
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	body, _ := json.Marshal(map[string]any{"new_project_id": target.ID, "admin_password": testPassword})
 	req := httptest.NewRequest("POST", "/api/projects/1/issues/1/move", bytes.NewBuffer(body))
-	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	req = makeAdminCtx(req)
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {

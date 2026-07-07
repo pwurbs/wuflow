@@ -20,28 +20,36 @@ vi.mock('../api.js', () => ({
   createProject: vi.fn(),
   updateProject: vi.fn(),
   deleteProject: vi.fn(),
-  logout: vi.fn()
+  logout: vi.fn(),
+  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock('../utils.js', () => ({
-  showNotification: vi.fn(),
-  showConfirm: vi.fn(),
-  getUserInitials: vi.fn().mockReturnValue('AD'),
-  escapeHtml: vi.fn((str) => str),
-  initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
-  countCodepoints: vi.fn(s => [...s].length),
-  getUnusedColor: (usedColors) => {
-    const palette = [
-      '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
-      '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
-      '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
-      '#FF7043', '#8D6E63', '#78909C'
-    ];
-    const unused = palette.filter(c => !usedColors.includes(c));
-    return unused.length > 0 ? unused[0] : palette[0];
-  },
-  formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString())
-}));
+vi.mock('../utils.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    showNotification: vi.fn(),
+    showConfirm: vi.fn(),
+    getUserInitials: vi.fn().mockReturnValue('AD'),
+    escapeHtml: vi.fn((str) => str),
+    initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+    countCodepoints: vi.fn(s => [...s].length),
+    getUnusedColor: (usedColors) => {
+      const palette = [
+        '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
+        '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
+        '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
+        '#FF7043', '#8D6E63', '#78909C'
+      ];
+      const unused = palette.filter(c => !usedColors.includes(c));
+      return unused.length > 0 ? unused[0] : palette[0];
+    },
+    formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString()),
+    // Real implementation — these tests drive the actual admin-confirm-modal DOM.
+    promptAdminPasswordConfirmation: actual.promptAdminPasswordConfirmation
+  };
+});
 
 vi.mock('../permissions.js', async (importOriginal) => {
   const actual = await importOriginal();
@@ -580,6 +588,8 @@ describe('Additional Coverage', () => {
 
 const ADMIN_CONFIRM_MODAL = `
   <div id="admin-confirm-modal" class="hidden">
+    <h2 id="admin-confirm-title"></h2>
+    <p id="admin-confirm-message"></p>
     <input type="password" id="admin-confirm-password">
     <div id="admin-confirm-error" class="hidden"></div>
     <button type="button" id="admin-confirm-ok-btn">Confirm</button>
@@ -660,6 +670,9 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
     document.getElementById('admin-confirm-ok-btn').click();
 
     await submitPromise;
+    // submitPromise only signals that updateUser was invoked (inside onConfirm);
+    // the dialog closes one tick later, once onConfirm's promise itself resolves.
+    await new Promise(process.nextTick);
     expect(modal.classList.contains('hidden')).toBe(true);
     expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ admin_password: 'AdminPass123!' }));
   });
@@ -901,6 +914,8 @@ const PROJECT_DOM = `
 
   <!-- Admin Confirm Modal (required by promptAdminPasswordConfirmation) -->
   <div id="admin-confirm-modal" class="hidden">
+    <h2 id="admin-confirm-title"></h2>
+    <p id="admin-confirm-message"></p>
     <input type="password" id="admin-confirm-password">
     <div id="admin-confirm-error" class="hidden"></div>
     <button type="button" id="admin-confirm-ok-btn">Confirm</button>
@@ -1044,7 +1059,7 @@ describe('Project Management', () => {
   });
 
   describe('handleDeleteProject', () => {
-    it('should show confirm modal, then admin password prompt, and delete project on confirm', async () => {
+    it('should prompt for password and delete project on confirm', async () => {
       const project = { id: 2, name: 'To Delete', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
       api.deleteProject.mockResolvedValue({});
@@ -1053,19 +1068,20 @@ describe('Project Management', () => {
       document.querySelector('.settings-entry').click();
 
       document.getElementById('project-modal-delete').click();
+      await new Promise(process.nextTick); // let the issue-count precheck resolve
 
-      expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(false);
-      expect(document.getElementById('confirm-title').textContent).toBe('Delete Project');
-
-      document.getElementById('confirm-ok-btn').click();
-      await Promise.resolve();
-
+      expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(2);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledWith(2);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledWith(2);
       expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(true);
       expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('admin-confirm-title').textContent).toBe('Delete Project');
+      expect(document.getElementById('admin-confirm-message').textContent).toBe('Do you really want to delete the project "To Delete"?\nThis action cannot be undone.');
       expect(api.deleteProject).not.toHaveBeenCalled();
 
       document.getElementById('admin-confirm-password').value = 'AdminPass123!';
       document.getElementById('admin-confirm-ok-btn').click();
+      await new Promise(process.nextTick);
       await new Promise(process.nextTick);
 
       expect(api.deleteProject).toHaveBeenCalledWith(2, 'AdminPass123!');
@@ -1074,29 +1090,14 @@ describe('Project Management', () => {
       expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
     });
 
-    it('should hide confirm modal on cancel without deleting', async () => {
-      const project = { id: 3, name: 'Keep Me', description: '' };
-      api.fetchProjects.mockResolvedValue([project]);
-      await renderSystemSettingsView();
-
-      document.querySelector('.settings-entry').click();
-      document.getElementById('project-modal-delete').click();
-
-      document.getElementById('confirm-cancel-btn').click();
-
-      expect(api.deleteProject).not.toHaveBeenCalled();
-      expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(true);
-    });
-
-    it('should not delete when admin password prompt is cancelled', async () => {
+    it('should not delete when password prompt is cancelled', async () => {
       const project = { id: 5, name: 'Keep Me Too', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
       await renderSystemSettingsView();
 
       document.querySelector('.settings-entry').click();
       document.getElementById('project-modal-delete').click();
-      document.getElementById('confirm-ok-btn').click();
-      await Promise.resolve();
+      await new Promise(process.nextTick);
 
       expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
 
@@ -1107,7 +1108,7 @@ describe('Project Management', () => {
       expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
     });
 
-    it('should show error in project modal when delete API fails', async () => {
+    it('should show the rejection inline in the dialog and allow retry when delete API fails', async () => {
       const project = { id: 4, name: 'Fail Delete', description: '' };
       api.fetchProjects.mockResolvedValue([project]);
       api.deleteProject.mockRejectedValue(new Error('Delete failed'));
@@ -1115,14 +1116,33 @@ describe('Project Management', () => {
 
       document.querySelector('.settings-entry').click();
       document.getElementById('project-modal-delete').click();
-      document.getElementById('confirm-ok-btn').click();
-      await Promise.resolve();
+      await new Promise(process.nextTick);
 
       document.getElementById('admin-confirm-password').value = 'AdminPass123!';
       document.getElementById('admin-confirm-ok-btn').click();
       await new Promise(process.nextTick);
+      await new Promise(process.nextTick);
 
-      expect(document.getElementById('project-modal-error').textContent).toBe('Delete failed');
+      const errorDiv = document.getElementById('admin-confirm-error');
+      expect(errorDiv.textContent).toBe('Delete failed');
+      expect(errorDiv.classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show a blocking error and skip the password dialog when the project still has issues', async () => {
+      const project = { id: 3, name: 'Has Issues', description: '' };
+      api.fetchProjects.mockResolvedValue([project]);
+      api.fetchActiveIssuesByProject.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+      await renderSystemSettingsView();
+
+      document.querySelector('.settings-entry').click();
+      document.getElementById('project-modal-delete').click();
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('project-modal-error').textContent).toBe('This project still has 2 issues. Move or delete them first before deleting the project.');
+      expect(api.deleteProject).not.toHaveBeenCalled();
     });
   });
 

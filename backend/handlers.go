@@ -41,6 +41,7 @@ const (
 	errMsgClosedReleaseReadOnly = "Closed releases are read-only"
 	errMsgDuplicateReleaseName  = "Release name already exists in this project"
 	errMsgUnauthorized          = "Unauthorized"
+	errMsgAdminPasswordRequired = "admin password confirmation required"
 )
 
 // errAdminCheckDB is a sentinel returned by checkLastSysAdminProtection when the
@@ -60,9 +61,43 @@ func verifyAdminPassword(ctx context.Context, adminEmail, providedPassword strin
 		return errAdminCheckDB
 	}
 	if providedPassword == "" || !CheckPassword(adminUser.PasswordHash, providedPassword) {
-		return errors.New("admin password confirmation required")
+		return errors.New(errMsgAdminPasswordRequired)
 	}
 	return nil
+}
+
+// requireAdminPassword decodes an adminPasswordRequest from the request body and
+// verifies it via verifyAdminPassword, writing the appropriate error response and
+// returning false on failure. logPrefix names the calling handler for log messages
+// (e.g. "DeleteIssue"); extraLogArgs are additional key/value pairs (e.g. "id", id)
+// included in the "admin password confirmation failed" warning. Callers must
+// return immediately when this returns false.
+func requireAdminPassword(w http.ResponseWriter, r *http.Request, userEmail, logPrefix string, extraLogArgs ...any) bool {
+	var req adminPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		LogWarn(logPrefix+": failed to decode request", "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
+		return false
+	}
+	return verifyAdminPasswordOrRespond(w, r, userEmail, req.AdminPassword, logPrefix, extraLogArgs...)
+}
+
+// verifyAdminPasswordOrRespond is the shared tail of requireAdminPassword, split out
+// for callers (e.g. handleMoveIssue) that decode their own request struct via
+// decodeAndValidate and only need the verify-and-respond step.
+func verifyAdminPasswordOrRespond(w http.ResponseWriter, r *http.Request, userEmail, password, logPrefix string, extraLogArgs ...any) bool {
+	if err := verifyAdminPassword(r.Context(), userEmail, password); err != nil {
+		if errors.Is(err, errAdminCheckDB) {
+			LogError(logPrefix+": failed to load requesting user", "user_email", userEmail)
+			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			return false
+		}
+		args := append(append([]any{}, extraLogArgs...), "user_email", userEmail)
+		LogWarn(logPrefix+": admin password confirmation failed", args...)
+		http.Error(w, errMsgAdminPasswordRequired, http.StatusBadRequest)
+		return false
+	}
+	return true
 }
 
 // formatETag returns the ETag header value for a timestamp (quoted RFC3339Nano).
@@ -491,7 +526,8 @@ func handleUnarchiveIssue(w http.ResponseWriter, r *http.Request, projectID, id 
 }
 
 type moveIssueRequest struct {
-	NewProjectID int `json:"new_project_id"`
+	NewProjectID  int    `json:"new_project_id"`
+	AdminPassword string `json:"admin_password"`
 }
 
 func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
@@ -519,6 +555,10 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 		}
 		return nil
 	}) {
+		return
+	}
+
+	if !verifyAdminPasswordOrRespond(w, r, userEmail, req.AdminPassword, "MoveIssue", "id", id) {
 		return
 	}
 
@@ -715,6 +755,10 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, projectID, id int
 	if issue.Status == StatusArchive {
 		LogWarn("Attempted to delete archived issue", "id", id, "user_email", userEmail)
 		http.Error(w, "Archived issues cannot be deleted", http.StatusForbidden)
+		return
+	}
+
+	if !requireAdminPassword(w, r, userEmail, "DeleteIssue", "id", id) {
 		return
 	}
 
@@ -1000,6 +1044,11 @@ func handleCreateLabel(w http.ResponseWriter, r *http.Request, projectID int) {
 // projectID/labelID are validated by withProjectResource before this runs.
 func handleDeleteLabel(w http.ResponseWriter, r *http.Request, projectID, labelID int) {
 	userEmail := GetEmailFromContext(r.Context())
+
+	if !requireAdminPassword(w, r, userEmail, "DeleteLabel", "label_id", labelID) {
+		return
+	}
+
 	if err := DeleteLabel(r.Context(), labelID, projectID); err != nil {
 		if err == ErrLabelNotFound {
 			http.Error(w, errMsgLabelNotFound, http.StatusNotFound)
@@ -1576,7 +1625,7 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 				return false, errAdminCheckDB
 			}
 			LogWarn("UpdateUser: admin password confirmation failed", "admin_email", userEmail, "target_id", existing.ID)
-			return false, errors.New("admin password confirmation required")
+			return false, errors.New(errMsgAdminPasswordRequired)
 		}
 	}
 
@@ -1850,6 +1899,11 @@ func handleDeleteRelease(w http.ResponseWriter, r *http.Request, projectID, id i
 		http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
 		return
 	}
+
+	if !requireAdminPassword(w, r, userEmail, "DeleteRelease", "id", id) {
+		return
+	}
+
 	if err := DeleteRelease(r.Context(), id); err != nil {
 		if errors.Is(err, ErrReleaseNotFound) {
 			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
@@ -1965,8 +2019,9 @@ func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {
 	}
 }
 
-// projectDeleteRequest is the expected JSON body for DELETE /api/projects/{pId}.
-type projectDeleteRequest struct {
+// adminPasswordRequest is the expected JSON body for destructive endpoints that
+// only carry a password re-confirmation: project/issue/release/label delete.
+type adminPasswordRequest struct {
 	AdminPassword string `json:"admin_password"`
 }
 
@@ -1980,21 +2035,7 @@ func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	var req projectDeleteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-		LogWarn("DeleteProject: failed to decode request", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInvalidRequestBody, http.StatusBadRequest)
-		return
-	}
-
-	if err := verifyAdminPassword(r.Context(), userEmail, req.AdminPassword); err != nil {
-		if errors.Is(err, errAdminCheckDB) {
-			LogError("DeleteProject: failed to load requesting admin", "user_email", userEmail)
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-			return
-		}
-		LogWarn("DeleteProject: admin password confirmation failed", "id", id, "user_email", userEmail)
-		http.Error(w, "admin password confirmation required", http.StatusBadRequest)
+	if !requireAdminPassword(w, r, userEmail, "DeleteProject", "id", id) {
 		return
 	}
 

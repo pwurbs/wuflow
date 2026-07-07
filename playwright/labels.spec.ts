@@ -62,22 +62,19 @@ test.describe('Label Management', () => {
     await expect(page.locator('#label-text')).toContainText('Priority');
   });
 
-  test('delete a label', async ({ page }) => {
+  test('delete a label', async ({ page, workerServer }) => {
     // Create a label first
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'ToDelete');
     await page.press('#ps-new-label-input', 'Enter');
     await expect(page.locator('#ps-labels-list')).toContainText('ToDelete');
 
-    // Find and click the delete button for this label
+    // Find and click the delete button for this label — requires admin password confirmation
     const labelItem = page.locator('#ps-labels-list .label-item:has-text("ToDelete")');
     await labelItem.locator('.delete-label-btn').click();
-
-    // Confirm deletion if there's a confirmation
-    const confirmModal = page.locator('#confirm-modal');
-    if (await confirmModal.isVisible()) {
-      await page.click('#confirm-ok-btn');
-    }
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
 
     // Verify label is removed
     await expect(page.locator('#ps-labels-list')).not.toContainText('ToDelete');

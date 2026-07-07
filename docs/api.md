@@ -269,8 +269,15 @@ Updates an existing issue. Returns `404` if the issue belongs to a different pro
 Deletes an issue and its associated tasks (Admin or Sysadmin).
 - **DELETE** `/projects/:pId/issues/:id`
 - **Path parameters**: `pId` (project), `id` (issue)
+- **Body**:
+  ```json
+  { "admin_password": "YourOwnPassword123!" }
+  ```
+- **Notes**:
+  - `admin_password` is always required — the requesting admin must confirm their own current password to authorise the deletion
 - **Response**: `204 No Content`
 - **Errors**:
+  - `400 Bad Request` - `admin_password` missing/incorrect
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin, or issue is archived
   - `404 Not Found` - Issue doesn't exist in this project
@@ -303,11 +310,13 @@ Moves an issue to a different project (Admin or Sysadmin). Resets label, release
 - **Path parameters**: `pId` (current project), `id` (issue)
 - **Request body**:
   ```json
-  { "new_project_id": 2 }
+  { "new_project_id": 2, "admin_password": "YourOwnPassword123!" }
   ```
+- **Notes**:
+  - `admin_password` is always required — the requesting admin must confirm their own current password to authorise the move
 - **Response**: Updated issue object (with `project_id` set to `new_project_id`, `label` and `release_id` null, `status` Open)
 - **Errors**:
-  - `400 Bad Request` - `new_project_id` is missing, not a positive integer, equals the current project, or the target project does not exist
+  - `400 Bad Request` - `new_project_id` is missing, not a positive integer, equals the current project, or the target project does not exist; or `admin_password` missing/incorrect
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Issue doesn't exist in this project
@@ -472,8 +481,15 @@ Creates a new label within a project (Admin or Sysadmin).
 Deletes a label from a project (Admin or Sysadmin).
 - **DELETE** `/projects/:pId/labels/:id`
 - **Path parameters**: `pId` (project), `id` (label)
+- **Body**:
+  ```json
+  { "admin_password": "YourOwnPassword123!" }
+  ```
+- **Notes**:
+  - `admin_password` is always required — the requesting admin must confirm their own current password to authorise the deletion
 - **Response**: `204 No Content`
 - **Errors**:
+  - `400 Bad Request` - `admin_password` missing/incorrect
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Project or label doesn't exist
@@ -657,8 +673,15 @@ Updates an existing open release (Admin or Sysadmin). Closed releases are read-o
 Deletes a release (Admin or Sysadmin). Issues previously assigned to the release are unlinked but not deleted.
 - **DELETE** `/projects/:pId/releases/:id`
 - **Path parameters**: `pId` (project), `id` (release)
+- **Body**:
+  ```json
+  { "admin_password": "YourOwnPassword123!" }
+  ```
+- **Notes**:
+  - `admin_password` is always required — the requesting admin must confirm their own current password to authorise the deletion
 - **Response**: `204 No Content`
 - **Errors**:
+  - `400 Bad Request` - `admin_password` missing/incorrect
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not an admin or sysadmin
   - `404 Not Found` - Release doesn't exist in this project

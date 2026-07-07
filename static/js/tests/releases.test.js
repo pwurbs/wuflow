@@ -29,6 +29,10 @@ vi.mock('../utils.js', () => ({
   initCharCounter: vi.fn(),
   updateDateInputStyle: vi.fn(),
   getUserInitials: vi.fn(() => 'AB'),
+  promptAdminPasswordConfirmation: vi.fn(async (title, message, onConfirm) => {
+    await onConfirm('AdminPass123!');
+    return true;
+  }),
 }));
 
 vi.mock('../validation-config.js', () => ({
@@ -521,7 +525,6 @@ describe('releases', () => {
   describe('handleDeleteRelease', () => {
     it('removes the release locally and refreshes issues/filter when deletion is confirmed', async () => {
       api.deleteRelease.mockResolvedValue({});
-      utils.showConfirm.mockResolvedValue(true);
       state.releases = [{
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
@@ -532,7 +535,7 @@ describe('releases', () => {
       document.getElementById('release-modal-delete').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
-      expect(api.deleteRelease).toHaveBeenCalledWith(undefined, 10);
+      expect(api.deleteRelease).toHaveBeenCalledWith(undefined, 10, 'AdminPass123!');
       expect(state.releases).toHaveLength(0);
       // Deleting a release clears release_id on its issues server-side, so issues are re-fetched.
       expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(1);
@@ -540,7 +543,7 @@ describe('releases', () => {
     });
 
     it('does not call deleteRelease when the confirm is cancelled', async () => {
-      utils.showConfirm.mockResolvedValue(false);
+      utils.promptAdminPasswordConfirmation.mockResolvedValue(false);
       state.releases = [{
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
@@ -552,22 +555,6 @@ describe('releases', () => {
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(api.deleteRelease).not.toHaveBeenCalled();
-    });
-
-    it('shows error notification when deleteRelease throws', async () => {
-      api.deleteRelease.mockRejectedValue(new Error('Delete failed'));
-      utils.showConfirm.mockResolvedValue(true);
-      state.releases = [{
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
-        start_date: null, release_date: null,
-      }];
-      await setupReleasesView(vi.fn());
-      await renderReleasesView();
-      document.querySelector('.release-card-left').click();
-      document.getElementById('release-modal-delete').click();
-      await new Promise(process.nextTick);
-      await new Promise(process.nextTick);
-      expect(utils.showNotification).toHaveBeenCalledWith('Delete failed', 'error');
     });
   });
 

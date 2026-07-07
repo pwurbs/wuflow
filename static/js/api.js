@@ -169,11 +169,11 @@ export async function unarchiveIssue(projectId, id) {
   return await res.json();
 }
 
-export async function moveIssue(currentProjectId, issueId, newProjectId) {
+export async function moveIssue(currentProjectId, issueId, newProjectId, adminPassword) {
   const res = await authFetch(`${API_URL}/projects/${currentProjectId}/issues/${issueId}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ new_project_id: newProjectId })
+    body: JSON.stringify({ new_project_id: newProjectId, admin_password: adminPassword })
   });
   if (!res.ok) throw new Error(await res.text() || 'Failed to move issue');
   const issue = await res.json();
@@ -206,8 +206,12 @@ export async function deleteTask(projectId, issueId, taskId) {
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete task');
 }
 
-export async function deleteIssue(projectId, id) {
-  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`, { method: 'DELETE' });
+export async function deleteIssue(projectId, id, adminPassword) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_password: adminPassword })
+  });
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete issue');
 }
 
@@ -266,9 +270,11 @@ export async function createLabel(projectId, label) {
   return await response.json();
 }
 
-export async function deleteLabel(projectId, labelId) {
+export async function deleteLabel(projectId, labelId, adminPassword) {
   const response = await authFetch(`${API_URL}/projects/${projectId}/labels/${labelId}`, {
     method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_password: adminPassword })
   });
   if (!response.ok) throw new Error(await response.text() || 'Failed to delete label');
 }
@@ -470,9 +476,11 @@ export async function updateRelease(projectId, id, data) {
   return await res.json();
 }
 
-export async function deleteRelease(projectId, id) {
+export async function deleteRelease(projectId, id, adminPassword) {
   const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_password: adminPassword })
   });
   if (!res.ok) {
     const text = await res.text();

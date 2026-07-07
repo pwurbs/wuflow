@@ -34,13 +34,14 @@ test.describe('Notifications', () => {
       await waitForToast(page, 'created successfully');
     });
 
-    test('issue deleted', async ({ page }) => {
+    test('issue deleted', async ({ page, workerServer }) => {
       const title = `Notif Delete ${Date.now()}`;
       await createIssue(page, { title, status: 'Todo' });
       await openIssueByTitle(page, title);
       await page.click('#delete-issue-btn');
-      await expect(page.locator('#confirm-modal')).toBeVisible();
-      await page.click('#confirm-ok-btn');
+      await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+      await page.fill('#admin-confirm-password', workerServer.adminPassword);
+      await page.click('#admin-confirm-ok-btn');
       await expect(page.locator('#issue-modal')).toBeHidden();
       await waitForToast(page, 'Issue deleted');
     });
@@ -156,7 +157,7 @@ test.describe('Notifications', () => {
       await waitForToast(page, 'Label created');
     });
 
-    test('label deleted', async ({ page }) => {
+    test('label deleted', async ({ page, workerServer }) => {
       const name = `D${Date.now().toString().slice(-8)}`;
       await page.fill('#ps-new-label-input', name);
       await page.press('#ps-new-label-input', 'Enter');
@@ -164,8 +165,9 @@ test.describe('Notifications', () => {
       // Delete it
       const labelItem = page.locator(`#ps-labels-list .label-item:has-text("${name}")`);
       await labelItem.locator('.delete-label-btn').click();
-      await expect(page.locator('#confirm-modal')).toBeVisible();
-      await page.click('#confirm-ok-btn');
+      await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+      await page.fill('#admin-confirm-password', workerServer.adminPassword);
+      await page.click('#admin-confirm-ok-btn');
       await waitForToast(page, 'Label deleted');
     });
   });
@@ -249,14 +251,15 @@ test.describe('Notifications', () => {
       await waitForToast(page, 'Release reopened');
     });
 
-    test('release deleted', async ({ page }) => {
+    test('release deleted', async ({ page, workerServer }) => {
       const name = `ND_${Date.now().toString().slice(-7)}`;
       await createRelease(page, { name });
       await page.locator(`.release-row:has-text("${name}") .release-card-left`).click();
       await expect(page.locator('#release-modal-overlay')).toBeVisible();
       await page.click('#release-modal-delete');
-      await expect(page.locator('#confirm-modal')).toBeVisible();
-      await page.click('#confirm-ok-btn');
+      await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+      await page.fill('#admin-confirm-password', workerServer.adminPassword);
+      await page.click('#admin-confirm-ok-btn');
       await waitForToast(page, 'Release deleted');
     });
   });

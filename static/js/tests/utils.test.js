@@ -6,6 +6,7 @@ import {
   updateDateInputStyle, initCharCounter,
   getUnusedColor,
   getDeadlineStatus, getTaskDeadlineStatus,
+  promptAdminPasswordConfirmation,
 } from '../utils.js';
 
 describe('getDeadlineStatus', () => {
@@ -437,6 +438,141 @@ describe('showConfirm', () => {
     const promise2 = showConfirm('T', 'M');
     okBtn.click();
     expect(await promise2).toBe(true);
+  });
+});
+
+describe('promptAdminPasswordConfirmation', () => {
+  let modal, titleEl, messageEl, input, errorDiv, okBtn, cancelBtn;
+
+  beforeEach(() => {
+    modal = document.createElement('div');
+    modal.id = 'admin-confirm-modal';
+    modal.classList.add('hidden');
+
+    titleEl = document.createElement('h2');
+    titleEl.id = 'admin-confirm-title';
+
+    messageEl = document.createElement('p');
+    messageEl.id = 'admin-confirm-message';
+
+    input = document.createElement('input');
+    input.type = 'password';
+    input.id = 'admin-confirm-password';
+
+    errorDiv = document.createElement('div');
+    errorDiv.id = 'admin-confirm-error';
+    errorDiv.classList.add('hidden');
+
+    okBtn = document.createElement('button');
+    okBtn.id = 'admin-confirm-ok-btn';
+    okBtn.className = 'btn';
+
+    cancelBtn = document.createElement('button');
+    cancelBtn.id = 'admin-confirm-cancel-btn';
+
+    document.body.append(modal, titleEl, messageEl, input, errorDiv, okBtn, cancelBtn);
+  });
+
+  afterEach(() => {
+    [modal, titleEl, messageEl, input, errorDiv, okBtn, cancelBtn].forEach(el => el.remove());
+  });
+
+  it('shows the modal and populates title, message and button text', () => {
+    const onConfirm = vi.fn();
+    promptAdminPasswordConfirmation('My Title', 'My Message', onConfirm, 'Delete', 'danger');
+    expect(modal.classList.contains('hidden')).toBe(false);
+    expect(titleEl.textContent).toBe('My Title');
+    expect(messageEl.textContent).toBe('My Message');
+    expect(okBtn.textContent).toBe('Delete');
+    expect(okBtn.classList.contains('danger')).toBe(true);
+    cancelBtn.click();
+  });
+
+  it('shows an inline error and does not call onConfirm when the password is empty', async () => {
+    const onConfirm = vi.fn();
+    promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    input.value = '';
+    okBtn.click();
+    await Promise.resolve();
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(errorDiv.textContent).toBe('Password is required.');
+    expect(errorDiv.classList.contains('hidden')).toBe(false);
+    expect(modal.classList.contains('hidden')).toBe(false);
+    cancelBtn.click();
+  });
+
+  it('resolves true and hides the modal when onConfirm succeeds', async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    input.value = 'CorrectPass123!';
+    okBtn.click();
+    expect(await promise).toBe(true);
+    expect(onConfirm).toHaveBeenCalledWith('CorrectPass123!');
+    expect(modal.classList.contains('hidden')).toBe(true);
+  });
+
+  it('resolves false and hides the modal when Cancel is clicked', async () => {
+    const onConfirm = vi.fn();
+    const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    cancelBtn.click();
+    expect(await promise).toBe(false);
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(modal.classList.contains('hidden')).toBe(true);
+  });
+
+  it('shows the rejection message inline and keeps the modal open when onConfirm fails, then lets the user retry', async () => {
+    const onConfirm = vi.fn()
+      .mockRejectedValueOnce(new Error('admin password confirmation required'))
+      .mockResolvedValueOnce(undefined);
+    const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
+
+    input.value = 'WrongPass123!';
+    okBtn.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Still open, showing the server's rejection message, ready for retry
+    expect(modal.classList.contains('hidden')).toBe(false);
+    expect(errorDiv.textContent).toBe('admin password confirmation required');
+    expect(errorDiv.classList.contains('hidden')).toBe(false);
+
+    // Retry with the correct password succeeds without recreating the dialog
+    input.value = 'CorrectPass123!';
+    okBtn.click();
+    expect(await promise).toBe(true);
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+    expect(onConfirm).toHaveBeenNthCalledWith(2, 'CorrectPass123!');
+    expect(modal.classList.contains('hidden')).toBe(true);
+  });
+
+  it('submits when Enter is pressed in the password input', async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    input.value = 'CorrectPass123!';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(await promise).toBe(true);
+  });
+
+  it('defaults okText to Confirm and okType to danger', () => {
+    const onConfirm = vi.fn();
+    promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    expect(okBtn.textContent).toBe('Confirm');
+    expect(okBtn.classList.contains('danger')).toBe(true);
+    cancelBtn.click();
+  });
+
+  it('removes event listeners after resolution so a stale click has no effect', async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    input.value = 'CorrectPass123!';
+    okBtn.click();
+    await promise;
+
+    const promise2 = promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    input.value = 'CorrectPass123!';
+    okBtn.click();
+    expect(await promise2).toBe(true);
+    expect(onConfirm).toHaveBeenCalledTimes(2);
   });
 });
 

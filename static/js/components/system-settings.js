@@ -1,5 +1,5 @@
-import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout } from '../api.js';
-import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime } from '../utils.js';
+import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
+import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime, promptAdminPasswordConfirmation } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
@@ -150,52 +150,39 @@ function showProjectError(el, message) {
   el.classList.remove('hidden');
 }
 
-function handleDeleteProject(refreshCallback) {
+async function handleDeleteProject(refreshCallback) {
   if (!editingProjectId || editingProjectId === 1) return;
   if (!userCan(state.currentUser, ACTION_DELETE_PROJECT)) return;
 
-  const confirmModal = document.getElementById('confirm-modal');
-  const confirmTitle = document.getElementById('confirm-title');
-  const confirmMessage = document.getElementById('confirm-message');
-  const okBtn = document.getElementById('confirm-ok-btn');
-  const cancelBtn = document.getElementById('confirm-cancel-btn');
+  const errorDisplay = document.getElementById('project-modal-error');
+  const [active, archived, open] = await Promise.all([
+    fetchActiveIssuesByProject(editingProjectId),
+    fetchArchivedIssuesByProject(editingProjectId),
+    fetchOpenIssuesByProject(editingProjectId),
+  ]);
+  const issueCount = active.length + archived.length + open.length;
+  if (issueCount > 0) {
+    showProjectError(errorDisplay, `This project still has ${issueCount} issue${issueCount === 1 ? '' : 's'}. Move or delete them first before deleting the project.`);
+    return;
+  }
 
-  confirmTitle.textContent = 'Delete Project';
-  confirmMessage.textContent = 'Are you sure you want to delete this project?';
-
-  const handleOk = async () => {
-    cleanup();
-    const adminPassword = await promptAdminPasswordConfirmation();
-    if (adminPassword === null) return;
-
-    try {
+  const projectName = document.getElementById('project-name').value;
+  const confirmed = await promptAdminPasswordConfirmation(
+    'Delete Project',
+    `Do you really want to delete the project "${projectName}"?\nThis action cannot be undone.`,
+    async (adminPassword) => {
       await deleteProject(editingProjectId, adminPassword);
-      showNotification('Project deleted', 'success');
-      closeProjectModal();
-      const projects = await renderSystemSettingsView(refreshCallback);
-      // Refreshes the project selector dropdown; its own fallback logic triggers a full
-      // refresh if the deleted project was the currently selected one.
-      updateProjectSelectorOptions(projects ?? await fetchProjects());
-    } catch (err) {
-      const errorDisplay = document.getElementById('project-modal-error');
-      showProjectError(errorDisplay, err.message);
-    }
-  };
+    },
+    'Delete'
+  );
+  if (!confirmed) return;
 
-  const handleCancel = () => {
-    cleanup();
-  };
-
-  const cleanup = () => {
-    confirmModal.classList.add('hidden');
-    okBtn.removeEventListener('click', handleOk);
-    cancelBtn.removeEventListener('click', handleCancel);
-  };
-
-  okBtn.addEventListener('click', handleOk);
-  cancelBtn.addEventListener('click', handleCancel);
-
-  confirmModal.classList.remove('hidden');
+  showNotification('Project deleted', 'success');
+  closeProjectModal();
+  const projects = await renderSystemSettingsView(refreshCallback);
+  // Refreshes the project selector dropdown; its own fallback logic triggers a full
+  // refresh if the deleted project was the currently selected one.
+  updateProjectSelectorOptions(projects ?? await fetchProjects());
 }
 
 async function renderProjectList(refreshCallback) {
@@ -416,69 +403,59 @@ async function handleUserSubmit(refreshCallback) {
   }
 }
 
-async function applyUserUpdate(userData) {
-  if (userData.password || isRolePromotion(editingUserOriginalRole, userData.role) || userData.active !== editingUserOriginalActive) {
-    const adminPassword = await promptAdminPasswordConfirmation();
-    if (adminPassword === null) return false;
-    userData.admin_password = adminPassword;
+function getUserUpdateConfirmationCopy(userData) {
+  const name = `${userData.first_name} ${userData.last_name}`.trim();
+  if (userData.password) {
+    return {
+      title: 'Confirm Password Reset',
+      message: `Do you really want to reset the password for ${name}?\nThis immediately sets a new password and signs them out of every active session.`
+    };
   }
-  await updateUser(editingUserId, userData);
+  if (userData.active === false && editingUserOriginalActive) {
+    return {
+      title: 'Confirm Deactivation',
+      message: `Do you really want to deactivate ${name}?\nThis immediately signs them out and blocks them from logging in until reactivated.`
+    };
+  }
+  if (isRolePromotion(editingUserOriginalRole, userData.role)) {
+    const roleLabel = ROLE_DISPLAY_NAMES[userData.role] ?? userData.role;
+    return {
+      title: 'Confirm Role Change',
+      message: `Do you really want to change ${name}'s role to ${roleLabel}?\nThis signs them out of every active session so the new permissions take effect immediately.`
+    };
+  }
+  return {
+    title: 'Confirm Reactivation',
+    message: `Do you really want to reactivate ${name}?\nThis allows them to log in again.`
+  };
+}
+
+async function applyUserUpdate(userData) {
+  const requiresConfirmation =
+    !!userData.password ||
+    isRolePromotion(editingUserOriginalRole, userData.role) ||
+    userData.active !== editingUserOriginalActive;
+
+  if (requiresConfirmation) {
+    const { title, message } = getUserUpdateConfirmationCopy(userData);
+    const confirmed = await promptAdminPasswordConfirmation(
+      title,
+      message,
+      async (adminPassword) => {
+        await updateUser(editingUserId, { ...userData, admin_password: adminPassword });
+      },
+      'Confirm'
+    );
+    if (!confirmed) return false;
+  } else {
+    await updateUser(editingUserId, userData);
+  }
   const isSelf = editingUserId === state.currentUser?.id;
   if (isSelf && (userData.password || userData.role !== state.currentUser?.role)) {
     logout();
     return false;
   }
   return true;
-}
-
-function promptAdminPasswordConfirmation() {
-  return new Promise((resolve) => {
-    const modal = document.getElementById('admin-confirm-modal');
-    const input = document.getElementById('admin-confirm-password');
-    const errorDiv = document.getElementById('admin-confirm-error');
-    const okBtn = document.getElementById('admin-confirm-ok-btn');
-    const cancelBtn = document.getElementById('admin-confirm-cancel-btn');
-
-    input.value = '';
-    const usernameField = document.getElementById('admin-confirm-username');
-    if (usernameField && state.currentUser) {
-      usernameField.value = state.currentUser.email || '';
-    }
-    errorDiv.textContent = '';
-    errorDiv.classList.add('hidden');
-    modal.classList.remove('hidden');
-    input.focus();
-
-    function cleanup() {
-      modal.classList.add('hidden');
-      okBtn.removeEventListener('click', onOk);
-      cancelBtn.removeEventListener('click', onCancel);
-      input.removeEventListener('keydown', onKeydown);
-    }
-
-    function onOk() {
-      if (!input.value) {
-        errorDiv.textContent = 'Password is required.';
-        errorDiv.classList.remove('hidden');
-        return;
-      }
-      cleanup();
-      resolve(input.value);
-    }
-
-    function onCancel() {
-      cleanup();
-      resolve(null);
-    }
-
-    function onKeydown(e) {
-      if (e.key === 'Enter') onOk();
-    }
-
-    okBtn.addEventListener('click', onOk);
-    cancelBtn.addEventListener('click', onCancel);
-    input.addEventListener('keydown', onKeydown);
-  });
 }
 
 function validateUserInput(userData, errorDisplay) {

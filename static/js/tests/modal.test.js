@@ -60,6 +60,13 @@ vi.mock('../utils.js', async (importOriginal) => {
     getDeadlineStatus: vi.fn(() => ({ late: false })),
     getTaskDeadlineStatus: vi.fn(() => ({ late: false })),
     formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString()),
+    // Default: immediately "confirms" with a fixed password by invoking the
+    // caller's onConfirm, mirroring the real dialog's happy path. Override with
+    // mockResolvedValue(false) to simulate cancellation.
+    promptAdminPasswordConfirmation: vi.fn(async (title, message, onConfirm) => {
+      await onConfirm('AdminPass123!');
+      return true;
+    }),
     // Real implementation — the list auto-continue tests assert on its actual behavior.
     continueListOnEnter: actual.continueListOnEnter
   };
@@ -332,13 +339,11 @@ describe('Modal Component', () => {
     const issue = { id: 99, title: 'To Delete' };
     await openModalWithMock(issue);
 
-    utils.showConfirm.mockResolvedValue(true);
-
     document.getElementById('delete-issue-btn').click();
     await new Promise(process.nextTick);
 
-    expect(utils.showConfirm).toHaveBeenCalled();
-    expect(api.deleteIssue).toHaveBeenCalledWith(undefined, 99);
+    expect(utils.promptAdminPasswordConfirmation).toHaveBeenCalled();
+    expect(api.deleteIssue).toHaveBeenCalledWith(undefined, 99, 'AdminPass123!');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
 
@@ -1943,20 +1948,6 @@ describe('Modal Component', () => {
       expect(statusOptions.classList.contains('hidden')).toBe(true);
     });
 
-    it('should show notification and keep modal open on delete failure', async () => {
-      const issue = { id: 99, title: 'To Delete' };
-      await openModalWithMock(issue);
-
-      utils.showConfirm.mockResolvedValue(true);
-      api.deleteIssue.mockRejectedValue(new Error('Delete failed'));
-
-      document.getElementById('delete-issue-btn').click();
-      await new Promise(process.nextTick);
-
-      expect(utils.showNotification).toHaveBeenCalledWith('Delete failed', 'error');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
-    });
-
     it('should show notification and keep modal open on archive failure', async () => {
       const issue = { id: 100, title: 'To Archive', status: 'Open' };
       await openModalWithMock(issue);
@@ -2053,7 +2044,6 @@ describe('Project Selector Coverage', () => {
   it('should move issue when project-select changes with currentIssue set', async () => {
     state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
     api.moveIssue.mockResolvedValue({ issue: { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }, etag: '"move-etag"' });
-    utils.showConfirm.mockResolvedValue(true);
 
     const projectSelect = document.getElementById('project-select');
     projectSelect.value = '2';
@@ -2061,27 +2051,13 @@ describe('Project Selector Coverage', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.moveIssue).toHaveBeenCalledWith(1, 1, 2);
+    expect(api.moveIssue).toHaveBeenCalledWith(1, 1, 2, 'AdminPass123!');
     expect(state.currentIssue.project_id).toBe(2);
-  });
-
-  it('should show error notification when project move fails', async () => {
-    state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
-    api.moveIssue.mockRejectedValue(new Error('Save failed'));
-    utils.showConfirm.mockResolvedValue(true);
-
-    const projectSelect = document.getElementById('project-select');
-    projectSelect.value = '3';
-    projectSelect.dispatchEvent(new Event('change'));
-
-    await new Promise(process.nextTick);
-
-    expect(utils.showNotification).toHaveBeenCalledWith('Save failed', 'error');
   });
 
   it('should not call moveIssue and revert dropdown when user cancels confirmation', async () => {
     state.currentIssue = { id: 1, title: 'Test', project_id: 1, project: { name: 'Default' } };
-    utils.showConfirm.mockResolvedValue(false);
+    utils.promptAdminPasswordConfirmation.mockResolvedValue(false);
 
     const projectSelect = document.getElementById('project-select');
     projectSelect.value = '2';

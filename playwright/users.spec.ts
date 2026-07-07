@@ -93,9 +93,9 @@ test.describe('User Management', () => {
     await sysadminRow.click();
     await expect(page.locator('#user-modal-overlay')).toBeVisible();
 
-    // Attempt Deactivate — the active toggle requires admin password confirmation
-    // before the request is even sent, but the backend still rejects it because
-    // this is the last active sysadmin.
+    // Attempt Deactivate — the active toggle requires admin password confirmation,
+    // and even with the correct password the backend still rejects it because this
+    // is the last active sysadmin. The rejection surfaces inline in the same dialog.
     await page.uncheck('#user-active');
     await page.click('#user-modal-save');
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
@@ -103,10 +103,11 @@ test.describe('User Management', () => {
     await page.click('#admin-confirm-ok-btn');
 
     // Check for error
-    const errorDisplay = page.locator('#user-modal-error');
+    const errorDisplay = page.locator('#admin-confirm-error');
     await expect(errorDisplay).toBeVisible();
     await expect(errorDisplay).toContainText('last active system administrator');
 
+    await page.click('#admin-confirm-cancel-btn');
     await page.click('#user-modal-cancel');
   });
 
@@ -341,15 +342,18 @@ test.describe('User Management', () => {
     await expect(page.locator('#user-modal-overlay')).toBeVisible();
     await page.click('#user-modal-cancel');
 
-    // Wrong admin password → confirm modal closes, backend rejects, error in user modal
+    // Wrong admin password → dialog stays open with the error shown inline, ready for retry
     await userRow.click();
     await page.fill('#user-password', generatePassword());
     await page.click('#user-modal-save');
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', 'WrongAdminPass123!');
     await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await expect(page.locator('#admin-confirm-error')).toBeVisible();
+    await page.click('#admin-confirm-cancel-btn');
     await expect(page.locator('#admin-confirm-modal')).toBeHidden();
-    await expect(page.locator('#user-modal-error')).toBeVisible();
+    await expect(page.locator('#user-modal-overlay')).toBeVisible();
     await page.click('#user-modal-cancel');
 
     // Correct admin password → success, user modal closes
@@ -426,16 +430,18 @@ test.describe('User Management', () => {
     await expect(userRow).not.toHaveClass(/user-inactive/);
     await page.click('#user-modal-cancel');
 
-    // Deactivating with the wrong admin password is rejected
+    // Deactivating with the wrong admin password is rejected — dialog stays open for retry
     await userRow.click();
     await page.uncheck('#user-active');
     await page.click('#user-modal-save');
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', 'WrongAdminPass123!');
     await page.click('#admin-confirm-ok-btn');
-    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
-    await expect(page.locator('#user-modal-error')).toBeVisible();
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await expect(page.locator('#admin-confirm-error')).toBeVisible();
     await expect(userRow).not.toHaveClass(/user-inactive/);
+    await page.click('#admin-confirm-cancel-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
     await page.click('#user-modal-cancel');
 
     // Deactivating with the correct admin password succeeds

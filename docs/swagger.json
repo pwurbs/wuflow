@@ -630,12 +630,12 @@
         },
         "required": ["name"]
       },
-      "ProjectDeleteRequest": {
+      "AdminPasswordRequest": {
         "type": "object",
         "properties": {
           "admin_password": {
             "type": "string",
-            "description": "Required. The requesting sysadmin's own current password for confirmation."
+            "description": "Required. The requesting admin's own current password for confirmation."
           }
         },
         "required": ["admin_password"]
@@ -1231,9 +1231,22 @@
         "description": "Requires admin or sysadmin role. Deletes the issue and its associated tasks.",
         "x-required-role": "admin",
         "tags": ["Issues"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasswordRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Issue deleted"
+          },
+          "400": {
+            "description": "Bad Request - admin_password missing/incorrect"
           },
           "401": {
             "description": "Unauthorized"
@@ -1383,11 +1396,15 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["new_project_id"],
+                "required": ["new_project_id", "admin_password"],
                 "properties": {
                   "new_project_id": {
                     "type": "integer",
                     "description": "ID of the target project. Must differ from the current project."
+                  },
+                  "admin_password": {
+                    "type": "string",
+                    "description": "Required. The requesting admin's own current password for confirmation."
                   }
                 }
               }
@@ -1406,7 +1423,7 @@
             }
           },
           "400": {
-            "description": "Bad Request - new_project_id is missing, not a positive integer, equals the current project, or the target project does not exist"
+            "description": "Bad Request - new_project_id is missing, not a positive integer, equals the current project, or the target project does not exist; or admin_password missing/incorrect"
           },
           "401": {
             "description": "Unauthorized"
@@ -1878,9 +1895,22 @@
         "description": "Requires admin or sysadmin role.",
         "x-required-role": "admin",
         "tags": ["Labels"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasswordRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Label deleted"
+          },
+          "400": {
+            "description": "Bad Request - admin_password missing/incorrect"
           },
           "401": {
             "description": "Unauthorized"
@@ -2023,7 +2053,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectDeleteRequest"
+                "$ref": "#/components/schemas/AdminPasswordRequest"
               }
             }
           }
@@ -2294,9 +2324,22 @@
         "description": "Requires admin or sysadmin role. Issues assigned to the release are unlinked but not deleted.",
         "x-required-role": "admin",
         "tags": ["Releases"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasswordRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Release deleted"
+          },
+          "400": {
+            "description": "Bad Request - admin_password missing/incorrect"
           },
           "401": {
             "description": "Unauthorized"

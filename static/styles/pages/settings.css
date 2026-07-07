@@ -486,8 +486,15 @@
 }
 
 .admin-confirm-body p {
-  margin: 0 0 16px;
+  margin: 0 0 6px;
+  line-height: 1.4;
   color: var(--muted-text);
+  white-space: pre-line;
+}
+
+.admin-confirm-body .form-error {
+  margin-top: 12px;
+  margin-bottom: 0;
 }
 
 .btn.primary {

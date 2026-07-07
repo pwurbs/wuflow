@@ -93,10 +93,6 @@ test.describe('Project Management', () => {
     await expect(page.locator('#project-modal-delete')).toBeVisible();
     await page.click('#project-modal-delete');
 
-    // Confirm deletion
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-ok-btn');
-
     // Deletion requires admin password confirmation
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', workerServer.adminPassword);
@@ -117,25 +113,44 @@ test.describe('Project Management', () => {
     const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
     await projectRow.click();
     await page.click('#project-modal-delete');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-ok-btn');
 
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', 'WrongAdminPass123!');
     await page.click('#admin-confirm-ok-btn');
 
-    // Rejected — project modal reopens with an error, project still listed
-    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
-    await expect(page.locator('#project-modal-error')).toBeVisible();
+    // Rejected — the dialog stays open with the error shown inline, ready for retry
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await expect(page.locator('#admin-confirm-error')).toBeVisible();
     await expect(page.locator('#projects-list')).toContainText(name);
 
-    // Cleanup — delete it for real
-    await page.click('#project-modal-delete');
-    await page.click('#confirm-ok-btn');
-    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    // Retry with the correct password in the same dialog — no need to reopen it
     await page.fill('#admin-confirm-password', workerServer.adminPassword);
     await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
     await expect(page.locator('#projects-list')).not.toContainText(name);
+  });
+
+  test('Deleting a project with issues shows a blocking error and skips the password dialog', async ({ page }) => {
+    const name = `hasissues_${Date.now()}`.slice(0, 15);
+    const projectId = await createProjectViaAPI(page.request, name);
+    await createIssueViaAPI(page.request, projectId, `Blocker_${Date.now()}`);
+
+    // The project list was fetched on entry to this view, before the API calls above —
+    // leave and re-enter system-settings to force a refetch that picks them up.
+    await navigateTo(page, 'board');
+    await navigateTo(page, 'system-settings');
+    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
+    await projectRow.click();
+    await page.click('#project-modal-delete');
+
+    // The precheck finds the issue and blocks deletion without ever showing the password dialog
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    const errorDisplay = page.locator('#project-modal-error');
+    await expect(errorDisplay).toBeVisible();
+    await expect(errorDisplay).toContainText('still has 1 issue');
+    await expect(page.locator('#projects-list')).toContainText(name);
+
+    await page.click('#project-modal-cancel');
   });
 
   test('Default project cannot be deleted', async ({ page }) => {
@@ -171,7 +186,6 @@ test.describe('Project Management', () => {
     const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
     await projectRow.click();
     await page.click('#project-modal-delete');
-    await page.click('#confirm-ok-btn');
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', workerServer.adminPassword);
     await page.click('#admin-confirm-ok-btn');
@@ -223,7 +237,6 @@ test.describe('Project Selector', () => {
     const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
     await projectRow.click();
     await page.click('#project-modal-delete');
-    await page.click('#confirm-ok-btn');
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', workerServer.adminPassword);
     await page.click('#admin-confirm-ok-btn');
@@ -249,7 +262,6 @@ test.describe('Project Selector', () => {
     const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
     await projectRow.click();
     await page.click('#project-modal-delete');
-    await page.click('#confirm-ok-btn');
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', workerServer.adminPassword);
     await page.click('#admin-confirm-ok-btn');
@@ -312,7 +324,6 @@ test.describe('Issues with Projects', () => {
     const projectRow = page.locator(`#projects-list .settings-entry:has-text("${projectName}")`);
     await projectRow.click();
     await page.click('#project-modal-delete');
-    await page.click('#confirm-ok-btn');
     await expect(page.locator('#admin-confirm-modal')).toBeVisible();
     await page.fill('#admin-confirm-password', workerServer.adminPassword);
     await page.click('#admin-confirm-ok-btn');
@@ -430,8 +441,10 @@ test.describe('Project-scoped API isolation', () => {
 
   // --- Label boundary ------------------------------------------------------
 
-  test('DELETE label via wrong project URL returns 404', async ({ page }) => {
-    const res = await page.request.delete(`/api/projects/${pOther}/labels/${labelId}`);
+  test('DELETE label via wrong project URL returns 404', async ({ page, workerServer }) => {
+    const res = await page.request.delete(`/api/projects/${pOther}/labels/${labelId}`, {
+      data: { admin_password: workerServer.adminPassword },
+    });
     expect(res.status()).toBe(404);
   });
 

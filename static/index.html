@@ -813,14 +813,14 @@
         </div>
     </div>
 
-    <!-- Admin Password Confirmation Modal (for changing another user's password) -->
+    <!-- Admin Password Confirmation Modal (re-authorize a sensitive/destructive action) -->
     <div id="admin-confirm-modal" class="modal hidden">
         <div class="settings-modal">
             <div class="settings-modal-header">
-                <h2>Confirm Your Password</h2>
+                <h2 id="admin-confirm-title">Confirm Your Password</h2>
             </div>
             <div class="admin-confirm-body">
-                <p>Enter your own password to authorize this change.</p>
+                <p id="admin-confirm-message">Enter your own password to authorize this change.</p>
                 <form id="admin-confirm-form">
                     <input type="text" id="admin-confirm-username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true" readonly aria-label="Username">
                     <div class="form-group">

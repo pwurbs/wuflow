@@ -13,6 +13,10 @@ vi.mock('../api.js', () => ({
   updateStatusConfig: vi.fn(),
 }));
 
+vi.mock('../components/toolbar.js', () => ({
+  updateLabelFilterOptions: vi.fn(),
+}));
+
 vi.mock('../utils.js', () => ({
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
@@ -20,6 +24,10 @@ vi.mock('../utils.js', () => ({
   initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
   countCodepoints: vi.fn(s => [...s].length),
   getUnusedColor: vi.fn(() => '#EF5350'),
+  promptAdminPasswordConfirmation: vi.fn(async (title, message, onConfirm) => {
+    await onConfirm('AdminPass123!');
+    return true;
+  }),
 }));
 
 vi.mock('../permissions.js', async (importOriginal) => {
@@ -28,7 +36,7 @@ vi.mock('../permissions.js', async (importOriginal) => {
 });
 
 vi.mock('../state.js', () => ({
-  state: { currentUser: { role: 'admin' }, selectedProjectId: 1, issues: [] },
+  state: { currentUser: { role: 'admin' }, selectedProjectId: 1, issues: [], filter: { labelId: null } },
   setStatusConfig: vi.fn(),
 }));
 
@@ -187,7 +195,6 @@ describe('project-settings.js component', () => {
     });
 
     it('deletes a label after confirmation', async () => {
-      utils.showConfirm.mockResolvedValue(true);
       api.fetchLabelsByProject.mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
       api.deleteLabel.mockResolvedValue({});
 
@@ -195,11 +202,11 @@ describe('project-settings.js component', () => {
       document.querySelector('.delete-label-btn').click();
       await new Promise(process.nextTick);
 
-      expect(api.deleteLabel).toHaveBeenCalledWith(1, 1);
+      expect(api.deleteLabel).toHaveBeenCalledWith(1, 1, 'AdminPass123!');
     });
 
     it('does not delete when confirmation is cancelled', async () => {
-      utils.showConfirm.mockResolvedValue(false);
+      utils.promptAdminPasswordConfirmation.mockResolvedValue(false);
       api.fetchLabelsByProject.mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
 
       await renderProjectSettingsView();
@@ -207,18 +214,6 @@ describe('project-settings.js component', () => {
       await new Promise(process.nextTick);
 
       expect(api.deleteLabel).not.toHaveBeenCalled();
-    });
-
-    it('shows error notification when deleteLabel fails', async () => {
-      utils.showConfirm.mockResolvedValue(true);
-      api.fetchLabelsByProject.mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
-      api.deleteLabel.mockRejectedValue(new Error('Network error'));
-
-      await renderProjectSettingsView();
-      document.querySelector('.delete-label-btn').click();
-      await new Promise(process.nextTick);
-
-      expect(utils.showNotification).toHaveBeenCalledWith('Failed to delete label', 'error');
     });
 
     it('does not delete when user lost DELETE permission at click time', async () => {
@@ -229,7 +224,7 @@ describe('project-settings.js component', () => {
       document.querySelector('.delete-label-btn').click();
       await new Promise(process.nextTick);
 
-      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(utils.promptAdminPasswordConfirmation).not.toHaveBeenCalled();
       expect(api.deleteLabel).not.toHaveBeenCalled();
     });
 

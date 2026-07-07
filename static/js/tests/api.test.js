@@ -8,6 +8,7 @@ import {
   updateIssue,
   archiveIssue,
   unarchiveIssue,
+  deleteIssue,
   moveIssue,
   fetchVersion,
   fetchCurrentUser,
@@ -21,6 +22,7 @@ import {
   updateUser,
   fetchStatusConfig,
   updateStatusConfig,
+  deleteLabel,
   fetchReleases,
   createRelease,
   updateRelease,
@@ -241,20 +243,35 @@ describe('api', () => {
     });
   });
 
+  describe('deleteIssue', () => {
+    it('sends DELETE with admin_password body and resolves on success', async () => {
+      fetch.mockResolvedValue(makeResponse(200, ''));
+      await expect(deleteIssue(1, 1, 'AdminPass123!')).resolves.not.toThrow();
+      expect(fetch.mock.calls[0][0]).toContain('/projects/1/issues/1');
+      expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ admin_password: 'AdminPass123!' });
+    });
+
+    it('throws on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(400, 'admin password confirmation required'));
+      await expect(deleteIssue(1, 1, 'wrong')).rejects.toThrow('admin password confirmation required');
+    });
+  });
+
   describe('moveIssue', () => {
-    it('posts to move endpoint with new_project_id and returns updated issue with etag', async () => {
+    it('posts to move endpoint with new_project_id and admin_password, returns updated issue with etag', async () => {
       const moved = { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' };
       fetch.mockResolvedValue(makeResponse(200, moved, { ETag: '"move-etag"' }));
-      const result = await moveIssue(1, 1, 2);
+      const result = await moveIssue(1, 1, 2, 'AdminPass123!');
       expect(result).toEqual({ issue: moved, etag: '"move-etag"' });
       expect(fetch.mock.calls[0][0]).toContain('/projects/1/issues/1/move');
       const body = JSON.parse(fetch.mock.calls[0][1].body);
-      expect(body).toEqual({ new_project_id: 2 });
+      expect(body).toEqual({ new_project_id: 2, admin_password: 'AdminPass123!' });
     });
 
     it('throws on failure', async () => {
       fetch.mockResolvedValue(makeResponse(400, 'new_project_id must differ'));
-      await expect(moveIssue(1, 1, 1)).rejects.toThrow('new_project_id must differ');
+      await expect(moveIssue(1, 1, 1, 'AdminPass123!')).rejects.toThrow('new_project_id must differ');
     });
   });
 
@@ -466,15 +483,31 @@ describe('api', () => {
   });
 
   describe('deleteRelease', () => {
-    it('sends DELETE and resolves on success', async () => {
+    it('sends DELETE with admin_password body and resolves on success', async () => {
       fetch.mockResolvedValue(makeResponse(200, ''));
-      await expect(deleteRelease(1, 1)).resolves.not.toThrow();
+      await expect(deleteRelease(1, 1, 'AdminPass123!')).resolves.not.toThrow();
       expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ admin_password: 'AdminPass123!' });
     });
 
     it('throws with server message on failure', async () => {
       fetch.mockResolvedValue(makeResponse(403, 'No permission'));
-      await expect(deleteRelease(1, 1)).rejects.toThrow('No permission');
+      await expect(deleteRelease(1, 1, 'AdminPass123!')).rejects.toThrow('No permission');
+    });
+  });
+
+  describe('deleteLabel', () => {
+    it('sends DELETE with admin_password body and resolves on success', async () => {
+      fetch.mockResolvedValue(makeResponse(200, ''));
+      await expect(deleteLabel(1, 1, 'AdminPass123!')).resolves.not.toThrow();
+      expect(fetch.mock.calls[0][0]).toContain('/projects/1/labels/1');
+      expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ admin_password: 'AdminPass123!' });
+    });
+
+    it('throws with server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(400, 'admin password confirmation required'));
+      await expect(deleteLabel(1, 1, 'wrong')).rejects.toThrow('admin password confirmation required');
     });
   });
 

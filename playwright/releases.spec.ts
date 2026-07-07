@@ -31,15 +31,16 @@ test.describe('Release Lifecycle', () => {
     await expect(page.locator(`.release-row:has-text("${name}")`)).toHaveCount(0);
   });
 
-  test('delete a release', async ({ page }) => {
+  test('delete a release', async ({ page, workerServer }) => {
     const name = `Del_${Date.now().toString().slice(-6)}`;
     await createRelease(page, { name });
 
     await page.locator(`.release-row:has-text("${name}") .release-card-left`).click();
     await expect(page.locator('#release-modal-overlay')).toBeVisible();
     await page.click('#release-modal-delete');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await waitForToast(page, 'Release deleted');
     await expect(page.locator('.release-row:has-text("' + name + '")')).toHaveCount(0);
   });
@@ -53,9 +54,9 @@ test.describe('Release Lifecycle', () => {
     await page.click('#release-modal-delete');
     // closeReleaseModal() is called before the confirm dialog appears, so the
     // release modal is already gone at this point.
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-cancel-btn');
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.click('#admin-confirm-cancel-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
     await expect(page.locator(`.release-row:has-text("${name}")`)).toBeVisible();
   });
 
@@ -224,7 +225,7 @@ test.describe('Release–Issue Association', () => {
     await page.click('#done-btn');
   });
 
-  test('issue keeps data after release deleted', async ({ page }) => {
+  test('issue keeps data after release deleted', async ({ page, workerServer }) => {
     const relName = `Orphan_${Date.now().toString().slice(-6)}`;
     await createRelease(page, { name: relName });
 
@@ -244,8 +245,9 @@ test.describe('Release–Issue Association', () => {
     await navigateTo(page, 'releases');
     await page.locator(`.release-row:has-text("${relName}") .release-card-left`).click();
     await page.click('#release-modal-delete');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
     await waitForToast(page, 'Release deleted');
 
     // Issue still exists on board with no release assigned

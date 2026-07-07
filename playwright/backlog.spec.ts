@@ -90,7 +90,7 @@ test.describe('Backlog View', () => {
     await expect(page.locator('#backlog-view')).toBeHidden();
   });
 
-  test('delete issue from backlog', async ({ page }) => {
+  test('delete issue from backlog', async ({ page, workerServer }) => {
     // Create issue with Open status (in backlog)
     await createIssue(page, { title: 'Backlog Delete Issue' });
 
@@ -104,13 +104,14 @@ test.describe('Backlog View', () => {
     await page.click('#backlog-list .card:has-text("Backlog Delete Issue")');
     await expect(page.locator('#issue-modal')).toBeVisible();
 
-    // Delete the issue
+    // Delete the issue — requires admin password confirmation
     await page.click('#delete-issue-btn');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
 
     // Wait for modals to close
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
     await expect(page.locator('#issue-modal')).toBeHidden();
 
     // Verify issue is removed from backlog

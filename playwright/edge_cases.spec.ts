@@ -16,14 +16,14 @@ test.describe('Edge Cases and Validation', () => {
     // Click delete button
     await page.click('#delete-issue-btn');
 
-    // Verify confirmation modal appears
-    await expect(page.locator('#confirm-modal')).toBeVisible();
+    // Verify admin password confirmation modal appears
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
 
     // Click cancel instead of confirm
-    await page.click('#confirm-cancel-btn');
+    await page.click('#admin-confirm-cancel-btn');
 
     // Verify confirmation modal closes
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
 
     // Close the issue modal
     await page.click('#done-btn');
@@ -73,19 +73,17 @@ test.describe('Edge Cases and Validation', () => {
     const labelItem = page.locator('#ps-labels-list .label-item:has-text("KeepLabel")');
     await labelItem.locator('.delete-label-btn').click();
 
-    // Check if confirmation modal appears
-    const confirmModal = page.locator('#confirm-modal');
-    if (await confirmModal.isVisible()) {
-      // Click cancel
-      await page.click('#confirm-cancel-btn');
-      await expect(confirmModal).toBeHidden();
-    }
+    // Deletion requires admin password confirmation — cancel instead
+    const adminConfirmModal = page.locator('#admin-confirm-modal');
+    await expect(adminConfirmModal).toBeVisible();
+    await page.click('#admin-confirm-cancel-btn');
+    await expect(adminConfirmModal).toBeHidden();
 
     // Verify label still exists
     await expect(page.locator('#ps-labels-list')).toContainText('KeepLabel');
   });
 
-  test('delete issue with tasks (cascading delete)', async ({ page }) => {
+  test('delete issue with tasks (cascading delete)', async ({ page, workerServer }) => {
     // Create an issue with multiple tasks
     await createIssue(page, { title: 'Issue With Tasks', status: 'Todo' });
 
@@ -106,20 +104,21 @@ test.describe('Edge Cases and Validation', () => {
     // Verify tasks exist
     await expect(page.locator('#task-list .task-item')).toHaveCount(3);
 
-    // Delete the issue
+    // Delete the issue — requires admin password confirmation
     await page.click('#delete-issue-btn');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
 
     // Wait for modals to close
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
     await expect(page.locator('#issue-modal')).toBeHidden();
 
     // Verify issue is gone
     await expect(page.locator('.board-card:has-text("Issue With Tasks")')).toHaveCount(0);
   });
 
-  test('delete label assigned to issues', async ({ page }) => {
+  test('delete label assigned to issues', async ({ page, workerServer }) => {
     // Create a label
     await navigateTo(page, 'project-settings');
     await page.fill('#ps-new-label-input', 'AssignedLabel');
@@ -135,15 +134,12 @@ test.describe('Edge Cases and Validation', () => {
     // Go back to project settings
     await navigateTo(page, 'project-settings');
 
-    // Delete the label
+    // Delete the label — requires admin password confirmation
     const labelItem = page.locator('#ps-labels-list .label-item:has-text("AssignedLabel")');
     await labelItem.locator('.delete-label-btn').click();
-
-    // Confirm deletion if modal appears
-    const confirmModal = page.locator('#confirm-modal');
-    if (await confirmModal.isVisible()) {
-      await page.click('#confirm-ok-btn');
-    }
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
 
     // Verify label is removed
     await expect(page.locator('#ps-labels-list')).not.toContainText('AssignedLabel');

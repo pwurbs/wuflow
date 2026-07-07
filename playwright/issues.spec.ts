@@ -88,9 +88,8 @@ test.describe('Issue CRUD Operations', () => {
     await expect(page.locator(`.column[data-status="Stage1"] .board-card:has-text("${title}")`)).toBeVisible();
   });
 
-  test('delete an issue', async ({ page }) => {
+  test('delete an issue', async ({ page, workerServer }) => {
     const title = `Issue to Delete ${Date.now()} `;
-    // Create an issue to delete
     // Create an issue to delete
     await createIssue(page, { title, status: 'Todo' });
 
@@ -101,12 +100,13 @@ test.describe('Issue CRUD Operations', () => {
     // Click delete button
     await page.click('#delete-issue-btn');
 
-    // Confirm deletion in the confirmation modal
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.click('#confirm-ok-btn');
+    // Deletion requires admin password confirmation
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
 
     // Wait for modals to close
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
     await expect(page.locator('#issue-modal')).toBeHidden();
 
     // Verify issue is gone

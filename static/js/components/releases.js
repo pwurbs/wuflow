@@ -1,6 +1,6 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchArchivedIssuesByProject, fetchOpenIssuesByProject, fetchActiveIssuesByProject, fetchReleases } from '../api.js';
 import { sortReleasesByDate } from '../list-utils.js';
-import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials } from '../utils.js';
+import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation } from '../utils.js';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
 import { state, setIssues, setReleases } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
@@ -480,22 +480,21 @@ function buildReleaseRow(rel, isOpen, allIssues) {
 }
 
 async function handleDeleteRelease(rel) {
-  const confirmed = await showConfirm(
+  const confirmed = await promptAdminPasswordConfirmation(
     'Delete Release',
-    `Delete release "${rel.name}"? Issues assigned to this release will keep their data but lose the release assignment.`
+    `Do you really want to delete release "${rel.name}"?\nIssues assigned to this release will keep their data but lose the release assignment. This removal is not recorded in the issue's history log.`,
+    async (adminPassword) => {
+      await deleteRelease(rel.project_id, rel.id, adminPassword);
+    },
+    'Delete'
   );
   if (!confirmed) return;
-  try {
-    await deleteRelease(rel.project_id, rel.id);
-    removeReleaseFromState(rel.id);
-    // Deleting cascades release_id = NULL onto its issues server-side.
-    await refreshIssuesAfterReleaseSideEffect();
-    showNotification('Release deleted', 'success');
-    updateReleaseFilterOptions(state.releases);
-    renderReleasesView(true);
-  } catch (err) {
-    showNotification(err.message || 'Failed to delete release', 'error');
-  }
+  removeReleaseFromState(rel.id);
+  // Deleting cascades release_id = NULL onto its issues server-side.
+  await refreshIssuesAfterReleaseSideEffect();
+  showNotification('Release deleted', 'success');
+  updateReleaseFilterOptions(state.releases);
+  renderReleasesView(true);
 }
 
 async function handleTriggerReleaseDialog(rel) {

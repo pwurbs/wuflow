@@ -1,5 +1,7 @@
 // Utility Functions
 
+import { state } from './state.js';
+
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -108,6 +110,83 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
 
     confirmOkBtn.addEventListener('click', handleOk);
     confirmCancelBtn.addEventListener('click', handleCancel);
+  });
+}
+
+// Shows the merged password re-confirmation dialog (title + consequence message +
+// password field) used by every admin-password-protected action (project delete,
+// user update, issue/release/label delete, move issue). onConfirm(password) is
+// called with the entered password when Confirm is clicked; it should perform the
+// actual protected action and throw (with a user-facing message) on failure. On
+// failure the dialog stays open and shows the error inline, letting the user retry
+// without re-triggering the whole flow. Resolves true once onConfirm succeeds, or
+// false if the user cancels.
+export function promptAdminPasswordConfirmation(title, message, onConfirm, okText = 'Confirm', okType = 'danger') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('admin-confirm-modal');
+    const titleEl = document.getElementById('admin-confirm-title');
+    const messageEl = document.getElementById('admin-confirm-message');
+    const input = document.getElementById('admin-confirm-password');
+    const errorDiv = document.getElementById('admin-confirm-error');
+    const okBtn = document.getElementById('admin-confirm-ok-btn');
+    const cancelBtn = document.getElementById('admin-confirm-cancel-btn');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    okBtn.textContent = okText;
+    okBtn.className = 'btn';
+    okBtn.classList.add(okType);
+
+    input.value = '';
+    const usernameField = document.getElementById('admin-confirm-username');
+    if (usernameField && state.currentUser) {
+      usernameField.value = state.currentUser.email || '';
+    }
+    errorDiv.textContent = '';
+    errorDiv.classList.add('hidden');
+    modal.classList.remove('hidden');
+    input.focus();
+
+    function cleanup() {
+      modal.classList.add('hidden');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKeydown);
+    }
+
+    async function onOk() {
+      if (!input.value) {
+        errorDiv.textContent = 'Password is required.';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+      errorDiv.classList.add('hidden');
+      okBtn.disabled = true;
+      try {
+        await onConfirm(input.value);
+        okBtn.disabled = false;
+        cleanup();
+        resolve(true);
+      } catch (err) {
+        okBtn.disabled = false;
+        errorDiv.textContent = err.message || 'Action failed.';
+        errorDiv.classList.remove('hidden');
+        input.focus();
+      }
+    }
+
+    function onCancel() {
+      cleanup();
+      resolve(false);
+    }
+
+    function onKeydown(e) {
+      if (e.key === 'Enter') onOk();
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKeydown);
   });
 }
 

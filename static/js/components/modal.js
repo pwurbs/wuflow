@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
@@ -520,15 +520,17 @@ async function handleIssueSubmit(e) {
 async function handleDeleteIssue() {
   if (!state.currentIssue) return;
   if (!userCan(state.currentUser, ACTION_DELETE_ISSUE)) return;
-  if (await showConfirm('Delete Issue', `Delete "${state.currentIssue.title}"?`, 'Delete')) {
-    try {
-      await deleteIssue(state.currentIssue.project_id, state.currentIssue.id);
-      closeModal();
-      showNotification('Issue deleted');
-    } catch (err) {
-      showNotification(err.message, 'error');
-    }
-  }
+  const confirmed = await promptAdminPasswordConfirmation(
+    'Delete Issue',
+    `Do you really want to delete "${state.currentIssue.title}"?\nThis permanently deletes the issue along with all of its tasks, comments, and activity history. This cannot be undone.`,
+    async (adminPassword) => {
+      await deleteIssue(state.currentIssue.project_id, state.currentIssue.id, adminPassword);
+    },
+    'Delete'
+  );
+  if (!confirmed) return;
+  closeModal();
+  showNotification('Issue deleted');
 }
 
 async function handleArchiveIssue() {
@@ -945,11 +947,14 @@ function setupSidebarImmediateSave() {
       const projectId = val ? Number.parseInt(val) : 1;
 
       if (state.currentIssue) {
-        const confirmed = await showConfirm(
+        let moveResult = null;
+        const confirmed = await promptAdminPasswordConfirmation(
           'Move Issue to another Project',
-          'Moving this issue will reset its label, release, and status. These fields are project-specific and cannot be preserved across projects. Do you want to continue?',
+          'Do you really want to move this issue to another project?\nIts label, release, and status will be reset, since these fields are project-specific and cannot be preserved across projects.',
+          async (adminPassword) => {
+            moveResult = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId, adminPassword);
+          },
           'Move Issue',
-          'Cancel',
           'primary'
         );
         if (!confirmed) {
@@ -957,25 +962,21 @@ function setupSidebarImmediateSave() {
           document.getElementById('project-text').textContent = state.currentIssue.project?.name ?? '';
           return;
         }
-        try {
-          const { issue: updated, etag } = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId);
-          currentEtag = etag;
-          setCurrentIssue(updated);
-          localStorage.setItem('wuflow_selectedProjectId', String(projectId));
-          // The project-option click already loaded label/release/statusconfig for the new
-          // project. Just reset the displayed values that the server cleared on move.
-          document.getElementById('label-select').value = '';
-          document.getElementById('label-text').textContent = 'No Label';
-          document.getElementById('release-select').value = '';
-          document.getElementById('release-text').textContent = 'No Release';
-          document.getElementById('status').value = STATUS_OPEN;
-          document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
-          document.getElementById('status-options')?.classList.add('hidden');
-          setupEditModal(updated);
-          showNotification('Project changed', 'info');
-        } catch (err) {
-          showNotification(err.message, 'error');
-        }
+        const { issue: updated, etag } = moveResult;
+        currentEtag = etag;
+        setCurrentIssue(updated);
+        localStorage.setItem('wuflow_selectedProjectId', String(projectId));
+        // The project-option click already loaded label/release/statusconfig for the new
+        // project. Just reset the displayed values that the server cleared on move.
+        document.getElementById('label-select').value = '';
+        document.getElementById('label-text').textContent = 'No Label';
+        document.getElementById('release-select').value = '';
+        document.getElementById('release-text').textContent = 'No Release';
+        document.getElementById('status').value = STATUS_OPEN;
+        document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
+        document.getElementById('status-options')?.classList.add('hidden');
+        setupEditModal(updated);
+        showNotification('Project changed', 'info');
       } else {
         localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       }

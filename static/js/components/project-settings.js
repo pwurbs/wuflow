@@ -1,5 +1,5 @@
 import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.js';
-import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor } from '../utils.js';
+import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation } from '../utils.js';
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.js';
 import { state, setStatusConfig } from '../state.js';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.js';
@@ -89,21 +89,18 @@ export async function renderProjectSettingsView() {
       if (deleteBtn) {
         deleteBtn.addEventListener('click', async () => {
           if (!userCan(state.currentUser, ACTION_DELETE_LABEL)) return;
-          const confirmed = await showConfirm(
+          const confirmed = await promptAdminPasswordConfirmation(
             'Delete Label',
-            `Are you sure you want to delete the label "${label.name}"? It will be removed from issues, if assigned. This action cannot be undone.`
+            `Do you really want to delete the label "${label.name}"?\nIt will be removed from issues, if assigned, but this removal is not recorded in the issue's history log. This action cannot be undone.`,
+            async (adminPassword) => {
+              await deleteLabel(projectId, label.id, adminPassword);
+            },
+            'Delete'
           );
-          if (confirmed) {
-            try {
-              await deleteLabel(projectId, label.id);
-              const labels = await renderProjectSettingsView();
-              updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
-              showNotification('Label deleted', 'success');
-            } catch (err) {
-              console.error(err);
-              showNotification('Failed to delete label', 'error');
-            }
-          }
+          if (!confirmed) return;
+          const labels = await renderProjectSettingsView();
+          updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
+          showNotification('Label deleted', 'success');
         });
       }
 
