@@ -93,15 +93,12 @@ test.describe('Edge Cases and Validation', () => {
     // Add multiple tasks
     await page.fill('#new-task-title', 'Task 1');
     await page.click('#add-task-btn');
-    await page.waitForTimeout(300);
+    await expect(page.locator('#task-list .task-item')).toHaveCount(1);
     await page.fill('#new-task-title', 'Task 2');
     await page.click('#add-task-btn');
-    await page.waitForTimeout(300);
+    await expect(page.locator('#task-list .task-item')).toHaveCount(2);
     await page.fill('#new-task-title', 'Task 3');
     await page.click('#add-task-btn');
-    await page.waitForTimeout(300);
-
-    // Verify tasks exist
     await expect(page.locator('#task-list .task-item')).toHaveCount(3);
 
     // Delete the issue — requires admin password confirmation
@@ -231,9 +228,8 @@ test.describe('Edge Cases and Validation', () => {
     // Don't fill the title, just try to save
     await page.click('#save-issue-btn');
 
-    // Modal should stay open (validation prevents save)
-    // Wait a bit to see if modal closes (it shouldn't)
-    await page.waitForTimeout(500);
+    // Modal should stay open (validation prevents save synchronously,
+    // before any network round-trip, so no wait is needed here)
     await expect(page.locator('#issue-modal')).toBeVisible();
   });
   test('drag outside of columns validation (cancellation)', async ({ page }) => {
@@ -252,14 +248,12 @@ test.describe('Edge Cases and Validation', () => {
     if (box) {
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.down();
-      // Drag up to the header area (y=10)
+      // Drag up to the header area (y=10), outside of any drop zone
       await page.mouse.move(box.x + box.width / 2, 10, { steps: 5 });
-      await page.waitForTimeout(100);
       await page.mouse.up();
+      // Wait for dragend to finish clearing drag state before asserting outcome
+      await expect(page.locator('body.is-dragging')).toHaveCount(0);
     }
-
-    // Give time for any potential (wrong) updates
-    await page.waitForTimeout(500);
 
     // Verify it is STILL in To-do
     await expect(page.locator('.column[data-status="Todo"] .board-card:has-text("Drag Cancel Test")')).toBeVisible();
