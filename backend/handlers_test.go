@@ -5107,6 +5107,38 @@ func TestHandleMoveIssueHappyPath(t *testing.T) {
 	}
 }
 
+func TestHandleMoveIssueArchivedIssue(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	proj2 := &Project{Name: "project2", Description: "second"}
+	if err := CreateProject(context.Background(), proj2); err != nil {
+		t.Fatal(err)
+	}
+
+	issue := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	adminHash, _ := HashPassword(testPassword)
+	CreateUser(context.Background(), &User{Email: testAssigneeEmail, PasswordHash: adminHash, Active: true, Role: RoleAdmin})
+
+	body, _ := json.Marshal(moveIssueRequest{NewProjectID: proj2.ID, AdminPassword: testPassword})
+	req := httptest.NewRequest("POST", apiIssues1Move, bytes.NewBuffer(body))
+	req = makeAdminCtx(req)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 moving an archived issue, got %d (%s)", rr.Code, rr.Body.String())
+	}
+	persisted, _ := GetIssueByID(context.Background(), issue.ID)
+	if persisted.ProjectID != 1 {
+		t.Errorf("archived issue should not have moved, got project_id %d", persisted.ProjectID)
+	}
+}
+
 func TestHandleMoveIssueRequiresAdminPassword(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()

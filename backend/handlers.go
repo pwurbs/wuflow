@@ -544,6 +544,11 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 		http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 		return
 	}
+	if current.Status == StatusArchive {
+		LogWarn("Attempted to move archived issue", "id", id, "user_email", userEmail)
+		http.Error(w, "Archived issues cannot be moved", http.StatusForbidden)
+		return
+	}
 
 	var req moveIssueRequest
 	if !decodeAndValidate(w, r, &req, func(r *moveIssueRequest) error {
@@ -952,13 +957,20 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request, _ int, issueID 
 // Unlike handlePutIssue, this does not check If-Match/ETag: concurrent edits to the same
 // comment are last-write-wins, the only conflict feedback being ErrCommentNotFound (404)
 // if the comment was deleted by someone else first. Known/intentional, not an oversight.
-func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, _ *Issue) {
+func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, issue *Issue) {
 	var c Comment
 	if !decodeAndValidate(w, r, &c, validateComment) {
 		return
 	}
 
 	userEmail := GetEmailFromContext(r.Context())
+
+	if issue.Status == StatusArchive {
+		LogWarn("Comment update failed: Issue archived", "id", id, "issue_id", issueID, "user_email", userEmail)
+		http.Error(w, "Comments of archived issues are read-only", http.StatusForbidden)
+		return
+	}
+
 	authorFilter := commentAuthorFilter(r)
 
 	if err := UpdateComment(r.Context(), id, issueID, authorFilter, c.Body); err != nil {
@@ -985,8 +997,15 @@ func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id
 }
 
 // handleDeleteComment removes a comment, with the same author/admin scope as edit.
-func handleDeleteComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, _ *Issue) {
+func handleDeleteComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, issue *Issue) {
 	userEmail := GetEmailFromContext(r.Context())
+
+	if issue.Status == StatusArchive {
+		LogWarn("Comment delete failed: Issue archived", "id", id, "issue_id", issueID, "user_email", userEmail)
+		http.Error(w, "Comments of archived issues cannot be deleted", http.StatusForbidden)
+		return
+	}
+
 	authorFilter := commentAuthorFilter(r)
 
 	if err := DeleteComment(r.Context(), id, issueID, authorFilter); err != nil {

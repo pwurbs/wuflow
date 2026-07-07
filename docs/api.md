@@ -31,15 +31,15 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/projects/:pId/issues/:id` | DELETE | `handleDeleteIssue` | Admin | Delete issue |
 | `/projects/:pId/issues/:id/archive` | POST | `handleArchiveIssue` | Admin | Archive an issue |
 | `/projects/:pId/issues/:id/unarchive` | POST | `handleUnarchiveIssue` | Admin | Unarchive an issue (moves to Done) |
-| `/projects/:pId/issues/:id/move` | POST | `handleMoveIssue` | Admin | Move issue to another project (resets label, release, status) |
+| `/projects/:pId/issues/:id/move` | POST | `handleMoveIssue` | Admin | Move issue to another project (non-archived only; resets label, release, status) |
 | `/projects/:pId/issues/:iId/tasks` | POST | `handleCreateTask` | Required | Create task under an issue |
 | `/projects/:pId/issues/:iId/tasks/:id` | PUT | `handlePutTask` | Required | Update task |
 | `/projects/:pId/issues/:iId/tasks/:id` | DELETE | `handleDeleteTask` | Required | Delete task |
 | `/projects/:pId/issues/:iId/history` | GET | `handleListHistory` | Required | List an issue's audit trail (oldest first) |
 | `/projects/:pId/issues/:iId/comments` | GET | `handleListComments` | Required | List an issue's comments (oldest first) |
 | `/projects/:pId/issues/:iId/comments` | POST | `handleCreateComment` | Required | Add a comment to a non-archived issue |
-| `/projects/:pId/issues/:iId/comments/:id` | PUT | `handlePutComment` | Required | Edit a comment (own only, unless Admin/Sysadmin) |
-| `/projects/:pId/issues/:iId/comments/:id` | DELETE | `handleDeleteComment` | Required | Delete a comment (own only, unless Admin/Sysadmin) |
+| `/projects/:pId/issues/:iId/comments/:id` | PUT | `handlePutComment` | Required | Edit a comment on a non-archived issue (own only, unless Admin/Sysadmin) |
+| `/projects/:pId/issues/:iId/comments/:id` | DELETE | `handleDeleteComment` | Required | Delete a comment from a non-archived issue (own only, unless Admin/Sysadmin) |
 | `/projects/:pId/labels` | GET | `handleListLabels` | Required | List labels for a project |
 | `/projects/:pId/labels` | POST | `handleCreateLabel` | Admin | Create label for a project |
 | `/projects/:pId/labels/:id` | DELETE | `handleDeleteLabel` | Admin | Delete label from a project |
@@ -305,7 +305,7 @@ Moves an archived issue back to Done status (Admin or Sysadmin).
   - `404 Not Found` - Issue doesn't exist in this project
 
 ### Move Issue
-Moves an issue to a different project (Admin or Sysadmin). Resets label, release, and status to Open.
+Moves a non-archived issue to a different project (Admin or Sysadmin). Resets label, release, and status to Open.
 - **POST** `/projects/:pId/issues/:id/move`
 - **Path parameters**: `pId` (current project), `id` (issue)
 - **Request body**:
@@ -318,7 +318,7 @@ Moves an issue to a different project (Admin or Sysadmin). Resets label, release
 - **Errors**:
   - `400 Bad Request` - `new_project_id` is missing, not a positive integer, equals the current project, or the target project does not exist; or `admin_password` missing/incorrect
   - `401 Unauthorized` - Not authenticated
-  - `403 Forbidden` - Not an admin or sysadmin
+  - `403 Forbidden` - Not an admin or sysadmin, or issue is archived
   - `404 Not Found` - Issue doesn't exist in this project
 
 ## Tasks
@@ -424,7 +424,7 @@ Adds a comment to a non-archived issue.
   - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
 
 ### Update Comment
-Edits a comment's body.
+Edits a comment's body on a non-archived issue.
 - **PUT** `/projects/:pId/issues/:iId/comments/:id`
 - **Path parameters**: `pId` (project), `iId` (issue), `id` (comment)
 - **Body**: same shape as Create Comment
@@ -432,15 +432,17 @@ Edits a comment's body.
 - **Errors**:
   - `400 Bad Request` - Body is empty or exceeds 500 characters
   - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Issue is archived
   - `404 Not Found` - Comment doesn't exist under this `iId`, or belongs to another user (Admin/Sysadmin may edit any comment; a regular user gets `404` rather than `403` for a comment they don't own — indistinguishable from "not found")
 
 ### Delete Comment
-Deletes a comment.
+Deletes a comment from a non-archived issue.
 - **DELETE** `/projects/:pId/issues/:iId/comments/:id`
 - **Path parameters**: `pId` (project), `iId` (issue), `id` (comment)
 - **Response**: `204 No Content`
 - **Errors**:
   - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Issue is archived
   - `404 Not Found` - Comment doesn't exist under this `iId`, or belongs to another user (Admin/Sysadmin may delete any comment)
 
 ## Labels

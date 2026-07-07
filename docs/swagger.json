@@ -1386,7 +1386,7 @@
         }
       ],
       "post": {
-        "summary": "Move an issue to a different project",
+        "summary": "Move a non-archived issue to a different project",
         "description": "Requires admin or sysadmin role. Moves the issue to the specified target project and resets label, release, and status to Open.",
         "x-required-role": "admin",
         "tags": ["Issues"],
@@ -1429,7 +1429,7 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden - not an admin or sysadmin"
+            "description": "Forbidden - not an admin or sysadmin, or issue is archived"
           },
           "404": {
             "description": "Issue not found in this project"
@@ -1741,7 +1741,7 @@
         }
       ],
       "put": {
-        "summary": "Edit a comment (own only, unless Admin/Sysadmin)",
+        "summary": "Edit a comment on a non-archived issue (own only, unless Admin/Sysadmin)",
         "tags": ["Comments"],
         "requestBody": {
           "required": true,
@@ -1770,13 +1770,16 @@
           "401": {
             "description": "Unauthorized"
           },
+          "403": {
+            "description": "Forbidden - issue is archived"
+          },
           "404": {
             "description": "Comment not under this issue, or not owned by the requester (Admin/Sysadmin may edit any comment)"
           }
         }
       },
       "delete": {
-        "summary": "Delete a comment (own only, unless Admin/Sysadmin)",
+        "summary": "Delete a comment from a non-archived issue (own only, unless Admin/Sysadmin)",
         "tags": ["Comments"],
         "responses": {
           "204": {
@@ -1784,6 +1787,9 @@
           },
           "401": {
             "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - issue is archived"
           },
           "404": {
             "description": "Comment not under this issue, or not owned by the requester (Admin/Sysadmin may delete any comment)"

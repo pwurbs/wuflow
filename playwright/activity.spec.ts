@@ -94,6 +94,62 @@ test.describe('Issue Activity (History + Comments)', () => {
     await expect(page.locator('#history-list')).toBeVisible();
   });
 
+  test('comment creation, editing and deletion are blocked via API on archived issues', async ({ page }) => {
+    await createIssue(page, { title: 'Comment API Archived Issue', status: 'Todo' });
+    await openIssueByTitle(page, 'Comment API Archived Issue');
+
+    // Add a comment before archiving, so there's one to try to edit/delete afterwards.
+    await page.fill('#new-comment-body', 'Pre-archive comment');
+    await page.click('#add-comment-btn');
+    await waitForToast(page, 'Comment added');
+    const issueId = await page.inputValue('#issue-id');
+    const commentId = await page.evaluate(async (id) => {
+      const resp = await fetch(`/api/projects/1/issues/${id}/comments`);
+      const comments = await resp.json();
+      return comments[0].id;
+    }, issueId);
+
+    // Archive closes the modal; reopen from the Archive view.
+    await page.click('#archive-issue-btn');
+    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+    await navigateTo(page, 'archive');
+    await page.click('.card:has-text("Comment API Archived Issue")');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    const statuses = await page.evaluate(
+      async ({ issueId, commentId }) => {
+        const create = await fetch(`/api/projects/1/issues/${issueId}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: 'Should not be allowed' }),
+        });
+        const edit = await fetch(`/api/projects/1/issues/${issueId}/comments/${commentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: 'Should not be editable' }),
+        });
+        const del = await fetch(`/api/projects/1/issues/${issueId}/comments/${commentId}`, {
+          method: 'DELETE',
+        });
+        return { create: create.status, edit: edit.status, del: del.status };
+      },
+      { issueId, commentId }
+    );
+
+    expect(statuses.create).toBe(403);
+    expect(statuses.edit).toBe(403);
+    expect(statuses.del).toBe(403);
+
+    // The original comment survives untouched.
+    const comments = await page.evaluate(async (id) => {
+      const resp = await fetch(`/api/projects/1/issues/${id}/comments`);
+      return resp.json();
+    }, issueId);
+    expect(comments).toHaveLength(1);
+    expect(comments[0].body).toBe('Pre-archive comment');
+  });
+
   test('history records creation, edits, task changes, and archive/unarchive oldest-first', async ({ page }) => {
     const title = 'Activity History Issue';
     const renamed = 'Activity History Issue Renamed';

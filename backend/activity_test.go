@@ -113,6 +113,61 @@ func TestHandleCreateCommentArchivedIssue(t *testing.T) {
 	}
 }
 
+func TestHandleUpdateCommentArchivedIssue(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	author := &User{Email: "a@test.com", FirstName: "A", LastName: "B", PasswordHash: "h", Role: RoleUser, Active: true}
+	CreateUser(context.Background(), author)
+	issue := &Issue{Title: "Archived", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(context.Background(), issue)
+	c := &Comment{IssueID: issue.ID, UserID: &author.ID, Body: "orig"}
+	CreateComment(context.Background(), c)
+	issue.Status = StatusArchive
+	if err := UpdateIssue(context.Background(), issue); err != nil {
+		t.Fatalf("UpdateIssue: %v", err)
+	}
+
+	body, _ := json.Marshal(Comment{Body: "edited"})
+	req := ctxUser(httptest.NewRequest("PUT", "/api/projects/1/issues/1/comments/1", bytes.NewBuffer(body)), RoleUser, author.ID)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403 editing a comment on an archived issue, got %d (%s)", rr.Code, rr.Body.String())
+	}
+	comments, _ := GetCommentsByIssueID(context.Background(), issue.ID)
+	if comments[0].Body != "orig" {
+		t.Errorf("comment should be unchanged, got %q", comments[0].Body)
+	}
+}
+
+func TestHandleDeleteCommentArchivedIssue(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	author := &User{Email: "a@test.com", FirstName: "A", LastName: "B", PasswordHash: "h", Role: RoleUser, Active: true}
+	CreateUser(context.Background(), author)
+	issue := &Issue{Title: "Archived", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(context.Background(), issue)
+	c := &Comment{IssueID: issue.ID, UserID: &author.ID, Body: "orig"}
+	CreateComment(context.Background(), c)
+	issue.Status = StatusArchive
+	if err := UpdateIssue(context.Background(), issue); err != nil {
+		t.Fatalf("UpdateIssue: %v", err)
+	}
+
+	req := ctxUser(httptest.NewRequest("DELETE", "/api/projects/1/issues/1/comments/1", nil), RoleUser, author.ID)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403 deleting a comment on an archived issue, got %d (%s)", rr.Code, rr.Body.String())
+	}
+	comments, _ := GetCommentsByIssueID(context.Background(), issue.ID)
+	if len(comments) != 1 {
+		t.Errorf("comment should still exist, got %d", len(comments))
+	}
+}
+
 func TestHandleListCommentsOldestFirst(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
