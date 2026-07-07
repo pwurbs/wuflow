@@ -83,6 +83,12 @@ var rolePermissions = map[Action][]UserRole{
 	// Tasks
 	ActionCreateTask: {RoleSysAdmin, RoleAdmin, RoleUser},
 	ActionUpdateTask: {RoleSysAdmin, RoleAdmin, RoleUser},
+	// TODO: ActionDeleteTask currently has no ownership scoping — any RoleUser
+	// may delete any task on any issue. Consider restricting this to the
+	// parent issue's assignee (plus RoleAdmin/RoleSysAdmin), mirroring the
+	// comment own-vs-any split below. Would reuse the same centralized
+	// ownership-decision helper described in the TO-DO on commentAuthorFilter
+	// in handlers.go.
 	ActionDeleteTask: {RoleSysAdmin, RoleAdmin, RoleUser},
 
 	// Issue history (read-only; append-only writes bypass the permission layer)

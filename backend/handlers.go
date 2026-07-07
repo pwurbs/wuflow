@@ -997,6 +997,16 @@ func handleDeleteComment(w http.ResponseWriter, r *http.Request, _ int, issueID,
 
 // commentAuthorFilter returns nil for admins/sysadmins (may act on any comment) or
 // a pointer to the requester's user ID for regular users (own comments only).
+//
+// TODO: this own-vs-any decision is ad hoc — it's not expressed through the
+// central Can() policy in permissions.go, and enforcement happens implicitly
+// via the conditional "AND user_id = ?" folded into UpdateComment/DeleteComment
+// in db.go (which also means a non-owner's attempt currently surfaces as 404,
+// not 403, since the ownership filter shares its SQL predicate with the
+// existence check). Consider extracting a single reusable ownership-decision
+// helper (e.g. CanActOnOwned(role, actorID, ownerID *int) bool) alongside
+// Can() in permissions.go, used both here and for the task-delete ownership
+// scoping described in the ActionDeleteTask TO-DO in permissions.go.
 func commentAuthorFilter(r *http.Request) *int {
 	if isCommentModerator(GetRoleFromContext(r.Context())) {
 		return nil
