@@ -834,16 +834,12 @@ func GetHistoryByIssueID(ctx context.Context, issueID int) ([]HistoryEntry, erro
 	for rows.Next() {
 		var h HistoryEntry
 		var dataJSON string
-		u, uid, uEmail, uFirst, uLast := sql.NullInt64{}, sql.NullInt64{}, sql.NullString{}, sql.NullString{}, sql.NullString{}
-		if err := rows.Scan(&h.ID, &h.IssueID, &u, &h.Event, &dataJSON, &h.CreatedAt, &uid, &uEmail, &uFirst, &uLast); err != nil {
+		dest, finish := activityActorScanDest()
+		if err := rows.Scan(&h.ID, &h.IssueID, dest[0], &h.Event, &dataJSON, &h.CreatedAt, dest[1], dest[2], dest[3], dest[4]); err != nil {
 			LogError("Database Error: GetHistoryByIssueID Scan", "error", err)
 			return nil, err
 		}
-		if u.Valid {
-			id := int(u.Int64)
-			h.UserID = &id
-		}
-		h.User = hydrateActivityUser(uid, uEmail, uFirst, uLast)
+		h.UserID, h.User = finish()
 		if err := json.Unmarshal([]byte(dataJSON), &h.Data); err != nil {
 			LogError("Database Error: GetHistoryByIssueID Unmarshal", "error", err)
 			return nil, err
@@ -865,6 +861,23 @@ func hydrateActivityUser(id sql.NullInt64, email, first, last sql.NullString) *U
 		FirstName: first.String,
 		LastName:  last.String,
 	}
+}
+
+// activityActorScanDest returns scan destinations for a row's own user_id column
+// plus the joined activityUserCols, and a finish func that resolves them into a
+// *int (own user_id, nil when NULL) and a hydrated *User (nil for a deleted user).
+func activityActorScanDest() (dest []any, finish func() (*int, *User)) {
+	u, uid, uEmail, uFirst, uLast := sql.NullInt64{}, sql.NullInt64{}, sql.NullString{}, sql.NullString{}, sql.NullString{}
+	dest = []any{&u, &uid, &uEmail, &uFirst, &uLast}
+	finish = func() (*int, *User) {
+		var userID *int
+		if u.Valid {
+			id := int(u.Int64)
+			userID = &id
+		}
+		return userID, hydrateActivityUser(uid, uEmail, uFirst, uLast)
+	}
+	return dest, finish
 }
 
 // CreateComment inserts a new user comment on an issue.
@@ -903,16 +916,12 @@ func GetCommentsByIssueID(ctx context.Context, issueID int) ([]Comment, error) {
 	comments := []Comment{}
 	for rows.Next() {
 		var c Comment
-		u, uid, uEmail, uFirst, uLast := sql.NullInt64{}, sql.NullInt64{}, sql.NullString{}, sql.NullString{}, sql.NullString{}
-		if err := rows.Scan(&c.ID, &c.IssueID, &u, &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, &uid, &uEmail, &uFirst, &uLast); err != nil {
+		dest, finish := activityActorScanDest()
+		if err := rows.Scan(&c.ID, &c.IssueID, dest[0], &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, dest[1], dest[2], dest[3], dest[4]); err != nil {
 			LogError("Database Error: GetCommentsByIssueID Scan", "error", err)
 			return nil, err
 		}
-		if u.Valid {
-			id := int(u.Int64)
-			c.UserID = &id
-		}
-		c.User = hydrateActivityUser(uid, uEmail, uFirst, uLast)
+		c.UserID, c.User = finish()
 		comments = append(comments, c)
 	}
 	return comments, rows.Err()
@@ -926,8 +935,8 @@ func GetCommentByID(ctx context.Context, id, issueID int) (*Comment, error) {
 			" FROM issue_comments t "+activityUserJoin+
 			" WHERE t.id = ? AND t.issue_id = ?", id, issueID)
 	var c Comment
-	u, uid, uEmail, uFirst, uLast := sql.NullInt64{}, sql.NullInt64{}, sql.NullString{}, sql.NullString{}, sql.NullString{}
-	err := row.Scan(&c.ID, &c.IssueID, &u, &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, &uid, &uEmail, &uFirst, &uLast)
+	dest, finish := activityActorScanDest()
+	err := row.Scan(&c.ID, &c.IssueID, dest[0], &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, dest[1], dest[2], dest[3], dest[4])
 	if err == sql.ErrNoRows {
 		return nil, ErrCommentNotFound
 	}
@@ -935,11 +944,7 @@ func GetCommentByID(ctx context.Context, id, issueID int) (*Comment, error) {
 		LogError("Database Error: GetCommentByID", "error", err)
 		return nil, err
 	}
-	if u.Valid {
-		uidInt := int(u.Int64)
-		c.UserID = &uidInt
-	}
-	c.User = hydrateActivityUser(uid, uEmail, uFirst, uLast)
+	c.UserID, c.User = finish()
 	return &c, nil
 }
 

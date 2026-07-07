@@ -577,6 +577,7 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 	moved.ProjectID = req.NewProjectID
 	moved.Label = nil
 	moved.ReleaseID = nil
+	moved.Release = nil
 	moved.Status = StatusOpen
 	moved.UpdaterID = &updaterID
 
@@ -593,9 +594,11 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 	recordHistory(r.Context(), id, updaterID, EventMoved, ChangeData{Field: "project", From: fromProjectName, To: newProject.Name})
 
 	LogInfo("Issue moved", "id", id, "from_project_id", projectID, "to_project_id", req.NewProjectID, "user_email", userEmail)
-	// respondWithUpdatedIssue uses GetIssueByID (not project-scoped), so it
-	// correctly retrieves the issue from its new project after the move.
-	respondWithUpdatedIssue(r.Context(), w, id, "", userEmail)
+	// moved is already fully hydrated except for Project (which pointed at the
+	// old project via current) — hydrate it from newProject and respond with
+	// moved directly instead of re-fetching via GetIssueByID.
+	moved.Project = newProject
+	respondWithIssue(w, &moved, "", userEmail)
 }
 
 // issueContentHash serializes all meaningful issue fields into a comparable string.
@@ -718,8 +721,12 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	if !persistIssueUpdate(r.Context(), w, &i, current, userEmail) {
 		return
 	}
-	recordIssueEditHistory(r.Context(), current, id, updaterID)
-	respondWithUpdatedIssue(r.Context(), w, id, "Issue updated", userEmail)
+	updated := recordIssueEditHistory(r.Context(), current, id, updaterID)
+	if updated == nil {
+		respondWithUpdatedIssue(r.Context(), w, id, "Issue updated", userEmail)
+		return
+	}
+	respondWithIssue(w, updated, "Issue updated", userEmail)
 }
 
 // checkIfMatchConflict verifies if the client's If-Match header matches the current issue's ETag.
@@ -1693,16 +1700,22 @@ func respondWithUpdatedIssue(ctx context.Context, w http.ResponseWriter, id int,
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
+	respondWithIssue(w, updated, actionLog, userEmail)
+}
 
+// respondWithIssue sets ETag, logs the action, and writes the JSON response for an
+// already-loaded issue — use this over respondWithUpdatedIssue when the caller
+// already has a fully hydrated *Issue in hand, to avoid a redundant DB fetch.
+func respondWithIssue(w http.ResponseWriter, issue *Issue, actionLog, userEmail string) {
 	if actionLog != "" {
-		LogInfo(actionLog, "id", id, "user_email", userEmail)
+		LogInfo(actionLog, "id", issue.ID, "user_email", userEmail)
 	}
 
-	w.Header().Set("ETag", formatETag(updated.UpdatedAt))
+	w.Header().Set("ETag", formatETag(issue.UpdatedAt))
 	w.Header().Set(headerContentType, contentTypeJSON)
 
-	if err := json.NewEncoder(w).Encode(updated); err != nil {
-		LogError("Failed to encode response", "id", id, "error", err, "user_email", userEmail)
+	if err := json.NewEncoder(w).Encode(issue); err != nil {
+		LogError("Failed to encode response", "id", issue.ID, "error", err, "user_email", userEmail)
 	}
 }
 

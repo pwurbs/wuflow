@@ -143,6 +143,23 @@ function authorName(user) {
   return name || user.email || 'Unknown user';
 }
 
+// buildAvatarBadge/buildAuthorSpan are shared by renderComments and renderHistory
+// so the same initials/title/name logic isn't duplicated per list.
+function buildAvatarBadge(user) {
+  const badge = document.createElement('div');
+  badge.className = 'user-badge';
+  badge.textContent = getUserInitials(user);
+  badge.title = authorName(user);
+  return badge;
+}
+
+function buildAuthorSpan(user, className) {
+  const author = document.createElement('span');
+  author.className = className;
+  author.textContent = authorName(user);
+  return author;
+}
+
 function renderComments(container) {
   if (!container) return;
   container.innerHTML = '';
@@ -166,17 +183,11 @@ function renderComments(container) {
     const header = document.createElement('div');
     header.className = 'comment-header';
 
-    const badge = document.createElement('div');
-    badge.className = 'user-badge';
-    badge.textContent = getUserInitials(comment.user);
-    badge.title = authorName(comment.user);
-    header.appendChild(badge);
+    header.appendChild(buildAvatarBadge(comment.user));
 
     const meta = document.createElement('div');
     meta.className = 'comment-meta';
-    const author = document.createElement('span');
-    author.className = 'comment-author';
-    author.textContent = authorName(comment.user);
+    const author = buildAuthorSpan(comment.user, 'comment-author');
     const time = document.createElement('span');
     time.className = 'comment-time';
     time.textContent = comment.edited
@@ -456,15 +467,8 @@ function renderHistory(container) {
 
     const meta = document.createElement('div');
     meta.className = 'history-meta';
-    const badge = document.createElement('div');
-    badge.className = 'user-badge';
-    badge.textContent = getUserInitials(entry.user);
-    badge.title = authorName(entry.user);
-    meta.appendChild(badge);
-    const who = document.createElement('span');
-    who.className = 'history-author';
-    who.textContent = authorName(entry.user);
-    meta.appendChild(who);
+    meta.appendChild(buildAvatarBadge(entry.user));
+    meta.appendChild(buildAuthorSpan(entry.user, 'history-author'));
     const time = document.createElement('span');
     time.className = 'history-time';
     time.textContent = formatDateTime(entry.created_at);

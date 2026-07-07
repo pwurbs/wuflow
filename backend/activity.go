@@ -31,15 +31,17 @@ func isCommentModerator(role UserRole) bool {
 
 // recordIssueEditHistory records one EventUpdated entry per changed field by
 // diffing the pre-update issue against the freshly persisted one. Both are fully
-// hydrated (label/assignee/release) so from/to values are human-readable.
-func recordIssueEditHistory(ctx context.Context, old *Issue, issueID, userID int) {
+// hydrated (label/assignee/release) so from/to values are human-readable. Returns
+// the freshly-fetched issue so callers can reuse it instead of re-fetching.
+func recordIssueEditHistory(ctx context.Context, old *Issue, issueID, userID int) *Issue {
 	updated, err := GetIssueByID(ctx, issueID)
 	if err != nil || updated == nil {
-		return
+		return nil
 	}
 	for _, d := range diffIssueFields(old, updated) {
 		recordHistory(ctx, issueID, userID, EventUpdated, d)
 	}
+	return updated
 }
 
 // diffIssueFields returns a ChangeData per changed field. Title and description
