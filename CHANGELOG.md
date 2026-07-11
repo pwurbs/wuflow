@@ -6,6 +6,9 @@
 - Removed the now obsolete Created/Updated timestamp block and optimized scrolling behavior in the issue details view
 - Added a scroll indicator to the issue modal's main column to hint when there is more content below the fold
 - Extended the admin password legitimation step to Delete Issue, Delete Release, Delete Label and Move Issue, and improved the confirmation dialogs
+- Bumped marked to 18.0.6
+- Bumped Go to 1.25.12
+- Bumped direct Go package dependency x/crypto
 
 # 1.3.3
 
@@ -36,7 +39,7 @@
 # 1.3.1
 
 - Bumped Go to 1.25.11
-- Bumped direct Go package dependencies go-sqlite3 and x/crypto 
+- Bumped direct Go package dependencies go-sqlite3 and x/crypto
 - Bumped dompurify to 3.4.8
 - Bumped marked to 18.0.5
 - Bumped vitest and playwright packages

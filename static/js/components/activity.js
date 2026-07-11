@@ -5,7 +5,7 @@ import { getStatusLabel } from '../status-config.js';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.js';
 import { state } from '../state.js';
 
-const MAX_COMMENT_LENGTH = 500;
+const MAX_COMMENT_LENGTH = 1000;
 
 // Module-level context so tab switching and post-CRUD re-renders don't need to
 // re-fetch the whole issue. Mirrors the closure style used by renderTasks.

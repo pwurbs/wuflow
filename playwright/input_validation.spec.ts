@@ -12,6 +12,7 @@ import { createIssue, openIssueByTitle, navigateTo, selectStatus } from './helpe
  *   Issue Description: 5 000 characters (rune count)
  *   Task Title       : 100 characters (rune count)
  *   Label Name       : 15 characters (rune count)
+ *   Comment          : 1 000 characters (rune count)
  *   User First/Last  : 50 characters each (rune count)
  *   User Password    : max 128 characters (rune count)
  *   User Email       : max 254 bytes (RFC 5321)
@@ -144,6 +145,32 @@ test.describe('Validation limits – Label', () => {
     await page.press('#ps-new-label-input', 'Enter');
 
     await expectMainError(page, 'Label name must not exceed 15 characters');
+  });
+});
+
+// ─── Validation limits — Comment ─────────────────────────────────────────────
+
+test.describe('Validation limits – Comment', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+  });
+
+  test('comment exceeding 1000 characters is rejected', async ({ page }) => {
+    const title = `Comment Limit Test ${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    // Focus first so initCharCounter fires on the empty value, then bypass
+    // maxlength to test the JS/backend validation backstop.
+    await page.focus('#new-comment-body');
+    await page.evaluate(() => {
+      (document.getElementById('new-comment-body') as HTMLTextAreaElement).value = 'a'.repeat(1001);
+    });
+    await page.click('#add-comment-btn');
+
+    await expectMainError(page, 'comment must not exceed 1000 characters');
+    // Comment was not created – comment list should still show the empty state
+    await expect(page.locator('#comment-list li.activity-empty')).toBeVisible();
   });
 });
 

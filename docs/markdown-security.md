@@ -61,7 +61,7 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 
 ## Testing Scenarios
 
-Copy and paste the sections below (snippets within markdown code blocks) into an Issue description field or a comment box to visually verify that rendering and security policies are applied correctly. Both fields render through the same `renderMarkdown()` + DOMPurify pipeline, so a scenario that passes for one passes for the other — note the comment box has a much shorter length limit (500 characters, see [Input Validation](input-validation.md)), so a couple of the larger snippets below may need trimming to fit.
+Copy and paste the sections below (snippets within markdown code blocks) into an Issue description field or a comment box to visually verify that rendering and security policies are applied correctly. Both fields render through the same `renderMarkdown()` + DOMPurify pipeline, so a scenario that passes for one passes for the other — note the comment box has a much shorter length limit (1000 characters, see [Input Validation](input-validation.md)), so a couple of the larger snippets below may need trimming to fit.
 
 ### 🟢 1. Standard Markdown
 Tests basic formatting, headers, lists, code blocks, and links.

@@ -365,7 +365,7 @@ describe('Activity Component', () => {
     document.querySelector('.comment-edit-btn').click();
 
     const textarea = document.querySelector('.comment-edit-input');
-    expect(utils.initCharCounter).toHaveBeenCalledWith(textarea, 500, { manual: true });
+    expect(utils.initCharCounter).toHaveBeenCalledWith(textarea, 1000, { manual: true });
     const result = utils.initCharCounter.mock.results.at(-1).value;
     expect(result.show).toHaveBeenCalled();
   });

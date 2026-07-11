@@ -27,7 +27,7 @@ const (
 	MaxReleaseNameLen     = 20
 	MaxReleaseDescLen     = 200
 	MaxPlannedDates       = 100
-	MaxCommentLength      = 500
+	MaxCommentLength      = 1000
 )
 
 // Validation errors

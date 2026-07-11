@@ -413,12 +413,12 @@ Adds a comment to a non-archived issue.
 - **Body**:
   ```json
   {
-    "body": "Looks good **overall** — see the checklist below" // Markdown; max 500 characters
+    "body": "Looks good **overall** — see the checklist below" // Markdown; max 1000 characters
   }
   ```
 - **Response**: Created comment object (201 Created)
 - **Errors**:
-  - `400 Bad Request` - Body is empty or exceeds 500 characters
+  - `400 Bad Request` - Body is empty or exceeds 1000 characters
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Issue is archived
   - `404 Not Found` - Project or issue doesn't exist (or issue isn't in this project)
@@ -430,7 +430,7 @@ Edits a comment's body on a non-archived issue.
 - **Body**: same shape as Create Comment
 - **Response**: Updated comment object
 - **Errors**:
-  - `400 Bad Request` - Body is empty or exceeds 500 characters
+  - `400 Bad Request` - Body is empty or exceeds 1000 characters
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Issue is archived
   - `404 Not Found` - Comment doesn't exist under this `iId`, or belongs to another user (Admin/Sysadmin may edit any comment; a regular user gets `404` rather than `403` for a comment they don't own — indistinguishable from "not found")

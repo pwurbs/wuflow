@@ -269,7 +269,7 @@ func FuzzValidateComment(f *testing.F) {
 	// Whitespace trimming
 	f.Add("  Trimmed comment  ")
 
-	// Length bounds testing (MaxCommentLength = 500)
+	// Length bounds testing (MaxCommentLength = 1000)
 	f.Add(strings.Repeat("x", MaxCommentLength+1))
 
 	f.Fuzz(func(t *testing.T, body string) {
