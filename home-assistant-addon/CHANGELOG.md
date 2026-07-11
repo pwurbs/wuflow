@@ -5,6 +5,10 @@
 - Fixed the card context menu occasionally closing itself right after opening on a card that needed scrolling into view
 - Removed the now obsolete Created/Updated timestamp block and optimized scrolling behavior in the issue details view
 - Added a scroll indicator to the issue modal's main column to hint when there is more content below the fold
+- Extended the admin password legitimation step to Delete Issue, Delete Release, Delete Label and Move Issue, and improved the confirmation dialogs
+- Bumped marked to 18.0.6
+- Bumped Go to 1.25.12
+- Bumped direct Go package dependency x/crypto
 
 # 1.3.3
 

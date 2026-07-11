@@ -1,5 +1,5 @@
 image:
-  tag: "1.4.0-pre3"
+  tag: "1.4.0"
 
 ingress:
   host: wuflow.pwurbs.dev
