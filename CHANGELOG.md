@@ -5,6 +5,7 @@
 - Bumped dompurify to 3.4.13
 - Bumped marked to 18.0.9
 - Bumped vitest and playwright packages
+- Bumped direct Go package dependencies go-sqlite3 and x/crypto
 
 # 1.4.0
 
