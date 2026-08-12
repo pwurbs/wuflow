@@ -1682,9 +1682,7 @@ func checkLastSysAdminProtection(ctx context.Context, existing *User, newRole Us
 				return errAdminCheckDB
 			}
 			if sysAdminCount <= 1 {
-				// Capitalised on purpose: this string is returned verbatim to the
-				// client (see UpdateUser -> http.Error) and shown in the UI.
-				//nolint:staticcheck // ST1005: user-facing message, not a wrapped error
+				//nolint:staticcheck // ST1005: capitalised on purpose — returned verbatim to the client (handleUpdateUser -> http.Error) and shown in the UI
 				return errors.New("Cannot deactivate or demote the last active system administrator")
 			}
 		}

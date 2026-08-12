@@ -6,17 +6,17 @@ run:
   timeout: 5m
 
 linters:
+  # 'standard' already provides errcheck, govet, ineffassign, staticcheck and
+  # unused; everything below is strictly additional.
   default: standard
   enable:
     - bodyclose
     - durationcheck
-    - errcheck
     - errorlint
     - exhaustive
     - forcetypeassert
     - gocritic
     - gosec
-    - ineffassign
     - misspell
     - musttag
     - nilerr
@@ -27,7 +27,6 @@ linters:
     - unconvert
     - unparam
     - unqueryvet
-    - unused
   settings:
     exhaustive:
       # A default clause that handles unlisted values counts as exhaustive.
@@ -47,7 +46,6 @@ linters:
         linters:
           - errcheck
           - gosec
-          - errorlint
       # //NOSONAR markers must stay unspaced or SonarQube stops recognising them.
       - source: //NOSONAR
         linters:
@@ -64,6 +62,7 @@ issues:
   max-same-issues: 0
 
 formatters:
+  # goimports is a superset of gofmt (it applies the same formatting and also
+  # fixes imports), so gofmt is not listed separately.
   enable:
-    - gofmt
     - goimports

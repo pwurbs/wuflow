@@ -9,6 +9,7 @@
 | **End-to-End** | Essential User Journeys | `playwright` | No |
 | **Go Fuzzing** | Edge Cases, Input Validation | `go test -fuzz` | No |
 | **SAST (Go)** | Static security analysis | `gosec` | Yes |
+| **Linting (Go)** | Static analysis, correctness, style | `golangci-lint` | No |
 | **Vulnerability Scan** | Security vulnerabilities | `wapiti` | No |
 | **Image Scanning** | Container security | `trivy` | No |
 

@@ -80,13 +80,15 @@ A shell script to automate the versioning process for wuFlow and its Home Assist
 The script uses `osascript` to trigger macOS dialog boxes for input, so it must be run on a macOS environment.
 
 ### `go_checks.sh`
-Runs the Go static-analysis and security checks used by the "Go Checks" VS Code task: `gosec` (sonarqube report + console output), `go vet`, `govulncheck`, and `gopls check`. Each command's output is preceded by a banner so results are easy to scan in the console.
+Runs the Go static-analysis and security checks used by the "Go Checks" VS Code task: `gosec` (sonarqube report), `golangci-lint run`, `golangci-lint fmt --diff`, and `govulncheck`. Each command's output is preceded by a banner so results are easy to scan in the console.
 
 **Usage:**
 ```bash
 ./scripts/go_checks.sh
 ```
-The script expects `gosec`, `go`, `govulncheck`, and `gopls` to be available in your PATH.
+The script expects `gosec`, `go`, `golangci-lint` (v2), and `govulncheck` to be available in your PATH. `golangci-lint` is configured by [`.golangci.yml`](../.golangci.yml) in the repo root.
+
+Every check runs even if an earlier one fails, so a single pass reports all problems. The script then prints a summary and exits `1` if any check failed (`0` only when all pass), which is what turns the "Go Checks" task red.
 
 ### `diff_coverage.sh`
 Calculates and visualizes code coverage changes compared to the `main` branch for both Go (backend) and Vitest (frontend). It generates a combined HTML report showing which new or modified lines are covered by tests.

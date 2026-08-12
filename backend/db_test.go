@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -774,14 +775,14 @@ func TestSessionNotFound(t *testing.T) {
 
 	// Update non-existent
 	err := UpdateSession(context.Background(), &Session{ID: 999, TokenHash: "h", ExpiresAt: time.Now()})
-	if err == nil || err.Error() != "session not found" {
-		t.Errorf("expected 'session not found' error, got %v", err)
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Errorf("expected ErrSessionNotFound, got %v", err)
 	}
 
 	// Delete non-existent
 	err = DeleteSession(context.Background(), 999)
-	if err == nil || err.Error() != "session not found" {
-		t.Errorf("expected 'session not found' error, got %v", err)
+	if !errors.Is(err, ErrSessionNotFound) {
+		t.Errorf("expected ErrSessionNotFound, got %v", err)
 	}
 }
 
@@ -1262,7 +1263,7 @@ func TestProjectErrors(t *testing.T) {
 	CreateProject(context.Background(), p1)
 	p2 := &Project{Name: "Dup", Description: "D2"}
 	err := CreateProject(context.Background(), p2)
-	if err == nil || err != ErrDuplicateProjectName {
+	if !errors.Is(err, ErrDuplicateProjectName) {
 		t.Errorf("Expected ErrDuplicateProjectName for duplicate project name, got %v", err)
 	}
 
@@ -1271,19 +1272,19 @@ func TestProjectErrors(t *testing.T) {
 	CreateProject(context.Background(), p3)
 	p3.Name = "Dup"
 	err = UpdateProject(context.Background(), p3)
-	if err == nil || err != ErrDuplicateProjectName {
+	if !errors.Is(err, ErrDuplicateProjectName) {
 		t.Errorf("Expected ErrDuplicateProjectName for duplicate project name on update, got %v", err)
 	}
 
 	// 3. Update non-existent
 	err = UpdateProject(context.Background(), &Project{ID: 999, Name: "Non-existent"})
-	if err == nil || err != ErrProjectNotFound {
+	if !errors.Is(err, ErrProjectNotFound) {
 		t.Errorf("Expected ErrProjectNotFound for updating non-existent project, got %v", err)
 	}
 
 	// 4. Delete non-existent
 	err = DeleteProject(context.Background(), 999)
-	if err == nil || err != ErrProjectNotFound {
+	if !errors.Is(err, ErrProjectNotFound) {
 		t.Errorf("Expected ErrProjectNotFound for deleting non-existent project, got %v", err)
 	}
 
@@ -1488,7 +1489,7 @@ func TestCreateReleaseDuplicate(t *testing.T) {
 		t.Fatalf("first CreateRelease failed: %v", err)
 	}
 	r2 := &Release{ProjectID: 1, Name: "v1.0"}
-	if err := CreateRelease(context.Background(), r2); err != ErrDuplicateReleaseName {
+	if err := CreateRelease(context.Background(), r2); !errors.Is(err, ErrDuplicateReleaseName) {
 		t.Errorf("expected ErrDuplicateReleaseName, got %v", err)
 	}
 }
@@ -1592,7 +1593,7 @@ func TestUpdateReleaseNotFound(t *testing.T) {
 	defer teardownTestDB()
 
 	rel := &Release{ID: 9999, ProjectID: 1, Name: "ghost"}
-	if err := UpdateRelease(context.Background(), rel); err != ErrReleaseNotFound {
+	if err := UpdateRelease(context.Background(), rel); !errors.Is(err, ErrReleaseNotFound) {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }
@@ -1611,7 +1612,7 @@ func TestUpdateReleaseDuplicate(t *testing.T) {
 	}
 
 	r2.Name = "v1.0"
-	if err := UpdateRelease(context.Background(), r2); err != ErrDuplicateReleaseName {
+	if err := UpdateRelease(context.Background(), r2); !errors.Is(err, ErrDuplicateReleaseName) {
 		t.Errorf("expected ErrDuplicateReleaseName, got %v", err)
 	}
 }
@@ -1639,7 +1640,7 @@ func TestDeleteReleaseNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := DeleteRelease(context.Background(), 9999); err != ErrReleaseNotFound {
+	if err := DeleteRelease(context.Background(), 9999); !errors.Is(err, ErrReleaseNotFound) {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }
@@ -1693,7 +1694,7 @@ func TestTriggerReleaseNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := TriggerRelease(context.Background(), 9999, false); err != ErrReleaseNotFound {
+	if err := TriggerRelease(context.Background(), 9999, false); !errors.Is(err, ErrReleaseNotFound) {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }
@@ -1727,7 +1728,7 @@ func TestReopenReleaseNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	if err := ReopenRelease(context.Background(), 9999); err != ErrReleaseNotFound {
+	if err := ReopenRelease(context.Background(), 9999); !errors.Is(err, ErrReleaseNotFound) {
 		t.Errorf("expected ErrReleaseNotFound, got %v", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -965,7 +966,7 @@ func TestUpdateUserNotFound(t *testing.T) {
 	defer teardownTestDB()
 
 	err := UpdateUser(context.Background(), &User{ID: 999, Email: testEmail, FirstName: "T", LastName: "U", PasswordHash: "h", Role: RoleUser})
-	if err != ErrUserNotFound {
+	if !errors.Is(err, ErrUserNotFound) {
 		t.Errorf("expected ErrUserNotFound, got %v", err)
 	}
 }
@@ -978,7 +979,7 @@ func TestCreateUserDuplicateEmail(t *testing.T) {
 	CreateUser(context.Background(), &User{Email: testEmail, FirstName: "A", LastName: "B", PasswordHash: hash, Role: RoleUser, Active: true})
 
 	err := CreateUser(context.Background(), &User{Email: testEmail, FirstName: "C", LastName: "D", PasswordHash: hash, Role: RoleUser, Active: true})
-	if err != ErrDuplicateEmail {
+	if !errors.Is(err, ErrDuplicateEmail) {
 		t.Errorf("expected ErrDuplicateEmail, got %v", err)
 	}
 }

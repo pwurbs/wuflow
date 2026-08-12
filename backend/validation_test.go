@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ const (
 
 func TestValidateIssueEmptyTitle(t *testing.T) {
 	i := &Issue{Title: "", Status: StatusOpen}
-	if err := validateIssue(i); err != ErrInvalidTitle {
+	if err := validateIssue(i); !errors.Is(err, ErrInvalidTitle) {
 		t.Errorf("expected ErrInvalidTitle, got %v", err)
 	}
 }
@@ -33,7 +34,7 @@ func TestValidateIssueTitleExactlyMax(t *testing.T) {
 
 func TestValidateIssueTitleTooLong(t *testing.T) {
 	i := &Issue{Title: strings.Repeat("A", MaxTitleLength+1), Status: StatusOpen}
-	if err := validateIssue(i); err != ErrTitleTooLong {
+	if err := validateIssue(i); !errors.Is(err, ErrTitleTooLong) {
 		t.Errorf("expected ErrTitleTooLong, got %v", err)
 	}
 }
@@ -47,7 +48,7 @@ func TestValidateIssueDescriptionExactlyMax(t *testing.T) {
 
 func TestValidateIssueDescriptionTooLong(t *testing.T) {
 	i := &Issue{Title: "T", Status: StatusOpen, Description: strings.Repeat("x", MaxDescLength+1)}
-	if err := validateIssue(i); err != ErrDescTooLong {
+	if err := validateIssue(i); !errors.Is(err, ErrDescTooLong) {
 		t.Errorf("expected ErrDescTooLong, got %v", err)
 	}
 }
@@ -87,14 +88,14 @@ func TestValidateIssueDescriptionTrimmed(t *testing.T) {
 
 func TestValidateIssueInvalidStatus(t *testing.T) {
 	i := &Issue{Title: "T", Status: "Unknown"}
-	if err := validateIssue(i); err != ErrInvalidStatus {
+	if err := validateIssue(i); !errors.Is(err, ErrInvalidStatus) {
 		t.Errorf("expected ErrInvalidStatus, got %v", err)
 	}
 }
 
 func TestValidateIssueInvalidPriority(t *testing.T) {
 	i := &Issue{Title: "T", Status: StatusOpen, Priority: "Critical"}
-	if err := validateIssue(i); err != ErrInvalidPriority {
+	if err := validateIssue(i); !errors.Is(err, ErrInvalidPriority) {
 		t.Errorf("expected ErrInvalidPriority, got %v", err)
 	}
 }
@@ -108,14 +109,14 @@ func TestValidateIssueValidPlannedDates(t *testing.T) {
 
 func TestValidateIssueInvalidPlannedDate(t *testing.T) {
 	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []string{"2026-13-01"}}
-	if err := validateIssue(i); err != ErrDateInvalid {
+	if err := validateIssue(i); !errors.Is(err, ErrDateInvalid) {
 		t.Errorf("expected ErrDateInvalid, got %v", err)
 	}
 }
 
 func TestValidateIssuePlannedDateWrongFormat(t *testing.T) {
 	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []string{"01/15/2026"}}
-	if err := validateIssue(i); err != ErrDateInvalid {
+	if err := validateIssue(i); !errors.Is(err, ErrDateInvalid) {
 		t.Errorf("expected ErrDateInvalid, got %v", err)
 	}
 }
@@ -155,7 +156,7 @@ func TestValidateIssueTitleStripsHTML(t *testing.T) {
 
 func TestValidateTaskEmptyTitle(t *testing.T) {
 	task := &Task{IssueID: 1, Title: ""}
-	if err := validateTask(task); err != ErrInvalidTitle {
+	if err := validateTask(task); !errors.Is(err, ErrInvalidTitle) {
 		t.Errorf("expected ErrInvalidTitle, got %v", err)
 	}
 }
@@ -169,7 +170,7 @@ func TestValidateTaskTitleExactlyMax(t *testing.T) {
 
 func TestValidateTaskTitleTooLong(t *testing.T) {
 	task := &Task{IssueID: 1, Title: strings.Repeat("B", MaxTitleLength+1)}
-	if err := validateTask(task); err != ErrTitleTooLong {
+	if err := validateTask(task); !errors.Is(err, ErrTitleTooLong) {
 		t.Errorf("expected ErrTitleTooLong, got %v", err)
 	}
 }
@@ -190,21 +191,21 @@ func TestValidateTaskTitleStripsHTML(t *testing.T) {
 
 func TestValidateLabelEmptyName(t *testing.T) {
 	l := &Label{Name: "", Color: testValidColor}
-	if err := validateLabel(l); err != ErrInvalidLabel {
+	if err := validateLabel(l); !errors.Is(err, ErrInvalidLabel) {
 		t.Errorf("expected ErrInvalidLabel, got %v", err)
 	}
 }
 
 func TestValidateLabelEmptyColor(t *testing.T) {
 	l := &Label{Name: "Bug", Color: ""}
-	if err := validateLabel(l); err != ErrInvalidLabel {
+	if err := validateLabel(l); !errors.Is(err, ErrInvalidLabel) {
 		t.Errorf("expected ErrInvalidLabel, got %v", err)
 	}
 }
 
 func TestValidateLabelNameTooLong(t *testing.T) {
 	l := &Label{Name: strings.Repeat("X", MaxLabelNameLen+1), Color: testValidColor}
-	if err := validateLabel(l); err != ErrLabelNameTooLong {
+	if err := validateLabel(l); !errors.Is(err, ErrLabelNameTooLong) {
 		t.Errorf("expected ErrLabelNameTooLong, got %v", err)
 	}
 }
@@ -230,7 +231,7 @@ func TestValidateLabelInvalidHexColor(t *testing.T) {
 	cases := []string{"red", "#ZZZ", "#FF00", "FF0000", "#FF00000", "#GG0000"}
 	for _, c := range cases {
 		l := &Label{Name: "X", Color: c}
-		if err := validateLabel(l); err != ErrColorInvalid {
+		if err := validateLabel(l); !errors.Is(err, ErrColorInvalid) {
 			t.Errorf("expected ErrColorInvalid for %q, got %v", c, err)
 		}
 	}
@@ -259,14 +260,14 @@ func TestValidateUserValidEmail(t *testing.T) {
 
 func TestValidateUserEmailNoAt(t *testing.T) {
 	u := &User{Email: "notanemail", FirstName: "A", LastName: "B", Role: RoleUser}
-	if err := validateUser(u); err != ErrInvalidEmail {
+	if err := validateUser(u); !errors.Is(err, ErrInvalidEmail) {
 		t.Errorf("expected ErrInvalidEmail, got %v", err)
 	}
 }
 
 func TestValidateUserEmailNoDomain(t *testing.T) {
 	u := &User{Email: "user@", FirstName: "A", LastName: "B", Role: RoleUser}
-	if err := validateUser(u); err != ErrInvalidEmail {
+	if err := validateUser(u); !errors.Is(err, ErrInvalidEmail) {
 		t.Errorf("expected ErrInvalidEmail, got %v", err)
 	}
 }
@@ -276,28 +277,28 @@ func TestValidateUserEmailTooLong(t *testing.T) {
 		Email:     strings.Repeat("a", 244) + "@example.com", // 256 chars total
 		FirstName: "A", LastName: "B", Role: RoleUser,
 	}
-	if err := validateUser(u); err != ErrEmailTooLong {
+	if err := validateUser(u); !errors.Is(err, ErrEmailTooLong) {
 		t.Errorf("expected ErrEmailTooLong, got %v", err)
 	}
 }
 
 func TestValidateUserEmptyFirstName(t *testing.T) {
 	u := &User{Email: testSimpleEmail, FirstName: "", LastName: "B", Role: RoleUser}
-	if err := validateUser(u); err != ErrInvalidName {
+	if err := validateUser(u); !errors.Is(err, ErrInvalidName) {
 		t.Errorf("expected ErrInvalidName, got %v", err)
 	}
 }
 
 func TestValidateUserNameTooLong(t *testing.T) {
 	u := &User{Email: testSimpleEmail, FirstName: strings.Repeat("A", MaxUserNameLength+1), LastName: "B", Role: RoleUser}
-	if err := validateUser(u); err != ErrUserNameTooLong {
+	if err := validateUser(u); !errors.Is(err, ErrUserNameTooLong) {
 		t.Errorf("expected ErrUserNameTooLong, got %v", err)
 	}
 }
 
 func TestValidateUserInvalidRole(t *testing.T) {
 	u := &User{Email: testSimpleEmail, FirstName: "A", LastName: "B", Role: "superuser"}
-	if err := validateUser(u); err != ErrInvalidRole {
+	if err := validateUser(u); !errors.Is(err, ErrInvalidRole) {
 		t.Errorf("expected ErrInvalidRole, got %v", err)
 	}
 }
@@ -340,14 +341,14 @@ func TestValidateReleaseValid(t *testing.T) {
 
 func TestValidateReleaseEmptyName(t *testing.T) {
 	r := &Release{Name: ""}
-	if err := validateRelease(r); err != ErrInvalidReleaseName {
+	if err := validateRelease(r); !errors.Is(err, ErrInvalidReleaseName) {
 		t.Errorf("expected ErrInvalidReleaseName, got %v", err)
 	}
 }
 
 func TestValidateReleaseNameTooLong(t *testing.T) {
 	r := &Release{Name: strings.Repeat("x", MaxReleaseNameLen+1)}
-	if err := validateRelease(r); err != ErrReleaseNameTooLong {
+	if err := validateRelease(r); !errors.Is(err, ErrReleaseNameTooLong) {
 		t.Errorf("expected ErrReleaseNameTooLong, got %v", err)
 	}
 }
@@ -361,7 +362,7 @@ func TestValidateReleaseNameExactlyMax(t *testing.T) {
 
 func TestValidateReleaseDescTooLong(t *testing.T) {
 	r := &Release{Name: "v1.0", Description: strings.Repeat("x", MaxReleaseDescLen+1)}
-	if err := validateRelease(r); err != ErrReleaseDescTooLong {
+	if err := validateRelease(r); !errors.Is(err, ErrReleaseDescTooLong) {
 		t.Errorf("expected ErrReleaseDescTooLong, got %v", err)
 	}
 }
@@ -420,7 +421,7 @@ func TestValidateIssueTooManyPlannedDates(t *testing.T) {
 		dates[i] = "2026-01-15"
 	}
 	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: dates}
-	if err := validateIssue(i); err != ErrTooManyDates {
+	if err := validateIssue(i); !errors.Is(err, ErrTooManyDates) {
 		t.Errorf("expected ErrTooManyDates, got %v", err)
 	}
 }
@@ -430,14 +431,14 @@ func TestValidateIssueTooManyPlannedDates(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestValidatePasswordTooShort(t *testing.T) {
-	if err := ValidatePassword("short1!", testSimpleEmail); err != ErrPasswordTooShort {
+	if err := ValidatePassword("short1!", testSimpleEmail); !errors.Is(err, ErrPasswordTooShort) {
 		t.Errorf("expected ErrPasswordTooShort, got %v", err)
 	}
 }
 
 func TestValidatePasswordTooLong(t *testing.T) {
 	pw := strings.Repeat("A", MaxPasswordLength+1)
-	if err := ValidatePassword(pw, testSimpleEmail); err != ErrPasswordTooLong {
+	if err := ValidatePassword(pw, testSimpleEmail); !errors.Is(err, ErrPasswordTooLong) {
 		t.Errorf("expected ErrPasswordTooLong, got %v", err)
 	}
 }
@@ -445,19 +446,19 @@ func TestValidatePasswordTooLong(t *testing.T) {
 func TestValidatePasswordExactlyMaxLength(t *testing.T) {
 	pw := strings.Repeat("A", MaxPasswordLength)
 	err := ValidatePassword(pw, testSimpleEmail)
-	if err != nil && err != ErrPasswordBlacklist {
+	if err != nil && !errors.Is(err, ErrPasswordBlacklist) {
 		t.Errorf("expected nil or ErrPasswordBlacklist at exact max length, got %v", err)
 	}
 }
 
 func TestValidatePasswordEqualsEmail(t *testing.T) {
-	if err := ValidatePassword(testValidEmail, testValidEmail); err != ErrPasswordIsEmail {
+	if err := ValidatePassword(testValidEmail, testValidEmail); !errors.Is(err, ErrPasswordIsEmail) {
 		t.Errorf("expected ErrPasswordIsEmail, got %v", err)
 	}
 }
 
 func TestValidatePasswordBlacklisted(t *testing.T) {
-	if err := ValidatePassword("password1234", testSimpleEmail); err != ErrPasswordBlacklist {
+	if err := ValidatePassword("password1234", testSimpleEmail); !errors.Is(err, ErrPasswordBlacklist) {
 		t.Errorf("expected ErrPasswordBlacklist, got %v", err)
 	}
 }
@@ -502,7 +503,7 @@ func TestValidateStatusConfigNameExactlyMaxLength(t *testing.T) {
 
 func TestValidateStatusConfigNameTooLong(t *testing.T) {
 	cfg := &StatusConfig{Stage1Name: strings.Repeat("A", MaxStatusNameLen+1)}
-	if err := validateStatusConfig(cfg); err != ErrStatusNameTooLong {
+	if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameTooLong) {
 		t.Errorf("expected ErrStatusNameTooLong, got %v", err)
 	}
 }
@@ -511,7 +512,7 @@ func TestValidateStatusConfigNameInvalidChars(t *testing.T) {
 	cases := []string{"Bad!Name", "No#Hash", "dash-not-ok", "dot.not.ok", "slash/bad", "In  Progress"}
 	for _, name := range cases {
 		cfg := &StatusConfig{Stage1Name: name}
-		if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
+		if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameInvalid) {
 			t.Errorf("expected ErrStatusNameInvalid for %q, got %v", name, err)
 		}
 	}
@@ -519,7 +520,7 @@ func TestValidateStatusConfigNameInvalidChars(t *testing.T) {
 
 func TestValidateStatusConfigNonASCIIInvalid(t *testing.T) {
 	cfg := &StatusConfig{Stage1Name: "Überprüfung"}
-	if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
+	if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameInvalid) {
 		t.Errorf("expected ErrStatusNameInvalid for non-ASCII name, got %v", err)
 	}
 }
@@ -546,7 +547,7 @@ func TestValidateStatusConfigWhitespaceOnlyBecomesEmpty(t *testing.T) {
 
 func TestValidateStatusConfigStage3InvalidOthersValid(t *testing.T) {
 	cfg := &StatusConfig{Stage1Name: "Pending", Stage2Name: "Working", Stage3Name: "Bad!", Stage4Name: ""}
-	if err := validateStatusConfig(cfg); err != ErrStatusNameInvalid {
+	if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameInvalid) {
 		t.Errorf("expected ErrStatusNameInvalid for Stage3, got %v", err)
 	}
 }

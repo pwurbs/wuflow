@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -321,10 +322,10 @@ func TestGetCommentByIDNotFound(t *testing.T) {
 	issueID, authorID, _ := seedIssueAndUsers(t)
 	CreateComment(context.Background(), &Comment{IssueID: issueID, UserID: &authorID, Body: "exists"})
 
-	if _, err := GetCommentByID(context.Background(), 999, issueID); err != ErrCommentNotFound {
+	if _, err := GetCommentByID(context.Background(), 999, issueID); !errors.Is(err, ErrCommentNotFound) {
 		t.Errorf("expected ErrCommentNotFound for missing id, got %v", err)
 	}
-	if _, err := GetCommentByID(context.Background(), 1, 999); err != ErrCommentNotFound {
+	if _, err := GetCommentByID(context.Background(), 1, 999); !errors.Is(err, ErrCommentNotFound) {
 		t.Errorf("expected ErrCommentNotFound for wrong issue_id, got %v", err)
 	}
 }
