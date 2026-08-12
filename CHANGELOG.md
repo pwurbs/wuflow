@@ -2,6 +2,9 @@
 # 1.4.1
 
 - Added golangci-lint (also replaces the deprecated Go report card)
+- Bumped dompurify to 3.4.13
+- Bumped marked to 18.0.9
+- Bumped vitest and playwright packages
 
 # 1.4.0
 
