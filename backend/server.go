@@ -397,7 +397,7 @@ func parseLogLevel(levelStr string) (slog.Level, error) {
 	case "error":
 		return slog.LevelError, nil
 	default:
-		return slog.LevelInfo, fmt.Errorf("Invalid log level '%s'", levelStr)
+		return slog.LevelInfo, fmt.Errorf("invalid log level '%s'", levelStr)
 	}
 }
 

@@ -2,5 +2,16 @@
   "sonarlint.connectedMode.project": {
     "connectionId": "pwurbs-oss",
     "projectKey": "wuflow-oss"
+  },
+  // Run golangci-lint on save so findings appear as live diagnostics in the
+  // Problems panel, using the repo's .golangci.yml.
+  // "golangci-lint-v2" only selects the v2 CLI flag syntax (2.x dropped
+  // --out-format); the "golangci-lint" value would fail against our 2.x binary.
+  "go.lintTool": "golangci-lint-v2",
+  "go.lintOnSave": "package",
+  // ...and points that tool entry at the very same binary tasks.json runs,
+  // since nothing on disk is named "golangci-lint-v2". Nothing extra installed.
+  "go.alternateTools": {
+    "golangci-lint-v2": "golangci-lint"
   }
 }

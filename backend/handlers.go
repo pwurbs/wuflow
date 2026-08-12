@@ -645,7 +645,7 @@ func persistIssueUpdate(ctx context.Context, w http.ResponseWriter, i *Issue, cu
 	if issueContentHash(i) == issueContentHash(current) {
 		if i.Position != current.Position {
 			if err := UpdateIssuePosition(ctx, i.ID, i.Position); err != nil {
-				if err == ErrIssueNotFound {
+				if errors.Is(err, ErrIssueNotFound) {
 					http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 					return false
 				}
@@ -657,7 +657,7 @@ func persistIssueUpdate(ctx context.Context, w http.ResponseWriter, i *Issue, cu
 		return true
 	}
 	if err := UpdateIssue(ctx, i); err != nil {
-		if err == ErrIssueNotFound {
+		if errors.Is(err, ErrIssueNotFound) {
 			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 			return false
 		}
@@ -775,7 +775,7 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, projectID, id int
 	}
 
 	if err := DeleteIssue(r.Context(), id); err != nil {
-		if err == ErrIssueNotFound {
+		if errors.Is(err, ErrIssueNotFound) {
 			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 			return
 		}
@@ -839,7 +839,7 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 	t.IssueID = issueID
 	oldTask := findIssueTask(issue, id)
 	if err := UpdateTask(r.Context(), &t, issueID); err != nil {
-		if err == ErrTaskNotFound {
+		if errors.Is(err, ErrTaskNotFound) {
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
 		}
@@ -869,7 +869,7 @@ func handleDeleteTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 	deletedTask := findIssueTask(issue, id)
 
 	if err := DeleteTask(r.Context(), id, issueID); err != nil {
-		if err == ErrTaskNotFound {
+		if errors.Is(err, ErrTaskNotFound) {
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
 		}
@@ -974,7 +974,7 @@ func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id
 	authorFilter := commentAuthorFilter(r)
 
 	if err := UpdateComment(r.Context(), id, issueID, authorFilter, c.Body); err != nil {
-		if err == ErrCommentNotFound {
+		if errors.Is(err, ErrCommentNotFound) {
 			http.Error(w, errMsgCommentNotFound, http.StatusNotFound)
 			return
 		}
@@ -1009,7 +1009,7 @@ func handleDeleteComment(w http.ResponseWriter, r *http.Request, _ int, issueID,
 	authorFilter := commentAuthorFilter(r)
 
 	if err := DeleteComment(r.Context(), id, issueID, authorFilter); err != nil {
-		if err == ErrCommentNotFound {
+		if errors.Is(err, ErrCommentNotFound) {
 			http.Error(w, errMsgCommentNotFound, http.StatusNotFound)
 			return
 		}
@@ -1086,7 +1086,7 @@ func handleDeleteLabel(w http.ResponseWriter, r *http.Request, projectID, labelI
 	}
 
 	if err := DeleteLabel(r.Context(), labelID, projectID); err != nil {
-		if err == ErrLabelNotFound {
+		if errors.Is(err, ErrLabelNotFound) {
 			http.Error(w, errMsgLabelNotFound, http.StatusNotFound)
 			return
 		}
@@ -1523,7 +1523,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	user.PasswordHash = hash
 
 	if err := CreateUser(r.Context(), user); err != nil {
-		if err == ErrDuplicateEmail {
+		if errors.Is(err, ErrDuplicateEmail) {
 			LogWarn("CreateUser: duplicate email", "email", user.Email, "admin_email", userEmail)
 			http.Error(w, "Email already exists", http.StatusConflict)
 			return
@@ -1594,7 +1594,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 	}
 
 	if err := UpdateUser(r.Context(), existing); err != nil {
-		if err == ErrDuplicateEmail {
+		if errors.Is(err, ErrDuplicateEmail) {
 			LogWarn("UpdateUser: duplicate email", "email", existing.Email, "admin_email", userEmail)
 			http.Error(w, "Email already exists", http.StatusConflict)
 			return
@@ -1650,10 +1650,7 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	}
 
 	// Check if we need to revoke sessions (Security: Immediate Logout)
-	revokeSessions := false
-	if !req.Active || req.Password != "" || originalRole != req.Role {
-		revokeSessions = true
-	}
+	revokeSessions := !req.Active || req.Password != "" || originalRole != req.Role
 
 	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) || req.Active != originalActive {
 		if err := verifyAdminPassword(ctx, userEmail, req.AdminPassword); err != nil {
@@ -1685,7 +1682,10 @@ func checkLastSysAdminProtection(ctx context.Context, existing *User, newRole Us
 				return errAdminCheckDB
 			}
 			if sysAdminCount <= 1 {
-				return fmt.Errorf("Cannot deactivate or demote the last active system administrator")
+				// Capitalised on purpose: this string is returned verbatim to the
+				// client (see UpdateUser -> http.Error) and shown in the UI.
+				//nolint:staticcheck // ST1005: user-facing message, not a wrapped error
+				return errors.New("Cannot deactivate or demote the last active system administrator")
 			}
 		}
 	}

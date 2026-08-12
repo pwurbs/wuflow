@@ -338,7 +338,7 @@ func LabelExistsInProject(ctx context.Context, labelID, projectID int) (bool, er
 func GetIssueByIDInProject(ctx context.Context, id, projectID int) (*Issue, error) {
 	row := DB.QueryRowContext(ctx, queryIssueByIDInProject, id, projectID)
 	issue, err := scanIssueRow(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -390,7 +390,7 @@ func CreateIssue(ctx context.Context, i *Issue) error {
 	// Get max position for the status to append to the end
 	var maxPos sql.NullInt64
 	err := DB.QueryRowContext(ctx, "SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		LogError("Database Error: CreateIssue MaxPos", "error", err)
 		return err
 	}
@@ -549,7 +549,7 @@ func GetOpenIssuesByProject(ctx context.Context, projectID int) ([]Issue, error)
 func GetIssueByID(ctx context.Context, id int) (*Issue, error) {
 	row := DB.QueryRowContext(ctx, queryIssueByID, id)
 	issue, err := scanIssueRow(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -640,7 +640,7 @@ func CreateTask(ctx context.Context, t *Task) error {
 	// Get max position
 	var maxPos sql.NullInt64
 	err = DB.QueryRowContext(ctx, "SELECT MAX(position) FROM tasks WHERE issue_id = ?", t.IssueID).Scan(&maxPos)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		LogError("Database Error: CreateTask MaxPos", "error", err)
 		return err
 	}
@@ -937,7 +937,7 @@ func GetCommentByID(ctx context.Context, id, issueID int) (*Comment, error) {
 	var c Comment
 	dest, finish := activityActorScanDest()
 	err := row.Scan(&c.ID, &c.IssueID, dest[0], &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, dest[1], dest[2], dest[3], dest[4])
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrCommentNotFound
 	}
 	if err != nil {
@@ -1097,7 +1097,7 @@ func GetProjectByID(ctx context.Context, id int) (*Project, error) {
 
 	var p Project
 	err := row.Scan(&p.ID, &p.Name, &p.Description)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1254,7 +1254,7 @@ func GetUserByEmail(ctx context.Context, email string) (*User, error) {
 	var u User
 	var lastLogin sql.NullTime // last_login is nullable (NULL until first login)
 	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &lastLogin)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1274,7 +1274,7 @@ func GetUserByID(ctx context.Context, id int) (*User, error) {
 	var u User
 	var lastLogin sql.NullTime
 	err := row.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.PasswordHash, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &lastLogin)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1308,6 +1308,10 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 			u.LastLogin = &lastLogin.Time
 		}
 		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		LogError("Database Error: GetAllUsers Rows", "error", err)
+		return nil, err
 	}
 	return users, nil
 }
@@ -1396,7 +1400,7 @@ func GetSessionByID(ctx context.Context, id int) (*Session, error) {
 
 	var s Session
 	err := row.Scan(&s.ID, &s.UserID, &s.SessionToken, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -1412,7 +1416,7 @@ func GetSessionByToken(ctx context.Context, token string) (*Session, error) {
 
 	var s Session
 	err := row.Scan(&s.ID, &s.UserID, &s.SessionToken, &s.TokenHash, &s.ExpiresAt, &s.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

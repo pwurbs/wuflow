@@ -943,12 +943,18 @@ func TestRefreshSessionReuseRevokesAll(t *testing.T) {
 	// Yes, `CreateUserSession` -> `RefreshSession` updates `session.TokenHash`. ID remains checks out.
 
 	sA, err := GetSessionByID(context.Background(), sessionA.ID)
+	if err != nil {
+		t.Fatalf("GetSessionByID(A) returned an unexpected error: %v", err)
+	}
 	if sA != nil {
 		t.Error("Session A should be revoked (family revocation)")
 	}
 
 	// Check Session B (The innocent bystander session)
 	sB, err := GetSessionByID(context.Background(), sessionB.ID)
+	if err != nil {
+		t.Fatalf("GetSessionByID(B) returned an unexpected error: %v", err)
+	}
 	if sB != nil {
 		t.Error("Session B should be revoked (family revocation)")
 	}

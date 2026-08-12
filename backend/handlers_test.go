@@ -4557,8 +4557,6 @@ func TestCheckReleaseInvalidRelease(t *testing.T) {
 	releaseID := 9999
 	issue := &Issue{ProjectID: 1, ReleaseID: &releaseID}
 	rr := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", apiIssues, nil)
-	req = makeAdminCtx(req)
 
 	result := checkRelease(context.Background(), rr, issue, testAssigneeEmail)
 	if result {
@@ -4626,8 +4624,6 @@ func TestCheckReleaseDBError(t *testing.T) {
 	releaseID := 1
 	issue := &Issue{ProjectID: 1, ReleaseID: &releaseID}
 	rr := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", apiIssues, nil)
-	req = makeAdminCtx(req)
 
 	result := checkRelease(context.Background(), rr, issue, testAssigneeEmail)
 	if result {

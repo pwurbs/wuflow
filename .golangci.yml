@@ -1,0 +1,69 @@
+version: "2"
+
+run:
+  # Applies to every invocation (task, editor-on-save, CI) — v2 has no default
+  # timeout, so this is set here rather than only as a CLI flag.
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - durationcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - forcetypeassert
+    - gocritic
+    - gosec
+    - ineffassign
+    - misspell
+    - musttag
+    - nilerr
+    - nilnil
+    - rowserrcheck
+    - sloglint
+    - sqlclosecheck
+    - unconvert
+    - unparam
+    - unqueryvet
+    - unused
+  settings:
+    exhaustive:
+      # A default clause that handles unlisted values counts as exhaustive.
+      default-signifies-exhaustive: true
+      # unknownRole is a test-only fixture, not a real member of the UserRole enum.
+      ignore-enum-members: unknownRole
+    errcheck:
+      # Deferred Close on a read-only *sql.Rows has no actionable error path;
+      # the query error is already surfaced via rows.Err().
+      exclude-functions:
+        - (*database/sql.Rows).Close
+  exclusions:
+    rules:
+      # Test files intentionally ignore write/close errors and use fixture
+      # credentials and plain cookies; that is not production risk.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - errorlint
+      # //NOSONAR markers must stay unspaced or SonarQube stops recognising them.
+      - source: //NOSONAR
+        linters:
+          - gocritic
+      # db.go deliberately returns (nil, nil) for "not found" so handlers can map
+      # it to a uniform 404 — see the withIssue helper in handlers.go.
+      - path: backend/db\.go
+        linters:
+          - nilnil
+
+issues:
+  # Report every occurrence rather than the default caps (50 per linter / 3 identical).
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

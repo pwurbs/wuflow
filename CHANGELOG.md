@@ -1,4 +1,8 @@
 
+# 1.4.1
+
+- Added golangci-lint (also replaces the deprecated Go report card)
+
 # 1.4.0
 
 - Added an Activity area to each issue, including a Comments and a History tab (see usage guide for more details)
