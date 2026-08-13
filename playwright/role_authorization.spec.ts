@@ -88,6 +88,25 @@ test.describe('Role Based Authorization', () => {
     // The modal check is the primary one.
   });
 
+  test('Standard user cannot move an issue — project dropdown is disabled', async ({ page }) => {
+    await page.fill('#login-email', standardUserEmail);
+    await page.fill('#login-password', standardUserPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+
+    const issueTitle = `MovePermIssue ${Date.now()}`;
+    await createIssue(page, { title: issueTitle, status: 'Todo' });
+
+    const card = page.locator(`.column[data-status="Todo"] .card:has-text("${issueTitle}")`);
+    await card.click();
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    // backend/permissions.go: ActionMoveIssue: {RoleAdmin}
+    await expect(page.locator('#project-trigger')).toBeDisabled();
+
+    await page.click('#done-btn');
+  });
+
   test('Standard user cannot perform admin actions via API (403)', async ({ page, request }) => {
     // 1. Login as Standard User via UI to get cookies/session
     await page.fill('#login-email', standardUserEmail);

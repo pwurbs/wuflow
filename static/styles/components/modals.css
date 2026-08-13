@@ -93,8 +93,8 @@
   border-bottom: 1px solid var(--card-border);
 }
 
-/* Small floating icon hinting that the main column has more content below;
-   toggled by JS based on scroll position. */
+/* Small floating button hinting that the main column has more content below;
+   toggled by JS based on scroll position, and jumps to the end when clicked. */
 .scroll-cue {
   position: absolute;
   bottom: -6px;
@@ -105,17 +105,28 @@
   justify-content: center;
   width: 28px;
   height: 28px;
+  padding: 0;
   border-radius: 50%;
-  background-color: var(--hover-bg);
+  background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   color: var(--muted-text);
+  cursor: pointer;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .scroll-cue.visible {
   opacity: 1;
+  pointer-events: auto;
+}
+
+/* Same affordance as cards and release items: lit background plus accent border. */
+.scroll-cue:hover,
+.scroll-cue:focus-visible {
+  background-color: var(--hover-bg);
+  border-color: var(--accent-blue);
+  color: var(--text-color);
 }
 
 .modal-main .form-group,

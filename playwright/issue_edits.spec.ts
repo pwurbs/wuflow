@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, navigateTo, openIssueByTitle, selectPriority, waitForIssueSave, waitForToast } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, openIssueByTitle, selectPriority, selectStatus, waitForIssueSave, waitForToast } from './helpers/test-utils';
 
 test.describe('Issue Edit Operations', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -87,6 +87,26 @@ test.describe('Issue Edit Operations', () => {
     await expect(preview.locator('table')).toHaveCount(1);
     await expect(preview.locator('th').first()).toHaveText('Header 1');
     await expect(preview.locator('td').first()).toHaveText('Cell');
+  });
+
+  test('change issue status', async ({ page }) => {
+    const title = `Status Change Test ${Date.now()} `;
+    await createIssue(page, { title, status: 'Todo' });
+
+    // Verify it's in To-Do column
+    await expect(page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`)).toBeVisible();
+
+    await openIssueByTitle(page, title);
+
+    // Change status to Pending
+    await selectStatus(page, 'Pending');
+
+    // Close modal
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    // Verify it moved to Pending column
+    await expect(page.locator(`.column[data-status="Stage1"] .board-card:has-text("${title}")`)).toBeVisible();
   });
 
   test('change issue priority', async ({ page }) => {
@@ -340,59 +360,5 @@ test.describe('Project change resets project-scoped fields', () => {
 
       await page.click('#done-btn');
     });
-  });
-});
-
-test.describe('Move issue – permission gate', () => {
-  let adminEmail = '';
-  let adminPassword = '';
-  let userEmail = '';
-  let userPassword = '';
-
-  test.beforeAll(async ({ workerServer }) => {
-    adminEmail = workerServer.adminEmail;
-    adminPassword = workerServer.adminPassword;
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('#login-email', adminEmail);
-    await page.fill('#login-password', adminPassword);
-    await page.click('#login-btn');
-    await expect(page.locator('#nav-system-settings')).toBeVisible();
-
-    await page.click('#nav-system-settings');
-    await page.click('#add-user-btn');
-    userEmail = `move_perm_${Date.now()}@example.com`;
-    userPassword = `${Date.now()}Aa!`;
-    await page.fill('#user-email', userEmail);
-    await page.fill('#user-first-name', 'Move');
-    await page.fill('#user-last-name', 'TestUser');
-    await page.fill('#user-password', userPassword);
-    // Default role is 'user' — no role change needed
-    await page.click('#user-modal-save');
-    await expect(page.locator('#user-modal-overlay')).toBeHidden();
-
-    await page.click('#user-menu-btn');
-    await page.click('#user-menu-logout');
-    await expect(page).toHaveURL(/\/login/);
-  });
-
-  test('standard user sees project dropdown disabled on existing issue', async ({ page }) => {
-    await page.fill('#login-email', userEmail);
-    await page.fill('#login-password', userPassword);
-    await page.click('#login-btn');
-    await expect(page.locator('.board')).toBeVisible();
-
-    await createIssue(page, { title: 'MovePermIssue', status: 'Todo' });
-
-    const card = page.locator('.column[data-status="Todo"] .card:has-text("MovePermIssue")');
-    await card.click();
-    await expect(page.locator('#issue-modal')).toBeVisible();
-
-    // RoleUser cannot move — project dropdown must be disabled
-    await expect(page.locator('#project-trigger')).toBeDisabled();
-
-    await page.click('#done-btn');
   });
 });

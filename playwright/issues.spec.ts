@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, selectStatus, selectAssignee, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, selectAssignee, openIssueByTitle } from './helpers/test-utils';
 
 test.describe('Issue CRUD Operations', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -32,60 +32,6 @@ test.describe('Issue CRUD Operations', () => {
 
     // Verify issue appears in Working column
     await expect(page.locator(`.column[data-status="Stage2"] .board-card:has-text("${title}")`)).toBeVisible();
-  });
-
-  test('edit an existing issue title', async ({ page }) => {
-    const title = `Issue to Edit ${Date.now()} `;
-    // First create an issue
-    await createIssue(page, { title, status: 'Todo' });
-
-    // Click on the issue to open it (use board-card to be specific)
-    await page.click(`.board-card:has-text("${title}")`);
-    await expect(page.locator('#issue-modal')).toBeVisible();
-
-    // Click on title to enable inline editing
-    await page.click('#title');
-
-    // Clear and change the title
-    await page.fill('#title', 'Edited Issue Title');
-
-    // Blur to trigger autosave (title saves on blur)
-    const savePromise = page.waitForResponse(r =>
-      r.url().includes('/issues/') && r.request().method() === 'PUT'
-    );
-    await page.click('#modal-title');
-    await savePromise;
-
-    // Close modal
-    await page.click('#done-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
-
-    // Verify the updated title appears
-    await expect(page.locator('.board-card:has-text("Edited Issue Title")')).toBeVisible();
-  });
-
-  test('change issue status', async ({ page }) => {
-    const title = `Status Change Test ${Date.now()} `;
-    // Create an issue in To-Do
-    // Create an issue in To-Do
-    await createIssue(page, { title, status: 'Todo' });
-
-    // Verify it's in To-Do column
-    await expect(page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`)).toBeVisible();
-
-    // Open the issue
-    await page.click(`.board-card:has-text("${title}")`);
-    await expect(page.locator('#issue-modal')).toBeVisible();
-
-    // Change status to Pending
-    await selectStatus(page, 'Pending');
-
-    // Close modal
-    await page.click('#done-btn');
-    await expect(page.locator('#issue-modal')).toBeHidden();
-
-    // Verify it moved to Pending column
-    await expect(page.locator(`.column[data-status="Stage1"] .board-card:has-text("${title}")`)).toBeVisible();
   });
 
   test('delete an issue', async ({ page, workerServer }) => {
@@ -139,39 +85,5 @@ test.describe('Issue CRUD Operations', () => {
     await expect(assigneeText).toContainText('Unassigned');
 
     await page.click('#done-btn');
-  });
-
-  test('position-only drag does not update last-changed timestamp', async ({ page }) => {
-    const titleA = `Shift Target ${Date.now()}`;
-    const titleB = `Drag Card ${Date.now() + 1}`;
-
-    await createIssue(page, { title: titleA, status: 'Todo' });
-    await createIssue(page, { title: titleB, status: 'Todo' });
-
-    // Record titleA's updated_at via the API before any drag
-    await openIssueByTitle(page, titleA);
-    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
-    const issueId = await page.inputValue('#issue-id');
-    await page.click('#done-btn');
-
-    const before = await page.request.get(`/api/projects/1/issues/${issueId}`);
-    const { updated_at: updatedAtBefore } = await before.json();
-
-    // Drag titleB onto titleA, shifting titleA's position within the same column
-    const cardA = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleA}")`);
-    const cardB = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleB}")`);
-    const putPromises: Promise<void>[] = [];
-    page.on('response', r => {
-      if (r.url().includes('/issues/') && r.request().method() === 'PUT') {
-        putPromises.push(r.finished().then(() => {}));
-      }
-    });
-    await cardB.dragTo(cardA);
-    await Promise.all(putPromises);
-
-    // updated_at must be unchanged since only position shifted
-    const after = await page.request.get(`/api/projects/1/issues/${issueId}`);
-    const { updated_at: updatedAtAfter } = await after.json();
-    expect(updatedAtAfter).toBe(updatedAtBefore);
   });
 });

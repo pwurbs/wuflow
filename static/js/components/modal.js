@@ -117,6 +117,10 @@ function setupScrollCue() {
     cue.classList.toggle('visible', hasMore);
   };
 
+  cue.addEventListener('click', () => {
+    scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+  });
+
   scrollEl.addEventListener('scroll', update, { passive: true });
   new MutationObserver(update).observe(scrollEl, { childList: true, subtree: true });
   update();

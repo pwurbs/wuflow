@@ -84,4 +84,28 @@ test.describe('Issue Edit Modal Behavior', () => {
     await page.reload();
     expect(dialogTriggered).toBe(true);
   });
+
+  test('scroll cue shows on an overflowing issue and jumps to the end when clicked', async ({ page }) => {
+    const title = `ScrollCue_${Date.now()}`;
+    // Long enough that the rendered description alone overflows the main column.
+    const description = Array.from({ length: 60 }, (_, i) => `Line ${i + 1} of a long description.`).join('\n\n');
+    await createIssue(page, { title, description, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    const scrollArea = page.locator('.modal-main-scroll');
+    const cue = page.locator('.scroll-cue');
+
+    // Content extends below the fold, so the cue is shown.
+    await expect(cue).toHaveClass(/visible/);
+
+    await cue.click();
+
+    // The jump is animated, so poll until the main column has reached its end.
+    await expect.poll(() =>
+      scrollArea.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)
+    ).toBeLessThanOrEqual(4);
+
+    // Nothing left below the fold — the cue hides itself again.
+    await expect(cue).not.toHaveClass(/visible/);
+  });
 });

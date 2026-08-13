@@ -80,6 +80,40 @@ test.describe('Board Functionality', () => {
     await expect(page.locator('.column[data-status="Todo"] .board-card:has-text("Drag Test Issue")')).toHaveCount(0);
   });
 
+  test('position-only drag does not update last-changed timestamp', async ({ page }) => {
+    const titleA = `Shift Target ${Date.now()}`;
+    const titleB = `Drag Card ${Date.now() + 1}`;
+
+    await createIssue(page, { title: titleA, status: 'Todo' });
+    await createIssue(page, { title: titleB, status: 'Todo' });
+
+    // Record titleA's updated_at via the API before any drag
+    await openIssueByTitle(page, titleA);
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
+    const issueId = await page.inputValue('#issue-id');
+    await page.click('#done-btn');
+
+    const before = await page.request.get(`/api/projects/1/issues/${issueId}`);
+    const { updated_at: updatedAtBefore } = await before.json();
+
+    // Drag titleB onto titleA, shifting titleA's position within the same column
+    const cardA = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleA}")`);
+    const cardB = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleB}")`);
+    const putPromises: Promise<void>[] = [];
+    page.on('response', r => {
+      if (r.url().includes('/issues/') && r.request().method() === 'PUT') {
+        putPromises.push(r.finished().then(() => {}));
+      }
+    });
+    await cardB.dragTo(cardA);
+    await Promise.all(putPromises);
+
+    // updated_at must be unchanged since only position shifted
+    const after = await page.request.get(`/api/projects/1/issues/${issueId}`);
+    const { updated_at: updatedAtAfter } = await after.json();
+    expect(updatedAtAfter).toBe(updatedAtBefore);
+  });
+
   test('assignee badge initials on board card', async ({ page }) => {
     const title = `Badge Test ${Date.now()}`;
     await createIssue(page, { title, status: 'Todo' });

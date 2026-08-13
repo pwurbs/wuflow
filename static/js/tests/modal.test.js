@@ -172,7 +172,7 @@ describe('Modal Component', () => {
                 <ul id="task-list"></ul>
               </div>
             </div>
-            <div class="scroll-cue"></div>
+            <button type="button" class="scroll-cue"></button>
 
             <button id="delete-issue-btn" type="button"></button>
             <button id="archive-issue-btn" type="button"></button>
@@ -1025,6 +1025,25 @@ describe('Modal Component', () => {
       await Promise.resolve();
 
       expect(cue.classList.contains('visible')).toBe(true);
+    });
+
+    it('is a plain button so clicking it cannot submit the issue form', () => {
+      const cue = document.querySelector('.scroll-cue');
+
+      expect(cue.tagName).toBe('BUTTON');
+      expect(cue.type).toBe('button');
+    });
+
+    it('jumps to the bottom of the main column when clicked', () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      const cue = document.querySelector('.scroll-cue');
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
+      // jsdom does not implement scrollTo.
+      scrollEl.scrollTo = vi.fn();
+
+      cue.click();
+
+      expect(scrollEl.scrollTo).toHaveBeenCalledWith({ top: 600, behavior: 'smooth' });
     });
   });
 

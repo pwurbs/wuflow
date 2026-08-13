@@ -1,6 +1,7 @@
 
 # 1.4.1
 
+- The issue modal's scroll indicator is now clickable and jumps to the end of the main column
 - Added golangci-lint (also replaces the deprecated Go report card)
 - Bumped dompurify to 3.4.13
 - Bumped marked to 18.0.9
