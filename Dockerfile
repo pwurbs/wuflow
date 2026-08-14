@@ -1,7 +1,7 @@
 
 #------- Build stage ---------------------------------------------------------
 # Use Alpine-based Go image to match the runtime and ensure musl libc compatibility for CGO
-FROM docker.io/library/golang:1.25.12-alpine3.24 AS builder
+FROM docker.io/library/golang:1.25.13-alpine3.24 AS builder
 
 # Arguments for cross-compilation
 ARG TARGETOS

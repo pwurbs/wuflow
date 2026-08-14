@@ -5,6 +5,7 @@
 - The issue modal's scroll indicator is now clickable and jumps to the end of the main column
 - Removed the misleading "View on board" link for closed releases
 - Added golangci-lint (also replaces the deprecated Go report card)
+- Bumped Go to 1.25.13
 - Bumped dompurify to 3.4.13
 - Bumped marked to 18.0.9
 - Bumped vitest and playwright packages
