@@ -664,13 +664,15 @@
                             <ul id="comment-list" class="comment-list"></ul>
                             <ul id="history-list" class="history-timeline hidden"></ul>
                             <div id="comment-form-container">
-                                <div class="comment-editor-container">
+                                <div id="new-comment-editor" class="comment-editor-container">
                                     <div class="comment-input-wrapper">
                                         <textarea id="new-comment-body" name="comment_body" rows="3" maxlength="1000"
                                             placeholder="Add a comment... (Markdown supported)"
                                             aria-label="New comment"></textarea>
                                     </div>
-                                    <div id="new-comment-actions" class="comment-edit-actions">
+                                    <div id="new-comment-actions" class="comment-edit-actions hidden">
+                                        <button type="button" id="cancel-comment-btn" class="inline-edit-btn inline-cancel-btn"
+                                            title="Cancel">✕</button>
                                         <button type="button" id="add-comment-btn" class="inline-edit-btn inline-save-btn"
                                             title="Add comment">✓</button>
                                     </div>

@@ -18,8 +18,10 @@ const ctx = {
   readOnly: false,
   // Only one comment may be in edit mode at a time — otherwise saving one
   // triggers a refreshComments() re-render that discards any other comment's
-  // in-progress (unsaved) edit.
-  editingCommentId: null
+  // in-progress (unsaved) edit. The new-comment form counts as an edit too:
+  // newCommentOpen and editingCommentId are mutually exclusive.
+  editingCommentId: null,
+  newCommentOpen: false
 };
 
 // Monotonic sequence guard against out-of-order async responses. loadActivity,
@@ -39,9 +41,16 @@ const els = () => ({
   commentList: document.getElementById('comment-list'),
   historyList: document.getElementById('history-list'),
   form: document.getElementById('comment-form-container'),
+  editor: document.getElementById('new-comment-editor'),
   input: document.getElementById('new-comment-body'),
-  addBtn: document.getElementById('add-comment-btn')
+  actions: document.getElementById('new-comment-actions'),
+  addBtn: document.getElementById('add-comment-btn'),
+  cancelBtn: document.getElementById('cancel-comment-btn')
 });
+
+// Counter of the new-comment textarea. Kept at module scope because it's driven
+// manually by open/closeNewCommentForm rather than by focus/blur.
+let newCommentCounter = null;
 
 // setupActivity wires the listeners (tab switching + new-comment form). Call
 // once at app start, like setupModal.
@@ -51,14 +60,90 @@ export function setupActivity() {
   e.tabComments?.addEventListener('click', () => switchTab('comments'));
   e.tabHistory?.addEventListener('click', () => switchTab('history'));
   e.addBtn?.addEventListener('click', submitNewComment);
+  e.cancelBtn?.addEventListener('click', () => closeNewCommentForm({ clear: true }));
   if (e.input) {
-    initCharCounter(e.input, MAX_COMMENT_LENGTH, { manual: false });
+    // manual: true — the counter is tied to the form's edit mode (like the
+    // inline comment editor's), not to focus.
+    newCommentCounter = initCharCounter(e.input, MAX_COMMENT_LENGTH, { manual: true });
+    // Focus rather than click, so tabbing into the field opens the form too.
+    e.input.addEventListener('focus', openNewCommentForm);
+    // An empty field means nothing was written yet — collapse again instead of
+    // holding the single-editor guard for a form the user only passed through.
+    e.input.addEventListener('blur', () => {
+      if (!e.input.value.trim()) closeNewCommentForm();
+    });
+    // The textarea grows with its content, which can push the action bar out
+    // of sight on a long comment.
+    e.input.addEventListener('input', () => {
+      if (ctx.newCommentOpen) ensureNewCommentVisible(e.editor);
+    });
     e.input.addEventListener('keydown', (ev) => {
       // Ctrl/Cmd+Enter submits; plain Enter on a list line continues the list.
       if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); submitNewComment(); return; }
       if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) continueListOnEnter(e.input, ev);
     });
   }
+}
+
+// The new-comment form starts collapsed (just the textarea) and only shows its
+// ✓/✕ bar once the user actually starts writing — same as the issue
+// description, which shows its action bar only in edit mode.
+function openNewCommentForm() {
+  if (ctx.newCommentOpen || ctx.editingCommentId !== null) return;
+  const e = els();
+  ctx.newCommentOpen = true;
+  e.actions?.classList.remove('hidden');
+  newCommentCounter?.show();
+  // No active row: every existing comment's Edit/Delete is hidden while the
+  // new comment is unconfirmed.
+  setOtherCommentsActionsHidden(e.commentList, null, true);
+  ctx.callbacks.onEditStart?.();
+  ensureNewCommentVisible(e.editor);
+}
+
+// The form sits at the very bottom of the modal's main column, so opening it
+// (or growing the textarea via field-sizing: content) can push its ✓/✕ bar
+// below the fold. block: 'nearest' scrolls the minimum needed and is a no-op
+// while the whole editor is already visible. The rAF waits for the layout to
+// settle after the action bar is unhidden — same trick as the description
+// editor's scroll reset in modal.js.
+let scrollRaf = 0;
+let lastEditorHeight = null;
+function ensureNewCommentVisible(editor) {
+  if (!editor?.scrollIntoView || scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0;
+    // field-sizing: content grows the box on line wraps, not on every
+    // keystroke — scrolling only when it actually changed height keeps the
+    // smooth animation (and the modal's scroll listener) from restarting
+    // under the typist.
+    const height = editor.offsetHeight;
+    if (height === lastEditorHeight) return;
+    lastEditorHeight = height;
+    editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}
+
+// closeNewCommentForm is idempotent — safe to call on a form that's already
+// collapsed (e.g. from loadActivity, to drop a draft from a previous issue).
+function closeNewCommentForm({ clear = false } = {}) {
+  const e = els();
+  if (clear && e.input) e.input.value = ''; // the counter recomputes on its next show()
+  if (!ctx.newCommentOpen) return;
+  ctx.newCommentOpen = false;
+  lastEditorHeight = null; // reopening must scroll again
+  e.actions?.classList.add('hidden');
+  newCommentCounter?.hide();
+  setOtherCommentsActionsHidden(e.commentList, null, false);
+  ctx.callbacks.onEditEnd?.();
+}
+
+// Mirrors setOtherCommentsActionsHidden for the other side of the guard: while
+// an existing comment is being edited, the new-comment form can't be typed
+// into, and CSS dims it via :has([readonly]).
+function setNewCommentFormBlocked(blocked) {
+  const input = els().input;
+  if (input) input.readOnly = blocked;
 }
 
 // loadActivity fetches history + comments for an issue and renders the area.
@@ -72,6 +157,9 @@ export async function loadActivity(issue, callbacks = {}) {
   ctx.history = [];
   ctx.comments = [];
   ctx.editingCommentId = null;
+  // Drop any draft (and its guard state) left over from a previously opened issue.
+  closeNewCommentForm({ clear: true });
+  setNewCommentFormBlocked(false);
 
   const e = els();
   if (!e.section) return;
@@ -219,6 +307,9 @@ const EDIT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 function buildCommentActions(comment, li, container) {
   const actions = document.createElement('div');
   actions.className = 'comment-actions';
+  // Derived, not patched in afterwards: a re-render while an editor is open
+  // (a tab switch, a refresh) has to come back with the guard still applied.
+  actions.classList.toggle('actions-hidden', isOtherCommentActive(comment.id));
 
   if (userCan(state.currentUser, ACTION_UPDATE_COMMENT)) {
     const editBtn = document.createElement('button');
@@ -241,11 +332,20 @@ function buildCommentActions(comment, li, container) {
   return actions;
 }
 
+// True while some other editor — the new-comment form or a different comment —
+// holds the single-editor guard, i.e. this comment's Edit/Delete must not be
+// offered.
+function isOtherCommentActive(commentId) {
+  return ctx.newCommentOpen || (ctx.editingCommentId !== null && ctx.editingCommentId !== commentId);
+}
+
 // Hides Edit/Delete on every other comment while one is being edited, so
 // there's no button to click into the "already editing" error in the first
-// place — more preventive than corrective.
+// place — more preventive than corrective. A null activeLi means "no comment
+// is the active one", i.e. hide them all (used while the new-comment form is
+// open). Comments rendered later derive the same state via isOtherCommentActive.
 function setOtherCommentsActionsHidden(container, activeLi, hidden) {
-  container.querySelectorAll('.comment-item').forEach(item => {
+  container?.querySelectorAll('.comment-item').forEach(item => {
     if (item === activeLi) return;
     item.querySelector('.comment-actions')?.classList.toggle('actions-hidden', hidden);
   });
@@ -260,11 +360,18 @@ function enterCommentEdit(comment, li, container) {
     showNotification('Finish editing the other comment first', 'error');
     return;
   }
+  // The other half of the guard: an unconfirmed new comment blocks editing an
+  // existing one (its Edit button is hidden while the form is open).
+  if (ctx.newCommentOpen) {
+    showNotification('Finish the new comment first', 'error');
+    return;
+  }
   const body = li.querySelector('.comment-body');
   if (!body) return;
   ctx.editingCommentId = comment.id;
   ctx.callbacks.onEditStart?.();
   setOtherCommentsActionsHidden(container, li, true);
+  setNewCommentFormBlocked(true);
 
   // Same flush, single-border structure as the new-comment form
   // (.comment-editor-container) — textarea and action bar share one border,
@@ -318,6 +425,7 @@ function enterCommentEdit(comment, li, container) {
   const finish = () => {
     ctx.editingCommentId = null;
     setOtherCommentsActionsHidden(container, li, false);
+    setNewCommentFormBlocked(false);
     ctx.callbacks.onEditEnd?.();
   };
   cancel.addEventListener('click', () => { finish(); renderAll(); });
@@ -352,10 +460,7 @@ async function submitNewComment() {
   if (!bodyText) { showNotification('Comment must not be empty', 'error'); return; }
   try {
     await createComment(ctx.issue.project_id, ctx.issue.id, bodyText);
-    if (e.input) {
-      e.input.value = '';
-      e.input.dispatchEvent(new Event('input')); // resets the char counter
-    }
+    closeNewCommentForm({ clear: true });
     await refreshComments();
     showNotification('Comment added');
   } catch (err) {

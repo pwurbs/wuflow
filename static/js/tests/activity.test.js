@@ -61,8 +61,15 @@ function domFixture() {
       <ul id="comment-list" class="comment-list"></ul>
       <ul id="history-list" class="history-timeline hidden"></ul>
       <div id="comment-form-container">
-        <textarea id="new-comment-body"></textarea>
-        <button id="add-comment-btn" type="button"></button>
+        <div id="new-comment-editor" class="comment-editor-container">
+          <div class="comment-input-wrapper">
+            <textarea id="new-comment-body"></textarea>
+          </div>
+          <div id="new-comment-actions" class="comment-edit-actions hidden">
+            <button id="cancel-comment-btn" type="button"></button>
+            <button id="add-comment-btn" type="button"></button>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -280,6 +287,170 @@ describe('Activity Component', () => {
 
     expect(api.createComment).not.toHaveBeenCalled();
     expect(utils.showNotification).toHaveBeenCalledWith('Comment must not be empty', 'error');
+  });
+
+  it('keeps the new-comment ✓/✕ bar hidden until the field is focused', async () => {
+    await loadActivity(issue);
+    const actions = document.getElementById('new-comment-actions');
+    expect(actions.classList.contains('hidden')).toBe(true);
+
+    document.getElementById('new-comment-body').focus();
+    expect(actions.classList.contains('hidden')).toBe(false);
+    // The counter is driven by the open state, not by focus.
+    expect(utils.initCharCounter).toHaveBeenCalledWith(document.getElementById('new-comment-body'), 1000, { manual: true });
+    expect(utils.initCharCounter.mock.results[0].value.show).toHaveBeenCalled();
+  });
+
+  it('scrolls the whole new-comment editor into view when it opens and when it grows', async () => {
+    // jsdom has neither scrollIntoView nor layout; the component skips the
+    // call without the former and reads offsetHeight to detect growth.
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(cb => { cb(); return 0; });
+    const editorBox = document.getElementById('new-comment-editor');
+    const setHeight = h => Object.defineProperty(editorBox, 'offsetHeight', { configurable: true, value: h });
+
+    try {
+      setHeight(60);
+      await loadActivity(issue);
+      const input = document.getElementById('new-comment-body');
+      input.focus();
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.instances[0]).toBe(editorBox);
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
+
+      // Typing that doesn't wrap leaves the box the same height — no need to
+      // restart the scroll animation.
+      input.value = 'line one';
+      input.dispatchEvent(new Event('input'));
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+      // A line wrap grows it (field-sizing: content), pushing the action bar
+      // out of sight again.
+      setHeight(80);
+      input.value = 'line one\nline two';
+      input.dispatchEvent(new Event('input'));
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    } finally {
+      rafSpy.mockRestore();
+      delete HTMLElement.prototype.scrollIntoView;
+    }
+  });
+
+  it('collapses the new-comment form again when it is left empty', async () => {
+    await loadActivity(issue);
+    const input = document.getElementById('new-comment-body');
+    input.focus();
+    input.blur();
+    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+  });
+
+  it('keeps the new-comment form open on blur when a draft was typed', async () => {
+    await loadActivity(issue);
+    const input = document.getElementById('new-comment-body');
+    input.focus();
+    input.value = 'draft';
+    input.blur();
+    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(false);
+  });
+
+  it('discards the draft and collapses the form when cancelled', async () => {
+    await loadActivity(issue);
+    const input = document.getElementById('new-comment-body');
+    input.focus();
+    input.value = 'draft';
+    document.getElementById('cancel-comment-btn').click();
+
+    expect(input.value).toBe('');
+    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+  });
+
+  it('clears a draft left over from a previously opened issue', async () => {
+    await loadActivity(issue);
+    const input = document.getElementById('new-comment-body');
+    input.focus();
+    input.value = 'draft';
+    input.blur(); // a draft keeps the form open even unfocused
+
+    await loadActivity({ ...issue, id: 2 });
+
+    expect(input.value).toBe('');
+    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+  });
+
+  it('hides every comment\'s edit/delete actions while a new comment is open, and restores them after submitting', async () => {
+    api.createComment.mockResolvedValue({ id: 5 });
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    await loadActivity(issue);
+
+    const input = document.getElementById('new-comment-body');
+    input.focus();
+    expect(document.querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(true);
+
+    input.value = 'new comment';
+    document.getElementById('add-comment-btn').click();
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+    expect(document.querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(false);
+  });
+
+  it('re-applies the hidden comment actions after a tab switch while a new comment is open', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    await loadActivity(issue);
+
+    const input = document.getElementById('new-comment-body');
+    input.focus();
+    input.value = 'draft';
+    document.getElementById('tab-history').click();
+    document.getElementById('tab-comments').click();
+
+    expect(document.querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(true);
+  });
+
+  it('blocks editing an existing comment while a new comment is unconfirmed', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    await loadActivity(issue);
+
+    const input = document.getElementById('new-comment-body');
+    input.focus();
+    input.value = 'draft';
+    document.querySelector('.comment-edit-btn').click();
+
+    expect(utils.showNotification).toHaveBeenCalledWith('Finish the new comment first', 'error');
+    expect(document.querySelector('.comment-edit-input')).toBeNull();
+  });
+
+  // readOnly is the whole blocked state — the dimming is derived from it in
+  // CSS (:has([readonly])), so there's no separate class to assert.
+  it.each([
+    ['cancelled', '#comment-list .inline-cancel-btn'],
+    ['saved', '#comment-list .inline-save-btn']
+  ])('blocks the new-comment form while an existing comment is being edited, and restores it once %s', async (_label, finishBtn) => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    api.updateComment.mockResolvedValue({});
+    await loadActivity(issue);
+
+    const input = document.getElementById('new-comment-body');
+    document.querySelector('.comment-edit-btn').click();
+    expect(input.readOnly).toBe(true);
+
+    document.querySelector('.comment-edit-input').value = 'updated';
+    document.querySelector(finishBtn).click();
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(input.readOnly).toBe(false);
   });
 
   it('deletes a comment after confirmation and refreshes the list', async () => {

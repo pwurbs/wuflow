@@ -94,6 +94,49 @@ test.describe('Issue Activity (History + Comments)', () => {
     await expect(page.locator('#history-list')).toBeVisible();
   });
 
+  test('the new comment editor stays hidden until used and then opens fully in view', async ({ page }) => {
+    await createIssue(page, { title: 'Comment Scroll Issue', status: 'Todo' });
+    await openIssueByTitle(page, 'Comment Scroll Issue');
+    // The modal is shown before the issue data arrives — wait for it.
+    await expect(page.locator('#issue-id')).not.toHaveValue('');
+    const issueId = await page.inputValue('#issue-id');
+
+    // Enough comments to push the form well below the fold.
+    await page.evaluate(async (id) => {
+      for (let i = 1; i <= 10; i++) {
+        await fetch(`/api/projects/1/issues/${id}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: `Filler comment ${i}` }),
+        });
+      }
+    }, issueId);
+
+    // An existing issue closes via Done (Cancel only exists in create mode).
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+    await openIssueByTitle(page, 'Comment Scroll Issue');
+    await expect(page.locator('.comment-item')).toHaveCount(10);
+
+    // Only viewing so far: no confirm/cancel buttons on the empty field.
+    await expect(page.locator('#new-comment-actions')).toBeHidden();
+
+    await page.evaluate(() => document.querySelector('.modal-main-scroll')?.scrollTo({ top: 0 }));
+    // focus(), not click(): a click would make Playwright scroll the field
+    // into view itself and hide the very behavior under test.
+    await page.evaluate(() => document.getElementById('new-comment-body')?.focus());
+    await expect(page.locator('#new-comment-actions')).toBeVisible();
+
+    // The whole editor — textarea and button bar — must sit inside the
+    // scrollable main column. Polling the overflow in pixels (rather than a
+    // boolean) names the failure if it ever regresses.
+    await expect.poll(async () => page.evaluate(() => {
+      const editor = document.getElementById('new-comment-editor')!.getBoundingClientRect();
+      const view = document.querySelector('.modal-main-scroll')!.getBoundingClientRect();
+      return Math.round(editor.bottom - view.bottom);
+    })).toBeLessThanOrEqual(0);
+  });
+
   test('comment creation, editing and deletion are blocked via API on archived issues', async ({ page }) => {
     await createIssue(page, { title: 'Comment API Archived Issue', status: 'Todo' });
     await openIssueByTitle(page, 'Comment API Archived Issue');

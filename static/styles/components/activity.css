@@ -254,6 +254,16 @@
   outline: none;
 }
 
+/* Dimmed while an existing comment is being edited — only one editor may be
+   open at a time (see enterCommentEdit). readOnly (set there) blocks typing,
+   and pointer-events blocks the click that would otherwise open the form.
+   Derived from the field's own state, like releases.css does for its readonly
+   inputs, so there's no second class to keep in sync. */
+#new-comment-editor:has(#new-comment-body[readonly]) {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 /* --- History timeline --- */
 .history-timeline {
   list-style: none;

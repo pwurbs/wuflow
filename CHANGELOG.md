@@ -1,6 +1,7 @@
 
 # 1.4.1
 
+- The new comment field now only shows its confirm/cancel buttons once editing starts, and is scrolled fully into view when opened
 - The issue modal's scroll indicator is now clickable and jumps to the end of the main column
 - Added golangci-lint (also replaces the deprecated Go report card)
 - Bumped dompurify to 3.4.13

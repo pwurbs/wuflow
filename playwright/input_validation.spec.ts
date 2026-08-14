@@ -160,9 +160,10 @@ test.describe('Validation limits – Comment', () => {
     await createIssue(page, { title, status: 'Todo' });
     await openIssueByTitle(page, title);
 
-    // Focus first so initCharCounter fires on the empty value, then bypass
-    // maxlength to test the JS/backend validation backstop.
-    await page.focus('#new-comment-body');
+    // Click the field first — that opens the comment editor (revealing its
+    // ✓ button) and fires initCharCounter on the empty value. A bare focus()
+    // would be a no-op while the activity section is still loading/hidden.
+    await page.click('#new-comment-body');
     await page.evaluate(() => {
       (document.getElementById('new-comment-body') as HTMLTextAreaElement).value = 'a'.repeat(1001);
     });
