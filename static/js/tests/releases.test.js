@@ -248,6 +248,20 @@ describe('releases', () => {
       expect(container.querySelector('.releases-divider')).not.toBeNull();
     });
 
+    it('suppresses the "view on board" nav icon for closed releases, since their issues are mostly archived', async () => {
+      state.releases = [
+        { id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null },
+      ];
+      await renderReleasesView();
+      expect(document.querySelector('.release-stats-nav-icon')).toBeNull();
+    });
+
+    it('still shows the "view on board" nav icon for open releases', async () => {
+      state.releases = [{ id: 1, name: 'v1.0', status: 'open', description: '', owner: null }];
+      await renderReleasesView();
+      expect(document.querySelector('.release-stats-nav-icon')).not.toBeNull();
+    });
+
     it('forces a cache refresh when forceRefresh is true', async () => {
       await renderReleasesView(); // populate cache
       const callsBefore = api.fetchArchivedIssuesByProject.mock.calls.length;

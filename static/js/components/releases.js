@@ -439,6 +439,11 @@ function buildReleaseRow(rel, isOpen, allIssues) {
   const triggerHtml = isOpen && userCan(state.currentUser, ACTION_TRIGGER_RELEASE)
     ? `<button class="btn primary btn--sm release-trigger-btn" data-id="${rel.id}">Release</button>`
     : '';
+  // Closed releases' issues are mostly archived and won't show on the board, so the
+  // board-navigation link would just be confusing there.
+  const navIconHtml = isOpen
+    ? `<span class="release-stats-nav-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="18" rx="1"/><circle cx="5" cy="7" r="0.7" fill="currentColor"/><circle cx="5" cy="11" r="0.7" fill="currentColor"/><rect x="9" y="3" width="6" height="18" rx="1"/><circle cx="12" cy="7" r="0.7" fill="currentColor"/><rect x="16" y="3" width="6" height="18" rx="1"/><circle cx="19" cy="7" r="0.7" fill="currentColor"/><circle cx="19" cy="11" r="0.7" fill="currentColor"/><circle cx="19" cy="15" r="0.7" fill="currentColor"/></svg></span>`
+    : '';
   const descHtml = `<span class="release-card-desc">${escapeHtml(rel.description)}</span>`;
   const datesHtml = buildReleaseDateRange(rel);
 
@@ -467,12 +472,13 @@ function buildReleaseRow(rel, isOpen, allIssues) {
         </div>
       </div>
     </div>
+    ${navIconHtml || triggerHtml ? `
     <div class="release-card-actions">
-      <span class="release-stats-nav-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="18" rx="1"/><circle cx="5" cy="7" r="0.7" fill="currentColor"/><circle cx="5" cy="11" r="0.7" fill="currentColor"/><rect x="9" y="3" width="6" height="18" rx="1"/><circle cx="12" cy="7" r="0.7" fill="currentColor"/><rect x="16" y="3" width="6" height="18" rx="1"/><circle cx="19" cy="7" r="0.7" fill="currentColor"/><circle cx="19" cy="11" r="0.7" fill="currentColor"/><circle cx="19" cy="15" r="0.7" fill="currentColor"/></svg></span>
+      ${navIconHtml}
       ${triggerHtml}
-    </div>
+    </div>` : ''}
   `;
-  row.querySelector('.release-stats-nav-icon').addEventListener('click', (e) => {
+  row.querySelector('.release-stats-nav-icon')?.addEventListener('click', (e) => {
     e.stopPropagation();
     document.dispatchEvent(new CustomEvent('nav-to-release', { detail: { releaseId: rel.id } }));
   });
