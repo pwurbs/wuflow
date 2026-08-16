@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, selectAssignee, openIssueByTitle, navigateTo } from './helpers/test-utils';
+import { createIssue, createRelease, selectAssignee, openIssueByTitle, navigateTo, isIssueSaveResponse } from './helpers/test-utils';
 
 test.describe('Board Functionality', () => {
   test.beforeEach(async ({ login }) => {
@@ -101,7 +101,7 @@ test.describe('Board Functionality', () => {
     const cardB = page.locator(`.column[data-status="Todo"] .board-card:has-text("${titleB}")`);
     const putPromises: Promise<void>[] = [];
     page.on('response', r => {
-      if (r.url().includes('/issues/') && r.request().method() === 'PUT') {
+      if (isIssueSaveResponse(r)) {
         putPromises.push(r.finished().then(() => {}));
       }
     });

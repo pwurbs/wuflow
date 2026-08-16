@@ -19,9 +19,8 @@ const ctx = {
   // Only one comment may be in edit mode at a time — otherwise saving one
   // triggers a refreshComments() re-render that discards any other comment's
   // in-progress (unsaved) edit. The new-comment form counts as an edit too:
-  // newCommentOpen and editingCommentId are mutually exclusive.
-  editingCommentId: null,
-  newCommentOpen: false
+  // null | 'new' | <commentId>.
+  activeEditor: null
 };
 
 // Monotonic sequence guard against out-of-order async responses. loadActivity,
@@ -75,7 +74,7 @@ export function setupActivity() {
     // The textarea grows with its content, which can push the action bar out
     // of sight on a long comment.
     e.input.addEventListener('input', () => {
-      if (ctx.newCommentOpen) ensureNewCommentVisible(e.editor);
+      if (ctx.activeEditor === 'new') ensureNewCommentVisible(e.editor);
     });
     e.input.addEventListener('keydown', (ev) => {
       // Ctrl/Cmd+Enter submits; plain Enter on a list line continues the list.
@@ -89,14 +88,14 @@ export function setupActivity() {
 // ✓/✕ bar once the user actually starts writing — same as the issue
 // description, which shows its action bar only in edit mode.
 function openNewCommentForm() {
-  if (ctx.newCommentOpen || ctx.editingCommentId !== null) return;
+  if (ctx.activeEditor !== null) return;
   const e = els();
-  ctx.newCommentOpen = true;
+  ctx.activeEditor = 'new';
   e.actions?.classList.remove('hidden');
   newCommentCounter?.show();
   // No active row: every existing comment's Edit/Delete is hidden while the
   // new comment is unconfirmed.
-  setOtherCommentsActionsHidden(e.commentList, null, true);
+  setOtherCommentsActionsHidden(e.commentList, null);
   ctx.callbacks.onEditStart?.();
   ensureNewCommentVisible(e.editor);
 }
@@ -129,12 +128,12 @@ function ensureNewCommentVisible(editor) {
 function closeNewCommentForm({ clear = false } = {}) {
   const e = els();
   if (clear && e.input) e.input.value = ''; // the counter recomputes on its next show()
-  if (!ctx.newCommentOpen) return;
-  ctx.newCommentOpen = false;
+  if (ctx.activeEditor !== 'new') return;
+  ctx.activeEditor = null;
   lastEditorHeight = null; // reopening must scroll again
   e.actions?.classList.add('hidden');
   newCommentCounter?.hide();
-  setOtherCommentsActionsHidden(e.commentList, null, false);
+  setOtherCommentsActionsHidden(e.commentList, null);
   ctx.callbacks.onEditEnd?.();
 }
 
@@ -156,7 +155,7 @@ export async function loadActivity(issue, callbacks = {}) {
   ctx.activeTab = 'comments';
   ctx.history = [];
   ctx.comments = [];
-  ctx.editingCommentId = null;
+  if (ctx.activeEditor !== 'new') ctx.activeEditor = null;
   // Drop any draft (and its guard state) left over from a previously opened issue.
   closeNewCommentForm({ clear: true });
   setNewCommentFormBlocked(false);
@@ -336,7 +335,7 @@ function buildCommentActions(comment, li, container) {
 // holds the single-editor guard, i.e. this comment's Edit/Delete must not be
 // offered.
 function isOtherCommentActive(commentId) {
-  return ctx.newCommentOpen || (ctx.editingCommentId !== null && ctx.editingCommentId !== commentId);
+  return ctx.activeEditor !== null && ctx.activeEditor !== commentId;
 }
 
 // Hides Edit/Delete on every other comment while one is being edited, so
@@ -344,33 +343,34 @@ function isOtherCommentActive(commentId) {
 // place — more preventive than corrective. A null activeLi means "no comment
 // is the active one", i.e. hide them all (used while the new-comment form is
 // open). Comments rendered later derive the same state via isOtherCommentActive.
-function setOtherCommentsActionsHidden(container, activeLi, hidden) {
+function setOtherCommentsActionsHidden(container, activeLi) {
   container?.querySelectorAll('.comment-item').forEach(item => {
     if (item === activeLi) return;
+    const hidden = isOtherCommentActive(Number(item.dataset.id));
     item.querySelector('.comment-actions')?.classList.toggle('actions-hidden', hidden);
   });
 }
 
 function enterCommentEdit(comment, li, container) {
+  // The other half of the guard: an unconfirmed new comment blocks editing an
+  // existing one (its Edit button is hidden while the form is open).
+  if (ctx.activeEditor === 'new') {
+    showNotification('Finish the new comment first', 'error');
+    return;
+  }
   // Safety net: the Edit button on other comments is hidden while one is
   // being edited (see setOtherCommentsActionsHidden), so this should be
   // unreachable via the mouse — kept in case a button is still reachable
   // some other way (e.g. a stale reference).
-  if (ctx.editingCommentId !== null) {
+  if (ctx.activeEditor !== null) {
     showNotification('Finish editing the other comment first', 'error');
-    return;
-  }
-  // The other half of the guard: an unconfirmed new comment blocks editing an
-  // existing one (its Edit button is hidden while the form is open).
-  if (ctx.newCommentOpen) {
-    showNotification('Finish the new comment first', 'error');
     return;
   }
   const body = li.querySelector('.comment-body');
   if (!body) return;
-  ctx.editingCommentId = comment.id;
+  ctx.activeEditor = comment.id;
   ctx.callbacks.onEditStart?.();
-  setOtherCommentsActionsHidden(container, li, true);
+  setOtherCommentsActionsHidden(container, li);
   setNewCommentFormBlocked(true);
 
   // Same flush, single-border structure as the new-comment form
@@ -423,8 +423,8 @@ function enterCommentEdit(comment, li, container) {
   initCharCounter(textarea, MAX_COMMENT_LENGTH, { manual: true }).show();
 
   const finish = () => {
-    ctx.editingCommentId = null;
-    setOtherCommentsActionsHidden(container, li, false);
+    ctx.activeEditor = null;
+    setOtherCommentsActionsHidden(container, li);
     setNewCommentFormBlocked(false);
     ctx.callbacks.onEditEnd?.();
   };

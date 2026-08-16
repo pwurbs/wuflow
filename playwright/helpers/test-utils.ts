@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Page, Response, expect } from '@playwright/test';
 
 /**
  * Helper functions for wuFlow Playwright tests
@@ -132,10 +132,19 @@ export async function waitForToastHidden(page: Page): Promise<void> {
 }
 
 /**
+ * Matches an issue PUT save response — shared so callers that need to wait on
+ * more than one (e.g. a drag that reorders several cards) don't have to
+ * re-implement the match condition.
+ */
+export function isIssueSaveResponse(resp: Response): boolean {
+  return resp.url().includes('/issues/') && resp.request().method() === 'PUT';
+}
+
+/**
  * Returns a promise that resolves when an issue PUT save request completes.
  */
 export function waitForIssueSave(page: Page) {
-  return page.waitForResponse(resp => resp.url().includes('/issues/') && resp.request().method() === 'PUT');
+  return page.waitForResponse(isIssueSaveResponse);
 }
 
 /**
