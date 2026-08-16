@@ -18,8 +18,8 @@ const ctx = {
   readOnly: false,
   // Only one comment may be in edit mode at a time — otherwise saving one
   // triggers a refreshComments() re-render that discards any other comment's
-  // in-progress (unsaved) edit. The new-comment form counts as an edit too:
-  // null | 'new' | <commentId>.
+  // in-progress (unsaved) edit. The new-comment form counts as an edit too.
+  /** @type {null | 'new' | number} */
   activeEditor: null
 };
 
