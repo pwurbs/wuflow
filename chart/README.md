@@ -5,7 +5,8 @@ Deploys [wuFlow](https://github.com/pwurbs/wuflow) — a lightweight, self-hoste
 ## Prerequisites
 
 - Helm 3 installed
-- Kubeconfig at `~/.kube/wuflow-{env}.yaml` (download from your cluster management UI)
+- Kubeconfig at `~/.kube/{env}.yaml` (download from your cluster management UI — shared with
+  other apps deployed to the same cluster)
 - A `secrets.{env}.yaml` file with credentials (see below)
 
 ## Quick Start
