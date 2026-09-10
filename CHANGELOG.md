@@ -1,4 +1,8 @@
 
+# 1.5.0
+
+- Improved secrets management in Helm chart, added release script to generate and push Helm package, removed deploy folder and scripts 
+
 # 1.4.1
 
 - The new comment field now only shows its confirm/cancel buttons once editing starts, and is scrolled fully into view when opened

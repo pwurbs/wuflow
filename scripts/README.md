@@ -79,6 +79,15 @@ A shell script to automate the versioning process for wuFlow and its Home Assist
 ```
 The script uses `osascript` to trigger macOS dialog boxes for input, so it must be run on a macOS environment.
 
+### `helm_release.sh`
+A shell script to package the Helm chart in [`chart/`](../chart) and push it to GitHub Container Registry (`ghcr.io`) as an OCI artifact, using the version currently set in `chart/Chart.yaml`.
+
+**Usage:**
+```bash
+bash scripts/helm_release.sh
+```
+The script expects `helm` (3.8+) to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted.
+
 ### `go_checks.sh`
 Runs the Go static-analysis and security checks used by the "Go Checks" VS Code task: `gosec` (sonarqube report), `golangci-lint run`, `golangci-lint fmt --diff`, and `govulncheck`. Each command's output is preceded by a banner so results are easy to scan in the console.
 

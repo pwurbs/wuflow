@@ -120,6 +120,17 @@ Configuration Remarks:
 
 ## Deployment Options
 
+### Via Helm (Kubernetes)
+For Kubernetes deployments, a Helm chart is published as an OCI artifact to GitHub Container Registry. Replace `<chart-version>` with the release you want to deploy and run:
+
+```bash
+helm install wuflow oci://ghcr.io/pwurbs/charts/wuflow --version <chart-version> \
+  --namespace wuflow --create-namespace \
+  -f values.yaml
+```
+
+See the [Helm chart documentation](chart/README.md) for configuration options, the dedicated-hostname requirement, and how the initial admin password is generated and retrieved.
+
 ### Via Container (Docker)
 The recommended and easiest way to deploy wuFlow is using the pre-built container image. 
 This is a minimal command to start the app initially for testing purposes in foreground mode. You should adapt it to your needs.

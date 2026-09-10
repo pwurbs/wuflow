@@ -178,9 +178,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Deploy dev",
+      "label": "Helm Release",
       "type": "shell",
-      "command": "bash ./deploy/helm_deploy.sh dev",
+      "command": "bash ./scripts/helm_release.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",

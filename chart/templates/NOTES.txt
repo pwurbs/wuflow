@@ -1,0 +1,9 @@
+wuFlow has been deployed.
+{{- if not .Values.secrets.initialAdminPassword }}
+
+The initial admin password was auto-generated. Retrieve it with:
+
+  kubectl get secret {{ .Release.Name }}-secrets -n {{ .Release.Namespace }} -o jsonpath='{.data.initial-admin-password}' | base64 -d; echo
+
+Change it immediately after logging in as {{ .Values.wuflow.initialAdminEmail }}.
+{{- end }}

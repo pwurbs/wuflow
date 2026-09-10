@@ -21,7 +21,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: wuflow
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
           env:
@@ -43,7 +43,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
-                  key: admin-password
+                  key: initial-admin-password
             - name: WF_SECRET_KEY
               valueFrom:
                 secretKeyRef:

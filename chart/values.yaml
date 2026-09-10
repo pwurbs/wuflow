@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/pwurbs/wuflow
-  tag: "latest"
+  tag: ""   # defaults to the chart's appVersion; override only to test a different image tag
   pullPolicy: IfNotPresent
 
 wuflow:
@@ -10,6 +10,10 @@ wuflow:
   apiRateLimit: true
   remoteIpHeader: "X-Forwarded-For"
   initialAdminEmail: admin@local
+
+secrets:
+  initialAdminPassword: ""   # optional; auto-generated on first install if empty
+  secretKey: ""               # optional; auto-generated on first install if empty
 
 ingress:
   host: ""        # e.g. wuflow.example.com — set in values.{env}.yaml

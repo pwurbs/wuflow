@@ -2,24 +2,17 @@
 
 Deploys [wuFlow](https://github.com/pwurbs/wuflow) — a lightweight, self-hosted Agile board — to a Kubernetes cluster.
 
-## Prerequisites
+## Installation
 
-- Helm 3 installed
-- Kubeconfig at `~/.kube/{env}.yaml` (download from your cluster management UI — shared with
-  other apps deployed to the same cluster)
-- A `secrets.{env}.yaml` file with credentials (see below)
-
-## Quick Start
+The chart is published as an OCI artifact to GitHub Container Registry:
 
 ```bash
-# 1. Create deploy/secrets.dev.yaml with your credentials (see Secrets section below)
-
-# 2. Set the ingress host in deploy/values.dev.yaml
-#    (wuFlow requires a dedicated hostname — see note below)
-
-# 3. Deploy
-bash deploy/helm_deploy.sh dev
+helm install wuflow oci://ghcr.io/pwurbs/charts/wuflow --version <chart-version> \
+  --namespace wuflow --create-namespace \
+  -f values.yaml
 ```
+
+> **After the first install**, retrieve the auto-generated initial admin password — see [Secrets](#secrets) below. It is not printed anywhere automatically.
 
 ## Important: Dedicated Hostname Required
 
@@ -30,7 +23,7 @@ bash deploy/helm_deploy.sh dev
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `image.repository` | Container image | `ghcr.io/pwurbs/wuflow` |
-| `image.tag` | Image tag | `1.3.1` |
+| `image.tag` | Image tag | chart's `appVersion` (override only to test a different image tag) |
 | `wuflow.initialAdminEmail` | First admin email | `admin@local` |
 | `wuflow.logLevel` | Log level (`debug`, `info`, `warn`, `error`) | `info` |
 | `wuflow.secureCookie` | Require HTTPS for auth cookies | `true` |
@@ -46,21 +39,21 @@ bash deploy/helm_deploy.sh dev
 
 ## Secrets
 
-Create `deploy/secrets.{env}.yaml` manually — this file must not be committed to Git (it is covered by `.gitignore`).
-
-```yaml
-secrets:
-  adminPassword: "your-admin-password"   # minimum 12 characters
-  secretKey: "your-secret-key"           # minimum 32 characters, used for JWT signing
-```
+The chart auto-generates both secrets on first install and persists them across upgrades (the
+`Secret` is only regenerated if it doesn't already exist in the cluster):
 
 | Key | Description |
 |-----|-------------|
-| `secrets.adminPassword` | Password for the initial admin account (minimum 12 characters) |
-| `secrets.secretKey` | Key used to sign JWTs and session tokens (minimum 32 characters) |
+| `secrets.initialAdminPassword` | Password for the initial admin account. Auto-generated if left empty (minimum 12 characters if set explicitly). |
+| `secrets.secretKey` | Key used to sign JWTs and session tokens. Auto-generated if left empty (minimum 32 characters if set explicitly). Never needs to be read back. |
 
-## Environments
+Retrieve the auto-generated admin password:
 
-- `values.dev.yaml` — dev-specific overrides (ingress host, etc.)
-- `values.prod.yaml` — prod-specific overrides
-- `secrets.dev.yaml` / `secrets.prod.yaml` — credentials per environment (not in Git)
+```bash
+kubectl get secret <release-name>-secrets -n <namespace> -o jsonpath='{.data.initial-admin-password}' | base64 -d; echo
+```
+
+Change it immediately after logging in — it only exists to get you into the app on first boot.
+
+Only set `secrets.initialAdminPassword` / `secrets.secretKey` explicitly if you need a fixed,
+externally-managed value.
