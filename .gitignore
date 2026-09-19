@@ -10,6 +10,9 @@
 # Node modules
 node_modules
 
+# Build output / Chart packages
+dist
+
 # Playwright
 playwright/.playwright
 .tmp
