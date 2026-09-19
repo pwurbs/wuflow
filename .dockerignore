@@ -15,6 +15,9 @@ static/js/README.md
 # Playwright tests
 playwright/
 
+# Build output / Chart packages
+dist/
+
 # macOS metadata
 .DS_Store
 **/.DS_Store
