@@ -33,6 +33,8 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+            privileged: false
+            readOnlyRootFilesystem: false
           resources: {{- toYaml .Values.resources | nindent 12 }}
           env:
             - name: WF_PORT
