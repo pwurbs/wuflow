@@ -18,6 +18,11 @@ GITHUB_USER="pwurbs"
 OCI_REPO="oci://ghcr.io/${GITHUB_USER}/charts"
 
 CHART_VERSION=$(awk '/^version:/ {print $2}' "${CHART_DIR}/Chart.yaml")
+APP_VERSION=$(awk -F'"' '/^appVersion:/ {print $2}' "${CHART_DIR}/Chart.yaml")
+
+echo "==> Syncing artifacthub.io/images annotation to appVersion ${APP_VERSION} ..."
+sed -i.bak -E "s#(ghcr\.io/${GITHUB_USER}/wuflow:)[^\"[:space:]]+#\1${APP_VERSION}#" "${CHART_DIR}/Chart.yaml"
+rm -f "${CHART_DIR}/Chart.yaml.bak"
 
 if [[ -z "${GHCR_TOKEN}" ]]; then
     read -rsp "GitHub PAT for ${GITHUB_USER} (write:packages scope): " GHCR_TOKEN

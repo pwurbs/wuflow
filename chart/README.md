@@ -1,6 +1,6 @@
 # wuFlow Helm Chart
 
-Deploys [wuFlow](https://github.com/pwurbs/wuflow) — a lightweight, self-hosted Agile board — to a Kubernetes cluster.
+Deploys [wuFlow](https://github.com/pwurbs/wuflow) into a Kubernetes cluster.
 
 ## Installation
 
