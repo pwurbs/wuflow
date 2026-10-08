@@ -1,6 +1,8 @@
 
 # 1.4.2
 
+- Bumped Go to 1.27.1 including some related adjustments for linter tools, scripts and code
+- Added race detection to the Go fuzz testing task
 - Issue details now open instantly from the already loaded board data instead of waiting for several API requests
 - Improved secrets management in Helm chart, added release script to generate and push Helm package, removed deploy folder and scripts
 - Added values schema to chart

@@ -2735,7 +2735,7 @@ func TestCheckAssignee(t *testing.T) {
 		},
 		{
 			name:         "Non-existent Assignee",
-			issue:        &Issue{AssigneeID: ptrInt(999)},
+			issue:        &Issue{AssigneeID: new(999)},
 			current:      nil,
 			expectedRes:  false,
 			expectedCode: http.StatusBadRequest,
@@ -2879,8 +2879,6 @@ func TestCheckLabelDBError(t *testing.T) {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 	}
 }
-
-func ptrInt(i int) *int { return &i }
 
 func TestHandleListProjects(t *testing.T) {
 	setupTestDB()

@@ -612,13 +612,11 @@ func testHTMLExpiredAccessValidRefresh(t *testing.T) {
 
 	// Create expired access token manually
 	claims := CustomClaims{
-		UserID: u.ID,
-		Email:  u.Email,
-		Role:   u.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)), // Expired 1 min ago
-			Subject:   u.Email,
-		},
+		UserID:    u.ID,
+		Email:     u.Email,
+		Role:      u.Role,
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(-1 * time.Minute)), // Expired 1 min ago
+		Subject:   u.Email,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	expiredAccessToken, _ := token.SignedString(jwtSecret)

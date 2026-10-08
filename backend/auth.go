@@ -117,14 +117,12 @@ func GenerateAccessToken(user *User) (string, error) {
 		return "", fmt.Errorf("cannot generate token for inactive user")
 	}
 	claims := CustomClaims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(accessTokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
-			Subject:   user.Email,
-		},
+		UserID:    user.ID,
+		Email:     user.Email,
+		Role:      user.Role,
+		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(accessTokenDuration)),
+		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+		Subject:   user.Email,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)

@@ -62,7 +62,10 @@ The script expects Wapiti to be installed in a virtual environment at `~/python_
 ### `check_dependencies.sh`
 A shell script to check for available updates across all dependencies in the repository. It checks:
 1. NPM dependencies in `static/js` and `playwright`.
-2. Go modules updates, local Go version (including minor patch updates), and runs `govulncheck`.
+2. Go modules updates, the Go version used by the repo (including minor patch updates), and runs `govulncheck`.
+3. Whether the installed system Go and the Go used to build `gopls`, `gosec`, `govulncheck` and `golangci-lint` are older than the `go` directive in `go.mod`, and whether a newer `golangci-lint` release is available.
+
+Inside the repo `go version` reports the toolchain selected by `go.mod` (downloaded automatically), not the installed system Go — check 3 catches a system Go or tool build that was left behind after a Go version bump.
 
 **Usage:**
 ```bash
@@ -98,6 +101,15 @@ Runs the Go static-analysis and security checks used by the "Go Checks" VS Code 
 The script expects `gosec`, `go`, `golangci-lint` (v2), and `govulncheck` to be available in your PATH. `golangci-lint` is configured by [`.golangci.yml`](../.golangci.yml) in the repo root.
 
 Every check runs even if an earlier one fails, so a single pass reports all problems. The script then prints a summary and exits `1` if any check failed (`0` only when all pass), which is what turns the "Go Checks" task red.
+
+### `go_race_fuzz.sh`
+Runs the slow Go test passes used by the "Go Race & Fuzz" VS Code task: the backend test suite under the race detector (`go test -race`), then every fuzz target for a fixed duration each.
+
+**Usage:**
+```bash
+./scripts/go_race_fuzz.sh [fuzztime]
+```
+`fuzztime` is the fuzz duration per target (e.g. `30s`, `2m`, default `30s`); the VS Code task prompts for it. Like `go_checks.sh`, every step runs even if an earlier one fails, then a summary is printed and the script exits `1` if any step failed. A failing fuzz input is saved under `backend/testdata/fuzz/` and replayed by every later `go test` run.
 
 ### `diff_coverage.sh`
 Calculates and visualizes code coverage changes compared to the `main` branch for both Go (backend) and Vitest (frontend). It generates a combined HTML report showing which new or modified lines are covered by tests.

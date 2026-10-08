@@ -42,9 +42,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Go Fuzz",
+      "label": "Go Race & Fuzz",
       "type": "shell",
-      "command": "for t in FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue FuzzValidateComment FuzzValidateProject FuzzValidateStatusConfig FuzzValidateRelease; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
+      "command": "./scripts/go_race_fuzz.sh ${input:fuzzduration}",
       "group": "test",
       "presentation": {
         "reveal": "always",

@@ -18,6 +18,9 @@ linters:
     - gocritic
     - gosec
     - misspell
+    # Same analyzers as "go fix" — flags code that newer language/stdlib
+    # features (per the go directive in go.mod) can express more simply.
+    - modernize
     - musttag
     - nilerr
     - nilnil
