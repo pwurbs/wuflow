@@ -1,7 +1,11 @@
 
-# 1.5.0
+# 1.4.2
 
-- Improved secrets management in Helm chart, added release script to generate and push Helm package, removed deploy folder and scripts 
+- Improved secrets management in Helm chart, added release script to generate and push Helm package, removed deploy folder and scripts
+- Added values schema to chart
+- Added securityContext to deployment, container runs now in namespaces with restricted PSA
+- Added metdata for Artifact Hub
+- Changed the chart versioning, chart version is now the same like the app version
 
 # 1.4.1
 
