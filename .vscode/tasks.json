@@ -148,9 +148,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Build & Push Image",
+      "label": "Image Release",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container build --no-cache --arch amd64,arm64 --build-arg VERSION=$VERSION -t ghcr.io/pwurbs/wuflow:$VERSION . && container image push ghcr.io/pwurbs/wuflow:$VERSION",
+      "command": "bash ./scripts/image_release.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",

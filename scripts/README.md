@@ -91,6 +91,15 @@ bash scripts/helm_release.sh
 ```
 The script expects `helm` (3.8+) to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted.
 
+### `image_release.sh`
+A shell script to build the multi-arch (`amd64`, `arm64`) container image with the version from the `VERSION` file and push it to GitHub Container Registry (`ghcr.io`).
+
+**Usage:**
+```bash
+bash scripts/image_release.sh
+```
+The script expects the Apple `container` CLI to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted. The login is skipped if a cached `ghcr.io` login already exists.
+
 ### `go_checks.sh`
 Runs the Go static-analysis and security checks used by the "Go Checks" VS Code task: `gosec` (sonarqube report), `golangci-lint run`, `golangci-lint fmt --diff`, and `govulncheck`. Each command's output is preceded by a banner so results are easy to scan in the console.
 
