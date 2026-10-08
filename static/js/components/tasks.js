@@ -158,7 +158,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       });
 
       titleInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); saveTask(); }
+        if (e.key === 'Enter') { e.preventDefault(); void saveTask(); }
         else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
       });
       titleInput.addEventListener('blur', async () => {

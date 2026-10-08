@@ -1,6 +1,6 @@
 import { fetchActiveIssuesByProject, fetchLabelsByProject, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects, fetchStatusConfig, fetchReleases } from './api.js';
 import { renderMarkdown } from './markdown.js';
-import { state, setIssues, setFilterSearch, setCurrentUser, setStatusConfig, setReleases, setFilterRelease, setFilterReleaseOwner, setFilterReleaseSearch } from './state.js';
+import { state, setIssues, setFilterSearch, setCurrentUser, setStatusConfig, setReleases, setLabels, setUsers, setProjects, setFilterRelease, setFilterReleaseOwner, setFilterReleaseSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
 import { renderBacklog, setupBacklogView, resetOpenLoaded } from './components/backlog.js';
 import { renderPlanningPanel, setupPlanningPanel } from './components/planning.js';
@@ -33,12 +33,9 @@ const toolbar = document.querySelector('.toolbar');
 const searchInput = document.getElementById('search-input');
 const releaseSearchInput = document.getElementById('release-search-input');
 
-let cachedUsers = [];
-let cachedLabels = [];
-
 
 document.addEventListener('DOMContentLoaded', () => {
-    init();
+    void init();
 });
 
 async function init() {
@@ -70,12 +67,12 @@ async function init() {
     setupPlanningPanel(refreshApp, openModal, rerenderActiveView);
     setupSystemSettingsView(refreshApp);
     setupProjectSettingsView();
-    setupReleasesView();
+    void setupReleasesView();
     setupModal(refreshApp, rerenderAfterIssueChange);
     setupUserMenu(user);
 
     // Fetch and display version
-    fetchVersion().then(version => {
+    void fetchVersion().then(version => {
         const versionEl = document.getElementById('app-version');
         if (versionEl) {
             versionEl.textContent = 'v' + version;
@@ -84,8 +81,9 @@ async function init() {
 
     await refreshApp();
 
-    // Pre-warm marked + DOMPurify so the first modal open is fast.
-    // Deferred via setTimeout so the initial page paint is not delayed.
+    // Pre-warm marked + DOMPurify: the modal renders the description synchronously on
+    // click, so move their one-time init cost off that path. Deferred via setTimeout
+    // so the initial page paint is not delayed.
     setTimeout(() => renderMarkdown('a'), 0);
 }
 
@@ -129,17 +127,18 @@ async function refreshApp() {
 
         setIssues(issues);
 
-        cachedLabels = labels;
+        setLabels(labels, state.selectedProjectId);
         updateLabelFilterOptions(labels);
 
         setReleases(releases);
         updateReleaseFilterOptions(releases);
 
-        cachedUsers = users;
+        setUsers(users);
         const visible = getVisibleViews();
-        updateUserFilterOptions(cachedUsers, visible.releases ? 'releases' : 'issues');
-        if (visible.releases) renderReleaseOwnerOptions(cachedUsers);
+        updateUserFilterOptions(state.users, visible.releases ? 'releases' : 'issues');
+        if (visible.releases) renderReleaseOwnerOptions(state.users);
 
+        setProjects(projects);
         updateProjectSelectorOptions(projects);
 
         // Priority filter options are static/local so we might not strictly need to call update here unless we want to ensure sync,
@@ -157,7 +156,7 @@ async function refreshApp() {
             await renderProjectSettingsView();
         }
         if (visible.releases) {
-            renderReleasesView();
+            void renderReleasesView();
         }
         renderPlanningPanel();
     } catch (err) {
@@ -170,23 +169,23 @@ function rerenderActiveView() {
     // The label/user/release filter buttons only rebuild their "selected + clear icon"
     // display as a side effect of these calls, so a filter change must still trigger them —
     // just reusing already-cached data instead of re-fetching it.
-    updateLabelFilterOptions(cachedLabels);
+    updateLabelFilterOptions(state.labels);
     updateReleaseFilterOptions(state.releases);
     const visible = getVisibleViews();
-    updateUserFilterOptions(cachedUsers, visible.releases ? 'releases' : 'issues');
+    updateUserFilterOptions(state.users, visible.releases ? 'releases' : 'issues');
 
     renderBoard();
     if (visible.backlog) {
-        renderBacklog();
+        void renderBacklog();
     }
     if (visible.archive) {
-        renderArchive();
+        void renderArchive();
     }
     if (visible.projectSettings) {
-        renderProjectSettingsView();
+        void renderProjectSettingsView();
     }
     if (visible.releases) {
-        renderReleasesView();
+        void renderReleasesView();
     }
     renderPlanningPanel();
 }
@@ -227,7 +226,7 @@ function setupEventListeners() {
     if (releaseSearchInput) {
         releaseSearchInput.addEventListener('input', debounce((e) => {
             setFilterReleaseSearch(e.target.value);
-            renderReleasesView();
+            void renderReleasesView();
         }, 300));
     }
 
@@ -283,8 +282,8 @@ function switchView(view) {
 
     const isReleases = view === 'releases';
     applyReleaseFilterVisibility(isReleases);
-    updateUserFilterOptions(cachedUsers, isReleases ? 'releases' : 'issues');
-    if (isReleases) renderReleaseOwnerOptions(cachedUsers);
+    updateUserFilterOptions(state.users, isReleases ? 'releases' : 'issues');
+    if (isReleases) renderReleaseOwnerOptions(state.users);
 
     // Reset release filters when leaving releases view
     if (!isReleases) {

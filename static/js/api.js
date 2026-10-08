@@ -348,12 +348,18 @@ export async function fetchCurrentUser() {
  * Log out the current user by clearing auth cookies.
  */
 export async function logout() {
-  await fetch(`${API_URL}/auth/logout`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}'
-  });
-  globalThis.location.href = '/login';
+  try {
+    await fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+  } catch (err) {
+    // Still leave the app: the server-side session expires on its own.
+    console.warn('Logout request failed:', err);
+  } finally {
+    globalThis.location.href = '/login';
+  }
 }
 
 export async function updateCurrentUser(data) {

@@ -108,4 +108,29 @@ test.describe('Issue Edit Modal Behavior', () => {
     // Nothing left below the fold — the cue hides itself again.
     await expect(cue).not.toHaveClass(/visible/);
   });
+
+  test('renders issue details immediately without waiting for the issue fetch', async ({ page }) => {
+    const title = `Instant-Render-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo', description: '**bold** text' });
+
+    // Hold the single-issue GET for 1.5 s; the modal must not depend on it to paint.
+    let released = false;
+    await page.route(/\/api\/projects\/\d+\/issues\/\d+$/, async route => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await new Promise(r => setTimeout(r, 1500));
+      released = true;
+      await route.continue();
+    });
+
+    await openIssueByTitle(page, title);
+
+    await expect(page.locator('#title')).toHaveValue(title, { timeout: 500 });
+    await expect(page.locator('#description-preview strong')).toHaveText('bold', { timeout: 500 });
+    await expect(page.locator('#issue-modal .modal-content')).not.toHaveClass(/loading-state/);
+    expect(released).toBe(false);
+
+    await page.unrouteAll({ behavior: 'wait' });
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+  });
 });

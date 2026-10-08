@@ -321,6 +321,12 @@ describe('api', () => {
       expect(fetch).toHaveBeenCalledWith('/api/auth/logout', expect.objectContaining({ method: 'POST' }));
       expect(location.href).toBe('/login');
     });
+
+    it('still redirects to /login and does not reject when the request fails', async () => {
+      fetch.mockRejectedValue(new Error('down'));
+      await expect(logout()).resolves.toBeUndefined();
+      expect(location.href).toBe('/login');
+    });
   });
 
   // --- Projects ---

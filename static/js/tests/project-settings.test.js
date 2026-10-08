@@ -38,6 +38,7 @@ vi.mock('../permissions.js', async (importOriginal) => {
 vi.mock('../state.js', () => ({
   state: { currentUser: { role: 'admin' }, selectedProjectId: 1, issues: [], filter: { labelId: null } },
   setStatusConfig: vi.fn(),
+  setLabels: vi.fn(),
 }));
 
 const DEFAULT_CFG = {

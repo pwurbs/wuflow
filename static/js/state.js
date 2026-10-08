@@ -1,6 +1,10 @@
 export const state = {
   issues: [],
   releases: [],
+  labels: [],              // labels of labelsProjectId, loaded by refreshApp
+  labelsProjectId: null,   // project the cached labels belong to (null = none cached)
+  users: [],
+  projects: [],
   currentIssue: null,
   currentUser: null,
   selectedProjectId: null, // null = show all projects (project selector context)
@@ -56,6 +60,19 @@ export function setStatusConfig(cfg) {
 
 export function setReleases(releases) {
   state.releases = releases;
+}
+
+export function setLabels(labels, projectId) {
+  state.labels = labels;
+  state.labelsProjectId = projectId;
+}
+
+export function setUsers(users) {
+  state.users = users;
+}
+
+export function setProjects(projects) {
+  state.projects = projects;
 }
 
 export function setFilterRelease(releaseId) {

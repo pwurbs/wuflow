@@ -37,6 +37,10 @@ vi.mock('../state.js', () => ({
   state: {
     issues: [],
     releases: [],
+    labels: [],
+    labelsProjectId: null,
+    users: [],
+    projects: [],
     currentIssue: null,
     currentUser: { role: 'admin' }
   },
@@ -215,6 +219,10 @@ describe('Modal Component', () => {
     api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
     state.currentIssue = null;
     state.currentUser = { role: 'admin' };
+    state.labels = [];
+    state.labelsProjectId = null;
+    state.users = [];
+    state.projects = [];
     setCurrentIssue.mockImplementation((val) => { state.currentIssue = val; });
 
     HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -1223,6 +1231,184 @@ describe('Modal Component', () => {
       openSpy.mockRestore();
     });
   });
+  describe('Instant render and background revalidation', () => {
+    // A promise the test resolves by hand, to control when GET /issues/{id} "returns".
+    const deferred = () => {
+      let resolve;
+      const promise = new Promise(r => { resolve = r; });
+      return { promise, resolve };
+    };
+    const flush = async () => {
+      for (let i = 0; i < 5; i++) await new Promise(process.nextTick);
+    };
+    const changePriority = (value) => {
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = value;
+      prioritySelect.dispatchEvent(new Event('change'));
+    };
+    const baseIssue = () => ({
+      id: 5, project_id: 1, title: 'From Board', description: 'Board desc',
+      status: 'Doing', priority: 'Normal', tasks: [], updated_at: '2026-10-08T10:00:00Z'
+    });
+
+    it('renders the passed issue before the fetch resolves, without a loading overlay', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+
+      openModal(baseIssue());
+
+      expect(document.getElementById('title').value).toBe('From Board');
+      expect(document.getElementById('description-editor').value).toBe('Board desc');
+      expect(document.getElementById('modal-title').textContent).toBe('Issue Details #5');
+      expect(document.querySelector('.modal-content').classList.contains('loading-state')).toBe(false);
+    });
+
+    it('does not mutate the caller\'s issue object', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+      const issue = baseIssue();
+
+      openModal(issue);
+
+      expect(state.currentIssue).not.toBe(issue);
+      expect(state.currentIssue).toEqual(issue);
+    });
+
+    it('keeps the rendered data and only stores the ETag when updated_at is unchanged', async () => {
+      const issue = baseIssue();
+      api.fetchIssueById.mockResolvedValue({ issue: { ...issue }, etag: '"fresh-etag"' });
+
+      openModal(issue);
+      await flush();
+
+      expect(setCurrentIssue).toHaveBeenCalledTimes(1);
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }), '"fresh-etag"');
+    });
+
+    it('re-renders with the server copy when it is newer and the user is not editing', async () => {
+      const issue = baseIssue();
+      api.fetchIssueById.mockResolvedValue({
+        issue: { ...issue, title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' },
+        etag: '"newer-etag"'
+      });
+
+      openModal(issue);
+      await flush();
+
+      expect(document.getElementById('title').value).toBe('Changed Elsewhere');
+      expect(state.currentIssue.title).toBe('Changed Elsewhere');
+
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Changed Elsewhere' }), '"newer-etag"');
+    });
+
+    it('keeps in-progress input and forces a conflict on save when a newer copy arrives during editing', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+      api.updateIssue.mockResolvedValue({ conflict: true });
+      utils.showConfirm.mockResolvedValue(false);
+
+      openModal(baseIssue());
+      const titleInput = document.getElementById('title');
+      titleInput.click(); // enter inline title editing
+      titleInput.value = 'My Edit';
+
+      load.resolve({ issue: { ...baseIssue(), title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' }, etag: '"newer-etag"' });
+      await flush();
+
+      expect(titleInput.value).toBe('My Edit');
+
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.any(Object), '"stale"');
+      expect(utils.showConfirm).toHaveBeenCalledWith('Conflict Detected', expect.any(String), 'Reload', 'Cancel', 'primary');
+    });
+
+    it('waits for the revalidation before saving and sends the fetched ETag', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+
+      openModal(baseIssue());
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).not.toHaveBeenCalled();
+
+      load.resolve({ issue: baseIssue(), etag: '"fresh-etag"' });
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }), '"fresh-etag"');
+    });
+
+    it('forces a conflict for a save started before the revalidation replaced the issue', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+      api.updateIssue.mockResolvedValue({ conflict: true });
+      utils.showConfirm.mockResolvedValue(false);
+
+      openModal(baseIssue());
+      changePriority('High');
+      load.resolve({ issue: { ...baseIssue(), updated_at: '2026-10-08T11:00:00Z' }, etag: '"newer-etag"' });
+      await flush();
+
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.any(Object), '"stale"');
+    });
+
+    it('ignores a late response for a previously opened issue', async () => {
+      const loadA = deferred();
+      api.fetchIssueById.mockReturnValueOnce(loadA.promise);
+      openModal({ ...baseIssue(), id: 5, title: 'Issue A' });
+
+      api.fetchIssueById.mockResolvedValueOnce({ issue: { ...baseIssue(), id: 6, title: 'Issue B' }, etag: '"b"' });
+      openModal({ ...baseIssue(), id: 6, title: 'Issue B' });
+      await flush();
+
+      loadA.resolve({ issue: null, etag: null });
+      await flush();
+
+      expect(utils.showNotification).not.toHaveBeenCalledWith('Issue not found or was deleted', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('title').value).toBe('Issue B');
+    });
+
+    it('ignores a late response after the modal was closed', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+
+      openModal(baseIssue());
+      closeModal();
+      load.resolve({ issue: null, etag: null });
+      await flush();
+
+      expect(utils.showNotification).not.toHaveBeenCalledWith('Issue not found or was deleted', 'error');
+    });
+
+    it('renders dropdown options from cached state without refetching', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+      state.labels = [{ id: 3, name: 'Cached Label' }];
+      state.labelsProjectId = 1;
+      state.users = [{ id: 1, first_name: 'Cached', last_name: 'User', active: true }];
+      state.projects = [{ id: 1, name: 'default' }];
+
+      openModal(baseIssue());
+
+      expect(api.fetchLabelsByProject).not.toHaveBeenCalled();
+      expect(api.fetchUsers).not.toHaveBeenCalled();
+      expect(api.fetchProjects).not.toHaveBeenCalled();
+      expect(document.getElementById('label-options').textContent).toContain('Cached Label');
+      expect(document.getElementById('assignee-options').textContent).toContain('Cached User');
+    });
+
+    it('fetches labels for an issue from a project other than the cached one', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+      state.labels = [{ id: 3, name: 'Cached Label' }];
+      state.labelsProjectId = 1;
+
+      openModal({ ...baseIssue(), project_id: 8 });
+
+      expect(api.fetchLabelsByProject).toHaveBeenCalledWith(8);
+    });
+  });
+
   describe('Multi-Day Date Management', () => {
     it('should add a date via the picker in existing issue mode', async () => {
       const issue = { id: 1, planned_dates: [] };
@@ -1234,7 +1420,8 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(issue.planned_dates).toContain('2025-05-20');
+      // The modal works on a copy of the passed issue (state.currentIssue)
+      expect(state.currentIssue.planned_dates).toContain('2025-05-20');
       expect(api.updateIssue).toHaveBeenCalled();
 
       const container = document.getElementById('planned-dates-container');
@@ -1252,7 +1439,7 @@ describe('Modal Component', () => {
       await removeBtn.click();
       await new Promise(process.nextTick);
 
-      expect(issue.planned_dates).not.toContain('2025-05-20');
+      expect(state.currentIssue.planned_dates).not.toContain('2025-05-20');
       expect(api.updateIssue).toHaveBeenCalled();
       expect(container.querySelectorAll('.date-chip')).toHaveLength(0);
     });
@@ -1445,7 +1632,7 @@ describe('Modal Component', () => {
       await taskOrderCallback();
 
       expect(api.updateTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({ id: expect.any(Number) }));
-      expect(issue.tasks[0].id).toBe(102);
+      expect(state.currentIssue.tasks[0].id).toBe(102);
     });
 
     it('should insert ordered list via toolbar button', async () => {

@@ -1,4 +1,8 @@
 
+# 1.4.2
+
+- Issue details now open instantly from the already loaded board data instead of waiting for several API requests
+
 # 1.4.1
 
 - The new comment field now only shows its confirm/cancel buttons once editing starts, and is scrolled fully into view when opened

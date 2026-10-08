@@ -14,6 +14,11 @@ let refreshAppCallback = null;
 let rerenderViewsCallback = null;
 let previousActiveNavBtn = null;
 let currentEtag = null; // Stores ETag for conflict detection
+// Never matches a server ETag: forces a 409 so a save built on outdated data goes
+// through the conflict dialog instead of silently overwriting newer changes.
+const STALE_ETAG = '"stale"';
+let issueLoad = null; // Pending background revalidation of the open issue (see openModal)
+let issueLoadSeq = 0; // Bumped per open/close so a late revalidation can't touch another issue
 let hasSavedDuringSession = false; // Tracks whether any save occurred in this modal session
 
 export function setupModal(refreshApp, rerenderViews) {
@@ -48,7 +53,7 @@ export function setupModal(refreshApp, rerenderViews) {
   document.getElementById('new-task-title').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleTaskSubmit(e);
+      void handleTaskSubmit(e);
     }
   });
 
@@ -131,45 +136,74 @@ export async function openModal(issue = null) {
   modal.classList.remove('hidden');
   hasSavedDuringSession = false;
 
+  const seq = ++issueLoadSeq;
+  currentEtag = null;
+
   if (issue) {
-    // Show loading state to prevent interaction while fetching fresh data
-    const modalContent = modal.querySelector('.modal-content');
-    modalContent.classList.add('loading-state');
-
-    // Clear stale content so the previous issue's data isn't visible under the loading overlay.
-    // Use direct .value assignment (not form.reset()) to avoid triggering change event listeners.
-    document.getElementById('title').value = '';
-    document.getElementById('description-editor').value = '';
-    document.getElementById('description-preview').innerHTML = '';
-
-    // Fetch fresh data from server to ensure we have latest version
-    try {
-      const { issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id);
-
-      modalContent.classList.remove('loading-state');
-
-      if (!freshIssue) {
-        showNotification('Issue not found or was deleted', 'error');
-        closeModal();
-        return;
-      }
-      currentEtag = etag;
-      setCurrentIssue(freshIssue);
-      renderModalDropdowns(freshIssue);
-      setupEditModal(freshIssue);
-    } catch (e) {
-      modalContent.classList.remove('loading-state');
-      console.error(e);
-      showNotification('Failed to load issue', 'error');
-      modal.classList.add('hidden');
-    }
+    // Render immediately from the caller's copy (list endpoints return the same shape as
+    // GET /issues/{id}), then revalidate in the background to obtain the ETag and pick up
+    // changes made elsewhere. Saves wait for the revalidation via etagForSave().
+    // Cloned so in-modal edits never mutate the caller's list entry directly
+    // (rerenderAfterIssueChange merges them back explicitly).
+    const current = structuredClone(issue);
+    setCurrentIssue(current);
+    renderModalDropdowns(current);
+    setupEditModal(current);
+    issueLoad = revalidateIssue(current, seq);
   } else {
-    currentEtag = null;
+    issueLoad = null;
     setCurrentIssue(null);
     renderModalDropdowns(null);
     setupNewModal();
   }
   resetTaskForm();
+}
+
+async function revalidateIssue(issue, seq) {
+  let freshIssue, etag;
+  try {
+    ({ issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id));
+  } catch (e) {
+    console.error(e);
+    if (seq === issueLoadSeq) {
+      showNotification('Failed to load issue', 'error');
+      closeModal();
+    }
+    return;
+  }
+  if (seq !== issueLoadSeq) return; // modal closed or another issue opened meanwhile
+  issueLoad = null;
+
+  if (!freshIssue) {
+    showNotification('Issue not found or was deleted', 'error');
+    closeModal();
+    return;
+  }
+  if (freshIssue.updated_at === issue.updated_at) {
+    currentEtag = etag;
+    return;
+  }
+  if (isEditing()) {
+    // Keep the user's in-progress input; their first save will hit the conflict dialog.
+    currentEtag = STALE_ETAG;
+    return;
+  }
+  currentEtag = etag;
+  setCurrentIssue(freshIssue);
+  renderModalDropdowns(freshIssue);
+  renderIssueFields(freshIssue);
+}
+
+/**
+ * Returns the ETag to send with a save built from state.currentIssue. Waits for a pending
+ * background revalidation first; if it replaced the issue with a newer server copy, the
+ * save's data is outdated and STALE_ETAG forces the conflict flow.
+ */
+async function etagForSave() {
+  if (!issueLoad) return currentEtag;
+  const baseIssue = state.currentIssue;
+  await issueLoad;
+  return state.currentIssue === baseIssue ? currentEtag : STALE_ETAG;
 }
 
 function setupProjectDropdown(issue) {
@@ -182,12 +216,17 @@ function setupProjectDropdown(issue) {
   projectInput.value = issue?.project_id ?? (storedProjectId ? Number.parseInt(storedProjectId) : 1);
   projectText.textContent = issue?.project?.name ?? 'default';
 
-  fetchProjects().then(projects => {
+  const applyProjects = (projects) => {
     renderProjectOptions(projects);
     const currentId = Number.parseInt(projectInput.value);
     const found = projects.find(p => p.id === currentId);
     if (found) projectText.textContent = found.name;
-  }).catch(err => console.error('Failed to load projects', err));
+  };
+  if (state.projects.length) {
+    applyProjects(state.projects);
+  } else {
+    fetchProjects().then(applyProjects).catch(err => console.error('Failed to load projects', err));
+  }
 
   if (projectTrigger) {
     const restricted = !!issue && !userCan(state.currentUser, ACTION_MOVE_ISSUE);
@@ -217,13 +256,20 @@ function renderModalDropdowns(issue) {
   labelText.textContent = issue?.label?.name ?? 'No Label';
 
   const labelProjectId = issue?.project_id ?? (state.selectedProjectId ?? 1);
-  fetchLabelsByProject(labelProjectId).then(labels => {
+  const applyLabels = (labels) => {
     renderLabelOptions(labels);
     if (issue?.label) {
       const found = labels.find(l => l.id === issue.label.id);
       if (found) labelText.textContent = found.name;
     }
-  }).catch(err => console.error('Failed to load labels', err));
+  };
+  // refreshApp caches the selected project's labels; only an issue from another
+  // project (e.g. in the "all projects" view) needs its own fetch.
+  if (state.labelsProjectId === labelProjectId) {
+    applyLabels(state.labels);
+  } else {
+    fetchLabelsByProject(labelProjectId).then(applyLabels).catch(err => console.error('Failed to load labels', err));
+  }
 
   // Assignee Dropdown
   const assigneeInput = document.getElementById('assignee-select');
@@ -231,13 +277,18 @@ function renderModalDropdowns(issue) {
   assigneeInput.value = issue?.assignee_id ?? '';
   assigneeText.textContent = issue?.assignee ? (issue.assignee.first_name + ' ' + issue.assignee.last_name) : 'Unassigned';
 
-  fetchUsers().then(users => {
+  const applyUsers = (users) => {
     renderAssigneeOptions(users);
     if (issue?.assignee_id) {
       const found = users.find(u => u.id === issue.assignee_id);
       if (found) assigneeText.textContent = found.first_name + ' ' + found.last_name;
     }
-  }).catch(err => console.error('Failed to load users', err));
+  };
+  if (state.users.length) {
+    applyUsers(state.users);
+  } else {
+    fetchUsers().then(applyUsers).catch(err => console.error('Failed to load users', err));
+  }
 
   // Project Dropdown
   setupProjectDropdown(issue);
@@ -253,6 +304,18 @@ function renderModalDropdowns(issue) {
 }
 
 function setupEditModal(issue) {
+  renderIssueFields(issue);
+
+  // Activity area (History + Comments) — fetches its own data lazily on open.
+  void loadActivity(issue, {
+    onEditStart: () => addUnloadListener(),
+    onEditEnd: () => checkRemoveUnloadListener()
+  });
+}
+
+// Renders everything in the edit modal except the Activity area, so a background
+// revalidation can refresh the fields without refetching history/comments.
+function renderIssueFields(issue) {
   const isArchived = issue.status === STATUS_ARCHIVE;
   document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Issue Details #${issue.id}`;
   document.getElementById('issue-id').value = issue.id;
@@ -276,18 +339,12 @@ function setupEditModal(issue) {
 
   renderTasks(issue.tasks || [], document.getElementById('task-list'), issue, {
     readOnly: isArchived,
-    onTaskUpdate: () => { rerenderViewsCallback?.(); refreshHistory(); },
+    onTaskUpdate: () => { rerenderViewsCallback?.(); void refreshHistory(); },
     onTaskOrderSave: async () => {
       await saveTaskOrder(issue);
     },
     onTaskEditStart: () => addUnloadListener(),
     onTaskEditEnd: () => checkRemoveUnloadListener()
-  });
-
-  // Activity area (History + Comments) — fetches its own data lazily on open.
-  loadActivity(issue, {
-    onEditStart: () => addUnloadListener(),
-    onEditEnd: () => checkRemoveUnloadListener()
   });
 
   const user = state.currentUser;
@@ -407,6 +464,8 @@ export function closeModal() {
   }
   setCurrentIssue(null);
   currentEtag = null;
+  issueLoad = null;
+  issueLoadSeq++;
   resetTaskForm();
   if (refreshAppCallback) refreshAppCallback();
 }
@@ -416,7 +475,7 @@ export function closeModal() {
  * Returns true if save succeeded, false if conflict occurred.
  */
 async function saveIssueWithConflictCheck(issue, successMessage) {
-  const result = await updateIssue(issue.project_id, issue, currentEtag);
+  const result = await updateIssue(issue.project_id, issue, await etagForSave());
 
   if (result.conflict) {
     const shouldReload = await showConfirm(
@@ -446,7 +505,7 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
   hasSavedDuringSession = true;
   if (successMessage) showNotification(successMessage);
   if (rerenderViewsCallback) rerenderViewsCallback();
-  refreshHistory();
+  void refreshHistory();
   return true;
 }
 
@@ -501,7 +560,7 @@ async function handleIssueSubmit(e) {
     if (state.currentIssue) {
       if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
       issueData.id = state.currentIssue.id;
-      const result = await updateIssue(issueData.project_id, issueData, currentEtag);
+      const result = await updateIssue(issueData.project_id, issueData, await etagForSave());
       if (result.conflict) {
         await saveIssueWithConflictCheck(issueData, 'Issue updated');
       }
@@ -753,7 +812,7 @@ function setupInlineEditing() {
   };
 
   descCancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelDesc(); });
-  descSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); saveDesc(); });
+  descSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); void saveDesc(); });
 }
 
 async function handleDone() {
@@ -816,11 +875,16 @@ function removeUnloadListener() {
   window.removeEventListener('beforeunload', preventNavigation);
 }
 
-function checkRemoveUnloadListener() {
+// True while the title, description or a task is in inline edit mode.
+function isEditing() {
   const titleEditing = document.getElementById('title').classList.contains('inline-editing');
   const descEditing = document.querySelector('.editor-container').classList.contains('inline-editing');
   const taskEditing = document.querySelector('.task-item.editing') !== null;
-  if (!titleEditing && !descEditing && !taskEditing) {
+  return titleEditing || descEditing || taskEditing;
+}
+
+function checkRemoveUnloadListener() {
+  if (!isEditing()) {
     removeUnloadListener();
   }
 }
@@ -1243,7 +1307,7 @@ async function handleTaskSubmit(e) {
     if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
     state.currentIssue.tasks.push(newTask);
     renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
-      onTaskUpdate: () => { rerenderViewsCallback?.(); refreshHistory(); },
+      onTaskUpdate: () => { rerenderViewsCallback?.(); void refreshHistory(); },
       onTaskOrderSave: () => saveTaskOrder(state.currentIssue),
       onTaskEditStart: () => addUnloadListener(),
       onTaskEditEnd: () => checkRemoveUnloadListener()
@@ -1252,7 +1316,7 @@ async function handleTaskSubmit(e) {
     const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
     showNotification(taskDlStatus.late ? `Task created — ${taskDlStatus.reason}` : 'Task created', taskDlStatus.late ? 'warning' : 'success');
     if (rerenderViewsCallback) rerenderViewsCallback();
-    refreshHistory();
+    void refreshHistory();
   } catch (err) {
     showNotification(err.message, 'error');
   }

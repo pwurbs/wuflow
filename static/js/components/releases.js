@@ -82,7 +82,7 @@ export async function setupReleasesView() {
         mergeReleaseIntoState(updated);
         showNotification('Release reopened', 'success');
         updateReleaseFilterOptions(state.releases);
-        renderReleasesView();
+        void renderReleasesView();
       } catch (err) {
         showNotification(err.message || 'Failed to reopen release', 'error');
       }
@@ -390,7 +390,7 @@ async function handleReleaseSubmit() {
     closeReleaseModal();
     showNotification(isEdit ? 'Release updated' : 'Release created', 'success');
     updateReleaseFilterOptions(state.releases);
-    renderReleasesView();
+    void renderReleasesView();
   } catch (err) {
     if (errorDisplay) {
       errorDisplay.textContent = err.message || 'Failed to save release.';
@@ -500,7 +500,7 @@ async function handleDeleteRelease(rel) {
   await refreshIssuesAfterReleaseSideEffect();
   showNotification('Release deleted', 'success');
   updateReleaseFilterOptions(state.releases);
-  renderReleasesView(true);
+  void renderReleasesView(true);
 }
 
 async function handleTriggerReleaseDialog(rel) {
@@ -563,7 +563,7 @@ async function handleTriggerReleaseDialog(rel) {
         await refreshIssuesAfterReleaseSideEffect();
         showNotification('Release closed', 'success');
         updateReleaseFilterOptions(state.releases);
-        renderReleasesView(true);
+        void renderReleasesView(true);
       } catch (err) {
         showNotification(err.message || 'Failed to release', 'error');
       }

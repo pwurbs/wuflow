@@ -78,7 +78,7 @@ export function setupActivity() {
     });
     e.input.addEventListener('keydown', (ev) => {
       // Ctrl/Cmd+Enter submits; plain Enter on a list line continues the list.
-      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); submitNewComment(); return; }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); void submitNewComment(); return; }
       if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) continueListOnEnter(e.input, ev);
     });
   }

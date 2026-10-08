@@ -62,7 +62,9 @@ vi.mock('../permissions.js', async (importOriginal) => {
 vi.mock('../state.js', () => ({
   state: {
     currentUser: { role: 'admin' }
-  }
+  },
+  setUsers: vi.fn(),
+  setProjects: vi.fn(),
 }));
 
 describe('system-settings.js component', () => {
