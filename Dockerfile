@@ -32,7 +32,7 @@ RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
 #------- Package stage ---------------------------------------------------------
 
 # Slim Alpine image
-FROM docker.io/library/alpine:3.24.1
+FROM docker.io/library/alpine:3.24.2
 
 # Create a non-login, non-root user and group
 # Pinned to uid/gid 999 to match the previous Debian-based image, so existing
