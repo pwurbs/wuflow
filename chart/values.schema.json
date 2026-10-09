@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "wuFlow",
+  "type": "object",
+  "required": ["image", "wuflow", "ingress", "storage"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "default": "ghcr.io/pwurbs/wuflow",
+          "description": "Container image repository."
+        },
+        "tag": {
+          "type": "string",
+          "default": "",
+          "description": "Image tag. Defaults to the chart's appVersion when empty."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent",
+          "description": "Kubernetes image pull policy."
+        }
+      }
+    },
+    "wuflow": {
+      "type": "object",
+      "required": ["port", "logLevel", "initialAdminEmail"],
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 8080,
+          "description": "Port the wuFlow application listens on."
+        },
+        "logLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info",
+          "description": "Application log level."
+        },
+        "secureCookie": {
+          "type": "boolean",
+          "default": true,
+          "description": "Set the Secure flag on session cookies. Disable only for non-HTTPS setups."
+        },
+        "apiRateLimit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable API rate limiting."
+        },
+        "remoteIpHeader": {
+          "type": "string",
+          "default": "X-Forwarded-For",
+          "description": "HTTP header used to determine the client's real IP address behind a reverse proxy."
+        },
+        "initialAdminEmail": {
+          "type": "string",
+          "format": "email",
+          "default": "admin@local",
+          "description": "Email address for the initial admin account created on first install."
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "default": "",
+          "description": "Name of an already existing Secret to use instead of letting the chart generate one. Leave empty to have the chart create and manage the Secret itself."
+        },
+        "existingSecretKeys": {
+          "type": "object",
+          "properties": {
+            "initialAdminPassword": {
+              "type": "string",
+              "default": "",
+              "description": "Key name for the initial admin password inside an existing Secret. Defaults to initial-admin-password."
+            },
+            "secretKey": {
+              "type": "string",
+              "default": "",
+              "description": "Key name for the secret key (JWT and session token signing) inside an existing Secret. Defaults to secret-key."
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "required": ["host", "className"],
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "default": "",
+          "description": "Hostname the ingress should route to wuFlow, e.g. wuflow.example.com. Must be set by the deployer, no default is provided."
+        },
+        "className": {
+          "type": "string",
+          "default": "traefik",
+          "description": "Ingress class name."
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {
+            "traefik.ingress.kubernetes.io/router.entrypoints": "websecure",
+            "traefik.ingress.kubernetes.io/router.tls": "true"
+          },
+          "description": "Extra annotations added to the ingress resource."
+        },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable TLS on the ingress."
+            },
+            "secretName": {
+              "type": "string",
+              "default": "",
+              "description": "TLS secret name. Leave empty to use the ingress controller's default certificate."
+            }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": ["data"],
+      "properties": {
+        "storageClass": {
+          "type": "string",
+          "default": "local-path",
+          "description": "StorageClass used for the persistent volume claim. Adjust to your cluster's storage class (e.g. standard, longhorn)."
+        },
+        "data": {
+          "type": "object",
+          "required": ["size"],
+          "properties": {
+            "size": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(Ei|Pi|Ti|Gi|Mi|Ki|E|P|T|G|M|k)?$",
+              "default": "1Gi",
+              "description": "Size of the persistent volume, e.g. 1Gi."
+            }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "default": "100m",
+              "description": "Requested CPU, e.g. 100m."
+            },
+            "memory": {
+              "type": "string",
+              "default": "64Mi",
+              "description": "Requested memory, e.g. 64Mi."
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "description": "CPU limit, e.g. 500m."
+            },
+            "memory": {
+              "type": "string",
+              "default": "256Mi",
+              "description": "Memory limit, e.g. 256Mi."
+            }
+          }
+        }
+      }
+    }
+  }
+}

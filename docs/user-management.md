@@ -187,12 +187,22 @@ To protect against credential stuffing and brute force attacks while preventing 
 | **Refresh Token** | 24 hours | Session Renewal | Stateful (DB Hash) |
 
 - **Stolen JWT**: Because access tokens are stateless, a stolen JWT could be used by an attacker, but only for a **maximum of 15 minutes**, greatly reducing the window of opportunity.
-- **Idle Timeout**: If a user is inactive for >24 hours, their session expires and they must re-login.
+- **Idle Timeout**: If a user is inactive for >24 hours, their session expires and they must log in again (in place, see [Session Expiry in the Browser](#session-expiry-in-the-browser)).
 - **Active Sessions**: As long as the user uses the app once every 24 hours, the session effectively never expires (Sliding Window).
 ### Token Refresh Details
 
-1. **API Requests**: The frontend uses a 401 interceptor with a mutex to catch expired access tokens. It calls `/api/auth/refresh` once, then retries all pending requests. This avoids race conditions (Token Reuse Detection) during concurrent API calls.
+1. **API Requests**: The frontend uses a 401 interceptor with a mutex to catch expired access tokens. It calls `/api/auth/refresh` once, then retries all pending requests. This avoids race conditions (Token Reuse Detection) during concurrent API calls. If the refresh fails, the re-login dialog opens and the pending requests are retried after login (see below).
 2. **Static Page Loads**: On browser refresh or direct navigation, the server automatically checks the refresh token cookie. If valid, it refreshes the session and serves the page immediately without a redirect. This ensures a seamless initial load.
+
+### Session Expiry in the Browser
+
+When the session ends while the app is open (24 h idle timeout, session revocation, server restart without a stable secret key), unsaved input is not lost:
+
+- **Re-login dialog**: If `/api/auth/refresh` fails, the app shows a "Session Expired" dialog instead of redirecting to the login page. The email is fixed to the current user. After a successful login, the failed request is sent again, so the pending change is saved. "Log Out" leaves the app like the logout in the user menu; the browser still warns about unsaved edits.
+- **Check on return**: When the tab becomes visible or the window gets focus, and on the first interaction after 10 minutes of inactivity, the app checks the session (at most once per minute). An expired session therefore shows the dialog before the user starts typing. There is no background keep-alive, so the 24 h idle timeout stays effective.
+- **Login in another tab**: An open dialog closes by itself once the session is valid again.
+- **Page loads**: An expired session at page load still redirects to the login page.
+- **Network errors are not logouts**: If the server cannot be reached (offline, timeout after 20 s, gateway error 502/503/504), the change is not saved and the app shows an error and a connection banner instead of logging out. Text being edited stays in its field; moved cards and changed fields return to their saved state. Read requests are retried once; changes are never resent automatically.
 
 ### Custom Secret Key
 
@@ -222,4 +232,4 @@ The key should be a long, random string (32+ characters recommended).
   - Changing a user's password (self-service or admin-initiated)
   - **Changing a user's role** (any direction)
   - Detecting **Token Reuse** (suspected theft)
-- **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401), causing the application to log the user out.
+- **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401) and the re-login dialog opens. For a deactivated user the login there fails, so they can only leave via "Log Out".

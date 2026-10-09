@@ -104,7 +104,7 @@
                     </button>
                     <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
                         <button id="user-menu-password" class="dropdown-item">Password</button>
-                        <button id="user-menu-logout" class="dropdown-item danger">Logout</button>
+                        <button id="user-menu-logout" class="dropdown-item danger">Log Out</button>
                     </div>
                 </div>
             </div>
@@ -838,6 +838,34 @@
         </div>
     </div>
 
+    <!-- Re-login Modal (session expired while the app was open; the failed save is replayed after login) -->
+    <div id="reauth-modal" class="modal reauth-modal hidden">
+        <div class="settings-modal">
+            <div class="settings-modal-header">
+                <h2>Session Expired</h2>
+            </div>
+            <div class="admin-confirm-body">
+                <p>Your session has expired. Please sign in again to continue.</p>
+                <p>Log Out opens the login page; unsaved changes are lost.</p>
+                <form id="reauth-form">
+                    <div class="form-group">
+                        <label for="reauth-email">Email</label>
+                        <input type="email" id="reauth-email" autocomplete="username" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="reauth-password">Password</label>
+                        <input type="password" id="reauth-password" required placeholder="Enter your password" maxlength="128" autocomplete="current-password">
+                        <div id="reauth-error" class="form-error hidden" role="alert"></div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="reauth-logout-btn" class="btn danger">Log Out</button>
+                        <button type="submit" id="reauth-submit-btn" class="btn primary">Sign In</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Password Change Modal -->
     <div id="password-modal" class="modal hidden">
         <div class="settings-modal">
@@ -870,6 +898,7 @@
         </div>
     </div>
 
+    <output id="connection-banner" class="connection-banner hidden">No connection to the server. Changes cannot be saved until the connection is back.</output>
     <div id="notification-toast" class="notification-toast hidden"></div>
     <script type="module" src="js/app.js"></script>
 </body>

@@ -10,6 +10,9 @@ import {
   setCurrentUser,
   isFilterActive,
   setReleases,
+  setLabels,
+  setUsers,
+  setProjects,
   setFilterRelease,
   setFilterReleaseOwner,
   setFilterReleaseSearch,
@@ -22,6 +25,10 @@ describe('state', () => {
   beforeEach(() => {
     state.issues = [];
     state.releases = [];
+    state.labels = [];
+    state.labelsProjectId = null;
+    state.users = [];
+    state.projects = [];
     state.currentIssue = null;
     state.filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null, releaseOwnerFilter: null, releaseSearch: '', releaseFilterIds: [] };
   });
@@ -123,6 +130,31 @@ describe('state', () => {
       setReleases([{ id: 1, name: 'v1.0' }]);
       setReleases([]);
       expect(state.releases).toEqual([]);
+    });
+  });
+
+  describe('setLabels', () => {
+    it('should set the labels together with the project they belong to', () => {
+      const labels = [{ id: 1, name: 'Bug' }];
+      setLabels(labels, 7);
+      expect(state.labels).toEqual(labels);
+      expect(state.labelsProjectId).toBe(7);
+    });
+  });
+
+  describe('setUsers', () => {
+    it('should set users array', () => {
+      const users = [{ id: 1, first_name: 'Ada' }];
+      setUsers(users);
+      expect(state.users).toEqual(users);
+    });
+  });
+
+  describe('setProjects', () => {
+    it('should set projects array', () => {
+      const projects = [{ id: 1, name: 'Default' }];
+      setProjects(projects);
+      expect(state.projects).toEqual(projects);
     });
   });
 

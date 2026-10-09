@@ -8,6 +8,7 @@
 | **Unit (Frontend)** | JS State logic, Utilities | `vitest` | Yes |
 | **End-to-End** | Essential User Journeys | `playwright` | No |
 | **Go Fuzzing** | Edge Cases, Input Validation | `go test -fuzz` | No |
+| **Race Detection (Go)** | Data races in backend tests | `go test -race` | No |
 | **SAST (Go)** | Static security analysis | `gosec` | Yes |
 | **Linting (Go)** | Static analysis, correctness, style | `golangci-lint` | No |
 | **Vulnerability Scan** | Security vulnerabilities | `wapiti` | No |
@@ -25,6 +26,10 @@ All business logic, database interactions (via interfaces), and API handlers mus
 We use Go's native fuzzing (`go test -fuzz`) to discover edge-case panics and security bypasses in our validation logic.
 * **Focus:** NUL byte stripping, HTML tag removal from plain-text fields (Title), and password normalization across complex character sets.
 * **Markdown:** Note that the Markdown **description** field is *not* sanitized by the backend (only length-checked). Sanitization is a frontend responsibility. See [Markdown Security](markdown-security.md).
+
+## Race Detection (Go)
+The backend test suite is also run under Go's race detector (`go test -race`) to catch unsynchronized access to shared state (e.g. the rate limiters in `backend/ratelimit.go`) that plain unit tests would not reveal.
+* **When:** Together with fuzzing via the "Go Race & Fuzz" task ([`scripts/go_race_fuzz.sh`](../scripts/go_race_fuzz.sh)). It is not part of the regular "Go Test" task because it takes minutes instead of seconds.
 
 
 ## Frontend Unit Testing (Plain JS)

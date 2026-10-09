@@ -4,10 +4,12 @@
     "projectKey": "wuflow-oss"
   },
   // Run golangci-lint on save so findings appear as live diagnostics in the
-  // Problems panel, using the repo's .golangci.yml. The extension inspects the
-  // binary's module version and selects the v2 CLI flag syntax automatically,
-  // so no "-v2" tool alias is needed.
-  "go.lintTool": "golangci-lint",
+  // Problems panel, using the repo's .golangci.yml. The "-v2" alias is required:
+  // with plain "golangci-lint", "Go: Install/Update Tools" builds the v1 line and
+  // overwrites the v2 binary, which cannot read the version "2" .golangci.yml.
+  // With "-v2" the extension installs the latest v2, built with the current
+  // system Go, so the binary also keeps up with the go directive in go.mod.
+  "go.lintTool": "golangci-lint-v2",
   // Extension default, pinned so a future default change cannot narrow it.
   "go.lintOnSave": "package"
 }

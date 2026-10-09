@@ -19,10 +19,22 @@ spec:
         app: {{ .Release.Name }}
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: wuflow
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+            readOnlyRootFilesystem: false
           resources: {{- toYaml .Values.resources | nindent 12 }}
           env:
             - name: WF_PORT
@@ -42,13 +54,13 @@ spec:
             - name: WF_INITIAL_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: admin-password
+                  name: {{ include "wuflow.secretName" . }}
+                  key: {{ include "wuflow.secretKeyInitialAdminPassword" . }}
             - name: WF_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: secret-key
+                  name: {{ include "wuflow.secretName" . }}
+                  key: {{ include "wuflow.secretKeySecretKey" . }}
           startupProbe:
             httpGet:
               path: /api/health

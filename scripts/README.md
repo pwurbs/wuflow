@@ -62,7 +62,10 @@ The script expects Wapiti to be installed in a virtual environment at `~/python_
 ### `check_dependencies.sh`
 A shell script to check for available updates across all dependencies in the repository. It checks:
 1. NPM dependencies in `static/js` and `playwright`.
-2. Go modules updates, local Go version (including minor patch updates), and runs `govulncheck`.
+2. Go modules updates, the Go version used by the repo (including minor patch updates), and runs `govulncheck`.
+3. Whether the installed system Go and the Go used to build `gopls`, `gosec`, `govulncheck` and `golangci-lint` are older than the `go` directive in `go.mod`, and whether a newer `golangci-lint` release is available.
+
+Inside the repo `go version` reports the toolchain selected by `go.mod` (downloaded automatically), not the installed system Go — check 3 catches a system Go or tool build that was left behind after a Go version bump.
 
 **Usage:**
 ```bash
@@ -71,13 +74,31 @@ A shell script to check for available updates across all dependencies in the rep
 The script expects `go` and `npm` to be available in your PATH.
 
 ### `new_version.sh`
-A shell script to automate the versioning process for wuFlow and its Home Assistant Add-on. It prompts for the new version and changelog text, updates the `VERSION` file, patches the Home Assistant `config.yaml`, and automatically inserts the new version headers into both the root `CHANGELOG.md` and the `home-assistant-addon/CHANGELOG.md`.
+A shell script to automate the versioning process for wuFlow, its Home Assistant Add-on and the Helm chart. It prompts for the new version, updates the `VERSION` file, patches the Home Assistant `config.yaml`, and sets `version`, `appVersion` and the `artifacthub.io/images` image tag in `chart/Chart.yaml` to the new version.
 
 **Usage:**
 ```bash
 ./scripts/new_version.sh
 ```
 The script uses `osascript` to trigger macOS dialog boxes for input, so it must be run on a macOS environment.
+
+### `helm_release.sh`
+A shell script to package the Helm chart in [`chart/`](../chart) and push it to GitHub Container Registry (`ghcr.io`) as an OCI artifact, using the version currently set in `chart/Chart.yaml`. It doesn't modify any files: it aborts if the chart `version`, `appVersion` and the `artifacthub.io/images` image tag differ.
+
+**Usage:**
+```bash
+bash scripts/helm_release.sh
+```
+The script expects `helm` (3.8+) to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted.
+
+### `image_release.sh`
+A shell script to build the multi-arch (`amd64`, `arm64`) container image with the version from the `VERSION` file and push it to GitHub Container Registry (`ghcr.io`).
+
+**Usage:**
+```bash
+bash scripts/image_release.sh
+```
+The script expects the Apple `container` CLI to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted. The login is skipped if a cached `ghcr.io` login already exists.
 
 ### `go_checks.sh`
 Runs the Go static-analysis and security checks used by the "Go Checks" VS Code task: `gosec` (sonarqube report), `golangci-lint run`, `golangci-lint fmt --diff`, and `govulncheck`. Each command's output is preceded by a banner so results are easy to scan in the console.
@@ -89,6 +110,15 @@ Runs the Go static-analysis and security checks used by the "Go Checks" VS Code 
 The script expects `gosec`, `go`, `golangci-lint` (v2), and `govulncheck` to be available in your PATH. `golangci-lint` is configured by [`.golangci.yml`](../.golangci.yml) in the repo root.
 
 Every check runs even if an earlier one fails, so a single pass reports all problems. The script then prints a summary and exits `1` if any check failed (`0` only when all pass), which is what turns the "Go Checks" task red.
+
+### `go_race_fuzz.sh`
+Runs the slow Go test passes used by the "Go Race & Fuzz" VS Code task: the backend test suite under the race detector (`go test -race`), then every fuzz target for a fixed duration each.
+
+**Usage:**
+```bash
+./scripts/go_race_fuzz.sh [fuzztime]
+```
+`fuzztime` is the fuzz duration per target (e.g. `30s`, `2m`, default `30s`); the VS Code task prompts for it. Like `go_checks.sh`, every step runs even if an earlier one fails, then a summary is printed and the script exits `1` if any step failed. A failing fuzz input is saved under `backend/testdata/fuzz/` and replayed by every later `go test` run.
 
 ### `diff_coverage.sh`
 Calculates and visualizes code coverage changes compared to the `main` branch for both Go (backend) and Vitest (frontend). It generates a combined HTML report showing which new or modified lines are covered by tests.

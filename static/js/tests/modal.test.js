@@ -4,6 +4,7 @@ import * as api from '../api.js';
 import { state, setCurrentIssue } from '../state.js';
 import * as utils from '../utils.js';
 import * as tasks from '../components/tasks.js';
+import * as activity from '../components/activity.js';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
 const _localStore = {};
@@ -37,6 +38,10 @@ vi.mock('../state.js', () => ({
   state: {
     issues: [],
     releases: [],
+    labels: [],
+    labelsProjectId: null,
+    users: [],
+    projects: [],
     currentIssue: null,
     currentUser: { role: 'admin' }
   },
@@ -68,7 +73,9 @@ vi.mock('../utils.js', async (importOriginal) => {
       return true;
     }),
     // Real implementation — the list auto-continue tests assert on its actual behavior.
-    continueListOnEnter: actual.continueListOnEnter
+    continueListOnEnter: actual.continueListOnEnter,
+    toDateInputValue: actual.toDateInputValue,
+    singleFlight: actual.singleFlight
   };
 });
 
@@ -85,6 +92,16 @@ vi.mock('../components/tasks.js', () => ({
   renderTasks: vi.fn()
 }));
 
+// Real implementations, spied on so tests can reach the callbacks the modal passes in.
+vi.mock('../components/activity.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    loadActivity: vi.fn(actual.loadActivity),
+    refreshHistory: vi.fn(actual.refreshHistory),
+  };
+});
+
 vi.mock('../drag.js', () => ({
   getDragAfterTaskElement: vi.fn(),
   getDraggedTask: vi.fn(),
@@ -97,6 +114,11 @@ async function openModalWithMock(issue) {
     api.fetchIssueById.mockResolvedValue({ issue, etag: '"test-etag"' });
   }
   await openModal(issue);
+}
+
+// Lets chained promise callbacks (save → state update → re-render) settle.
+async function flush() {
+  for (let i = 0; i < 5; i++) await new Promise(process.nextTick);
 }
 
 // jsdom never lays out content, so scrollHeight/clientHeight/scrollTop must be
@@ -215,6 +237,10 @@ describe('Modal Component', () => {
     api.updateIssue.mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
     state.currentIssue = null;
     state.currentUser = { role: 'admin' };
+    state.labels = [];
+    state.labelsProjectId = null;
+    state.users = [];
+    state.projects = [];
     setCurrentIssue.mockImplementation((val) => { state.currentIssue = val; });
 
     HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -858,6 +884,34 @@ describe('Modal Component', () => {
   });
 
   describe('Sidebar Immediate Save', () => {
+    it('should revert the priority control when the save fails', async () => {
+      const issue = { id: 1, priority: 'Normal' };
+      await openModalWithMock(issue);
+      api.updateIssue.mockRejectedValueOnce(new Error('Connection to the server failed'));
+
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = 'High';
+      prioritySelect.dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
+      expect(prioritySelect.value).toBe('Normal');
+      expect(document.getElementById('priority-text').textContent).toBe('Normal');
+    });
+
+    it('should revert the status control when the save fails', async () => {
+      const issue = { id: 1, status: 'Todo' };
+      await openModalWithMock(issue);
+      api.updateIssue.mockRejectedValueOnce(new Error('offline'));
+
+      const statusSelect = document.getElementById('status');
+      statusSelect.value = 'Done';
+      statusSelect.dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+
+      expect(statusSelect.value).toBe('Todo');
+    });
+
     it('should update priority immediately on change', async () => {
       const issue = { id: 1, priority: 'Normal' };
       await openModalWithMock(issue);
@@ -1159,6 +1213,69 @@ describe('Modal Component', () => {
       }), expect.any(String));
     });
 
+    it('should keep the modal and the description open on Done when the description save fails', async () => {
+      const issue = { id: 1, title: 'T', description: 'Old Desc' };
+      await openModalWithMock(issue);
+      api.updateIssue.mockRejectedValueOnce(new Error('Connection to the server failed'));
+
+      document.getElementById('description-preview').click();
+      const descEditor = document.getElementById('description-editor');
+      descEditor.value = 'Typed while offline';
+      utils.showConfirm.mockResolvedValue(true);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(document.querySelector('.editor-container').classList.contains('inline-editing')).toBe(true);
+      expect(descEditor.value).toBe('Typed while offline');
+    });
+
+    it('should keep the modal and the title open on Done when the title save fails', async () => {
+      await openModalWithMock({ id: 1, title: 'Original' });
+      api.updateIssue.mockRejectedValueOnce(new Error('Connection to the server failed'));
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = 'Typed while offline';
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(titleInput.classList.contains('inline-editing')).toBe(true);
+      expect(titleInput.value).toBe('Typed while offline');
+    });
+
+    it('should close on Done without asking when the open description is unchanged', async () => {
+      await openModalWithMock({ id: 1, title: 'T', description: 'Desc' });
+      document.getElementById('description-preview').click();
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should discard the description edit and close on Done when the user chooses Discard', async () => {
+      await openModalWithMock({ id: 1, title: 'T', description: 'Desc' });
+      document.getElementById('description-preview').click();
+      const descEditor = document.getElementById('description-editor');
+      descEditor.value = 'Changed';
+      utils.showConfirm.mockResolvedValueOnce(false);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(descEditor.value).toBe('Desc');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    });
+
     it('should auto-save title on Enter key', async () => {
       const issue = { id: 1, title: 'Original' };
       await openModalWithMock(issue);
@@ -1174,6 +1291,26 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         title: 'Changed'
       }), expect.any(String));
+      expect(titleInput.readOnly).toBe(true);
+    });
+
+    it('should send only one title save when blur fires while the Enter save is still pending', async () => {
+      const issue = { id: 1, title: 'Original' };
+      await openModalWithMock(issue);
+      let resolveUpdate;
+      api.updateIssue.mockReturnValueOnce(new Promise(res => { resolveUpdate = res; }));
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = 'Changed';
+      titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      // e.g. the re-login dialog takes focus while the first save waits
+      titleInput.dispatchEvent(new FocusEvent('blur'));
+
+      resolveUpdate({ issue: { id: 1, title: 'Changed' }, etag: '"v2"', conflict: false });
+      await flush();
+
+      expect(api.updateIssue).toHaveBeenCalledTimes(1);
       expect(titleInput.readOnly).toBe(true);
     });
 
@@ -1223,6 +1360,180 @@ describe('Modal Component', () => {
       openSpy.mockRestore();
     });
   });
+  describe('Instant render and background revalidation', () => {
+    // A promise the test resolves by hand, to control when GET /issues/{id} "returns".
+    const deferred = () => {
+      let resolve;
+      const promise = new Promise(r => { resolve = r; });
+      return { promise, resolve };
+    };
+    const changePriority = (value) => {
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = value;
+      prioritySelect.dispatchEvent(new Event('change'));
+    };
+    const baseIssue = () => ({
+      id: 5, project_id: 1, title: 'From Board', description: 'Board desc',
+      status: 'Doing', priority: 'Normal', tasks: [], updated_at: '2026-10-08T10:00:00Z'
+    });
+
+    it('renders the passed issue before the fetch resolves', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+
+      openModal(baseIssue());
+
+      expect(document.getElementById('title').value).toBe('From Board');
+      expect(document.getElementById('description-editor').value).toBe('Board desc');
+      expect(document.getElementById('modal-title').textContent).toBe('Issue Details #5');
+    });
+
+    it('does not mutate the caller\'s issue object', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+      const issue = baseIssue();
+
+      openModal(issue);
+
+      expect(state.currentIssue).not.toBe(issue);
+      expect(state.currentIssue).toEqual(issue);
+    });
+
+    it('keeps the rendered data and only stores the ETag when updated_at is unchanged', async () => {
+      const issue = baseIssue();
+      api.fetchIssueById.mockResolvedValue({ issue: { ...issue }, etag: '"fresh-etag"' });
+
+      openModal(issue);
+      await flush();
+
+      expect(setCurrentIssue).toHaveBeenCalledTimes(1);
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }), '"fresh-etag"');
+    });
+
+    it('re-renders with the server copy when it is newer and the user is not editing', async () => {
+      const issue = baseIssue();
+      api.fetchIssueById.mockResolvedValue({
+        issue: { ...issue, title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' },
+        etag: '"newer-etag"'
+      });
+
+      openModal(issue);
+      await flush();
+
+      expect(document.getElementById('title').value).toBe('Changed Elsewhere');
+      expect(state.currentIssue.title).toBe('Changed Elsewhere');
+
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Changed Elsewhere' }), '"newer-etag"');
+    });
+
+    it('keeps in-progress input and forces a conflict on save when a newer copy arrives during editing', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+      api.updateIssue.mockResolvedValue({ conflict: true });
+      utils.showConfirm.mockResolvedValue(false);
+
+      openModal(baseIssue());
+      const titleInput = document.getElementById('title');
+      titleInput.click(); // enter inline title editing
+      titleInput.value = 'My Edit';
+
+      load.resolve({ issue: { ...baseIssue(), title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' }, etag: '"newer-etag"' });
+      await flush();
+
+      expect(titleInput.value).toBe('My Edit');
+
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.any(Object), '"stale"');
+      expect(utils.showConfirm).toHaveBeenCalledWith('Conflict Detected', expect.any(String), 'Reload', 'Cancel', 'primary');
+    });
+
+    it('waits for the revalidation before saving and sends the fetched ETag', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+
+      openModal(baseIssue());
+      changePriority('High');
+      await flush();
+      expect(api.updateIssue).not.toHaveBeenCalled();
+
+      load.resolve({ issue: baseIssue(), etag: '"fresh-etag"' });
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }), '"fresh-etag"');
+    });
+
+    it('forces a conflict for a save started before the revalidation replaced the issue', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+      api.updateIssue.mockResolvedValue({ conflict: true });
+      utils.showConfirm.mockResolvedValue(false);
+
+      openModal(baseIssue());
+      changePriority('High');
+      load.resolve({ issue: { ...baseIssue(), updated_at: '2026-10-08T11:00:00Z' }, etag: '"newer-etag"' });
+      await flush();
+
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.any(Object), '"stale"');
+    });
+
+    it('ignores a late response for a previously opened issue', async () => {
+      const loadA = deferred();
+      api.fetchIssueById.mockReturnValueOnce(loadA.promise);
+      openModal({ ...baseIssue(), id: 5, title: 'Issue A' });
+
+      api.fetchIssueById.mockResolvedValueOnce({ issue: { ...baseIssue(), id: 6, title: 'Issue B' }, etag: '"b"' });
+      openModal({ ...baseIssue(), id: 6, title: 'Issue B' });
+      await flush();
+
+      loadA.resolve({ issue: null, etag: null });
+      await flush();
+
+      expect(utils.showNotification).not.toHaveBeenCalledWith('Issue not found or was deleted', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('title').value).toBe('Issue B');
+    });
+
+    it('ignores a late response after the modal was closed', async () => {
+      const load = deferred();
+      api.fetchIssueById.mockReturnValue(load.promise);
+
+      openModal(baseIssue());
+      closeModal();
+      load.resolve({ issue: null, etag: null });
+      await flush();
+
+      expect(utils.showNotification).not.toHaveBeenCalledWith('Issue not found or was deleted', 'error');
+    });
+
+    it('renders dropdown options from cached state without refetching', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+      state.labels = [{ id: 3, name: 'Cached Label' }];
+      state.labelsProjectId = 1;
+      state.users = [{ id: 1, first_name: 'Cached', last_name: 'User', active: true }];
+      state.projects = [{ id: 1, name: 'default' }];
+
+      openModal(baseIssue());
+
+      expect(api.fetchLabelsByProject).not.toHaveBeenCalled();
+      expect(api.fetchUsers).not.toHaveBeenCalled();
+      expect(api.fetchProjects).not.toHaveBeenCalled();
+      expect(document.getElementById('label-options').textContent).toContain('Cached Label');
+      expect(document.getElementById('assignee-options').textContent).toContain('Cached User');
+    });
+
+    it('fetches labels for an issue from a project other than the cached one', () => {
+      api.fetchIssueById.mockReturnValue(new Promise(() => {}));
+      state.labels = [{ id: 3, name: 'Cached Label' }];
+      state.labelsProjectId = 1;
+
+      openModal({ ...baseIssue(), project_id: 8 });
+
+      expect(api.fetchLabelsByProject).toHaveBeenCalledWith(8);
+    });
+  });
+
   describe('Multi-Day Date Management', () => {
     it('should add a date via the picker in existing issue mode', async () => {
       const issue = { id: 1, planned_dates: [] };
@@ -1234,7 +1545,8 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(issue.planned_dates).toContain('2025-05-20');
+      // The modal works on a copy of the passed issue (state.currentIssue)
+      expect(state.currentIssue.planned_dates).toContain('2025-05-20');
       expect(api.updateIssue).toHaveBeenCalled();
 
       const container = document.getElementById('planned-dates-container');
@@ -1252,7 +1564,7 @@ describe('Modal Component', () => {
       await removeBtn.click();
       await new Promise(process.nextTick);
 
-      expect(issue.planned_dates).not.toContain('2025-05-20');
+      expect(state.currentIssue.planned_dates).not.toContain('2025-05-20');
       expect(api.updateIssue).toHaveBeenCalled();
       expect(container.querySelectorAll('.date-chip')).toHaveLength(0);
     });
@@ -1396,29 +1708,83 @@ describe('Modal Component', () => {
       expect(api.fetchIssueById).toHaveBeenCalled();
     });
 
-    it('should blur editing task input on Done click to trigger auto-save', async () => {
+    it('should await the editing task save on Done click and close on success', async () => {
       const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
-      await openModalWithMock(issue);
-
-      // Mock renderTasks to render a task item in editing state
-      tasks.renderTasks.mockImplementation((_taskList, container) => {
-        container.innerHTML = `
-          <li class="task-item editing" data-id="101">
-            <input class="task-title-input" data-original-title="Task 1" value="Changed Task">
-          </li>
-        `;
+      const saveTask = vi.fn().mockResolvedValue(true);
+      // Simulate a task entering edit mode: renderTasks hands its save() to the modal
+      tasks.renderTasks.mockImplementation((_taskList, container, _issue, callbacks) => {
+        container.innerHTML = '<li class="task-item editing" data-id="101"><input class="task-title-input" value="Changed Task"></li>';
+        callbacks.onTaskEditStart(saveTask);
       });
       await openModalWithMock(issue);
 
-      const doneBtn = document.getElementById('done-btn');
-      const taskInput = document.querySelector('.task-title-input');
-      const blurSpy = vi.spyOn(taskInput, 'blur');
-
-      doneBtn.click();
+      document.getElementById('done-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
-      expect(blurSpy).toHaveBeenCalled();
+      expect(saveTask).toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      tasks.renderTasks.mockReset();
+    });
+
+    it('should keep the modal open on Done when the editing task save fails', async () => {
+      const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
+      const saveTask = vi.fn().mockResolvedValue(false);
+      tasks.renderTasks.mockImplementation((_taskList, container, _issue, callbacks) => {
+        container.innerHTML = '<li class="task-item editing" data-id="101"><input class="task-title-input" value="Changed Task"></li>';
+        callbacks.onTaskEditStart(saveTask);
+      });
+      await openModalWithMock(issue);
+
+      document.getElementById('done-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(saveTask).toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      tasks.renderTasks.mockReset();
+    });
+
+    it('should not save a task on Done once its edit mode has ended', async () => {
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      const saveTask = vi.fn().mockResolvedValue(true);
+      tasks.renderTasks.mockImplementation((_taskList, _container, _issue, callbacks) => {
+        callbacks.onTaskEditStart(saveTask);
+        callbacks.onTaskEditEnd();
+      });
+      await openModalWithMock({ id: 1, tasks: [{ id: 101, title: 'Task 1' }] });
+
+      expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(saveTask).not.toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      tasks.renderTasks.mockReset();
+    });
+
+    it('should re-render the views and refresh the history after a task update', async () => {
+      const rerenderViews = vi.fn();
+      setupModal(vi.fn(), rerenderViews);
+      await openModalWithMock({ id: 1, tasks: [] });
+
+      const callbacks = tasks.renderTasks.mock.lastCall[3];
+      callbacks.onTaskUpdate();
+
+      expect(rerenderViews).toHaveBeenCalled();
+      expect(activity.refreshHistory).toHaveBeenCalled();
+    });
+
+    it('should guard against leaving the page while an activity comment is edited', async () => {
+      const addSpy = vi.spyOn(globalThis, 'addEventListener');
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      await openModalWithMock({ id: 1, title: 'T' });
+
+      const { onEditStart, onEditEnd } = activity.loadActivity.mock.lastCall[1];
+      onEditStart();
+      expect(addSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
+      onEditEnd();
+      expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
     });
 
     it('should save task order', async () => {
@@ -1445,7 +1811,7 @@ describe('Modal Component', () => {
       await taskOrderCallback();
 
       expect(api.updateTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({ id: expect.any(Number) }));
-      expect(issue.tasks[0].id).toBe(102);
+      expect(state.currentIssue.tasks[0].id).toBe(102);
     });
 
     it('should insert ordered list via toolbar button', async () => {

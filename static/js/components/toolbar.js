@@ -424,7 +424,7 @@ export function setupUserMenu(user) {
 
   if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
-      logout();
+      void logout();
     });
   }
 
@@ -472,7 +472,7 @@ function setupPasswordModal(user) {
       form.reset();
 
       setTimeout(() => {
-        logout();
+        void logout();
       }, 1500);
     } catch (err) {
       const errorDisplay = document.getElementById('password-modal-error');

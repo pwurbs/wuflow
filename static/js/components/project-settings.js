@@ -1,7 +1,7 @@
 import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.js';
 import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation } from '../utils.js';
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.js';
-import { state, setStatusConfig } from '../state.js';
+import { state, setStatusConfig, setLabels } from '../state.js';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.js';
 import { STATUS_SLOTS, getDefaultStatusConfig } from '../status-config.js';
 import { updateLabelFilterOptions } from './toolbar.js';
@@ -42,7 +42,7 @@ export function setupProjectSettingsView() {
       };
 
       addLabelInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleAdd();
+        if (e.key === 'Enter') void handleAdd();
       });
     } else {
       const group = addLabelInput.closest('.label-input-group');
@@ -70,6 +70,8 @@ export async function renderProjectSettingsView() {
   try {
     const projectId = state.selectedProjectId ?? 1;
     const labels = await fetchLabelsByProject(projectId);
+    // Keep the shared cache current so the issue modal sees label changes made here.
+    if (projectId === state.selectedProjectId) setLabels(labels, projectId);
     labelsList.innerHTML = '';
 
     labels.forEach(label => {

@@ -29,7 +29,7 @@ function buildLaneCard(releaseId, name, count) {
 
   card.addEventListener('click', () => {
     toggleBacklogReleaseFilter(releaseId);
-    renderBacklog();
+    void renderBacklog();
   });
 
   card.addEventListener('dragover', (e) => {
@@ -54,7 +54,7 @@ function buildLaneCard(releaseId, name, count) {
     const result = await updateIssue(updated.project_id, updated);
     if (result.issue) {
       Object.assign(issue, result.issue);
-      renderBacklog();
+      void renderBacklog();
     }
   });
 
@@ -183,7 +183,7 @@ export function setupBacklogView(refreshApp, openModal, rerenderActiveView) {
         ...getListUpdates('move-to-todo-list', STATUS_TODO)
       ];
       await Promise.all(updates);
-      renderBacklog();
+      void renderBacklog();
     }
   };
 

@@ -1,7 +1,7 @@
 import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
 import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime, promptAdminPasswordConfirmation } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
-import { state } from '../state.js';
+import { state, setUsers, setProjects } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
 import { updateProjectSelectorOptions } from './toolbar.js';
@@ -207,6 +207,7 @@ async function renderProjectList(refreshCallback) {
 
   try {
     const projects = await fetchProjects();
+    setProjects(projects); // keep the issue modal's project dropdown current
     projectsList.innerHTML = '';
 
     projects.forEach(project => {
@@ -397,7 +398,7 @@ async function handleUserSubmit(refreshCallback) {
 
     showNotification(isEditing ? 'User updated' : 'User created', 'success');
     closeUserModal();
-    renderSystemSettingsView(refreshCallback);
+    void renderSystemSettingsView(refreshCallback);
   } catch (err) {
     showUserError(errorDisplay, err.message);
   }
@@ -452,7 +453,7 @@ async function applyUserUpdate(userData) {
   }
   const isSelf = editingUserId === state.currentUser?.id;
   if (isSelf && (userData.password || userData.role !== state.currentUser?.role)) {
-    logout();
+    void logout();
     return false;
   }
   return true;
@@ -571,6 +572,7 @@ async function renderUserList(refreshCallback) {
 
   try {
     const users = await fetchUsers();
+    setUsers(users); // keep the issue modal's assignee dropdown current
     usersList.innerHTML = '';
 
     // Sort users: Active first, then by email

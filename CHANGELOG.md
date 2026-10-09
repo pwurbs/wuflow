@@ -1,4 +1,21 @@
 
+# 1.4.2
+
+- Bumped container base image to alpine:3.24.2
+- Bumped Go to 1.27.2 including some related adjustments for linter tools, scripts and code
+- Bumped direct Go package dependencies go-sqlite3 and x/crypto
+- Bumped marked to 18.1.0
+- Bumped dompurify to 3.4.16
+- Bumped vitest and playwright packages
+- Added race detection to the Go fuzz testing task
+- Issue details now open instantly from the already loaded board data instead of waiting for several API requests
+- Unsaved changes are no longer lost on session expiry or network errors
+- Network errors are now displayed in a notification toast
+- Changes that failed to save no longer look saved, e.g. a card moved while offline returns to its old column
+- Helm chart: several improvements, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
+- Added release script to generate and push the Helm package, removed deploy folder and scripts
+- Removed database migration code from v.1.3.2 (see migration notes)
+
 # 1.4.1
 
 - The new comment field now only shows its confirm/cancel buttons once editing starts, and is scrolled fully into view when opened

@@ -35,6 +35,22 @@
   padding: 12px 24px;
 }
 
-.notification-toast.warning {
+.notification-toast.warning,
+.connection-banner {
   background-color: #b45309;
+}
+
+/* Connection banner — persistent while the server is unreachable */
+.connection-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 2000;
+  font-weight: var(--fw-medium);
+  font-size: var(--fs-base);
 }

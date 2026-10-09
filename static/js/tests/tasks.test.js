@@ -9,14 +9,19 @@ vi.mock('../api.js', () => ({
   createTask: vi.fn()
 }));
 
-vi.mock('../utils.js', () => ({
-  showNotification: vi.fn(),
-  showConfirm: vi.fn(),
-  escapeHtml: vi.fn(s => s),
-  initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
-  countCodepoints: vi.fn(s => [...s].length),
-  getTaskDeadlineStatus: vi.fn(() => ({ late: false }))
-}));
+vi.mock('../utils.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    toDateInputValue: actual.toDateInputValue,
+    singleFlight: actual.singleFlight,
+    showNotification: vi.fn(),
+    showConfirm: vi.fn(),
+    escapeHtml: vi.fn(s => s),
+    initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+    countCodepoints: vi.fn(s => [...s].length),
+    getTaskDeadlineStatus: vi.fn(() => ({ late: false }))
+  };
+});
 
 vi.mock('../drag.js', () => ({
   setDraggedTask: vi.fn(),
@@ -360,7 +365,7 @@ describe('Tasks Component', () => {
     expect(callbacks.onTaskUpdate).not.toHaveBeenCalled();
   });
 
-  it('should revert title and keep edit mode open on save failure', async () => {
+  it('should keep the typed title and edit mode open on save failure', async () => {
     api.updateTask.mockRejectedValue(new Error('Save failed'));
     renderTasks(issue.tasks, container, issue, callbacks);
 
@@ -374,9 +379,40 @@ describe('Tasks Component', () => {
     await new Promise(process.nextTick);
 
     expect(issue.tasks[0].title).toBe('Task A'); // reverted in local state
-    expect(input.value).toBe('Task A'); // reverted in DOM
+    expect(input.value).toBe('New Title'); // typed text kept so the user can retry
     expect(utils.showNotification).toHaveBeenCalledWith('Save failed', 'error');
     expect(li.classList.contains('editing')).toBe(true); // stays in edit mode so user can retry
+  });
+
+  it('should hand its save to onTaskEditStart and share an in-flight save', async () => {
+    let resolveUpdate;
+    api.updateTask.mockReturnValue(new Promise(res => { resolveUpdate = res; }));
+    const onTaskEditStart = vi.fn();
+    renderTasks(issue.tasks, container, issue, { ...callbacks, onTaskEditStart });
+
+    const input = container.querySelector('.task-title-input');
+    input.click(); // enter edit mode
+    const save = onTaskEditStart.mock.calls[0][0];
+    input.value = 'New Title';
+
+    const p1 = save();
+    const p2 = save();
+    expect(p1).toBe(p2);
+    resolveUpdate({});
+    expect(await p1).toBe(true);
+    expect(api.updateTask).toHaveBeenCalledTimes(1);
+  });
+
+  it('should report a failed save as false', async () => {
+    api.updateTask.mockRejectedValue(new Error('Save failed'));
+    const onTaskEditStart = vi.fn();
+    renderTasks(issue.tasks, container, issue, { ...callbacks, onTaskEditStart });
+
+    const input = container.querySelector('.task-title-input');
+    input.click();
+    input.value = 'New Title';
+
+    expect(await onTaskEditStart.mock.calls[0][0]()).toBe(false);
   });
 
   it('should revert deadline and show notification on deadline update failure', async () => {

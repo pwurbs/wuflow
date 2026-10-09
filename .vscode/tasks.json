@@ -42,9 +42,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Go Fuzz",
+      "label": "Go Race & Fuzz",
       "type": "shell",
-      "command": "for t in FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue FuzzValidateComment FuzzValidateProject FuzzValidateStatusConfig FuzzValidateRelease; do echo \"--- $t ---\" && go test -run='^$' -fuzz=$t -fuzztime=${input:fuzzduration} ./backend/ || break; done",
+      "command": "./scripts/go_race_fuzz.sh ${input:fuzzduration}",
       "group": "test",
       "presentation": {
         "reveal": "always",
@@ -148,9 +148,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Build & Push Image",
+      "label": "Image Release",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && echo $GHCR_TOKEN | container registry login ghcr.io -u pwurbs --password-stdin && container build --no-cache --arch amd64,arm64 --build-arg VERSION=$VERSION -t ghcr.io/pwurbs/wuflow:$VERSION . && container image push ghcr.io/pwurbs/wuflow:$VERSION",
+      "command": "bash ./scripts/image_release.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -161,7 +161,7 @@
     {
       "label": "Run locally",
       "type": "shell",
-      "command": "go run -ldflags=\"-w -s -X main.Version=$(cat VERSION)\" . -secret-key 12345 -dbpath ./local-databases/wuflow-test.db",
+      "command": "mkdir -p local-databases && go run -ldflags=\"-w -s -X main.Version=$(cat VERSION)\" . -secret-key 12345 -dbpath ./local-databases/wuflow-test.db 2>&1 | tee local-databases/wuflow-local.log",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -178,9 +178,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Deploy dev",
+      "label": "Helm Release",
       "type": "shell",
-      "command": "bash ./deploy/helm_deploy.sh dev",
+      "command": "bash ./scripts/helm_release.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",

@@ -22,7 +22,8 @@ vi.mock('../components/toolbar.js', () => ({
   updateReleaseFilterOptions: vi.fn(),
 }));
 
-vi.mock('../utils.js', () => ({
+vi.mock('../utils.js', async (importOriginal) => ({
+  toDateInputValue: (await importOriginal()).toDateInputValue,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => String(s ?? '')),

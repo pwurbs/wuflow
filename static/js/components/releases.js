@@ -1,6 +1,6 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchArchivedIssuesByProject, fetchOpenIssuesByProject, fetchActiveIssuesByProject, fetchReleases } from '../api.js';
 import { sortReleasesByDate } from '../list-utils.js';
-import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation } from '../utils.js';
+import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue } from '../utils.js';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
 import { state, setIssues, setReleases } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
@@ -82,7 +82,7 @@ export async function setupReleasesView() {
         mergeReleaseIntoState(updated);
         showNotification('Release reopened', 'success');
         updateReleaseFilterOptions(state.releases);
-        renderReleasesView();
+        void renderReleasesView();
       } catch (err) {
         showNotification(err.message || 'Failed to reopen release', 'error');
       }
@@ -281,7 +281,6 @@ function applyModalButtons(release, isClosed) {
 }
 
 function applyModalDateFields(release, isClosed) {
-  const toDateInput = v => v ? new Date(v).toISOString().slice(0, 10) : '';
   const startInput = document.getElementById('release-modal-start');
   const dateInput = document.getElementById('release-modal-date');
 
@@ -289,13 +288,13 @@ function applyModalDateFields(release, isClosed) {
   closedAtGroup?.classList.toggle('hidden', !isClosed);
   if (isClosed && release?.closed_at) {
     const closedAtInput = document.getElementById('release-modal-closed-at');
-    closedAtInput.value = new Date(release.closed_at).toISOString().slice(0, 10);
+    closedAtInput.value = toDateInputValue(release.closed_at);
     updateDateInputStyle(closedAtInput);
   }
 
   if (release) {
-    startInput.value = toDateInput(release.start_date);
-    dateInput.value = toDateInput(release.release_date);
+    startInput.value = toDateInputValue(release.start_date);
+    dateInput.value = toDateInputValue(release.release_date);
   }
   updateDateInputStyle(startInput);
   updateDateInputStyle(dateInput);
@@ -390,7 +389,7 @@ async function handleReleaseSubmit() {
     closeReleaseModal();
     showNotification(isEdit ? 'Release updated' : 'Release created', 'success');
     updateReleaseFilterOptions(state.releases);
-    renderReleasesView();
+    void renderReleasesView();
   } catch (err) {
     if (errorDisplay) {
       errorDisplay.textContent = err.message || 'Failed to save release.';
@@ -500,7 +499,7 @@ async function handleDeleteRelease(rel) {
   await refreshIssuesAfterReleaseSideEffect();
   showNotification('Release deleted', 'success');
   updateReleaseFilterOptions(state.releases);
-  renderReleasesView(true);
+  void renderReleasesView(true);
 }
 
 async function handleTriggerReleaseDialog(rel) {
@@ -563,7 +562,7 @@ async function handleTriggerReleaseDialog(rel) {
         await refreshIssuesAfterReleaseSideEffect();
         showNotification('Release closed', 'success');
         updateReleaseFilterOptions(state.releases);
-        renderReleasesView(true);
+        void renderReleasesView(true);
       } catch (err) {
         showNotification(err.message || 'Failed to release', 'error');
       }

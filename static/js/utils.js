@@ -224,6 +224,18 @@ export function updateDateInputStyle(input) {
   }
 }
 
+// Formats a date as the value of an <input type="date"> (YYYY-MM-DD), '' for none.
+export function toDateInputValue(date) {
+  return date ? new Date(date).toISOString().slice(0, 10) : '';
+}
+
+// Wraps an async function so concurrent calls share the running call's promise
+// instead of starting it again. The next call after it settles starts a new run.
+export function singleFlight(fn) {
+  let inFlight = null;
+  return () => (inFlight ??= fn().finally(() => { inFlight = null; }));
+}
+
 // Debounce a function call by a specified wait time, needed for search
 export function debounce(func, wait) {
   let timeout;

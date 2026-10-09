@@ -1300,6 +1300,7 @@ func HandleRefresh(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := r.Cookie(cookieRefreshToken)
 	if err != nil {
+		LogInfo("Refresh token cookie missing (api)")
 		http.Error(w, errMsgUnauthorized, http.StatusUnauthorized)
 		return
 	}

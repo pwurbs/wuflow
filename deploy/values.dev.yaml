@@ -1,5 +1,0 @@
-image:
-  tag: "1.4.1"
-
-ingress:
-  host: wuflow.pwurbs.dev

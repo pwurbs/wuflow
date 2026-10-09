@@ -5,7 +5,8 @@
 [![GitHub issues](https://img.shields.io/github/issues/pwurbs/wuflow)](https://github.com/pwurbs/wuflow/issues)  <br>
 [![Codeberg](https://img.shields.io/badge/codeberg-pwurbs%2Fwuflow-blue)](https://codeberg.org/pwurbs/wuflow)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/pwurbs/wuflow)](https://github.com/pwurbs/wuflow) 
-[![Container Image](https://img.shields.io/badge/ghcr.io-image-blue?logo=docker)](https://github.com/pwurbs/wuflow/pkgs/container/wuflow) <br>
+[![Container Image](https://img.shields.io/badge/ghcr.io-image-blue?logo=docker)](https://github.com/pwurbs/wuflow/pkgs/container/wuflow)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/wuflow)](https://artifacthub.io/packages/search?repo=wuflow) <br>
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=alert_status)](https://sonarcloud.io/dashboard?id=wuflow-oss) 
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=coverage)](https://sonarcloud.io/dashboard?id=wuflow-oss) 
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=vulnerabilities)](https://sonarcloud.io/dashboard?id=wuflow-oss) 
@@ -34,7 +35,7 @@ wuflow is an attempt to marry a clean, modern UI with the strict requirements of
 Building wuflow is also a personal experiment to see how far AI-assisted development can go when building a tool from scratch while intentionally keeping the supply chain attack surface as small as possible. Ultimately, I just love making good things that work. There is a deep satisfaction in having full control over the concepts, code, and prioritization to build something that provides genuine value.
 
 ## The Result
-wuFlow is a simple, modern, and lightweight issue tracking and planning application. It is designed to combine the immediate visual overview of a classic Kanban board with structural planning capabilities to help you organize tasks effectively without unnecessary complexity.
+wuFlow is a modern and lightweight issue tracking and planning application. It is designed to combine the immediate visual overview of a classic Kanban board with structural planning capabilities to help you organize tasks effectively without unnecessary complexity.
 This tool wants to help you to organize, balance and track the work in a team to achieve a better **flow** of work by a transparent visualization. This is one of the main intentions of a [Kanban board](https://en.wikipedia.org/wiki/Kanban_board).
 The usage is not limited to software development teams, it can be used by any person, group or even families that wants to organize and track their work.
 
@@ -120,6 +121,17 @@ Configuration Remarks:
     - Refresh token — **24 h**: backs the persistent session; renewed automatically on each access-token refresh.
 
 ## Deployment Options
+
+### Via Helm (Kubernetes)
+For Kubernetes deployments, a Helm chart is published as an OCI artifact to GitHub Container Registry. Replace `<chart-version>` with the release you want to deploy and run:
+
+```bash
+helm install wuflow oci://ghcr.io/pwurbs/charts/wuflow --version <chart-version> \
+  --namespace wuflow --create-namespace \
+  -f values.yaml
+```
+
+See the [Helm chart documentation](chart/README.md) for configuration options, the dedicated-hostname requirement, and how the initial admin password is generated and retrieved.
 
 ### Via Container (Docker)
 The recommended and easiest way to deploy wuFlow is using the pre-built container image. 

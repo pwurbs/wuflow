@@ -741,7 +741,7 @@ describe('User Menu', () => {
       <button id="user-menu-btn"><span id="current-user-email"></span></button>
       <div id="user-menu-dropdown" class="hidden">
         <button id="user-menu-password">Password</button>
-        <button id="user-menu-logout">Logout</button>
+        <button id="user-menu-logout">Log Out</button>
       </div>
       <div id="password-modal" class="hidden">
         <form id="password-form">
