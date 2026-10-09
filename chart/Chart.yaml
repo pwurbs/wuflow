@@ -37,7 +37,7 @@ annotations:
       description: ingress.host is now required and must be set explicitly
     - kind: fixed
       description: Disabled Artifact Hub's automatic category prediction, which had misclassified the chart as monitoring-logging
-  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/containsSecurityUpdates: "true"
   artifacthub.io/links: |
     - name: Documentation
       url: https://github.com/pwurbs/wuflow/wiki
