@@ -2,7 +2,7 @@
 # 1.4.2
 
 - Bumped container base image to alpine:3.24.2
-- Bumped Go to 1.27.1 including some related adjustments for linter tools, scripts and code
+- Bumped Go to 1.27.2 including some related adjustments for linter tools, scripts and code
 - Bumped direct Go package dependencies go-sqlite3 and x/crypto
 - Bumped marked to 18.1.0
 - Bumped dompurify to 3.4.16
