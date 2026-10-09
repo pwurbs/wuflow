@@ -264,55 +264,8 @@ func createTables(ctx context.Context) error {
 
 // runMigrations applies incremental schema and data migrations to existing databases.
 // All migrations must be idempotent so they are safe to run on every startup.
-func runMigrations(ctx context.Context) error {
-	// TODO: Migration code for 1.3.2 , can be removed in a later version.
-	if err := migrateSessionsAddTokenColumn(ctx); err != nil {
-		return err
-	}
-	// TODO: Migration code for 1.3.2 , can be removed in a later version.
-	if err := migrateUsersAddLastLogin(ctx); err != nil {
-		return err
-	}
-	return nil
-}
-
-// migrateSessionsAddTokenColumn adds session_token to existing databases that predate the column.
-func migrateSessionsAddTokenColumn(ctx context.Context) error {
-	var count int
-	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='session_token'`).Scan(&count); err != nil {
-		LogError("Failed to check for session_token column in sessions", "error", err)
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	if _, err := DB.ExecContext(ctx, `ALTER TABLE sessions ADD COLUMN session_token TEXT NOT NULL DEFAULT ''`); err != nil {
-		LogError("Failed to add session_token column to sessions", "error", err)
-		return err
-	}
-	if _, err := DB.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token)`); err != nil {
-		LogError("Failed to create index on sessions(session_token)", "error", err)
-		return err
-	}
-	LogInfo("Migrated sessions table: added session_token column (existing sessions invalidated)")
-	return nil
-}
-
-// migrateUsersAddLastLogin adds last_login to existing databases that predate the column.
-func migrateUsersAddLastLogin(ctx context.Context) error {
-	var count int
-	if err := DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='last_login'`).Scan(&count); err != nil {
-		LogError("Failed to check for last_login column in users", "error", err)
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	if _, err := DB.ExecContext(ctx, `ALTER TABLE users ADD COLUMN last_login DATETIME`); err != nil {
-		LogError("Failed to add last_login column to users", "error", err)
-		return err
-	}
-	LogInfo("Migrated users table: added last_login column")
+// Rename _ back to ctx when adding the next migration.
+func runMigrations(_ context.Context) error {
 	return nil
 }
 
@@ -547,7 +500,7 @@ func GetOpenIssuesByProject(ctx context.Context, projectID int) ([]Issue, error)
 
 // GetIssueByID retrieves a single issue by ID, including its associated tasks.
 func GetIssueByID(ctx context.Context, id int) (*Issue, error) {
-	row := DB.QueryRowContext(ctx, queryIssueByID, id)
+	row := DB.QueryRowContext(ctx, queryIssueByID, id) //NOSONAR, query is a compile-time constant; id is a bound parameter
 	issue, err := scanIssueRow(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil

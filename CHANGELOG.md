@@ -17,6 +17,7 @@
 - Added securityContext to deployment, container runs now in namespaces with restricted PSA
 - Added metdata for Artifact Hub
 - Changed the chart versioning, chart version is now the same like the app version
+- Removed database migration code from v.1.3.2 (see migration notes)
 
 # 1.4.1
 

@@ -1219,41 +1219,6 @@ func TestUpdateUserLastLogin(t *testing.T) {
 	}
 }
 
-func TestMigrateUsersAddLastLogin(t *testing.T) {
-	setupTestDB()
-	defer teardownTestDB()
-
-	// Simulate a pre-1.3.2 database: drop the last_login column that InitDB
-	// already created, matching the state runMigrations must upgrade from.
-	if _, err := DB.Exec("ALTER TABLE users DROP COLUMN last_login"); err != nil {
-		t.Fatalf("Failed to drop last_login column for test setup: %v", err)
-	}
-
-	var count int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='last_login'`).Scan(&count); err != nil {
-		t.Fatalf("Failed to check column: %v", err)
-	}
-	if count != 0 {
-		t.Fatalf("Expected last_login column to be absent before migration, found %d", count)
-	}
-
-	// 1. Migration adds the column.
-	if err := migrateUsersAddLastLogin(context.Background()); err != nil {
-		t.Fatalf("migrateUsersAddLastLogin failed: %v", err)
-	}
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='last_login'`).Scan(&count); err != nil {
-		t.Fatalf("Failed to check column: %v", err)
-	}
-	if count != 1 {
-		t.Errorf("Expected last_login column to exist after migration, found %d", count)
-	}
-
-	// 2. Migration is idempotent — running it again on an already-migrated DB is a no-op.
-	if err := migrateUsersAddLastLogin(context.Background()); err != nil {
-		t.Errorf("Second migrateUsersAddLastLogin call should be a no-op, got error: %v", err)
-	}
-}
-
 func TestProjectErrors(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
