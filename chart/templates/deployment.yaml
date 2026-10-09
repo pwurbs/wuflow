@@ -54,13 +54,13 @@ spec:
             - name: WF_INITIAL_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: initial-admin-password
+                  name: {{ include "wuflow.secretName" . }}
+                  key: {{ include "wuflow.secretKeyInitialAdminPassword" . }}
             - name: WF_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: secret-key
+                  name: {{ include "wuflow.secretName" . }}
+                  key: {{ include "wuflow.secretKeySecretKey" . }}
           startupProbe:
             httpGet:
               path: /api/health

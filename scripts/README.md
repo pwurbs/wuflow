@@ -74,7 +74,7 @@ Inside the repo `go version` reports the toolchain selected by `go.mod` (downloa
 The script expects `go` and `npm` to be available in your PATH.
 
 ### `new_version.sh`
-A shell script to automate the versioning process for wuFlow and its Home Assistant Add-on. It prompts for the new version and changelog text, updates the `VERSION` file, patches the Home Assistant `config.yaml`, and automatically inserts the new version headers into both the root `CHANGELOG.md` and the `home-assistant-addon/CHANGELOG.md`.
+A shell script to automate the versioning process for wuFlow, its Home Assistant Add-on and the Helm chart. It prompts for the new version, updates the `VERSION` file, patches the Home Assistant `config.yaml`, and sets `version`, `appVersion` and the `artifacthub.io/images` image tag in `chart/Chart.yaml` to the new version.
 
 **Usage:**
 ```bash
@@ -83,7 +83,7 @@ A shell script to automate the versioning process for wuFlow and its Home Assist
 The script uses `osascript` to trigger macOS dialog boxes for input, so it must be run on a macOS environment.
 
 ### `helm_release.sh`
-A shell script to package the Helm chart in [`chart/`](../chart) and push it to GitHub Container Registry (`ghcr.io`) as an OCI artifact, using the version currently set in `chart/Chart.yaml`.
+A shell script to package the Helm chart in [`chart/`](../chart) and push it to GitHub Container Registry (`ghcr.io`) as an OCI artifact, using the version currently set in `chart/Chart.yaml`. It doesn't modify any files: it aborts if the chart `version`, `appVersion` and the `artifacthub.io/images` image tag differ.
 
 **Usage:**
 ```bash

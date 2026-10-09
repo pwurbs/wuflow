@@ -69,15 +69,25 @@
     "secrets": {
       "type": "object",
       "properties": {
-        "initialAdminPassword": {
+        "existingSecret": {
           "type": "string",
           "default": "",
-          "description": "Initial admin password. Auto-generated on first install if empty."
+          "description": "Name of an already existing Secret to use instead of letting the chart generate one. Leave empty to have the chart create and manage the Secret itself."
         },
-        "secretKey": {
-          "type": "string",
-          "default": "",
-          "description": "Application secret key. Auto-generated on first install if empty."
+        "existingSecretKeys": {
+          "type": "object",
+          "properties": {
+            "initialAdminPassword": {
+              "type": "string",
+              "default": "",
+              "description": "Key name for the initial admin password inside an existing Secret. Defaults to initial-admin-password."
+            },
+            "secretKey": {
+              "type": "string",
+              "default": "",
+              "description": "Key name for the secret key (JWT and session token signing) inside an existing Secret. Defaults to secret-key."
+            }
+          }
         }
       }
     },

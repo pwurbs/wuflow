@@ -23,6 +23,14 @@ keywords:
 annotations:
   artifacthub.io/category: skip-prediction
   artifacthub.io/changes: |
+    - kind: removed
+      description: "Breaking: values secrets.initialAdminPassword and secrets.secretKey"
+    - kind: added
+      description: Values secrets.existingSecret and secrets.existingSecretKeys
+    - kind: added
+      description: helm.sh/resource-policy keep annotation on the generated Secret
+    - kind: added
+      description: securityContext, the pod now runs in namespaces with Restricted PSA
     - kind: added
       description: Added defaults and descriptions to the values schema for Artifact Hub's parameter docs
     - kind: changed
@@ -37,7 +45,7 @@ annotations:
       url: https://github.com/pwurbs/wuflow/issues
   artifacthub.io/images: |
     - name: wuflow
-      image: ghcr.io/pwurbs/wuflow:1.4.1
+      image: ghcr.io/pwurbs/wuflow:1.4.2-pre2
   artifacthub.io/screenshots: |
     - title: Board
       url: https://raw.githubusercontent.com/pwurbs/wuflow/main/docs/screenshots/board.png

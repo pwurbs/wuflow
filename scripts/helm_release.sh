@@ -26,9 +26,12 @@ if [[ "${CHART_VERSION}" != "${APP_VERSION}" ]]; then
     exit 1
 fi
 
-echo "==> Syncing artifacthub.io/images annotation to appVersion ${APP_VERSION} ..."
-sed -i.bak -E "s#(ghcr\.io/${GITHUB_USER}/wuflow:)[^\"[:space:]]+#\1${APP_VERSION}#" "${CHART_DIR}/Chart.yaml"
-rm -f "${CHART_DIR}/Chart.yaml.bak"
+IMAGE_TAG=$(sed -n -E "s#.*ghcr\.io/${GITHUB_USER}/wuflow:([^\"[:space:]]+).*#\1#p" "${CHART_DIR}/Chart.yaml")
+
+if [[ "${IMAGE_TAG}" != "${APP_VERSION}" ]]; then
+    echo "artifacthub.io/images tag (${IMAGE_TAG}) must equal appVersion (${APP_VERSION}) in chart/Chart.yaml (normally set by scripts/new_version.sh). Aborting."
+    exit 1
+fi
 
 # helm registry login persists credentials to $HELM_REGISTRY_CONFIG (like docker login) — skip
 # the token prompt/login when jq is available and a cached entry for ghcr.io already exists.

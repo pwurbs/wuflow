@@ -22,9 +22,11 @@ echo "$NEW_VERSION" > VERSION
 # 2. Update Home Assistant Add-on config
 sed -i '' "s/^version: \".*\"/version: \"$NEW_VERSION\"/" home-assistant-addon/config.yaml
 
-# 3. Update Helm chart version and appVersion (image tag defaults to appVersion, see chart/values.yaml)
+# 3. Update Helm chart version, appVersion and the artifacthub.io/images annotation
+# (image tag defaults to appVersion, see chart/values.yaml)
 # Chart version is kept identical to the app version
 sed -i '' "s/^version: .*/version: ${NEW_VERSION}/" chart/Chart.yaml
 sed -i '' "s/^appVersion: \".*\"/appVersion: \"$NEW_VERSION\"/" chart/Chart.yaml
+sed -i '' -E "s#(ghcr\.io/pwurbs/wuflow:)[^\"[:space:]]+#\1${NEW_VERSION}#" chart/Chart.yaml
 
 echo "Successfully updated to version $NEW_VERSION"

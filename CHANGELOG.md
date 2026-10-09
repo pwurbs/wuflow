@@ -12,11 +12,8 @@
 - Unsaved changes are no longer lost on session expiry or network errors
 - Network errors are now displayed in a notification toast
 - Changes that failed to save no longer look saved, e.g. a card moved while offline returns to its old column
-- Improved secrets management in Helm chart, added release script to generate and push Helm package, removed deploy folder and scripts
-- Added values schema to chart
-- Added securityContext to deployment, container runs now in namespaces with restricted PSA
-- Added metdata for Artifact Hub
-- Changed the chart versioning, chart version is now the same like the app version
+- Helm chart: several improvements, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
+- Added release script to generate and push the Helm package, removed deploy folder and scripts
 - Removed database migration code from v.1.3.2 (see migration notes)
 
 # 1.4.1

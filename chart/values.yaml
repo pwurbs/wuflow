@@ -12,8 +12,20 @@ wuflow:
   initialAdminEmail: admin@local
 
 secrets:
-  initialAdminPassword: ""   # optional; auto-generated on first install if empty
-  secretKey: ""               # optional; auto-generated on first install if empty
+  # existingSecret: if set, name of an already existing Secret, for setups where the
+  # Secret is created and managed outside of this chart from the start (e.g. SOPS, External
+  # Secrets Operator). If left empty, the chart generates the initial admin password and the
+  # secret key itself on first install, so no cleartext secret ever needs to be set as a value,
+  # and keeps reusing the live values (verbatim, still base64, never decoded) on every
+  # subsequent render, so changing them directly in the cluster is safe. If a Flux HelmRelease
+  # drives this chart with driftDetection enabled, add an `ignore` rule for this Secret's
+  # `/data` path (see README > Secrets), so Flux doesn't revert a manual change.
+  existingSecret: ""
+  # Key names inside the Secret. Only relevant when existingSecret is set, in case it doesn't
+  # use the chart's own default key names.
+  existingSecretKeys:
+    initialAdminPassword: ""  # default: initial-admin-password
+    secretKey: ""             # default: secret-key
 
 ingress:
   host: ""        # e.g. wuflow.example.com — set in values.{env}.yaml
