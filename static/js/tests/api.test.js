@@ -34,6 +34,12 @@ import {
   createComment,
   updateComment,
   deleteComment,
+  NetworkError,
+  updateTask,
+  setSessionExpiredHandler,
+  setConnectionListener,
+  hasValidSession,
+  reauthenticate,
 } from '../api.js';
 
 function makeResponse(status, body, headers = {}) {
@@ -52,6 +58,8 @@ describe('api', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    setSessionExpiredHandler(null);
+    setConnectionListener(null);
   });
 
   // --- authFetch core behaviour ---
@@ -113,6 +121,154 @@ describe('api', () => {
     });
   });
 
+  describe('authFetch - session expired handler', () => {
+    it('waits for re-login and replays the request instead of redirecting', async () => {
+      const handler = vi.fn().mockResolvedValue();
+      setSessionExpiredHandler(handler);
+      fetch
+        .mockResolvedValueOnce(makeResponse(401, ''))           // original PUT
+        .mockResolvedValueOnce(makeResponse(401, ''))           // refresh fails
+        .mockResolvedValueOnce(makeResponse(200, { id: 3 }));   // replayed PUT
+
+      const result = await updateTask(1, 2, { id: 3, title: 'x' });
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(location.href).toBe('');
+      expect(fetch).toHaveBeenCalledTimes(3);
+      expect(fetch.mock.calls[2][0]).toBe('/api/projects/1/issues/2/tasks/3');
+      expect(fetch.mock.calls[2][1].method).toBe('PUT');
+      expect(result).toEqual({ id: 3 });
+    });
+
+    it('opens the re-login handler only once for concurrent 401s', async () => {
+      let resolveLogin;
+      const handler = vi.fn(() => new Promise(res => { resolveLogin = res; }));
+      setSessionExpiredHandler(handler);
+      let reloggedIn = false;
+      fetch.mockImplementation((url) => {
+        if (url.includes('/refresh')) return Promise.resolve(makeResponse(401, ''));
+        return Promise.resolve(reloggedIn ? makeResponse(200, { ok: url }) : makeResponse(401, ''));
+      });
+
+      const p1 = updateTask(1, 2, { id: 3 });
+      const p2 = updateTask(1, 2, { id: 4 });
+      await vi.waitFor(() => expect(handler).toHaveBeenCalled());
+      reloggedIn = true;
+      resolveLogin();
+
+      await expect(Promise.all([p1, p2])).resolves.toHaveLength(2);
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('authFetch - network errors', () => {
+    it('throws NetworkError without redirect when the refresh request fails', async () => {
+      fetch
+        .mockResolvedValueOnce(makeResponse(401, ''))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+      await expect(updateTask(1, 2, { id: 3 })).rejects.toBeInstanceOf(NetworkError);
+      expect(location.href).toBe('');
+    });
+
+    it('retries a GET once on network error', async () => {
+      fetch
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValueOnce(makeResponse(200, [{ id: 1 }]));
+
+      expect(await fetchHistory(1, 2)).toEqual([{ id: 1 }]);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('never retries a non-GET request and keeps the error for the caller', async () => {
+      fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      await expect(createComment(1, 2, 'hello')).rejects.toThrow('Connection to the server failed');
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats gateway errors as NetworkError', async () => {
+      fetch.mockResolvedValue(makeResponse(502, '<html>Bad Gateway</html>'));
+
+      await expect(updateTask(1, 2, { id: 3 })).rejects.toBeInstanceOf(NetworkError);
+    });
+
+    it('aborts a request after the timeout with NetworkError', async () => {
+      vi.useFakeTimers();
+      try {
+        fetch.mockImplementation((_url, opts) => new Promise((_res, rej) => {
+          opts.signal.addEventListener('abort', () => rej(new DOMException('Aborted', 'AbortError')));
+        }));
+        const p = updateTask(1, 2, { id: 3 });
+        const assertion = expect(p).rejects.toBeInstanceOf(NetworkError);
+        await vi.advanceTimersByTimeAsync(20000);
+        await assertion;
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('sends the refresh request without a timeout signal', async () => {
+      fetch
+        .mockResolvedValueOnce(makeResponse(401, ''))
+        .mockResolvedValueOnce(makeResponse(200, {}))
+        .mockResolvedValueOnce(makeResponse(200, []));
+
+      await fetchHistory(1, 2);
+
+      expect(fetch.mock.calls[1][0]).toContain('/auth/refresh');
+      expect(fetch.mock.calls[1][1].signal).toBeUndefined();
+    });
+
+    it('reports connection state to the listener', async () => {
+      const listener = vi.fn();
+      setConnectionListener(listener);
+      fetch
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValueOnce(makeResponse(200, []));
+
+      await fetchHistory(1, 2);
+
+      expect(listener.mock.calls).toEqual([[false], [true]]);
+    });
+  });
+
+  describe('hasValidSession', () => {
+    it('checks /auth/me without refreshing', async () => {
+      fetch.mockResolvedValue(makeResponse(401, ''));
+      expect(await hasValidSession()).toBe(false);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns true for a valid session', async () => {
+      fetch.mockResolvedValue(makeResponse(200, { id: 1 }));
+      expect(await hasValidSession()).toBe(true);
+    });
+  });
+
+  describe('reauthenticate', () => {
+    it('returns null on success', async () => {
+      fetch.mockResolvedValue(makeResponse(200, {}));
+      expect(await reauthenticate('a@b.c', 'pw')).toBeNull();
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ email: 'a@b.c', password: 'pw' });
+    });
+
+    it('returns the server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(401, 'Invalid credentials'));
+      expect(await reauthenticate('a@b.c', 'bad')).toBe('Invalid credentials');
+    });
+
+    it('returns a rate-limit message on 429', async () => {
+      fetch.mockResolvedValue(makeResponse(429, ''));
+      expect(await reauthenticate('a@b.c', 'pw')).toContain('Too many login attempts');
+    });
+
+    it('returns the network error message when the server is unreachable', async () => {
+      fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+      expect(await reauthenticate('a@b.c', 'pw')).toContain('Connection to the server failed');
+    });
+  });
+
   // --- Issue fetchers ---
 
   describe('fetchActiveIssuesByProject', () => {
@@ -120,7 +276,7 @@ describe('api', () => {
       const issues = [{ id: 1 }, { id: 2 }];
       fetch.mockResolvedValue(makeResponse(200, issues));
       expect(await fetchActiveIssuesByProject(42)).toEqual(issues);
-      expect(fetch).toHaveBeenCalledWith('/api/projects/42/issues/active', {});
+      expect(fetch).toHaveBeenCalledWith('/api/projects/42/issues/active', { signal: expect.any(AbortSignal) });
     });
 
     it('returns empty array on network error', async () => {
@@ -447,7 +603,7 @@ describe('api', () => {
       const releases = [{ id: 1, name: 'v1.0' }];
       fetch.mockResolvedValue(makeResponse(200, releases));
       expect(await fetchReleases(1)).toEqual(releases);
-      expect(fetch).toHaveBeenCalledWith('/api/projects/1/releases', {});
+      expect(fetch).toHaveBeenCalledWith('/api/projects/1/releases', { signal: expect.any(AbortSignal) });
     });
 
     it('throws with server message on failure', async () => {
@@ -555,7 +711,7 @@ describe('api', () => {
       const history = [{ id: 1, event: 'created' }];
       fetch.mockResolvedValue(makeResponse(200, history));
       expect(await fetchHistory(1, 5)).toEqual(history);
-      expect(fetch).toHaveBeenCalledWith('/api/projects/1/issues/5/history', {});
+      expect(fetch).toHaveBeenCalledWith('/api/projects/1/issues/5/history', { signal: expect.any(AbortSignal) });
     });
 
     it('throws with server message on failure', async () => {
@@ -569,7 +725,7 @@ describe('api', () => {
       const comments = [{ id: 1, body: 'hi' }];
       fetch.mockResolvedValue(makeResponse(200, comments));
       expect(await fetchComments(1, 5)).toEqual(comments);
-      expect(fetch).toHaveBeenCalledWith('/api/projects/1/issues/5/comments', {});
+      expect(fetch).toHaveBeenCalledWith('/api/projects/1/issues/5/comments', { signal: expect.any(AbortSignal) });
     });
 
     it('throws with server message on failure', async () => {

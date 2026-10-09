@@ -183,6 +183,11 @@
   z-index: 1200;
 }
 
+/* Re-login dialog must cover every other modal: it can open while any of them is in use */
+#reauth-modal {
+  z-index: 1300;
+}
+
 .modal-content.confirm {
   width: 400px;
   max-width: 90%;

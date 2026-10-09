@@ -1,21 +1,120 @@
 const API_URL = '/api';
 
+// Client-side request timeout. Longer than the server's 15 s write timeout so a slow
+// but successful request is not aborted on the client while the server completes it.
+const REQUEST_TIMEOUT_MS = 20000;
+
+// Gateway errors from a reverse proxy mean the request never reached the app (or its
+// outcome is unknown), so they are treated like a lost connection.
+const GATEWAY_ERROR_STATUSES = new Set([502, 503, 504]);
+
 /**
- * Auth-aware fetch wrapper.
- * On 401: attempts to refresh the access token and retries the request once.
- * If refresh also fails: redirects to /login.
+ * Raised when the server could not be reached (offline, DNS, timeout, gateway error).
+ * The message is shown as-is in error toasts.
  */
-let isRefreshing = false;
+export class NetworkError extends Error {
+  constructor(message = 'Connection to the server failed. The change was not saved.') {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
 let refreshPromise = null;
+let sessionExpiredHandler = null;
+let connectionListener = null;
+
+/**
+ * Registers the handler called when the session can no longer be refreshed.
+ * It must return a promise that resolves once the user is logged in again;
+ * the failed request is then replayed. Without a handler the app redirects to /login.
+ */
+export function setSessionExpiredHandler(handler) {
+  sessionExpiredHandler = handler;
+}
+
+/**
+ * Registers a listener called with true/false whenever a request reached / failed to
+ * reach the server, so the UI can show or hide a connection banner.
+ */
+export function setConnectionListener(listener) {
+  connectionListener = listener;
+}
+
+function notifyConnection(ok) {
+  connectionListener?.(ok);
+}
+
+/**
+ * Plain fetch with timeout and network-error mapping, without any auth handling.
+ * timeoutMs = 0 disables the timeout.
+ */
+async function rawFetch(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const res = await fetch(url, controller ? { ...options, signal: controller.signal } : options);
+    if (GATEWAY_ERROR_STATUSES.has(res.status)) {
+      notifyConnection(false);
+      throw new NetworkError();
+    }
+    notifyConnection(true);
+    return res;
+  } catch (err) {
+    if (err instanceof NetworkError) throw err;
+    notifyConnection(false);
+    throw new NetworkError();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Refreshes the session, or — if the refresh token is no longer valid — waits until the
+ * user has logged in again via the session-expired handler.
+ * Returns true when the original request can be replayed, false after a redirect.
+ * Throws NetworkError if the refresh request itself could not reach the server.
+ */
+async function renewSession() {
+  // No timeout: aborting a refresh the server already processed would leave the browser
+  // with a rotated-away refresh token.
+  const res = await rawFetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  }, 0);
+  if (res.ok) return true;
+  if (sessionExpiredHandler) {
+    await sessionExpiredHandler();
+    return true;
+  }
+  globalThis.location.href = '/login';
+  return false;
+}
 
 /**
  * Auth-aware fetch wrapper.
- * On 401: attempts to refresh the access token and retries the request once.
- * If refresh also fails: redirects to /login.
- * Implements a mutex to prevent multiple concurrent refresh calls (Token Reuse Protection).
+ * - Network failures throw NetworkError; GET requests are retried once first.
+ *   Other methods are never retried automatically, as their outcome is unknown.
+ * - On 401: refreshes the session (or re-authenticates the user) and replays the
+ *   request once. The replay is safe because a 401 request was never executed.
+ * All concurrent 401s share one renewal (Token Reuse Protection).
  */
 async function authFetch(url, options = {}) {
-  let res = await fetch(url, options);
+  const isRead = (options.method ?? 'GET').toUpperCase() === 'GET';
+  let res;
+  try {
+    res = await rawFetch(url, options);
+  } catch (err) {
+    if (!isRead || !(err instanceof NetworkError)) throw err;
+    res = await rawFetch(url, options);
+  }
+
+  if (res.status === 401) {
+    refreshPromise ??= renewSession().finally(() => { refreshPromise = null; });
+    if (await refreshPromise) {
+      res = await rawFetch(url, options);
+    }
+  }
 
   if (res.status === 429) {
     // Return a synthetic response so every caller's error path shows a clear message.
@@ -25,41 +124,39 @@ async function authFetch(url, options = {}) {
     });
   }
 
-  if (res.status === 401) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      refreshPromise = fetch(`${API_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}'
-      })
-        .then(r => {
-          if (!r.ok) throw new Error('Refresh failed');
-          return true;
-        })
-        .catch(err => {
-          // If refresh fails, redirect to login
-          globalThis.location.href = '/login';
-          throw err;
-        })
-        .finally(() => {
-          isRefreshing = false;
-          refreshPromise = null;
-        });
-    }
-
-    try {
-      // Wait for the ongoing refresh to complete
-      await refreshPromise;
-      // Retry original request with fresh token (cookies are handled by browser)
-      res = await fetch(url, options);
-    } catch {
-      // If refresh failed, return the original 401 response (or we already redirected)
-      return res;
-    }
-  }
-
   return res;
+}
+
+/**
+ * Checks whether the current access cookie is valid, without refreshing or
+ * re-authenticating. Used to detect a login made in another tab.
+ */
+export async function hasValidSession() {
+  try {
+    const res = await rawFetch(`${API_URL}/auth/me`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Logs in again with the given credentials (used by the re-login dialog).
+ * Returns null on success, otherwise a user-facing error message.
+ */
+export async function reauthenticate(email, password) {
+  try {
+    const res = await rawFetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    if (res.ok) return null;
+    if (res.status === 429) return 'Too many login attempts. Please wait a moment and try again.';
+    return (await res.text()) || 'Login failed. Please try again.';
+  } catch (err) {
+    return err.message;
+  }
 }
 
 export async function fetchActiveIssuesByProject(projectId) {

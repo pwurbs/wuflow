@@ -9,6 +9,9 @@
 - Bumped vitest and playwright packages
 - Added race detection to the Go fuzz testing task
 - Issue details now open instantly from the already loaded board data instead of waiting for several API requests
+- Unsaved changes are no longer lost on session expiry or network errors
+- Network errors are now displayed in a notification toast
+- Changes that failed to save no longer look saved, e.g. a card moved while offline returns to its old column
 - Improved secrets management in Helm chart, added release script to generate and push Helm package, removed deploy folder and scripts
 - Added values schema to chart
 - Added securityContext to deployment, container runs now in namespaces with restricted PSA

@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showError('Unable to connect to the server. Please try again later.');
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Sign in';
+      submitBtn.textContent = 'Sign In';
     }
   });
 

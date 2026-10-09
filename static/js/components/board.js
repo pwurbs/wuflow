@@ -155,13 +155,21 @@ function attachColumnDragListeners(colContent) {
 
     setDragSuccess(true);
 
-    const updates = getBoardUpdates();
+    const { updates, previous } = getBoardUpdates();
     try {
       await Promise.all(updates);
       renderBoard();
       renderPlanningPanel();
     } catch (err) {
       showNotification(err.message, 'error');
+      // Put the cards back right away from local data: when the server is unreachable,
+      // refreshApp cannot reload them and the unsaved move would look saved.
+      previous.forEach(({ issue, status, position }) => {
+        issue.status = status;
+        issue.position = position;
+      });
+      renderBoard();
+      renderPlanningPanel();
       if (refreshAppCallback) refreshAppCallback();
     }
   });
@@ -174,8 +182,11 @@ export function setupBoardView(refreshApp, openModal, rerenderActiveView) {
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 }
 
+// Applies the dropped order to the local issues and returns the save requests plus the
+// previous status/position of every changed issue, so a failed save can be undone.
 function getBoardUpdates() {
   const updates = [];
+  const previous = [];
   document.querySelectorAll('.column').forEach(col => {
     const status = col.dataset.status;
     const cards = [...col.querySelectorAll('.column-content .card')];
@@ -183,11 +194,12 @@ function getBoardUpdates() {
       const id = Number.parseInt(card.dataset.id);
       const issue = state.issues.find(i => i.id === id);
       if (issue && (issue.status !== status || issue.position !== index)) {
+        previous.push({ issue, status: issue.status, position: issue.position });
         issue.status = status;
         issue.position = index;
         updates.push(updateIssue(issue.project_id, issue));
       }
     });
   });
-  return updates;
+  return { updates, previous };
 }

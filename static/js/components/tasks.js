@@ -113,7 +113,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         titleInput.dataset.originalTitle = task.title; // Expose for modal.js
         titleInput.focus();
         titleCounter.show();
-        if (callbacks.onTaskEditStart) callbacks.onTaskEditStart();
+        if (callbacks.onTaskEditStart) callbacks.onTaskEditStart(saveTask);
       };
 
       const exitEditMode = () => {
@@ -130,28 +130,37 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         exitEditMode();
       };
 
-      const saveTask = async () => {
+      // Returns false if the title could not be saved (edit mode and typed text are kept).
+      const doSaveTask = async () => {
         const newTitle = titleInput.value.trim();
         if (!newTitle) {
           cancelEdit();
-          return;
+          return true;
         }
         if (newTitle !== task.title) {
-          if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { cancelEdit(); return; }
+          if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { cancelEdit(); return true; }
           task.title = newTitle;
           try {
             await updateTask(currentIssue.project_id, currentIssue.id, task);
             showNotification('Task updated');
             if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
           } catch (err) {
-            task.title = originalTitle; // revert local state
-            titleInput.value = originalTitle;
+            task.title = originalTitle; // revert local state, keep the typed text in the input
             showNotification(err.message, 'error');
-            return; // keep edit mode so user can retry
+            return false; // keep edit mode so user can retry
           }
         }
         exitEditMode();
+        return true;
       };
+
+      // Blur (e.g. when clicking Done) and the modal's Done handler may both trigger a
+      // save; they share the in-flight one so Done sees its real outcome.
+      let savePromise = null;
+      function saveTask() {
+        savePromise ??= doSaveTask().finally(() => { savePromise = null; });
+        return savePromise;
+      }
 
       titleInput.addEventListener('click', () => {
         if (!li.classList.contains('editing')) enterEditMode();

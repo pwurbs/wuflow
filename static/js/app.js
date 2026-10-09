@@ -9,6 +9,7 @@ import { setupSystemSettingsView, renderSystemSettingsView } from './components/
 import { setupProjectSettingsView, renderProjectSettingsView } from './components/project-settings.js';
 import { setupReleasesView, renderReleasesView, invalidateReleaseIssueCache, renderReleaseOwnerOptions } from './components/releases.js';
 import { setupModal, openModal } from './components/modal.js';
+import { setupSession } from './session.js';
 import { debounce } from './utils.js';
 import { STATUS_OPEN } from './status-config.js';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
@@ -46,6 +47,9 @@ async function init() {
         return;
     }
     setCurrentUser(user);
+    // Installed only after the initial auth check: an expired session at page load
+    // still redirects to /login, later expiries open the re-login dialog instead.
+    setupSession();
     // Hide System Settings nav for non-sysadmin users
     if (user.role !== 'sysadmin') {
         navSystemSettings.classList.add('hidden');

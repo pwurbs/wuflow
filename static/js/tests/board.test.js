@@ -509,5 +509,31 @@ describe('Board Component', () => {
         expect(refreshApp).toHaveBeenCalled();
       });
     });
+
+    it('should put the card back in its old column when the save fails (refresh not possible offline)', async () => {
+      setupBoardView(vi.fn(), vi.fn()); // refreshApp does nothing, like when the server is unreachable
+      // Earlier tests change these mocks' return values; render the real issue list here
+      filters.filterIssues.mockImplementation(issues => issues);
+      filters.sortByPosition.mockImplementation(issues => issues);
+      state.state.issues = [
+        { id: 1, title: 'Task 1', status: 'Stage1', position: 0 }
+      ];
+      renderBoard();
+
+      const card = document.querySelector('.card[data-id="1"]');
+      drag.getDraggedCard.mockReturnValue(card);
+      api.updateIssue.mockRejectedValue(new Error('Connection to the server failed. The change was not saved.'));
+
+      const targetContent = document.querySelector('.column[data-status="Stage2"] .column-content');
+      targetContent.appendChild(card);
+      targetContent.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => {
+        expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed. The change was not saved.', 'error');
+      });
+      expect(state.state.issues[0]).toMatchObject({ status: 'Stage1', position: 0 });
+      expect(document.querySelector('.column[data-status="Stage1"] .card[data-id="1"]')).not.toBeNull();
+      expect(document.querySelector('.column[data-status="Stage2"] .card[data-id="1"]')).toBeNull();
+    });
   });
 });

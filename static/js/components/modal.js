@@ -343,8 +343,8 @@ function renderIssueFields(issue) {
     onTaskOrderSave: async () => {
       await saveTaskOrder(issue);
     },
-    onTaskEditStart: () => addUnloadListener(),
-    onTaskEditEnd: () => checkRemoveUnloadListener()
+    onTaskEditStart: onTaskEditStart,
+    onTaskEditEnd: onTaskEditEnd
   });
 
   const user = state.currentUser;
@@ -464,6 +464,7 @@ export function closeModal() {
   }
   setCurrentIssue(null);
   currentEtag = null;
+  _saveEditingTaskFn = null;
   issueLoad = null;
   issueLoadSeq++;
   resetTaskForm();
@@ -640,6 +641,19 @@ let originalTitle = '';
 let originalDesc = '';
 let _saveTitleFn = null;
 let _cancelTitleFn = null;
+let _saveDescFn = null;
+let _cancelDescFn = null;
+let _saveEditingTaskFn = null; // save() of the task currently in edit mode, awaited by handleDone()
+
+function onTaskEditStart(saveTask) {
+  _saveEditingTaskFn = saveTask;
+  addUnloadListener();
+}
+
+function onTaskEditEnd() {
+  _saveEditingTaskFn = null;
+  checkRemoveUnloadListener();
+}
 
 function setupInlineEditing() {
   const titleInput = document.getElementById('title');
@@ -692,7 +706,7 @@ function setupInlineEditing() {
     checkRemoveUnloadListener();
   };
 
-  const saveTitle = async () => {
+  const doSaveTitle = async () => {
     const newTitle = titleInput.value.trim();
     if (!newTitle) {
       cancelTitle(); // Revert to original if empty
@@ -725,6 +739,15 @@ function setupInlineEditing() {
     titleInput.readOnly = true;
     titleCounter.hide();
     checkRemoveUnloadListener();
+  };
+
+  // Enter and blur can both trigger a save (e.g. when the re-login dialog takes focus while
+  // the first save waits); they share the in-flight save instead of sending a second,
+  // stale-ETag request that would fail with a conflict.
+  let titleSavePromise = null;
+  const saveTitle = () => {
+    titleSavePromise ??= doSaveTitle().finally(() => { titleSavePromise = null; });
+    return titleSavePromise;
   };
 
   titleInput.addEventListener('blur', async (e) => {
@@ -784,17 +807,18 @@ function setupInlineEditing() {
     checkRemoveUnloadListener();
   };
 
+  // Returns false if the description could not be saved (editor stays open with the text).
   const saveDesc = async () => {
     const newDesc = descEditor.value;
     if (newDesc !== state.currentIssue.description) {
       const updatedIssue = { ...state.currentIssue, description: newDesc };
       try {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Description updated');
-        if (!saved) return;
+        if (!saved) return false;
         if (state.currentIssue) state.currentIssue.description = newDesc;
       } catch (err) {
         showNotification(err.message, 'error');
-        return;
+        return false;
       }
     }
     const { html, strippedHTML } = renderMarkdown(newDesc, true);
@@ -809,7 +833,11 @@ function setupInlineEditing() {
     descEditActions.classList.add('hidden');
     resetMdPreview(descPreview);
     checkRemoveUnloadListener();
+    return true;
   };
+
+  _saveDescFn = saveDesc;
+  _cancelDescFn = cancelDesc;
 
   descCancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelDesc(); });
   descSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); void saveDesc(); });
@@ -825,21 +853,22 @@ async function handleDone() {
     if (titleInput.classList.contains('inline-editing')) return; // Conflict - don't close
   }
 
-  // Description: keep explicit prompt behavior
+  // Description: keep explicit prompt behavior; a failed save keeps the modal open
   if (document.querySelector('.editor-container').classList.contains('inline-editing')) {
-    await processFieldOnDone(
+    const descDone = await processFieldOnDone(
       descEditor.value,
       originalDesc,
       'Description',
-      'desc-save-btn',
-      'desc-cancel-btn'
+      _saveDescFn,
+      _cancelDescFn
     );
+    if (!descDone) return;
   }
 
-  // Tasks: trigger blur to auto-save any currently editing task input
-  const editingTask = document.querySelector('.task-item.editing');
-  if (editingTask) {
-    editingTask.querySelector('.task-title-input').blur();
+  // Tasks: auto-save the task currently in edit mode; a failed save keeps the modal open
+  if (_saveEditingTaskFn && document.querySelector('.task-item.editing')) {
+    const taskSaved = await _saveEditingTaskFn();
+    if (!taskSaved) return;
   }
 
   const showUpdatedNotification = state.currentIssue && hasSavedDuringSession;
@@ -849,17 +878,18 @@ async function handleDone() {
   }
 }
 
-async function processFieldOnDone(currentValue, originalValue, fieldName, saveBtnId, cancelBtnId) {
+// Returns false if the user chose to save but the save failed, so the modal must stay open.
+async function processFieldOnDone(currentValue, originalValue, fieldName, saveFn, cancelFn) {
   if (currentValue === originalValue) {
-    document.getElementById(cancelBtnId).dispatchEvent(new MouseEvent('mousedown'));
-    return;
+    cancelFn();
+    return true;
   }
 
   if (await showConfirm('Unsaved Changes', `Save ${fieldName}?`, 'Save', 'Discard', 'primary')) {
-    document.getElementById(saveBtnId).dispatchEvent(new MouseEvent('mousedown'));
-  } else {
-    document.getElementById(cancelBtnId).dispatchEvent(new MouseEvent('mousedown'));
+    return saveFn();
   }
+  cancelFn();
+  return true;
 }
 
 export function preventNavigation(e) {
@@ -889,13 +919,26 @@ function checkRemoveUnloadListener() {
   }
 }
 
+// Resets the sidebar controls to the last saved values after a failed or conflicting save,
+// so an unsaved choice never looks persisted once the error toast is gone.
+function revertSidebarControls() {
+  if (!state.currentIssue) return;
+  renderModalDropdowns(state.currentIssue);
+  const deadlineInput = document.getElementById('deadline');
+  deadlineInput.value = state.currentIssue.deadline ? new Date(state.currentIssue.deadline).toISOString().slice(0, 10) : '';
+  updateDateInputStyle(deadlineInput);
+}
+
 async function handleDeadlineChange(rawValue) {
   if (!state.currentIssue) return;
   const dateVal = rawValue ? new Date(rawValue + 'T12:00:00') : null;
   const updatedIssue = { ...state.currentIssue, deadline: dateVal };
   try {
     const saved = await saveIssueWithConflictCheck(updatedIssue, null);
-    if (!saved) return;
+    if (!saved) {
+      revertSidebarControls();
+      return;
+    }
     state.currentIssue.deadline = dateVal;
     const dlStatus = getDeadlineStatus({ deadline: dateVal, release: state.currentIssue.release });
     document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
@@ -908,6 +951,7 @@ async function handleDeadlineChange(rawValue) {
     );
   } catch (err) {
     showNotification(err.message, 'error');
+    revertSidebarControls();
   }
 }
 
@@ -926,10 +970,10 @@ function setupSidebarImmediateSave() {
       try {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Priority updated');
         if (saved) state.currentIssue.priority = prioritySelect.value;
+        else revertSidebarControls();
       } catch (err) {
         showNotification(err.message, 'error');
-        // Revert UI? Ideally yes, but tricky without knowing prev value. 
-        // For now, at least user sees error.
+        revertSidebarControls();
       }
     }
   });
@@ -940,8 +984,10 @@ function setupSidebarImmediateSave() {
       try {
         const saved = await saveIssueWithConflictCheck(updatedIssue, 'Status updated');
         if (saved) state.currentIssue.status = statusSelect.value;
+        else revertSidebarControls();
       } catch (err) {
         showNotification(err.message, 'error');
+        revertSidebarControls();
       }
     }
   });
@@ -959,9 +1005,12 @@ function setupSidebarImmediateSave() {
             // Re-fetch issue to get the populated assignee object for UI
             const { issue: freshIssue } = await fetchIssueById(state.currentIssue.project_id, state.currentIssue.id);
             if (freshIssue) state.currentIssue.assignee = freshIssue.assignee;
+          } else {
+            revertSidebarControls();
           }
         } catch (err) {
           showNotification(err.message, 'error');
+          revertSidebarControls();
         }
       }
     });
@@ -977,8 +1026,10 @@ function setupSidebarImmediateSave() {
         try {
           const saved = await saveIssueWithConflictCheck(updatedIssue, 'Label updated');
           if (saved) state.currentIssue.label = labelVal;
+          else revertSidebarControls();
         } catch (err) {
           showNotification(err.message, 'error');
+          revertSidebarControls();
         }
       }
     });
@@ -1000,9 +1051,12 @@ function setupSidebarImmediateSave() {
             const dlStatus = getDeadlineStatus(state.currentIssue);
             document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
             if (dlStatus.late) showNotification(`Release updated — deadline is ${dlStatus.reason}`, 'warning');
+          } else {
+            revertSidebarControls();
           }
         } catch (err) {
           showNotification(err.message, 'error');
+          revertSidebarControls();
         }
       }
     });
@@ -1309,8 +1363,8 @@ async function handleTaskSubmit(e) {
     renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, {
       onTaskUpdate: () => { rerenderViewsCallback?.(); void refreshHistory(); },
       onTaskOrderSave: () => saveTaskOrder(state.currentIssue),
-      onTaskEditStart: () => addUnloadListener(),
-      onTaskEditEnd: () => checkRemoveUnloadListener()
+      onTaskEditStart: onTaskEditStart,
+      onTaskEditEnd: onTaskEditEnd
     });
     resetTaskForm();
     const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
