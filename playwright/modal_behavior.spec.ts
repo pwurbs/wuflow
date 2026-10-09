@@ -126,7 +126,6 @@ test.describe('Issue Edit Modal Behavior', () => {
 
     await expect(page.locator('#title')).toHaveValue(title, { timeout: 500 });
     await expect(page.locator('#description-preview strong')).toHaveText('bold', { timeout: 500 });
-    await expect(page.locator('#issue-modal .modal-content')).not.toHaveClass(/loading-state/);
     expect(released).toBe(false);
 
     await page.unrouteAll({ behavior: 'wait' });

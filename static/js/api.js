@@ -1,3 +1,5 @@
+import { singleFlight } from './utils.js';
+
 const API_URL = '/api';
 
 // Client-side request timeout. Longer than the server's 15 s write timeout so a slow
@@ -19,7 +21,6 @@ export class NetworkError extends Error {
   }
 }
 
-let refreshPromise = null;
 let sessionExpiredHandler = null;
 let connectionListener = null;
 
@@ -91,6 +92,8 @@ async function renewSession() {
   return false;
 }
 
+const renewSessionOnce = singleFlight(renewSession);
+
 /**
  * Auth-aware fetch wrapper.
  * - Network failures throw NetworkError; GET requests are retried once first.
@@ -110,8 +113,7 @@ async function authFetch(url, options = {}) {
   }
 
   if (res.status === 401) {
-    refreshPromise ??= renewSession().finally(() => { refreshPromise = null; });
-    if (await refreshPromise) {
+    if (await renewSessionOnce()) {
       res = await rawFetch(url, options);
     }
   }

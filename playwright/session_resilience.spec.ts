@@ -5,13 +5,20 @@
 //   controls (cards, dropdowns) return to their saved state, and a connection banner shows.
 
 import { test, expect } from './fixtures';
-import type { Page } from './fixtures';
+import type { BrowserContext, Page } from './fixtures';
 import { createIssue, openIssueByTitle, selectPriority, waitForToast } from './helpers/test-utils';
 
 const NETWORK_ERROR = 'Connection to the server failed';
 
 function boardCard(page: Page, status: string, title: string) {
   return page.locator(`.column[data-status="${status}"] .board-card:has-text("${title}")`);
+}
+
+// Expires the session and simulates the user returning to the tab: the re-login dialog opens.
+async function expireSessionAndReturn(page: Page, context: BrowserContext) {
+  await context.clearCookies();
+  await page.evaluate(() => globalThis.dispatchEvent(new Event('focus')));
+  await expect(page.locator('#reauth-modal')).toBeVisible();
 }
 
 test.beforeEach(async ({ page, login }) => {
@@ -66,10 +73,7 @@ test.describe('Expired session: re-login dialog', () => {
   });
 
   test('wrong password shows an error and keeps the dialog open', async ({ page, context }) => {
-    await context.clearCookies();
-    await page.evaluate(() => globalThis.dispatchEvent(new Event('focus')));
-
-    await expect(page.locator('#reauth-modal')).toBeVisible();
+    await expireSessionAndReturn(page, context);
     await page.fill('#reauth-password', 'definitely-wrong-password');
     await page.click('#reauth-submit-btn');
 
@@ -78,16 +82,11 @@ test.describe('Expired session: re-login dialog', () => {
   });
 
   test('returning to the tab with an expired session opens the dialog before any edit', async ({ page, context }) => {
-    await context.clearCookies();
-    await page.evaluate(() => globalThis.dispatchEvent(new Event('focus')));
-
-    await expect(page.locator('#reauth-modal')).toBeVisible();
+    await expireSessionAndReturn(page, context);
   });
 
   test('dialog closes by itself after signing in in another tab', async ({ page, context, workerServer }) => {
-    await context.clearCookies();
-    await page.evaluate(() => globalThis.dispatchEvent(new Event('focus')));
-    await expect(page.locator('#reauth-modal')).toBeVisible();
+    await expireSessionAndReturn(page, context);
 
     // Login from "another tab": context.request shares the browser context's cookies
     const res = await context.request.post('/api/auth/login', {
@@ -100,9 +99,7 @@ test.describe('Expired session: re-login dialog', () => {
   });
 
   test('Log Out in the dialog leads to the login page', async ({ page, context }) => {
-    await context.clearCookies();
-    await page.evaluate(() => globalThis.dispatchEvent(new Event('focus')));
-    await expect(page.locator('#reauth-modal')).toBeVisible();
+    await expireSessionAndReturn(page, context);
 
     await page.click('#reauth-logout-btn');
     await expect(page).toHaveURL(/\/login/);

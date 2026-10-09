@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus } from '../utils.js';
+import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, singleFlight } from '../utils.js';
 import { MAX_TITLE_LENGTH } from '../validation-config.js';
 import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.js';
@@ -30,7 +30,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
                         <span class="task-deadline task-deadline-display${dlStatus.late ? ' overdue' : ''}">
                             ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅'}
                         </span>
-                        <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : ''}">
+                        <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${toDateInputValue(task.deadline)}">
                     </div>
                     <div class="delete-task-btn" title="Delete Task">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -156,11 +156,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
 
       // Blur (e.g. when clicking Done) and the modal's Done handler may both trigger a
       // save; they share the in-flight one so Done sees its real outcome.
-      let savePromise = null;
-      function saveTask() {
-        savePromise ??= doSaveTask().finally(() => { savePromise = null; });
-        return savePromise;
-      }
+      const saveTask = singleFlight(doSaveTask);
 
       titleInput.addEventListener('click', () => {
         if (!li.classList.contains('editing')) enterEditMode();
@@ -196,7 +192,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         } catch (err) {
           task.deadline = prevDeadline; // revert local state
-          deadlineInput.value = prevDeadline ? new Date(prevDeadline).toISOString().slice(0, 10) : '';
+          deadlineInput.value = toDateInputValue(prevDeadline);
           showNotification(err.message, 'error');
         }
       });

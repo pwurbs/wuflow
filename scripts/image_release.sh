@@ -24,19 +24,13 @@ fi
 
 # container registry login persists credentials in the macOS keychain — skip the token
 # prompt/login when a cached entry for ghcr.io already exists.
-ALREADY_LOGGED_IN=false
 if [[ -z "${GHCR_TOKEN}" ]] && container registry list -q 2>/dev/null | grep -qx "ghcr.io"; then
-    ALREADY_LOGGED_IN=true
-fi
-
-if [[ "${ALREADY_LOGGED_IN}" == false && -z "${GHCR_TOKEN}" ]]; then
-    read -rsp "GitHub PAT for ${GITHUB_USER} (write:packages scope): " GHCR_TOKEN
-    echo
-fi
-
-if [[ "${ALREADY_LOGGED_IN}" == true ]]; then
     echo "==> Already logged in to ghcr.io (cached credentials), skipping login"
 else
+    if [[ -z "${GHCR_TOKEN}" ]]; then
+        read -rsp "GitHub PAT for ${GITHUB_USER} (write:packages scope): " GHCR_TOKEN
+        echo
+    fi
     echo "==> Logging in to ghcr.io as ${GITHUB_USER} ..."
     printf '%s' "${GHCR_TOKEN}" | container registry login ghcr.io -u "${GITHUB_USER}" --password-stdin
 fi

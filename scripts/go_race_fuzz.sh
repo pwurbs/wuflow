@@ -16,7 +16,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 FUZZTIME="${1:-30s}"
-FUZZ_TARGETS="FuzzValidateLabel FuzzValidateUser FuzzIsBlacklistedPassword FuzzValidateIssue FuzzValidateComment FuzzValidateProject FuzzValidateStatusConfig FuzzValidateRelease"
+# Every Fuzz* function in the backend package, so new fuzz tests are picked up automatically.
+FUZZ_TARGETS=$(go test -list '^Fuzz' ./backend/ | grep '^Fuzz')
 
 # Failure bookkeeping. A counter plus a plain string rather than an array:
 # macOS ships bash 3.2, where expanding an empty array under `set -u` errors.

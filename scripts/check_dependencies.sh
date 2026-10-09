@@ -14,6 +14,9 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# sed expression turning "go1.27.2" (as printed by `go version`) into "1.27.2"
+STRIP_GO_PREFIX='s/go//'
+
 
 # 1. NPM Dependencies
 echo -e "\n${BLUE}=====================================================${NC}"
@@ -69,17 +72,17 @@ echo -e "${BLUE}=====================================================${NC}"
 echo -e "${YELLOW}--> Checking Go version used by this repo (go.mod toolchain)...${NC}"
 set +e
 if command -v go >/dev/null 2>&1; then
-    LOCAL_GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+    LOCAL_GO_VERSION=$(go version | awk '{print $3}' | sed "$STRIP_GO_PREFIX")
     if [[ "$LOCAL_GO_VERSION" == *.*.* ]]; then
         LOCAL_MINOR=$(echo "$LOCAL_GO_VERSION" | cut -d. -f1,2)
     else
         LOCAL_MINOR="$LOCAL_GO_VERSION"
     fi
     
-    LATEST_ALL_GO=$(curl -s "https://go.dev/VERSION?m=text" | head -n 1 | sed 's/go//')
+    LATEST_ALL_GO=$(curl -s "https://go.dev/VERSION?m=text" | head -n 1 | sed "$STRIP_GO_PREFIX")
     
     # Try to find the latest patch for the current minor version (e.g. 1.25.x for 1.25.7)
-    LATEST_MINOR=$(curl -s "https://go.dev/dl/?mode=json" | grep -o 'go[0-9]\+\.[0-9]\+\.[0-9]\+' | sort -uV | grep -E "^go$LOCAL_MINOR\." | tail -n 1 | sed 's/go//')
+    LATEST_MINOR=$(curl -s "https://go.dev/dl/?mode=json" | grep -o 'go[0-9]\+\.[0-9]\+\.[0-9]\+' | sort -uV | grep -E "^go$LOCAL_MINOR\." | tail -n 1 | sed "$STRIP_GO_PREFIX")
     
     # Fallback if we couldn't parse the minor properly
     if [[ -z "$LATEST_MINOR" ]]; then
@@ -113,7 +116,7 @@ GOMOD_GO_VERSION=$(awk '/^go /{print $2; exit}' go.mod 2>/dev/null || true)
 if [[ -n "$GOMOD_GO_VERSION" ]] && command -v go >/dev/null 2>&1; then
     set +e
     echo -e "${YELLOW}--> Checking installed system Go against go.mod ($GOMOD_GO_VERSION)...${NC}"
-    SYSTEM_GO_VERSION=$(GOTOOLCHAIN=local go version | awk '{print $3}' | sed 's/go//')
+    SYSTEM_GO_VERSION=$(GOTOOLCHAIN=local go version | awk '{print $3}' | sed "$STRIP_GO_PREFIX")
     if minor_older "$SYSTEM_GO_VERSION" "$GOMOD_GO_VERSION"; then
         echo -e "${RED}System Go ($SYSTEM_GO_VERSION) is older than go.mod ($GOMOD_GO_VERSION). Install the new Go from https://go.dev/dl/, then run 'Go: Install/Update Tools' in VS Code.${NC}"
     else
@@ -122,16 +125,18 @@ if [[ -n "$GOMOD_GO_VERSION" ]] && command -v go >/dev/null 2>&1; then
 
     # Source-parsing tools only understand the language features of the Go they
     # were built with: an older gopls reports false errors in the IDE, older
-    # gosec/govulncheck builds fail outright in go_checks.sh. Entries are
-    # "binary|rebuild hint"; gopls is on the VS Code extension's tool list,
-    # gosec and govulncheck are not and need a manual go install.
+    # gosec/govulncheck builds fail outright in go_checks.sh, and golangci-lint
+    # refuses to run at all. Entries are "binary|rebuild hint"; gopls and
+    # golangci-lint are on the VS Code extension's tool list, gosec and
+    # govulncheck are not and need a manual go install.
     SOURCE_TOOLS="gopls|run 'Go: Install/Update Tools' in VS Code
+golangci-lint|run 'Go: Install/Update Tools' in VS Code (go.lintTool: golangci-lint-v2)
 gosec|go install github.com/securego/gosec/v2/cmd/gosec@latest
 govulncheck|go install golang.org/x/vuln/cmd/govulncheck@latest"
     while IFS='|' read -r TOOL HINT; do
         echo -e "${YELLOW}--> Checking Go version $TOOL was built with...${NC}"
         if command -v "$TOOL" >/dev/null 2>&1; then
-            TOOL_GO_VERSION=$(go version "$(command -v "$TOOL")" | awk '{print $NF}' | sed 's/go//')
+            TOOL_GO_VERSION=$(go version "$(command -v "$TOOL")" | awk '{print $NF}' | sed "$STRIP_GO_PREFIX")
             if minor_older "$TOOL_GO_VERSION" "$GOMOD_GO_VERSION"; then
                 echo -e "${RED}$TOOL was built with Go $TOOL_GO_VERSION, older than go.mod ($GOMOD_GO_VERSION) and may fail on newer syntax. Rebuild: $HINT${NC}"
             else
@@ -142,14 +147,12 @@ govulncheck|go install golang.org/x/vuln/cmd/govulncheck@latest"
         fi
     done <<< "$SOURCE_TOOLS"
 
-    # golangci-lint refuses to run when built with a Go older than go.mod, so
-    # both the release and its build Go version are checked.
+    # Release check only; its build Go version is checked in the loop above.
     echo -e "${YELLOW}--> Checking golangci-lint version...${NC}"
     if command -v golangci-lint >/dev/null 2>&1; then
         # Parsed from the full output: v1 has no --short flag, and source builds
         # print the version with a "v" prefix ("v2.14.0") while releases do not.
         GOLANGCI_VERSION=$(golangci-lint version 2>/dev/null | sed -E 's/.*has version v?([0-9][0-9.]*).*/\1/')
-        GOLANGCI_GO_VERSION=$(go version "$(command -v golangci-lint)" | awk '{print $NF}' | sed 's/go//')
         LATEST_GOLANGCI=$(curl -s "https://api.github.com/repos/golangci/golangci-lint/releases/latest" | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
         if [[ -z "$LATEST_GOLANGCI" ]]; then
             echo -e "${YELLOW}golangci-lint $GOLANGCI_VERSION installed (could not fetch the latest release from GitHub).${NC}"
@@ -157,9 +160,6 @@ govulncheck|go install golang.org/x/vuln/cmd/govulncheck@latest"
             echo -e "${GREEN}golangci-lint ($GOLANGCI_VERSION) is up to date.${NC}"
         else
             echo -e "${RED}golangci-lint ($GOLANGCI_VERSION) is outdated! Latest is $LATEST_GOLANGCI. Update via 'Go: Install/Update Tools' in VS Code (go.lintTool: golangci-lint-v2).${NC}"
-        fi
-        if minor_older "$GOLANGCI_GO_VERSION" "$GOMOD_GO_VERSION"; then
-            echo -e "${RED}golangci-lint was built with Go $GOLANGCI_GO_VERSION, older than go.mod ($GOMOD_GO_VERSION). It will refuse to run until rebuilt via 'Go: Install/Update Tools' in VS Code.${NC}"
         fi
     else
         echo -e "${RED}golangci-lint is not installed.${NC}"

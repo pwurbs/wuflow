@@ -35,22 +35,16 @@ fi
 
 # helm registry login persists credentials to $HELM_REGISTRY_CONFIG (like docker login) — skip
 # the token prompt/login when jq is available and a cached entry for ghcr.io already exists.
-ALREADY_LOGGED_IN=false
 HELM_REGISTRY_CONFIG_PATH="$(helm env | sed -n 's/^HELM_REGISTRY_CONFIG="\(.*\)"$/\1/p')"
 if [[ -z "${GHCR_TOKEN}" ]] && command -v jq &>/dev/null \
     && [[ -f "${HELM_REGISTRY_CONFIG_PATH}" ]] \
     && jq -e '.auths["ghcr.io"]' "${HELM_REGISTRY_CONFIG_PATH}" &>/dev/null; then
-    ALREADY_LOGGED_IN=true
-fi
-
-if [[ "${ALREADY_LOGGED_IN}" == false && -z "${GHCR_TOKEN}" ]]; then
-    read -rsp "GitHub PAT for ${GITHUB_USER} (write:packages scope): " GHCR_TOKEN
-    echo
-fi
-
-if [[ "${ALREADY_LOGGED_IN}" == true ]]; then
     echo "==> Already logged in to ghcr.io (cached credentials), skipping login"
 else
+    if [[ -z "${GHCR_TOKEN}" ]]; then
+        read -rsp "GitHub PAT for ${GITHUB_USER} (write:packages scope): " GHCR_TOKEN
+        echo
+    fi
     echo "==> Logging in to ghcr.io as ${GITHUB_USER} ..."
     echo "${GHCR_TOKEN}" | helm registry login ghcr.io -u "${GITHUB_USER}" --password-stdin
 fi

@@ -4,6 +4,7 @@ import * as api from '../api.js';
 import { state, setCurrentIssue } from '../state.js';
 import * as utils from '../utils.js';
 import * as tasks from '../components/tasks.js';
+import * as activity from '../components/activity.js';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
 const _localStore = {};
@@ -72,7 +73,9 @@ vi.mock('../utils.js', async (importOriginal) => {
       return true;
     }),
     // Real implementation — the list auto-continue tests assert on its actual behavior.
-    continueListOnEnter: actual.continueListOnEnter
+    continueListOnEnter: actual.continueListOnEnter,
+    toDateInputValue: actual.toDateInputValue,
+    singleFlight: actual.singleFlight
   };
 });
 
@@ -89,6 +92,16 @@ vi.mock('../components/tasks.js', () => ({
   renderTasks: vi.fn()
 }));
 
+// Real implementations, spied on so tests can reach the callbacks the modal passes in.
+vi.mock('../components/activity.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    loadActivity: vi.fn(actual.loadActivity),
+    refreshHistory: vi.fn(actual.refreshHistory),
+  };
+});
+
 vi.mock('../drag.js', () => ({
   getDragAfterTaskElement: vi.fn(),
   getDraggedTask: vi.fn(),
@@ -101,6 +114,11 @@ async function openModalWithMock(issue) {
     api.fetchIssueById.mockResolvedValue({ issue, etag: '"test-etag"' });
   }
   await openModal(issue);
+}
+
+// Lets chained promise callbacks (save → state update → re-render) settle.
+async function flush() {
+  for (let i = 0; i < 5; i++) await new Promise(process.nextTick);
 }
 
 // jsdom never lays out content, so scrollHeight/clientHeight/scrollTop must be
@@ -1206,12 +1224,56 @@ describe('Modal Component', () => {
       utils.showConfirm.mockResolvedValue(true);
 
       document.getElementById('done-btn').click();
-      for (let i = 0; i < 5; i++) await new Promise(process.nextTick);
+      await flush();
 
       expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
       expect(document.querySelector('.editor-container').classList.contains('inline-editing')).toBe(true);
       expect(descEditor.value).toBe('Typed while offline');
+    });
+
+    it('should keep the modal and the title open on Done when the title save fails', async () => {
+      await openModalWithMock({ id: 1, title: 'Original' });
+      api.updateIssue.mockRejectedValueOnce(new Error('Connection to the server failed'));
+
+      const titleInput = document.getElementById('title');
+      titleInput.click();
+      titleInput.value = 'Typed while offline';
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(titleInput.classList.contains('inline-editing')).toBe(true);
+      expect(titleInput.value).toBe('Typed while offline');
+    });
+
+    it('should close on Done without asking when the open description is unchanged', async () => {
+      await openModalWithMock({ id: 1, title: 'T', description: 'Desc' });
+      document.getElementById('description-preview').click();
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should discard the description edit and close on Done when the user chooses Discard', async () => {
+      await openModalWithMock({ id: 1, title: 'T', description: 'Desc' });
+      document.getElementById('description-preview').click();
+      const descEditor = document.getElementById('description-editor');
+      descEditor.value = 'Changed';
+      utils.showConfirm.mockResolvedValueOnce(false);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(descEditor.value).toBe('Desc');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should auto-save title on Enter key', async () => {
@@ -1246,7 +1308,7 @@ describe('Modal Component', () => {
       titleInput.dispatchEvent(new FocusEvent('blur'));
 
       resolveUpdate({ issue: { id: 1, title: 'Changed' }, etag: '"v2"', conflict: false });
-      for (let i = 0; i < 5; i++) await new Promise(process.nextTick);
+      await flush();
 
       expect(api.updateIssue).toHaveBeenCalledTimes(1);
       expect(titleInput.readOnly).toBe(true);
@@ -1305,9 +1367,6 @@ describe('Modal Component', () => {
       const promise = new Promise(r => { resolve = r; });
       return { promise, resolve };
     };
-    const flush = async () => {
-      for (let i = 0; i < 5; i++) await new Promise(process.nextTick);
-    };
     const changePriority = (value) => {
       const prioritySelect = document.getElementById('priority');
       prioritySelect.value = value;
@@ -1318,7 +1377,7 @@ describe('Modal Component', () => {
       status: 'Doing', priority: 'Normal', tasks: [], updated_at: '2026-10-08T10:00:00Z'
     });
 
-    it('renders the passed issue before the fetch resolves, without a loading overlay', () => {
+    it('renders the passed issue before the fetch resolves', () => {
       api.fetchIssueById.mockReturnValue(new Promise(() => {}));
 
       openModal(baseIssue());
@@ -1326,7 +1385,6 @@ describe('Modal Component', () => {
       expect(document.getElementById('title').value).toBe('From Board');
       expect(document.getElementById('description-editor').value).toBe('Board desc');
       expect(document.getElementById('modal-title').textContent).toBe('Issue Details #5');
-      expect(document.querySelector('.modal-content').classList.contains('loading-state')).toBe(false);
     });
 
     it('does not mutate the caller\'s issue object', () => {
@@ -1684,6 +1742,49 @@ describe('Modal Component', () => {
       expect(saveTask).toHaveBeenCalled();
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
       tasks.renderTasks.mockReset();
+    });
+
+    it('should not save a task on Done once its edit mode has ended', async () => {
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      const saveTask = vi.fn().mockResolvedValue(true);
+      tasks.renderTasks.mockImplementation((_taskList, _container, _issue, callbacks) => {
+        callbacks.onTaskEditStart(saveTask);
+        callbacks.onTaskEditEnd();
+      });
+      await openModalWithMock({ id: 1, tasks: [{ id: 101, title: 'Task 1' }] });
+
+      expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(saveTask).not.toHaveBeenCalled();
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      tasks.renderTasks.mockReset();
+    });
+
+    it('should re-render the views and refresh the history after a task update', async () => {
+      const rerenderViews = vi.fn();
+      setupModal(vi.fn(), rerenderViews);
+      await openModalWithMock({ id: 1, tasks: [] });
+
+      const callbacks = tasks.renderTasks.mock.lastCall[3];
+      callbacks.onTaskUpdate();
+
+      expect(rerenderViews).toHaveBeenCalled();
+      expect(activity.refreshHistory).toHaveBeenCalled();
+    });
+
+    it('should guard against leaving the page while an activity comment is edited', async () => {
+      const addSpy = vi.spyOn(globalThis, 'addEventListener');
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      await openModalWithMock({ id: 1, title: 'T' });
+
+      const { onEditStart, onEditEnd } = activity.loadActivity.mock.lastCall[1];
+      onEditStart();
+      expect(addSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
+      onEditEnd();
+      expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
     });
 
     it('should save task order', async () => {

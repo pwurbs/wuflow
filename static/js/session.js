@@ -7,6 +7,7 @@
 
 import { setSessionExpiredHandler, setConnectionListener, fetchCurrentUser, hasValidSession, reauthenticate, logout } from './api.js';
 import { state } from './state.js';
+import { singleFlight } from './utils.js';
 
 const PROBE_THROTTLE_MS = 60 * 1000;
 const IDLE_THRESHOLD_MS = 10 * 60 * 1000;
@@ -67,9 +68,10 @@ export async function probeSession({ force = false } = {}) {
   await fetchCurrentUser();
 }
 
-async function closeDialogIfSessionValid() {
+// Returning to the tab fires both visibilitychange and focus; they share one check.
+const closeDialogIfSessionValid = singleFlight(async () => {
   if (pendingReauth && await hasValidSession()) finishReauth();
-}
+});
 
 /**
  * Opens the re-login dialog and resolves once the user has logged in again.

@@ -9,14 +9,19 @@ vi.mock('../api.js', () => ({
   createTask: vi.fn()
 }));
 
-vi.mock('../utils.js', () => ({
-  showNotification: vi.fn(),
-  showConfirm: vi.fn(),
-  escapeHtml: vi.fn(s => s),
-  initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
-  countCodepoints: vi.fn(s => [...s].length),
-  getTaskDeadlineStatus: vi.fn(() => ({ late: false }))
-}));
+vi.mock('../utils.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    toDateInputValue: actual.toDateInputValue,
+    singleFlight: actual.singleFlight,
+    showNotification: vi.fn(),
+    showConfirm: vi.fn(),
+    escapeHtml: vi.fn(s => s),
+    initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+    countCodepoints: vi.fn(s => [...s].length),
+    getTaskDeadlineStatus: vi.fn(() => ({ late: false }))
+  };
+});
 
 vi.mock('../drag.js', () => ({
   setDraggedTask: vi.fn(),
