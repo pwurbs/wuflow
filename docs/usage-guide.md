@@ -242,6 +242,7 @@ Projects can be managed here:
 Users can be created, adapted or deactivated here. 
 - When you **create a new user**, enter the properties, assign a role, set an initial password and click "Save". Then the user can log in using Email and password and should then be requested to set an own password. 
 - To **adapt an existing user**, click on the user in the list, adapt what you want, and click "Save". Here, a sysadmin can re-define a new password for a user, when e.g. a user has forgotten their password.
+- Changing a user's password, email, active state or promoting their role asks you to confirm with your own password. The affected user is then signed out of all sessions within max 15 minutes.
 - To **deactivate a user**, click on the user in the list and click "Deactivate". This is useful when a user is no longer active in the team or organization. Deactivated users can't log in and are not visible in the user list to be assigned for issues. Deletion of users is currently not supported.
 
 ## User Roles

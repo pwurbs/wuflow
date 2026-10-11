@@ -224,12 +224,18 @@ The key should be a long, random string (32+ characters recommended).
 
 - Sysadmins can create, edit, activate, and deactivate users via the System Settings view.
 - **Inactive users** cannot log in.
-- **Sensitive action confirmation**: To prevent a stolen session from being weaponised, certain sysadmin actions require the requesting sysadmin to confirm their **own current password** (`admin_password`):
-  - Changing another user's password
-  - Promoting a user's role (`user→admin`, `user→sysadmin`, `admin→sysadmin`)
-- **Session Revocation**: The following actions trigger immediate revocation of **all** user sessions (Family Revocation):
-  - Deactivating a user
-  - Changing a user's password (self-service or admin-initiated)
-  - **Changing a user's role** (any direction)
-  - Detecting **Token Reuse** (suspected theft)
+- **Sensitive action confirmation**: To prevent a stolen session from being weaponised, certain sysadmin actions require the requesting sysadmin to confirm their **own current password** (`admin_password`).
+- **Session Revocation**: Certain actions trigger immediate revocation of **all** sessions of the affected user (Family Revocation).
+
+| Action | Admin password required | Sessions revoked |
+| :--- | :---: | :---: |
+| Changing a user's password (admin-initiated) | ✓ | ✓ |
+| Changing own password (self-service, requires own current password instead) | – | ✓ |
+| Promoting a user's role (`user→admin`, `user→sysadmin`, `admin→sysadmin`) | ✓ | ✓ |
+| Demoting a user's role | – | ✓ |
+| Deactivating a user | ✓ | ✓ |
+| Reactivating a user | ✓ | – |
+| Changing a user's email (the login identifier) | ✓ | ✓ |
+| Detecting **Token Reuse** (suspected theft) | – | ✓ |
+
 - **Note**: Existing Access Tokens remain valid until they expire (max 15 minutes). When the client attempts to refresh the token, the request will fail (401) and the re-login dialog opens. For a deactivated user the login there fails, so they can only leave via "Log Out".

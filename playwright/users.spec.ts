@@ -366,6 +366,80 @@ test.describe('User Management', () => {
     await expect(page.locator('#user-modal-overlay')).toBeHidden();
   });
 
+  test('Admin confirmation dialog is required when changing a user email', async ({ page, workerServer }) => {
+    // Create a test user to edit
+    await page.click('#add-user-btn');
+    const timestamp = Date.now();
+    const oldEmail = `confirm_email_${timestamp}@example.com`;
+    const newEmail = `confirm_email_new_${timestamp}@example.com`;
+    const testPassword = generatePassword();
+    await page.fill('#user-email', oldEmail);
+    await page.fill('#user-first-name', 'Email');
+    await page.fill('#user-last-name', 'Confirm');
+    await page.fill('#user-password', testPassword);
+    await page.click('#user-modal-save');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    const oldRow = page.locator(`.settings-entry:has-text("${oldEmail}")`);
+
+    // Name-only change does NOT require confirmation
+    await oldRow.click();
+    await page.fill('#user-first-name', 'EmailEdited');
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+
+    // Cancel aborts the save — old email is kept
+    await oldRow.click();
+    await page.fill('#user-email', newEmail);
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await expect(page.locator('#admin-confirm-title')).toHaveText('Confirm Email Change');
+    await page.click('#admin-confirm-cancel-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeHidden();
+    await page.click('#user-modal-cancel');
+    await expect(oldRow).toBeVisible();
+
+    // Wrong admin password → dialog stays open with the error shown inline
+    await oldRow.click();
+    await page.fill('#user-email', newEmail);
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', 'WrongAdminPass123!');
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await expect(page.locator('#admin-confirm-error')).toBeVisible();
+    await page.click('#admin-confirm-cancel-btn');
+    await page.click('#user-modal-cancel');
+    await expect(oldRow).toBeVisible();
+
+    // Correct admin password → email updated
+    await oldRow.click();
+    await page.fill('#user-email', newEmail);
+    await page.click('#user-modal-save');
+    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+    await expect(page.locator(`.settings-entry:has-text("${newEmail}")`)).toBeVisible();
+    await expect(oldRow).toBeHidden();
+
+    // The old email no longer logs in; the new one does
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-logout');
+    await expect(page).toHaveURL(/\/login/);
+
+    await page.fill('#login-email', oldEmail);
+    await page.fill('#login-password', testPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('#login-error')).toBeVisible();
+
+    await page.fill('#login-email', newEmail);
+    await page.fill('#login-password', testPassword);
+    await page.click('#login-btn');
+    await expect(page.locator('.board')).toBeVisible();
+  });
+
   test('Admin confirmation dialog is required for role promotion but not demotion', async ({ page, workerServer }) => {
     // Create a test user
     await page.click('#add-user-btn');

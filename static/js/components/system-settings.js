@@ -246,6 +246,7 @@ async function renderProjectList(refreshCallback) {
 let editingUserId = null;
 let editingUserOriginalRole = null;
 let editingUserOriginalActive = null;
+let editingUserOriginalEmail = null;
 
 const ROLE_RANK = { user: 0, admin: 1, sysadmin: 2 };
 function isRolePromotion(fromRole, toRole) {
@@ -307,6 +308,7 @@ function openUserModal(user) {
     editingUserId = user.id;
     editingUserOriginalRole = user.role;
     editingUserOriginalActive = user.active;
+    editingUserOriginalEmail = user.email;
     modalTitle.textContent = 'Edit User';
     emailInput.value = user.email;
     firstNameInput.value = user.first_name;
@@ -329,6 +331,7 @@ function openUserModal(user) {
     editingUserId = null;
     editingUserOriginalRole = null;
     editingUserOriginalActive = null;
+    editingUserOriginalEmail = null;
     modalTitle.textContent = 'New User';
     userForm.reset();
     activeInput.checked = true; // Default to active
@@ -358,6 +361,7 @@ function closeUserModal() {
   editingUserId = null;
   editingUserOriginalRole = null;
   editingUserOriginalActive = null;
+  editingUserOriginalEmail = null;
 }
 
 async function handleUserSubmit(refreshCallback) {
@@ -409,20 +413,26 @@ function getUserUpdateConfirmationCopy(userData) {
   if (userData.password) {
     return {
       title: 'Confirm Password Reset',
-      message: `Do you really want to reset the password for ${name}?\nThis immediately sets a new password and signs them out of every active session.`
+      message: `Do you really want to reset the password for ${name}?\nThis immediately sets a new password and signs them out of every active session (<15min).`
+    };
+  }
+  if (userData.email !== editingUserOriginalEmail) {
+    return {
+      title: 'Confirm Email Change',
+      message: `Do you really want to change ${name}'s login email to ${userData.email}?\nThis signs them out of every active session (<15min); they must then log in with the new email.`
     };
   }
   if (userData.active === false && editingUserOriginalActive) {
     return {
       title: 'Confirm Deactivation',
-      message: `Do you really want to deactivate ${name}?\nThis immediately signs them out and blocks them from logging in until reactivated.`
+      message: `Do you really want to deactivate ${name}?\nThis blocks new logins until reactivated and signs them out of every active session (<15min).`
     };
   }
   if (isRolePromotion(editingUserOriginalRole, userData.role)) {
     const roleLabel = ROLE_DISPLAY_NAMES[userData.role] ?? userData.role;
     return {
       title: 'Confirm Role Change',
-      message: `Do you really want to change ${name}'s role to ${roleLabel}?\nThis signs them out of every active session so the new permissions take effect immediately.`
+      message: `Do you really want to change ${name}'s role to ${roleLabel}?\nThis signs them out of every active session (<15min); the new permissions apply from their next login.`
     };
   }
   return {
@@ -435,7 +445,8 @@ async function applyUserUpdate(userData) {
   const requiresConfirmation =
     !!userData.password ||
     isRolePromotion(editingUserOriginalRole, userData.role) ||
-    userData.active !== editingUserOriginalActive;
+    userData.active !== editingUserOriginalActive ||
+    userData.email !== editingUserOriginalEmail;
 
   if (requiresConfirmation) {
     const { title, message } = getUserUpdateConfirmationCopy(userData);
@@ -452,7 +463,7 @@ async function applyUserUpdate(userData) {
     await updateUser(editingUserId, userData);
   }
   const isSelf = editingUserId === state.currentUser?.id;
-  if (isSelf && (userData.password || userData.role !== state.currentUser?.role)) {
+  if (isSelf && (userData.password || userData.role !== state.currentUser?.role || userData.email !== editingUserOriginalEmail)) {
     void logout();
     return false;
   }

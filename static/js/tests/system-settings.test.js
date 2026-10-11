@@ -848,6 +848,80 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
 
     expect(logout).toHaveBeenCalled();
   });
+
+  it('requires confirmation for changing a user email', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    api.updateUser.mockResolvedValue({});
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    // Change email only (no password/role/active change)
+    document.getElementById('user-email').value = 'new@test.com';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('admin-confirm-title').textContent).toBe('Confirm Email Change');
+    expect(api.updateUser).not.toHaveBeenCalled();
+
+    document.getElementById('admin-confirm-password').value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ email: 'new@test.com', admin_password: 'AdminPass123!' }));
+  });
+
+  it('requires confirmation when only the email case changes', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    // Emails are compared case-sensitively at login, so a case change is a login change
+    document.getElementById('user-email').value = 'U@test.com';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    document.getElementById('admin-confirm-cancel-btn').click();
+    expect(api.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does not require confirmation when only the name changes', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    api.updateUser.mockResolvedValue({});
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-first-name').value = 'Renamed';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.not.objectContaining({ admin_password: expect.anything() }));
+  });
+
+  it('logs out when sysadmin changes their own email', async () => {
+    const { logout } = await import('../api.js');
+    const self = { id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true };
+    api.fetchUsers.mockResolvedValue([self]);
+    api.updateUser.mockResolvedValue({});
+    state.currentUser = { id: 99, role: 'sysadmin' };
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-email').value = 'self-new@test.com';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    document.getElementById('admin-confirm-password').value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(logout).toHaveBeenCalled();
+  });
 });
 
 const PROJECT_DOM = `

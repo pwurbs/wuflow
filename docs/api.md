@@ -115,7 +115,7 @@ Allows the authenticated user to change their own password. All existing session
   ```
 - **Notes**:
   - `current_password` is required when `password` is provided — prevents session-hijacking attacks
-  - On success, all sessions for the user are revoked and the user is logged out
+  - On success, all sessions for the user are revoked; the user is logged out at the next token refresh (max 15 minutes)
 - **Response**: Updated user object
 - **Errors**:
   - `400 Bad Request` - Password policy violation or `current_password` missing/incorrect
@@ -176,8 +176,9 @@ Updates an existing user (Sysadmin only).
   ```
 - **Notes**:
   - `password` is optional; leave empty to keep current password
-  - `admin_password` is required when `password` is non-empty, the role is being promoted (`user→admin`, `user→sysadmin`, `admin→sysadmin`), **or** the `active` flag is being changed (activating or deactivating the user) — the requesting sysadmin must confirm their own current password to authorise the change
+  - `admin_password` is required when `password` is non-empty, the role is being promoted (`user→admin`, `user→sysadmin`, `admin→sysadmin`), the `active` flag is being changed (activating or deactivating the user), **or** the `email` is being changed (compared case-sensitively, as at login) — the requesting sysadmin must confirm their own current password to authorise the change
   - Cannot deactivate or demote the last active sysadmin
+  - Deactivating, or changing the password, role or email revokes all sessions of the user; already-issued access tokens stay valid until they expire (max 15 minutes)
 - **Response**: Updated user object
 - **Errors**:
   - `400 Bad Request` - Validation failed, trying to deactivate last sysadmin, or `admin_password` missing/incorrect

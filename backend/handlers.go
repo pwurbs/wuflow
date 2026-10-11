@@ -1415,7 +1415,8 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 		return
 	}
 
-	// If password changed, revoke all sessions immediately
+	// If password changed, revoke all sessions. Already-issued access tokens stay
+	// valid until they expire (accessTokenDuration); only the refresh then fails.
 	if req.Password != "" {
 		if err := RevokeUserSessions(r.Context(), userID); err != nil {
 			LogError("UpdateSelf: failed to revoke sessions", "user_id", userID, "error", err)
@@ -1605,7 +1606,8 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	// If deactivated or password changed, revoke all sessions immediately
+	// If deactivated, password/role/email changed, revoke all sessions. Already-issued
+	// access tokens stay valid until they expire (accessTokenDuration); only the refresh then fails.
 	if revokeSessions {
 		if err := RevokeUserSessions(r.Context(), id); err != nil {
 			LogError("UpdateUser: failed to revoke sessions", "user_id", id, "error", err, "admin_email", userEmail)
@@ -1624,11 +1626,13 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 
 // validateAndPrepareUserUpdate mutates `existing` in place with values from `req`,
 // enforces the last-sysadmin-protection rule, validates the resulting user,
-// and verifies the admin password when the change is privilege-elevating
-// (password change or role promotion). Returns whether the caller should
-// revoke all of the target user's sessions (deactivation, password change, or
-// role change all trigger session revocation).
+// and verifies the admin password when the change is privilege-elevating or
+// affects the login (password change, role promotion, active toggle, or email
+// change). Returns whether the caller should revoke all of the target user's
+// sessions (deactivation, password change, role change, or email change all
+// trigger session revocation).
 func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userRequest, userEmail string) (bool, error) {
+	originalEmail := existing.Email
 	existing.Email = strings.TrimSpace(req.Email)
 	existing.FirstName = strings.TrimSpace(req.FirstName)
 	existing.LastName = strings.TrimSpace(req.LastName)
@@ -1650,10 +1654,14 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 		return false, err
 	}
 
-	// Check if we need to revoke sessions (Security: Immediate Logout)
-	revokeSessions := !req.Active || req.Password != "" || originalRole != req.Role
+	// Check if we need to revoke sessions (takes effect at the next token refresh,
+	// i.e. within accessTokenDuration)
+	// Email is the login identifier and is embedded in the access token, so a
+	// change must be confirmed and must invalidate tokens carrying the old one.
+	emailChanged := existing.Email != originalEmail
+	revokeSessions := !req.Active || req.Password != "" || originalRole != req.Role || emailChanged
 
-	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) || req.Active != originalActive {
+	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) || req.Active != originalActive || emailChanged {
 		if err := verifyAdminPassword(ctx, userEmail, req.AdminPassword); err != nil {
 			if errors.Is(err, errAdminCheckDB) {
 				return false, errAdminCheckDB

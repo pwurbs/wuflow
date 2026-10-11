@@ -1932,6 +1932,95 @@ func TestHandleUpdateUserReactivateRequiresAdminPassword(t *testing.T) {
 	}
 }
 
+func TestHandleUpdateUserEmailChangeRequiresAdminPassword(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	const adminPass = "AdminPassword123!"
+	adminHash, _ := HashPassword(adminPass)
+	admin := &User{Email: "admin@t.com", PasswordHash: adminHash, Active: true, Role: RoleSysAdmin}
+	CreateUser(context.Background(), admin)
+
+	hash, _ := HashPassword("oldpass")
+	user := &User{Email: "t@t.com", PasswordHash: hash, Active: true, Role: RoleUser}
+	CreateUser(context.Background(), user)
+	session, _, _, _ := CreateUserSession(context.Background(), user)
+	path := apiUsersBase + strconv.Itoa(user.ID)
+
+	put := func(body map[string]any) *httptest.ResponseRecorder {
+		b, _ := json.Marshal(body)
+		req := httptest.NewRequest("PUT", path, bytes.NewBuffer(b))
+		ctx := context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin)
+		ctx = context.WithValue(ctx, contextKeyEmail, admin.Email)
+		rr := httptest.NewRecorder()
+		testAPI.ServeHTTP(rr, req.WithContext(ctx))
+		return rr
+	}
+
+	// Name-only change: no admin_password needed, session kept
+	rr := put(map[string]any{"email": "t@t.com", "first_name": "Renamed", "last_name": "User", "role": "user", "active": true})
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for name-only change, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if s, _ := GetSessionByID(context.Background(), session.ID); s == nil {
+		t.Fatal("Session should not be revoked on a name-only change")
+	}
+
+	baseBody := map[string]any{
+		"email":      "new@t.com",
+		"first_name": "Renamed",
+		"last_name":  "User",
+		"role":       "user",
+		"active":     true,
+	}
+
+	// Without admin_password: rejected
+	rr = put(baseBody)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// With wrong admin_password: rejected
+	wrongBody := map[string]any{}
+	maps.Copy(wrongBody, baseBody)
+	wrongBody["admin_password"] = "WrongPassword123!"
+	rr = put(wrongBody)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request with wrong admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// Case-only change is a login change too (emails are compared case-sensitively)
+	caseBody := map[string]any{}
+	maps.Copy(caseBody, baseBody)
+	caseBody["email"] = "T@t.com"
+	rr = put(caseBody)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for case-only email change without admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	unchanged, _ := GetUserByID(context.Background(), user.ID)
+	if unchanged.Email != "t@t.com" {
+		t.Errorf("Email should not have changed without admin_password confirmation, got %q", unchanged.Email)
+	}
+
+	// With correct admin_password: succeeds and revokes sessions
+	correctBody := map[string]any{}
+	maps.Copy(correctBody, baseBody)
+	correctBody["admin_password"] = adminPass
+	rr = put(correctBody)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK with correct admin_password, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	updated, _ := GetUserByID(context.Background(), user.ID)
+	if updated.Email != "new@t.com" {
+		t.Errorf("Email should have been updated after admin_password confirmation, got %q", updated.Email)
+	}
+	if s, _ := GetSessionByID(context.Background(), session.ID); s != nil {
+		t.Error("Session should be revoked after an email change")
+	}
+}
+
 func TestHandleUpdateSelf(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()

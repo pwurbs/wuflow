@@ -2,6 +2,7 @@
 # 1.4.3
 
 - Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
+- Changing a user's email now requires the admin password and signs the user out of all active sessions (max 15 minutes)
 
 # 1.4.2
 
