@@ -2,8 +2,8 @@ apiVersion: v2
 name: wuflow
 description: wuFlow is a modern and lightweight issue tracking and planning application.
 type: application
-version: 1.4.2
-appVersion: "1.4.2"
+version: 1.4.3-pre1
+appVersion: "1.4.3-pre1"
 icon: https://raw.githubusercontent.com/pwurbs/wuflow/main/static/logo.png
 home: https://github.com/pwurbs/wuflow
 sources:
@@ -23,21 +23,9 @@ keywords:
 annotations:
   artifacthub.io/category: skip-prediction
   artifacthub.io/changes: |
-    - kind: removed
-      description: "Breaking: values secrets.initialAdminPassword and secrets.secretKey"
     - kind: added
-      description: Values secrets.existingSecret and secrets.existingSecretKeys
-    - kind: added
-      description: helm.sh/resource-policy keep annotation on the generated Secret
-    - kind: added
-      description: securityContext, the pod now runs in namespaces with Restricted PSA
-    - kind: added
-      description: Added defaults and descriptions to the values schema for Artifact Hub's parameter docs
-    - kind: changed
-      description: ingress.host is now required and must be set explicitly
-    - kind: fixed
-      description: Disabled Artifact Hub's automatic category prediction, which had misclassified the chart as monitoring-logging
-  artifacthub.io/containsSecurityUpdates: "true"
+      description: Optional value hostUsers (default true); set to false to run the pod in its own Linux user namespace
+  artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/links: |
     - name: Documentation
       url: https://github.com/pwurbs/wuflow/wiki
@@ -45,7 +33,7 @@ annotations:
       url: https://github.com/pwurbs/wuflow/issues
   artifacthub.io/images: |
     - name: wuflow
-      image: ghcr.io/pwurbs/wuflow:1.4.2
+      image: ghcr.io/pwurbs/wuflow:1.4.3-pre1
   artifacthub.io/screenshots: |
     - title: Board
       url: https://raw.githubusercontent.com/pwurbs/wuflow/main/docs/screenshots/board.png

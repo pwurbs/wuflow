@@ -90,6 +90,7 @@ In addition:
 - **Unprivileged port:** wuFlow listens on port 8080, so no extra capability or sysctl is needed.
 - **No service account token:** `automountServiceAccountToken: false`, since wuFlow never talks to the Kubernetes API.
 - **No cleartext secrets in values:** see [Secrets](#secrets).
+- **Optional user namespace:** `hostUsers: false` maps the container's UID 999 to an unprivileged, pod-unique UID on the node. Existing data stays accessible. Requires Kubernetes 1.33+, Linux kernel 6.3+ and a recent container runtime; pods fail to start on nodes without support.
 
 `readOnlyRootFilesystem` is currently `false`. Enabling it is planned as an additional hardening step. It isn't required by the Restricted standard.
 

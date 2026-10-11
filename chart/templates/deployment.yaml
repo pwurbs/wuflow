@@ -19,6 +19,9 @@ spec:
         app: {{ .Release.Name }}
     spec:
       automountServiceAccountToken: false
+      {{- if not .Values.hostUsers }}
+      hostUsers: false
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 999

@@ -42,6 +42,13 @@ storage:
   data:
     size: 1Gi
 
+# false runs the pod in its own Linux user namespace: UID 999 inside the container maps to an
+# unprivileged, pod-unique UID on the node, which limits the impact of a container escape.
+# Requires node support (Kubernetes 1.33+, Linux kernel 6.3+, containerd 2.x or CRI-O, runc 1.2+
+# or crun, a filesystem with idmapped mount support for the data volume). Pods fail to start on
+# nodes without it, so it's opt-in.
+hostUsers: true
+
 resources:
   requests:
     cpu: 100m

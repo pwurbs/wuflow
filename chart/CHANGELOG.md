@@ -1,4 +1,7 @@
 
+# 1.4.3
+- Added optional value `hostUsers` (default `true`); set to `false` to run the pod in its own Linux user namespace
+
 # 1.4.2
 - **Breaking:** Removed values `secrets.initialAdminPassword` and `secrets.secretKey`
 - Added `secrets.existingSecret` / `secrets.existingSecretKeys`

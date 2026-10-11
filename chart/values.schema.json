@@ -157,6 +157,11 @@
         }
       }
     },
+    "hostUsers": {
+      "type": "boolean",
+      "default": true,
+      "description": "Set to false to run the pod in its own Linux user namespace (container UIDs map to unprivileged, pod-unique UIDs on the node). Requires Kubernetes 1.33+ and node support (Linux kernel 6.3+, containerd 2.x or CRI-O, runc 1.2+ or crun); pods fail to start on nodes without it."
+    },
     "resources": {
       "type": "object",
       "properties": {

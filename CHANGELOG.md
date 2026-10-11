@@ -1,4 +1,8 @@
 
+# 1.4.3
+
+- Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
+
 # 1.4.2
 
 - Bumped container base image to alpine:3.24.2
