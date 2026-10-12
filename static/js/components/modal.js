@@ -500,6 +500,30 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
   return true;
 }
 
+// Saves of the open issue run one at a time. Each is built from the issue as the previous
+// save left it and sent with that save's new ETag; sent in parallel, the second save would
+// carry the ETag the first one just replaced and fail with a false conflict.
+let issueSaveChain = Promise.resolve();
+
+/**
+ * Queues a save of the given fields of the current issue. getChanges(issue) returns them,
+ * computed from the issue as left by earlier saves. On success the fields are applied to
+ * state.currentIssue. Resolves false on a conflict or if the modal was closed meanwhile.
+ */
+function saveIssueChanges(getChanges, successMessage) {
+  const issueId = state.currentIssue?.id;
+  const run = issueSaveChain.then(async () => {
+    const issue = state.currentIssue;
+    if (!issue || issue.id !== issueId) return false; // modal closed or another issue opened meanwhile
+    const changes = getChanges(issue);
+    if (!(await saveIssueWithConflictCheck({ ...issue, ...changes }, successMessage))) return false;
+    Object.assign(issue, changes);
+    return true;
+  });
+  issueSaveChain = run.catch(() => {});
+  return run;
+}
+
 function validateIssueForm(title, description) {
   if (!title) {
     showNotification('Title is required.', 'error');
@@ -714,10 +738,8 @@ function setupInlineEditing() {
       return true;
     }
     if (newTitle !== state.currentIssue.title) {
-      // Create a copy to avoid mutating state before save succeeds
-      const updatedIssue = { ...state.currentIssue, title: newTitle };
       try {
-        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Title updated');
+        const saved = await saveIssueChanges(() => ({ title: newTitle }), 'Title updated');
         if (!saved) return false; // Conflict occurred - stay in edit mode
 
         // Fetch fresh copy to ensure frontend model exactly matches backend 
@@ -809,11 +831,9 @@ function setupInlineEditing() {
   const saveDesc = async () => {
     const newDesc = descEditor.value;
     if (newDesc !== state.currentIssue.description) {
-      const updatedIssue = { ...state.currentIssue, description: newDesc };
       try {
-        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Description updated');
+        const saved = await saveIssueChanges(() => ({ description: newDesc }), 'Description updated');
         if (!saved) return false;
-        if (state.currentIssue) state.currentIssue.description = newDesc;
       } catch (err) {
         showNotification(err.message, 'error');
         return false;
@@ -844,6 +864,9 @@ function setupInlineEditing() {
 async function handleDone() {
   const titleInput = document.getElementById('title');
   const descEditor = document.getElementById('description-editor');
+
+  // Let queued field saves finish first, so closing the modal does not drop them.
+  await issueSaveChain;
 
   // Title: auto-save (or revert if empty); a failed save keeps the modal open
   if (titleInput.classList.contains('inline-editing') && !(await _saveTitleFn())) return;
@@ -932,10 +955,7 @@ function setDeadlineInput(issue) {
 // state.currentIssue; on conflict or error the sidebar is reset to the saved values.
 async function saveSidebarField(changes, successMsg) {
   try {
-    if (await saveIssueWithConflictCheck({ ...state.currentIssue, ...changes }, successMsg)) {
-      Object.assign(state.currentIssue, changes);
-      return true;
-    }
+    if (await saveIssueChanges(() => changes, successMsg)) return true;
   } catch (err) {
     showNotification(err.message, 'error');
   }
@@ -1661,16 +1681,15 @@ function createDateChip(dateStr) {
 async function addPlannedDate(dateStr) {
   // If editing existing issue
   if (state.currentIssue) {
-    const currentDates = state.currentIssue.planned_dates || [];
-    if (!currentDates.includes(dateStr)) {
-      const newDates = [...currentDates, dateStr].sort((a, b) => a.localeCompare(b));
-      const updatedIssue = { ...state.currentIssue, planned_dates: newDates };
+    if (!(state.currentIssue.planned_dates || []).includes(dateStr)) {
       try {
-        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date added');
-        if (saved) {
-          state.currentIssue.planned_dates = newDates;
-          renderPlannedDateChips(state.currentIssue);
-        }
+        // The dates are computed when the save runs, so quick consecutive adds all persist.
+        const saved = await saveIssueChanges(issue => ({
+          planned_dates: [...(issue.planned_dates || []), dateStr]
+            .filter((d, i, all) => all.indexOf(d) === i)
+            .sort((a, b) => a.localeCompare(b)),
+        }), 'Date added');
+        if (saved) renderPlannedDateChips(state.currentIssue);
       } catch (err) {
         showNotification(err.message, 'error');
       }
@@ -1690,14 +1709,11 @@ async function addPlannedDate(dateStr) {
 async function removePlannedDate(dateStr) {
   if (state.currentIssue) {
     if (state.currentIssue.planned_dates) {
-      const newDates = state.currentIssue.planned_dates.filter(d => d !== dateStr);
-      const updatedIssue = { ...state.currentIssue, planned_dates: newDates };
       try {
-        const saved = await saveIssueWithConflictCheck(updatedIssue, 'Date removed');
-        if (saved) {
-          state.currentIssue.planned_dates = newDates;
-          renderPlannedDateChips(state.currentIssue);
-        }
+        const saved = await saveIssueChanges(issue => ({
+          planned_dates: (issue.planned_dates || []).filter(d => d !== dateStr),
+        }), 'Date removed');
+        if (saved) renderPlannedDateChips(state.currentIssue);
       } catch (err) {
         showNotification(err.message, 'error');
       }

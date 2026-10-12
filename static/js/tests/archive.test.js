@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderArchive, setupArchiveView, resetArchivedLoaded } from '../components/archive.js';
+import { renderArchive, setupArchiveView } from '../components/archive.js';
+import { resetIssueLists } from '../issue-lists.js';
 import * as state from '../state.js';
 import * as api from '../api.js';
 
@@ -16,7 +17,9 @@ vi.mock('../state.js', () => ({
 vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({}),
   archiveIssue: vi.fn().mockResolvedValue({}),
-  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([])
+  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([])
 }));
 
 const { mockCreateCardElement } = vi.hoisted(() => {
@@ -67,7 +70,7 @@ describe('Archive Component', () => {
     `;
     vi.clearAllMocks();
     mockCreateCardElement.mockClear();
-    resetArchivedLoaded(); // Reset lazy-load state between tests
+    resetIssueLists(); // Reset lazy-load state between tests
   });
 
   describe('renderArchive', () => {

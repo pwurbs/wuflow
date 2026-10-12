@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  invalidateReleaseIssueCache,
   setupReleasesView,
   renderReleaseOwnerOptions,
   renderReleasesView,
 } from '../components/releases.js';
+import { resetIssueLists } from '../issue-lists.js';
 
 vi.mock('../api.js', () => ({
   createRelease: vi.fn(),
@@ -121,22 +121,29 @@ describe('releases', () => {
     vi.clearAllMocks();
     api.fetchArchivedIssuesByProject.mockResolvedValue([]);
     api.fetchOpenIssuesByProject.mockResolvedValue([]);
-    invalidateReleaseIssueCache();
+    api.fetchActiveIssuesByProject.mockResolvedValue([]);
+    resetIssueLists();
   });
 
-  // ─── invalidateReleaseIssueCache ─────────────────────────────────────────────
+  // ─── shared issue-list cache ──────────────────────────────────────────────────
 
-  describe('invalidateReleaseIssueCache', () => {
-    it('forces the issue cache to refresh on the next renderReleasesView call', async () => {
+  describe('issue list cache', () => {
+    it('fetches the open and archived lists once and reuses them on the next render', async () => {
       await renderReleasesView();
-      const callsAfterFirst = api.fetchArchivedIssuesByProject.mock.calls.length;
+      await renderReleasesView();
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(1);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(1);
 
-      await renderReleasesView(); // should use cache — no extra fetch
-      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(callsAfterFirst);
-
-      invalidateReleaseIssueCache();
+      resetIssueLists();
       await renderReleasesView(); // cache cleared — must refetch
-      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(callsAfterFirst + 1);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(2);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not fetch the lists twice when renders overlap', async () => {
+      await Promise.all([renderReleasesView(), renderReleasesView()]);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(1);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -261,13 +268,6 @@ describe('releases', () => {
       state.releases = [{ id: 1, name: 'v1.0', status: 'open', description: '', owner: null }];
       await renderReleasesView();
       expect(document.querySelector('.release-stats-nav-icon')).not.toBeNull();
-    });
-
-    it('forces a cache refresh when forceRefresh is true', async () => {
-      await renderReleasesView(); // populate cache
-      const callsBefore = api.fetchArchivedIssuesByProject.mock.calls.length;
-      await renderReleasesView(true);
-      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(callsBefore + 1);
     });
 
     it('filters releases by owner "me"', async () => {
@@ -552,8 +552,11 @@ describe('releases', () => {
       await new Promise(process.nextTick);
       expect(api.deleteRelease).toHaveBeenCalledWith(undefined, 10, 'AdminPass123!');
       expect(state.releases).toHaveLength(0);
-      // Deleting a release clears release_id on its issues server-side, so issues are re-fetched.
+      // Deleting a release clears release_id on its issues server-side, so all issue
+      // lists are re-fetched, in one parallel wave.
       expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(1);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(2);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(2);
       expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
@@ -615,8 +618,10 @@ describe('releases', () => {
       await new Promise(process.nextTick);
       expect(api.triggerRelease).toHaveBeenCalledWith(undefined, 10, false);
       expect(state.releases[0]).toEqual(expect.objectContaining({ id: 10, status: 'closed' }));
-      // Triggering can archive Done issues server-side, so issues are re-fetched.
+      // Triggering can archive Done issues server-side, so all issue lists are re-fetched.
       expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(1);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(2);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(2);
       expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 

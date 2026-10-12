@@ -1,15 +1,16 @@
-import { fetchActiveIssuesByProject, fetchLabelsByProject, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects, fetchStatusConfig, fetchReleases } from './api.js';
+import { fetchLabelsByProject, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects, fetchStatusConfig, fetchReleases } from './api.js';
 import { renderMarkdown } from './markdown.js';
-import { state, setIssues, setFilterSearch, setCurrentUser, setStatusConfig, setReleases, setLabels, setUsers, setProjects, setFilterRelease, setFilterReleaseOwner, setFilterReleaseSearch } from './state.js';
+import { state, setFilterSearch, setCurrentUser, setStatusConfig, setReleases, setLabels, setUsers, setProjects, setFilterRelease, setFilterReleaseOwner, setFilterReleaseSearch } from './state.js';
 import { renderBoard, setupBoardView } from './components/board.js';
-import { renderBacklog, setupBacklogView, resetOpenLoaded } from './components/backlog.js';
+import { renderBacklog, setupBacklogView } from './components/backlog.js';
 import { renderPlanningPanel, setupPlanningPanel } from './components/planning.js';
-import { renderArchive, setupArchiveView, resetArchivedLoaded } from './components/archive.js';
+import { renderArchive, setupArchiveView } from './components/archive.js';
 import { setupSystemSettingsView, renderSystemSettingsView } from './components/system-settings.js';
 import { setupProjectSettingsView, renderProjectSettingsView } from './components/project-settings.js';
-import { setupReleasesView, renderReleasesView, invalidateReleaseIssueCache, renderReleaseOwnerOptions } from './components/releases.js';
+import { setupReleasesView, renderReleasesView, renderReleaseOwnerOptions } from './components/releases.js';
 import { setupModal, openModal } from './components/modal.js';
 import { setupSession } from './session.js';
+import { loadIssues } from './issue-lists.js';
 import { debounce } from './utils.js';
 import { STATUS_OPEN } from './status-config.js';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
@@ -112,24 +113,26 @@ function getVisibleViews() {
     };
 }
 
+// The open/archived issue lists the given view needs on top of the active issues.
+function issueListsFor(visible) {
+    if (visible.releases) return ['open', 'archived'];
+    if (visible.backlog) return ['open'];
+    if (visible.archive) return ['archived'];
+    return [];
+}
+
 async function refreshApp() {
     try {
-        await loadStatusConfig();
-
-        // Reset lazy-load flags so we fetch fresh data on next view switch
-        resetArchivedLoaded();
-        resetOpenLoaded();
-        invalidateReleaseIssueCache();
-
-        const [issues, labels, releases, users, projects] = await Promise.all([
-            fetchActiveIssuesByProject(state.selectedProjectId),
+        // Everything is requested in one parallel wave: nothing renders before all of it
+        // has arrived, so the status config does not need to be awaited first.
+        const [, , labels, releases, users, projects] = await Promise.all([
+            loadIssues(issueListsFor(getVisibleViews())),
+            loadStatusConfig(),
             state.selectedProjectId ? fetchLabelsByProject(state.selectedProjectId) : Promise.resolve([]),
             state.selectedProjectId ? fetchReleases(state.selectedProjectId) : Promise.resolve([]),
             fetchUsers(),
             fetchProjects(),
         ]);
-
-        setIssues(issues);
 
         setLabels(labels, state.selectedProjectId);
         updateLabelFilterOptions(labels);

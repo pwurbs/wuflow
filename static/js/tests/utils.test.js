@@ -368,6 +368,17 @@ describe('showConfirm', () => {
     [modal, titleEl, messageEl, okBtn, cancelBtn].forEach(el => el.remove());
   });
 
+  it('cancels a still-open confirm when a new one replaces it, so one click answers only the new one', async () => {
+    const first = showConfirm('First', 'M', 'Reload', 'Cancel');
+    const second = showConfirm('Second', 'M', 'Reload', 'Cancel');
+    expect(titleEl.textContent).toBe('Second');
+    await expect(first).resolves.toBe(false);
+
+    okBtn.click();
+    await expect(second).resolves.toBe(true);
+    expect(modal.classList.contains('hidden')).toBe(true);
+  });
+
   it('should show the modal and populate content', () => {
     showConfirm('My Title', 'My Message', 'Yes', 'No');
     expect(modal.classList.contains('hidden')).toBe(false);

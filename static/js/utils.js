@@ -66,7 +66,14 @@ export function showNotification(message, type = 'success') {
 }
 
 
+// Cancels the confirm dialog that is currently open, if any (see showConfirm).
+let cancelPendingConfirm = null;
+
 export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel', okType = 'danger') {
+  // All confirms share one dialog. A new one replaces the question of a still-open one,
+  // whose caller then gets false (Cancel): otherwise one click would answer both.
+  cancelPendingConfirm?.();
+
   const confirmModal = document.getElementById('confirm-modal');
   const confirmTitle = document.getElementById('confirm-title');
   const confirmMessage = document.getElementById('confirm-message');
@@ -106,10 +113,15 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
     const cleanup = () => {
       confirmOkBtn.removeEventListener('click', handleOk);
       confirmCancelBtn.removeEventListener('click', handleCancel);
+      cancelPendingConfirm = null;
     };
 
     confirmOkBtn.addEventListener('click', handleOk);
     confirmCancelBtn.addEventListener('click', handleCancel);
+    cancelPendingConfirm = () => {
+      cleanup();
+      resolve(false);
+    };
   });
 }
 

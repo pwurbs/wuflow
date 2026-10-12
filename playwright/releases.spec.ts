@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createRelease, triggerRelease, navigateTo, waitForToast, openIssueByTitle } from './helpers/test-utils';
+import { createRelease, triggerRelease, navigateTo, waitForToast, openIssueByTitle, createIssueViaAPI } from './helpers/test-utils';
 
 // ─── Release Lifecycle ────────────────────────────────────────────────────────
 
@@ -472,5 +472,100 @@ test.describe('Role Authorization – Releases', () => {
     await expect(
       page.locator(`.release-row:has-text("${relName}") .release-card-left`)
     ).not.toHaveClass(/release-card-left--clickable/);
+  });
+});
+
+// ─── Request Efficiency ──────────────────────────────────────────────────────
+// On slow connections every sequential round trip costs hundreds of ms, so view
+// switches and refreshes must send their requests in one parallel wave.
+
+test.describe('Request Efficiency', () => {
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+    await page.waitForLoadState('networkidle');
+  });
+
+  // Records which of the lazily loaded issue lists (open / archived) are requested.
+  function trackIssueLists(page) {
+    const requested: string[] = [];
+    page.on('request', req => {
+      const m = /\/issues\/(open|archived)$/.exec(new URL(req.url()).pathname);
+      if (m) requested.push(m[1]);
+    });
+    return requested;
+  }
+
+  test('a view refresh does not wait for the status config before requesting the issues', async ({ page }) => {
+    let statusConfigAnswered = false;
+    await page.route(/\/api\/projects\/\d+\/statusconfig$/, async route => {
+      await new Promise(r => setTimeout(r, 1000));
+      statusConfigAnswered = true;
+      await route.continue();
+    });
+    const sentWhileConfigPending: string[] = [];
+    page.on('request', req => {
+      if (!statusConfigAnswered) sentWhileConfigPending.push(new URL(req.url()).pathname);
+    });
+
+    await navigateTo(page, 'backlog');
+    await expect.poll(() => statusConfigAnswered).toBe(true);
+    expect(sentWhileConfigPending).toEqual(expect.arrayContaining([
+      expect.stringMatching(/\/issues\/active$/),
+      expect.stringMatching(/\/issues\/open$/),
+      expect.stringMatching(/\/labels$/),
+    ]));
+    await expect(page.locator('#backlog-view')).toBeVisible();
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
+  test('entering Releases fetches only the issue lists not loaded yet and reuses them on return', async ({ page }) => {
+    const requested = trackIssueLists(page);
+
+    await navigateTo(page, 'backlog');
+    await expect(page.locator('#backlog-view')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(requested).toEqual(['open']);
+
+    // The Backlog already loaded the open issues, so Releases only adds the archived ones.
+    await navigateTo(page, 'releases');
+    await expect(page.locator('.release-add-btn')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(requested.toSorted()).toEqual(['archived', 'open']);
+
+    await navigateTo(page, 'project-settings');
+    await page.waitForLoadState('networkidle');
+    await navigateTo(page, 'releases');
+    await expect(page.locator('.release-add-btn')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(requested).toHaveLength(2);
+  });
+
+  test('entering Releases while a refresh is in flight does not fetch the issue lists twice', async ({ page }) => {
+    const title = `RaceIssue_${Date.now().toString().slice(-6)}`;
+    await createIssueViaAPI(page.request, 1, title, { status: 'Todo' });
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await openIssueByTitle(page, title);
+
+    // Hold the refresh that closing the modal starts, so the view switch lands mid-flight,
+    // and hold the issue lists longer, so they are still in flight when that refresh
+    // re-renders the Releases view.
+    await page.route(/\/api\/projects\/\d+\/issues\/active$/, async route => {
+      await new Promise(r => setTimeout(r, 800));
+      await route.continue();
+    });
+    await page.route(/\/api\/projects\/\d+\/issues\/(open|archived)$/, async route => {
+      await new Promise(r => setTimeout(r, 1500));
+      await route.continue();
+    });
+    const requested = trackIssueLists(page);
+
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+    await navigateTo(page, 'releases');
+    await expect(page.locator('.release-add-btn')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(requested.toSorted()).toEqual(['archived', 'open']);
+    await page.unrouteAll({ behavior: 'wait' });
   });
 });

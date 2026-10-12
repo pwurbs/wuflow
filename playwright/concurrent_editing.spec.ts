@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createProjectViaAPI, openIssueByTitle, selectPriority, waitForIssueSave } from './helpers/test-utils';
+import { createIssue, createProjectViaAPI, openIssueByTitle, selectPriority, selectStatus, waitForIssueSave } from './helpers/test-utils';
 
 test.describe('Concurrent Editing', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -129,5 +129,30 @@ test.describe('Concurrent Editing', () => {
     // Verify If-Match header was sent
     expect(ifMatchHeader).not.toBeNull();
     expect(ifMatchHeader).toMatch(/^".*"$/); // ETag format: quoted string
+  });
+
+  // On a slow connection a second field change can start before the first save has
+  // answered; it must not be rejected as a conflict with the user's own first save.
+  test('two quick field changes on a slow connection both save without a conflict', async ({ page }) => {
+    const title = `Quick Edits ${Date.now().toString().slice(-6)}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+    await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
+    const issueId = await page.locator('#issue-id').inputValue();
+
+    await page.route(/\/api\/projects\/\d+\/issues\/\d+$/, async route => {
+      if (route.request().method() === 'PUT') await new Promise(r => setTimeout(r, 800));
+      await route.continue();
+    });
+
+    await selectPriority(page, 'High');
+    await selectStatus(page, 'Done');
+    await expect(page.locator('#notification-toast')).toContainText('Status updated');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await page.unrouteAll({ behavior: 'wait' });
+
+    const res = await page.request.get(`/api/projects/1/issues/${issueId}`);
+    expect(res.ok()).toBe(true);
+    expect(await res.json()).toMatchObject({ priority: 'High', status: 'Done' });
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderBacklog, setupBacklogView, resetOpenLoaded } from '../components/backlog.js';
+import { renderBacklog, setupBacklogView } from '../components/backlog.js';
+import { resetIssueLists } from '../issue-lists.js';
 import * as state from '../state.js';
 import * as card from '../components/card.js';
 import * as api from '../api.js';
@@ -21,7 +22,9 @@ vi.mock('../state.js', () => ({
 vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({}),
   updateIssuePositions: vi.fn().mockResolvedValue(),
-  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([])
+  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([])
 }));
 
 const { mockCreateCardElement } = vi.hoisted(() => {
@@ -70,7 +73,7 @@ describe('Backlog Component', () => {
     `;
     vi.clearAllMocks();
     mockCreateCardElement.mockClear();
-    resetOpenLoaded(); // Reset lazy-load state between tests
+    resetIssueLists(); // Reset lazy-load state between tests
   });
 
   describe('renderBacklog', () => {

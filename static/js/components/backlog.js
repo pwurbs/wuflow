@@ -1,7 +1,8 @@
 import { state, isFilterActive, toggleBacklogReleaseFilter, pruneReleaseFilterIds } from '../state.js';
 import { STATUS_OPEN, STATUS_TODO } from '../status-config.js';
 import { RELEASE_STATUS_OPEN } from '../domain-constants.js';
-import { fetchOpenIssuesByProject, updateIssue } from '../api.js';
+import { updateIssue } from '../api.js';
+import { ensureIssueLists } from '../issue-lists.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
@@ -12,11 +13,6 @@ import { escapeHtml } from '../utils.js';
 let refreshAppCallback = null;
 let openModalCallback = null;
 let rerenderActiveViewCallback = null;
-let openLoaded = false;
-
-export function resetOpenLoaded() {
-  openLoaded = false;
-}
 
 function buildLaneCard(releaseId, name, count) {
   const isChecked = state.filter.releaseFilterIds.includes(releaseId);
@@ -101,17 +97,7 @@ export async function renderBacklog(refreshApp, openModal, rerenderActiveView) {
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   // Lazy-load open issues if not already loaded
-  if (!openLoaded) {
-    const openIssues = await fetchOpenIssuesByProject(state.selectedProjectId);
-    // Merge into state, avoiding duplicates
-    const existingIds = new Set(state.issues.map(i => i.id));
-    for (const issue of openIssues) {
-      if (!existingIds.has(issue.id)) {
-        state.issues.push(issue);
-      }
-    }
-    openLoaded = true;
-  }
+  await ensureIssueLists(['open']);
 
   const validReleaseIds = new Set([null, ...state.releases.filter(r => r.status === RELEASE_STATUS_OPEN).map(r => r.id)]);
   pruneReleaseFilterIds(validReleaseIds);

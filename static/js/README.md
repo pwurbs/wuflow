@@ -31,6 +31,7 @@ npm run test:coverage
 - **`tests/`**: Unit test files (collocated with logic where possible, or in this folder)
 - **`filters.js`**: Pure functions for filtering and sorting issues (extracted for testability)
 - **`state.js`**: Core client-side state management
+- **`issue-lists.js`**: Shared cache that loads the open/archived issue lists on demand and merges them into the issue state (see [docs/lazy-loading.md](../../docs/lazy-loading.md))
 - **`utils.js`**: Helper functions (HTML escaping, debouncing, etc.)
 - **`api.js`**: Backend API interaction
 - **`session.js`**: Re-login dialog, session check on return to the tab, connection banner

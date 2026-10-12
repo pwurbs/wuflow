@@ -1,6 +1,6 @@
 import { state, isFilterActive } from '../state.js';
 import { STATUS_ARCHIVE, STATUS_DONE } from '../status-config.js';
-import { fetchArchivedIssuesByProject } from '../api.js';
+import { ensureIssueLists } from '../issue-lists.js';
 import { createCardElement } from './card.js';
 import { getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
@@ -10,11 +10,6 @@ import { userCan, ACTION_ARCHIVE_ISSUE } from '../permissions.js';
 let refreshAppCallback = null;
 let openModalCallback = null;
 let rerenderActiveViewCallback = null;
-let archivedLoaded = false;
-
-export function resetArchivedLoaded() {
-  archivedLoaded = false;
-}
 
 export async function renderArchive(refreshApp, openModal, rerenderActiveView) {
   if (refreshApp) refreshAppCallback = refreshApp;
@@ -22,17 +17,7 @@ export async function renderArchive(refreshApp, openModal, rerenderActiveView) {
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   // Lazy-load archived issues if not already loaded
-  if (!archivedLoaded) {
-    const archivedIssues = await fetchArchivedIssuesByProject(state.selectedProjectId);
-    // Merge into state, avoiding duplicates
-    const existingIds = new Set(state.issues.map(i => i.id));
-    for (const issue of archivedIssues) {
-      if (!existingIds.has(issue.id)) {
-        state.issues.push(issue);
-      }
-    }
-    archivedLoaded = true;
-  }
+  await ensureIssueLists(['archived']);
 
   const archiveList = document.getElementById('archive-list');
   const doneList = document.getElementById('archive-done-list');

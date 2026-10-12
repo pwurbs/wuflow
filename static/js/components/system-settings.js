@@ -24,8 +24,11 @@ export function setupSystemSettingsView(refreshCallback) {
 export async function renderSystemSettingsView(refreshCallback) {
   if (!systemSettingsViewContainer) return;
 
-  const projects = await renderProjectList(refreshCallback);
-  await renderUserList(refreshCallback);
+  // Both lists are independent, so their requests go out in one parallel wave.
+  const [projects] = await Promise.all([
+    renderProjectList(refreshCallback),
+    renderUserList(refreshCallback),
+  ]);
   return projects;
 }
 

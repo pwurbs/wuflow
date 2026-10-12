@@ -5,6 +5,9 @@
 - Changing a user's email now requires the admin password and signs the user out of all active sessions (max 15 minutes)
 - Reordering issues and tasks now saves the whole new order in one request instead of one request per moved item, so quick reorders no longer hit the API rate limit or leave the order half-saved, and they no longer overwrite other users' recent edits to the moved issues
 - Card and task moves that fail to save, e.g. while offline, now always return to their old place: reorders on the Board, Backlog and Archive, Move to top/bottom, task reorders, and drops on a Backlog or Archive section including archiving by drag 
+- Faster on slow connections: refreshing a view (e.g. after closing an issue) now sends all its requests at once, the Releases view reuses issues the Backlog or Archive already loaded, and System Settings loads its project and user lists at once
+- Fix: Changing several fields of an issue in quick succession, e.g. on a slow connection, no longer shows a false "modified by another user" conflict
+- Fix: A conflict dialog answered with "Reload" no longer reloads the issue twice when two conflicts occurred at the same time
 - Fix: Moving a card in the Backlog view by dropping it on the "Board (Todo)" or "Backlog (Open)" title no longer removes its planned dates
 - Fix: The API and session refresh rate limits now answer with "Too many requests" instead of the misleading "Too many login attempts"
 

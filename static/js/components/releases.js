@@ -1,26 +1,24 @@
-import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchArchivedIssuesByProject, fetchOpenIssuesByProject, fetchActiveIssuesByProject, fetchReleases } from '../api.js';
+import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.js';
+import { loadIssues, ensureIssueLists } from '../issue-lists.js';
 import { sortReleasesByDate } from '../list-utils.js';
 import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue } from '../utils.js';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
-import { state, setIssues, setReleases } from '../state.js';
+import { state, setReleases } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
 import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE, IN_PROGRESS_STATUSES } from '../status-config.js';
 import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { updateReleaseFilterOptions } from './toolbar.js';
 
 let editingReleaseId = null;
-let cachedAllIssues = null;
 
-export function invalidateReleaseIssueCache() {
-  cachedAllIssues = null;
-}
+// Release progress counts every issue of the project, so this view needs both lazy lists.
+const RELEASE_ISSUE_LISTS = ['open', 'archived'];
 
 // Issues assigned to a release can change status/release_id as a side effect of a release
 // action on the backend (delete clears release_id, triggering can archive Done issues) —
 // unlike the other release actions below, this can't be resolved from already-known data.
 async function refreshIssuesAfterReleaseSideEffect() {
-  invalidateReleaseIssueCache();
-  setIssues(await fetchActiveIssuesByProject(state.selectedProjectId));
+  await loadIssues(RELEASE_ISSUE_LISTS);
 }
 
 function mergeReleaseIntoState(updated) {
@@ -149,26 +147,12 @@ function selectReleaseOwner(value, text) {
   options?.classList.add('hidden');
 }
 
-async function refreshIssueCache() {
-  const projectId = state.selectedProjectId ?? 1;
-  const [archived, open] = await Promise.all([
-    fetchArchivedIssuesByProject(projectId),
-    fetchOpenIssuesByProject(projectId),
-  ]);
-  const seen = new Set();
-  cachedAllIssues = [...archived, ...open, ...state.issues].filter(i => {
-    if (seen.has(i.id)) return false;
-    seen.add(i.id);
-    return true;
-  });
-}
-
-export async function renderReleasesView(forceRefresh = false) {
+export async function renderReleasesView() {
   const container = document.getElementById('releases-view');
   if (!container) return;
 
-  if (!cachedAllIssues || forceRefresh) await refreshIssueCache();
-  const allIssues = cachedAllIssues;
+  await ensureIssueLists(RELEASE_ISSUE_LISTS);
+  const allIssues = state.issues;
 
   const ownerFilter = state.filter.releaseOwnerFilter;
   const searchTerm = state.filter.releaseSearch?.trim().toLowerCase();
@@ -415,11 +399,11 @@ function buildReleaseDateRange(rel) {
 function renderModalStats(release) {
   const statsEl = document.getElementById('release-modal-stats');
   if (!statsEl) return;
-  if (!release || !cachedAllIssues) {
+  if (!release) {
     statsEl.classList.add('hidden');
     return;
   }
-  const issues = cachedAllIssues.filter(i => i.release_id === release.id);
+  const issues = state.issues.filter(i => i.release_id === release.id);
   const total = issues.length;
   const issueWord = total === 1 ? 'issue' : 'issues';
   const intro = total === 0 ? 'No issues assigned to this release.' : `${total} ${issueWord} assigned to this release:`;
@@ -499,12 +483,12 @@ async function handleDeleteRelease(rel) {
   await refreshIssuesAfterReleaseSideEffect();
   showNotification('Release deleted', 'success');
   updateReleaseFilterOptions(state.releases);
-  void renderReleasesView(true);
+  void renderReleasesView();
 }
 
 async function handleTriggerReleaseDialog(rel) {
-  if (!cachedAllIssues) await refreshIssueCache();
-  const issues = cachedAllIssues.filter(i => i.release_id === rel.id);
+  await ensureIssueLists(RELEASE_ISSUE_LISTS);
+  const issues = state.issues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === STATUS_DONE).length;
   const notDone = issues.filter(i => i.status !== STATUS_DONE && i.status !== STATUS_ARCHIVE).length;
@@ -562,7 +546,7 @@ async function handleTriggerReleaseDialog(rel) {
         await refreshIssuesAfterReleaseSideEffect();
         showNotification('Release closed', 'success');
         updateReleaseFilterOptions(state.releases);
-        void renderReleasesView(true);
+        void renderReleasesView();
       } catch (err) {
         showNotification(err.message || 'Failed to release', 'error');
       }

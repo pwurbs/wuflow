@@ -1223,6 +1223,17 @@ describe('Project Management', () => {
   });
 
   describe('renderProjectList', () => {
+    it('requests the project and user lists in parallel', async () => {
+      let answerProjects;
+      api.fetchProjects.mockImplementationOnce(() => new Promise(r => { answerProjects = r; }));
+      const render = renderSystemSettingsView();
+      await new Promise(process.nextTick);
+      // The user list must not wait for the project list's response.
+      expect(api.fetchUsers).toHaveBeenCalled();
+      answerProjects([]);
+      await render;
+    });
+
     it('should hide project section when user lacks LIST_PROJECTS permission', async () => {
       permissions.userCan.mockImplementation((user, action) => {
         return action !== permissions.ACTION_LIST_PROJECTS;

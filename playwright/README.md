@@ -94,7 +94,7 @@ Permission-gated behaviour belongs in `role_authorization.spec.ts` even when the
 | Backlog | `backlog.spec.ts` | Backlog view, status transitions, release lanes |
 | Archive | `archive.spec.ts` | Archive view and un/archiving |
 | Planning | `planning.spec.ts` | Planning panel scheduling |
-| Releases | `releases.spec.ts` | Release lifecycle and trigger behaviour |
+| Releases | `releases.spec.ts` | Release lifecycle and trigger behaviour, request efficiency of view switches and refreshes |
 | Labels | `labels.spec.ts` | Label management, including project scoping |
 | Tasks | `tasks.spec.ts` | Subtask creation, management, deadline warnings |
 | Filters | `filters.spec.ts` | Label, priority, and text filtering |

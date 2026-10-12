@@ -928,6 +928,82 @@ describe('Modal Component', () => {
       }), expect.any(String));
     });
 
+    // On a slow connection a second field change can start before the first save has
+    // answered. Sent in parallel, both would carry the same ETag and the second would fail
+    // with a false "modified by another user" conflict.
+    it('sends overlapping field saves one after another, each with the ETag of the previous save', async () => {
+      const issue = { id: 1, priority: 'Normal', status: 'Todo' };
+      await openModalWithMock(issue);
+      await flush();
+      let answerFirst;
+      api.updateIssue.mockClear();
+      api.updateIssue
+        .mockImplementationOnce(() => new Promise(r => { answerFirst = r; }))
+        .mockResolvedValueOnce({ issue: {}, etag: '"etag-3"', conflict: false });
+
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = 'High';
+      prioritySelect.dispatchEvent(new Event('change'));
+      const statusSelect = document.getElementById('status');
+      statusSelect.value = 'Done';
+      statusSelect.dispatchEvent(new Event('change'));
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledTimes(1);
+
+      answerFirst({ issue: {}, etag: '"etag-2"', conflict: false });
+      await flush();
+      expect(api.updateIssue).toHaveBeenCalledTimes(2);
+      expect(api.updateIssue).toHaveBeenLastCalledWith(undefined,
+        expect.objectContaining({ priority: 'High', status: 'Done' }), '"etag-2"');
+      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(state.currentIssue).toMatchObject({ priority: 'High', status: 'Done' });
+    });
+
+    it('keeps both dates when two planned dates are added before the first save answers', async () => {
+      await openModalWithMock({ id: 1, planned_dates: [] });
+      await flush();
+      let answerFirst;
+      api.updateIssue.mockClear();
+      api.updateIssue.mockImplementationOnce(() => new Promise(r => { answerFirst = r; }));
+
+      const picker = document.getElementById('planned-date-picker');
+      picker.value = '2025-05-21';
+      picker.dispatchEvent(new Event('change'));
+      picker.value = '2025-05-20';
+      picker.dispatchEvent(new Event('change'));
+      await flush();
+      answerFirst({ issue: {}, etag: '"etag-2"', conflict: false });
+      await flush();
+
+      expect(api.updateIssue).toHaveBeenLastCalledWith(undefined,
+        expect.objectContaining({ planned_dates: ['2025-05-20', '2025-05-21'] }), '"etag-2"');
+      expect(state.currentIssue.planned_dates).toEqual(['2025-05-20', '2025-05-21']);
+    });
+
+    it('drops a queued field save when another issue is opened before it runs', async () => {
+      await openModalWithMock({ id: 1, priority: 'Normal', status: 'Todo' });
+      await flush();
+      let answerFirst;
+      api.updateIssue.mockClear();
+      api.updateIssue.mockImplementationOnce(() => new Promise(r => { answerFirst = r; }));
+
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = 'High';
+      prioritySelect.dispatchEvent(new Event('change'));
+      const statusSelect = document.getElementById('status');
+      statusSelect.value = 'Done';
+      statusSelect.dispatchEvent(new Event('change')); // queued behind the priority save
+      await flush();
+
+      document.getElementById('cancel-btn').click();
+      await openModalWithMock({ id: 2, priority: 'Normal', status: 'Todo' });
+      answerFirst({ issue: {}, etag: '"etag-2"', conflict: false });
+      await flush();
+
+      expect(api.updateIssue).toHaveBeenCalledTimes(1);
+      expect(state.currentIssue).toMatchObject({ id: 2, status: 'Todo' });
+    });
+
     it('should update planned_dates immediately on change via picker', async () => {
       const issue = { id: 1, planned_dates: [] };
       await openModalWithMock(issue);
