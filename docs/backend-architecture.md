@@ -60,7 +60,7 @@ Every protected route flows through one of six factories. They all start with th
 | `withResource(action, h)` | Routes with `{id}` but no project (`PUT /api/users/{id}`). | role check → parse `{id}` → handler | `(w, r, id)` |
 | `withProject(action, h)` | Routes with `{pId}` but no resource id (`POST /api/projects/{pId}/issues`, list endpoints). | role check → `checkProjectAccess` (parse `{pId}` + project exists) → handler | `(w, r, projectID)` |
 | `withProjectResource(action, h)` | Routes with `{pId}` AND `{id}` (`PUT /api/projects/{pId}/issues/{id}`, etc.). | role check → `checkProjectAccess` → parse `{id}` → handler | `(w, r, projectID, id)` |
-| `withIssue(action, h)` | Routes scoped to an issue with no further resource id (`POST /api/projects/{pId}/issues/{iId}/tasks`). | role check → `checkProjectAccess` → parse `{iId}` → `GetIssueByIDInProject` (nil → 404) → handler | `(w, r, projectID, issueID, *Issue)` |
+| `withIssue(action, h)` | Routes scoped to an issue with no further resource id (`POST /api/projects/{pId}/issues/{iId}/tasks`, `PUT /api/projects/{pId}/issues/{iId}/tasks/positions`). | role check → `checkProjectAccess` → parse `{iId}` → `GetIssueByIDInProject` (nil → 404) → handler | `(w, r, projectID, issueID, *Issue)` |
 | `withIssueResource(action, h)` | Routes scoped to an issue with an additional `{id}` (`PUT /api/projects/{pId}/issues/{iId}/tasks/{id}`). | role check → `checkProjectAccess` → parse `{iId}` → `GetIssueByIDInProject` → parse `{id}` → handler | `(w, r, projectID, issueID, id, *Issue)` |
 
 In all six, the role check fires first and short-circuits with `403` before any path parsing or DB query.
@@ -144,7 +144,7 @@ What this buys:
 
 **The discipline**: when adding a DB helper or a handler-side helper that calls one, take `ctx context.Context` as the first parameter and thread it through. Helpers without `r` (e.g. `respondWithUpdatedIssue`, `checkAssignee`, `persistIssueUpdate`) follow the same convention.
 
-> **Future consideration (Postgres / multi-statement transactions):** when a context is cancelled mid-transaction, individual `ExecContext` calls return an error but the transaction stays open server-side until rolled back. Use `defer tx.Rollback()` immediately after `BeginTx` (no-op after a successful `Commit`). Not needed for the current single-statement SQLite handlers; apply when introducing multi-statement transactions.
+> **Multi-statement transactions:** when a context is cancelled mid-transaction, individual `ExecContext` calls return an error but the transaction stays open until rolled back. Defer `tx.Rollback()` immediately after `BeginTx`: it undoes all writes when the function returns early, and changes nothing after a successful `Commit`. The positions requests (`UpdateIssuePositions` / `UpdateTaskPositions` via `applyPositionUpdates` in `db.go`) are the reference: one transaction containing only `UPDATE` statements, rolled back as a whole when any statement matches no row. All other handlers are single-statement.
 
 ## Adding a new endpoint — checklist
 

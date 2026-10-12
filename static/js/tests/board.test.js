@@ -20,7 +20,8 @@ vi.mock('../state.js', () => ({
 }));
 
 vi.mock('../api.js', () => ({
-  updateIssue: vi.fn()
+  updateIssue: vi.fn(),
+  updateIssuePositions: vi.fn()
 }));
 
 vi.mock('../components/card.js', () => ({
@@ -63,7 +64,10 @@ vi.mock('../status-config.js', () => ({
   ])
 }));
 
-vi.mock('../list-utils.js', () => ({
+// The card actions are mocked; saving a drop uses the real saveIssueOrder (with the mocked
+// api.js), so the tests also cover how a failed save restores the old order.
+vi.mock('../list-utils.js', async (importOriginal) => ({
+  ...(await importOriginal()),
   handleMoveTop:        vi.fn(),
   handleMoveBottom:     vi.fn(),
   handleTogglePriority: vi.fn(),
@@ -328,7 +332,7 @@ describe('Board Component', () => {
       const event = new Event('drop', { bubbles: true, cancelable: true });
       workingContent.dispatchEvent(event);
 
-      // Wait for async operations (Promise.all)
+      // The moved card changed status, so it is saved with its per-issue PUT
       await vi.waitFor(() => {
         expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
           id: 1,
@@ -336,6 +340,7 @@ describe('Board Component', () => {
           position: 0
         }));
       });
+      expect(api.updateIssuePositions).not.toHaveBeenCalled();
     });
 
     it('should only update issues if status or position changed', async () => {
@@ -355,8 +360,6 @@ describe('Board Component', () => {
       const renderedCard = colContent.querySelector('.card');
 
       drag.getDraggedCard.mockReturnValue(renderedCard);
-      api.updateIssue.mockResolvedValue({});
-
       // Drop in the same column — status and position unchanged
       const event = new Event('drop', { bubbles: true, cancelable: true });
       colContent.dispatchEvent(event);
@@ -364,6 +367,7 @@ describe('Board Component', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(api.updateIssuePositions).not.toHaveBeenCalled();
     });
 
 
@@ -534,6 +538,36 @@ describe('Board Component', () => {
       expect(state.state.issues[0]).toMatchObject({ status: 'Stage1', position: 0 });
       expect(document.querySelector('.column[data-status="Stage1"] .card[data-id="1"]')).not.toBeNull();
       expect(document.querySelector('.column[data-status="Stage2"] .card[data-id="1"]')).toBeNull();
+    });
+
+    it('should put the cards back in their old order when a reorder within a column fails', async () => {
+      const refreshApp = vi.fn();
+      setupBoardView(refreshApp, vi.fn()); // refreshApp does nothing, like when the server is unreachable
+      filters.filterIssues.mockImplementation(issues => issues);
+      filters.sortByPosition.mockImplementation(issues => [...issues].sort((a, b) => a.position - b.position));
+      state.state.issues = [
+        { id: 1, title: 'Task 1', status: 'Stage1', position: 0 },
+        { id: 2, title: 'Task 2', status: 'Stage1', position: 1 }
+      ];
+      renderBoard();
+
+      const column = document.querySelector('.column[data-status="Stage1"] .column-content');
+      const card2 = column.querySelector('.card[data-id="2"]');
+      drag.getDraggedCard.mockReturnValue(card2);
+      api.updateIssuePositions.mockRejectedValue(new Error('Connection to the server failed. The change was not saved.'));
+
+      column.prepend(card2); // card 2 dragged to the top
+      column.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => {
+        expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed. The change was not saved.', 'error');
+      });
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [{ id: 2, position: 0 }, { id: 1, position: 1 }]);
+      expect(state.state.issues.map(i => [i.id, i.position])).toEqual([[1, 0], [2, 1]]);
+      // renderBoard rebuilds the columns, so query the re-rendered one
+      const rendered = document.querySelector('.column[data-status="Stage1"] .column-content');
+      expect([...rendered.querySelectorAll('.card')].map(c => c.dataset.id)).toEqual(['1', '2']);
+      expect(refreshApp).toHaveBeenCalled();
     });
   });
 });

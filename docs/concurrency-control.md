@@ -60,6 +60,8 @@ sequenceDiagram
 
 Drag-and-drop operations (board columns, backlog reordering, planning panel) use **last-write-wins** conflict resolution and do **not** use ETag-based optimistic locking.
 
+A reorder is saved as one positions request (`PUT /projects/:pId/issues/positions`, and `…/tasks/positions` for tasks). It changes only `position`, in one transaction, so it can never overwrite another user's edits to title, assignee or other fields of the shifted issues, and it does not change their `updated_at`/`ETag`. Only a card dragged to another column or list (a status change) is saved with a regular issue `PUT`.
+
 ### Rationale
 
 This approach is acceptable because:
@@ -72,7 +74,8 @@ This approach is acceptable because:
 ### Asymmetric Protection
 
 **Important:** Modal edits ARE protected from drag operations:
-- If User A opens modal (gets ETag) and User B drags the same issue (updates `updated_at`), then User A saves → **409 Conflict** detected
+- If User A opens modal (gets ETag) and User B drags the same issue to another column (status change, updates `updated_at`), then User A saves → **409 Conflict** detected
+- A pure reorder by User B does not change the `ETag`, so it never causes a 409 for User A
 - User A sees conflict dialog and can reload
 
 This asymmetry is intentional - modal edits represent "careful, intentional changes" and warrant conflict protection, while drags represent "quick reorganization" where last-write-wins is acceptable.

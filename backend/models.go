@@ -70,6 +70,13 @@ type Task struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
+// PositionUpdate is one entry of a reorder request: the new position of an issue
+// (or task) within its list. A reorder sends all changed entries in one request.
+type PositionUpdate struct {
+	ID       int `json:"id"`
+	Position int `json:"position"`
+}
+
 // History event kinds recorded in the issue_history table.
 const (
 	// EventCreated is recorded when an issue is created.

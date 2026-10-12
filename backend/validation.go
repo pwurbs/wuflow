@@ -28,6 +28,7 @@ const (
 	MaxReleaseDescLen     = 200
 	MaxPlannedDates       = 100
 	MaxCommentLength      = 1000
+	MaxPositionUpdates    = 500
 )
 
 // Validation errors
@@ -69,6 +70,12 @@ var (
 
 	ErrInvalidComment = errors.New("comment must not be empty")
 	ErrCommentTooLong = fmt.Errorf("comment must not exceed %d characters", MaxCommentLength)
+
+	ErrNoPositions         = errors.New("at least one position is required")
+	ErrTooManyPositions    = fmt.Errorf("too many positions (maximum %d)", MaxPositionUpdates)
+	ErrInvalidPositionID   = errors.New("position entries require a valid id")
+	ErrNegativePosition    = errors.New("position must be non-negative")
+	ErrDuplicatePositionID = errors.New("each id may appear only once")
 )
 
 // Compiled regexes (package-level, compiled once).
@@ -197,6 +204,31 @@ func validateTask(t *Task) error {
 	}
 	if t.Deadline != nil && (t.Deadline.Year() < 2000 || t.Deadline.Year() > 2100) {
 		return errors.New("deadline year must be between 2000 and 2100")
+	}
+	return nil
+}
+
+// validatePositionUpdates checks a reorder request: 1..MaxPositionUpdates entries,
+// positive ids without duplicates and non-negative positions.
+func validatePositionUpdates(p *[]PositionUpdate) error {
+	if len(*p) == 0 {
+		return ErrNoPositions
+	}
+	if len(*p) > MaxPositionUpdates {
+		return ErrTooManyPositions
+	}
+	seen := make(map[int]bool, len(*p))
+	for _, u := range *p {
+		if u.ID <= 0 {
+			return ErrInvalidPositionID
+		}
+		if u.Position < 0 {
+			return ErrNegativePosition
+		}
+		if seen[u.ID] {
+			return ErrDuplicatePositionID
+		}
+		seen[u.ID] = true
 	}
 	return nil
 }

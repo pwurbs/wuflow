@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, navigateTo, selectStatus, waitForIssueSave } from './helpers/test-utils';
+import { createIssue, createIssueViaAPI, createRelease, navigateTo, selectStatus, waitForIssueSave } from './helpers/test-utils';
 
 test.describe('Backlog View', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -66,6 +66,34 @@ test.describe('Backlog View', () => {
     await expect(
       page.locator('.column[data-status="Todo"] .card').filter({ hasText: 'Move to Board Issue' })
     ).toBeVisible();
+  });
+
+  // Planned dates change only in the planning sidebar or the issue modal (see usage guide),
+  // never as a side effect of moving a card between Open and Todo.
+  test('moving a card by dropping it on a section title keeps its planned dates', async ({ page }) => {
+    const title = `Keep-Plan-${Date.now()}`;
+    const id = await createIssueViaAPI(page.request, 1, title, { planned_dates: ['2030-01-15'] });
+    await page.reload();
+    await navigateTo(page, 'backlog');
+
+    const savedIssue = async () => (await page.request.get(`/api/projects/1/issues/${id}`)).json();
+    const openCard = page.locator('#backlog-list .card', { hasText: title });
+    const todoCard = page.locator('#move-to-todo-list .card', { hasText: title });
+
+    // Open → drop on the "Board (Todo)" title
+    await expect(openCard).toBeVisible();
+    let save = waitForIssueSave(page);
+    await openCard.dragTo(page.locator('#backlog-todo-section h2'));
+    await save;
+    await expect(todoCard).toBeVisible();
+    expect(await savedIssue()).toMatchObject({ status: 'Todo', planned_dates: ['2030-01-15'] });
+
+    // Todo → drop on the "Backlog (Open)" title
+    save = waitForIssueSave(page);
+    await todoCard.dragTo(page.locator('#backlog-open-section h2'));
+    await save;
+    await expect(openCard).toBeVisible();
+    expect(await savedIssue()).toMatchObject({ status: 'Open', planned_dates: ['2030-01-15'] });
   });
 
   test('backlog counts are displayed', async ({ page }) => {

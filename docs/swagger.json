@@ -574,6 +574,31 @@
           }
         }
       },
+      "PositionUpdates": {
+        "type": "array",
+        "description": "New positions for a reorder. All entries are saved in one transaction: either all or none.",
+        "minItems": 1,
+        "maxItems": 500,
+        "items": {
+          "type": "object",
+          "required": ["id", "position"],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Issue or task ID. Each ID may appear only once."
+            },
+            "position": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "example": [
+          { "id": 12, "position": 0 },
+          { "id": 7, "position": 1 }
+        ]
+      },
       "CommentRequest": {
         "type": "object",
         "description": "Body for both create and update; used with POST and PUT /projects/{pId}/issues/{iId}/comments.",
@@ -1144,6 +1169,50 @@
         }
       }
     },
+    "/projects/{pId}/issues/positions": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "put": {
+        "summary": "Reorder issues",
+        "description": "Saves the new order of several issues in one request. Only position changes: no other field, no history entry, no updated_at/ETag change. Status changes use PUT /projects/{pId}/issues/{id}.",
+        "tags": [
+          "Issues"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PositionUpdates"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "All positions saved"
+          },
+          "400": {
+            "description": "Empty array, more than 500 entries, invalid or duplicate id, negative position"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "An issue does not exist in this project or is archived (nothing is saved)"
+          }
+        }
+      }
+    },
     "/projects/{pId}/issues/{id}": {
       "parameters": [
         {
@@ -1490,6 +1559,62 @@
           },
           "404": {
             "description": "Project or issue not found, or issue is not in this project"
+          }
+        }
+      }
+    },
+    "/projects/{pId}/issues/{iId}/tasks/positions": {
+      "parameters": [
+        {
+          "name": "pId",
+          "in": "path",
+          "required": true,
+          "description": "Project ID",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "iId",
+          "in": "path",
+          "required": true,
+          "description": "Parent issue ID",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "put": {
+        "summary": "Reorder tasks",
+        "description": "Saves the new order of an issue's tasks in one request. Only position changes; no history entry is written.",
+        "tags": [
+          "Tasks"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PositionUpdates"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "All positions saved"
+          },
+          "400": {
+            "description": "Empty array, more than 500 entries, invalid or duplicate id, negative position"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - parent issue is archived"
+          },
+          "404": {
+            "description": "A task is not under this issue, or issue not in this project (nothing is saved)"
           }
         }
       }

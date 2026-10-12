@@ -2,7 +2,7 @@ import { state, isFilterActive } from '../state.js';
 import { STATUS_ARCHIVE, STATUS_DONE } from '../status-config.js';
 import { fetchArchivedIssuesByProject } from '../api.js';
 import { createCardElement } from './card.js';
-import { getListUpdates, setupSectionDrop, setupListDrag } from '../list-utils.js';
+import { getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag } from '../list-utils.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 import { canArchive, showConfirm } from '../utils.js';
 import { userCan, ACTION_ARCHIVE_ISSUE } from '../permissions.js';
@@ -120,12 +120,10 @@ async function validateArchiveDrop(issue, targetStatus) {
 }
 
 async function performDropUpdate() {
-  const updates = [
-    ...getListUpdates('archive-list', STATUS_ARCHIVE),
-    ...getListUpdates('archive-done-list', STATUS_DONE)
-  ];
+  const archived = getListUpdates('archive-list', STATUS_ARCHIVE);
+  const done = getListUpdates('archive-done-list', STATUS_DONE);
 
-  await Promise.all(updates);
+  await Promise.all([...archived.archives, saveIssueOrder([...archived.changes, ...done.changes])]);
   void renderArchive();
 }
 
@@ -156,7 +154,7 @@ export function setupArchiveView(refreshApp, openModal, rerenderActiveView) {
       // (archive-archive-section), which fires as this event bubbles up.
       // Calling performDropUpdate() here would cause a race: the done-list
       // still holds the dragged card (due to performReorder: false), so
-      // getListUpdates sees a stale position and fires updateIssue() on an
+      // getListUpdates sees a stale position and saves a position for an
       // issue that the section handler is archiving concurrently → 403.
     }
   });

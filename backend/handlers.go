@@ -31,6 +31,7 @@ const (
 	errMsgFailedLogin           = "Failed login attempt"
 	errMsgInvalidCreds          = "Invalid email or password"
 	errMsgTooManyAttempts       = "Too many login attempts, please try again later"
+	errMsgTooManyRequests       = "Too many requests, please try again later"
 	errMsgLabelNotFound         = "Label not found"
 	errMsgProjectNotFound       = "Project not found"
 	errMsgInvalidProject        = "Invalid project ID"
@@ -734,6 +735,28 @@ func handlePutIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	respondWithIssue(w, updated, "Issue updated", userEmail)
 }
 
+// handlePutIssuePositions saves a reorder of the project's issues in one request.
+// Only positions change: no validation of other fields, no history entry and no
+// updated_at/ETag bump. Status changes go through handlePutIssue.
+func handlePutIssuePositions(w http.ResponseWriter, r *http.Request, projectID int) {
+	var updates []PositionUpdate
+	if !decodeAndValidate(w, r, &updates, validatePositionUpdates) {
+		return
+	}
+	userEmail := GetEmailFromContext(r.Context())
+	if err := UpdateIssuePositions(r.Context(), projectID, updates); err != nil {
+		if errors.Is(err, ErrIssueNotFound) {
+			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
+			return
+		}
+		LogError("UpdateIssuePositions failed", "project_id", projectID, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	LogInfo("Issue positions updated", "project_id", projectID, "count", len(updates), "user_email", userEmail)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // checkIfMatchConflict verifies if the client's If-Match header matches the current issue's ETag.
 // Returns true if a conflict is detected (and sends 409 response), false otherwise.
 func checkIfMatchConflict(w http.ResponseWriter, current *Issue, ifMatch string) bool {
@@ -855,6 +878,35 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 	if err := json.NewEncoder(w).Encode(t); err != nil {
 		LogError("handlePutTask: failed to encode response", "id", id, "error", err, "user_email", userEmail)
 	}
+}
+
+// handlePutTaskPositions saves a reorder of an issue's tasks in one request.
+// Only positions change; no history entry is recorded.
+func handlePutTaskPositions(w http.ResponseWriter, r *http.Request, _ int, issueID int, issue *Issue) {
+	var updates []PositionUpdate
+	if !decodeAndValidate(w, r, &updates, validatePositionUpdates) {
+		return
+	}
+
+	userEmail := GetEmailFromContext(r.Context())
+
+	if issue.Status == StatusArchive {
+		LogWarn("Task reorder failed: Issue archived", "issue_id", issueID, "user_email", userEmail)
+		http.Error(w, "Tasks of archived issues are read-only", http.StatusForbidden)
+		return
+	}
+
+	if err := UpdateTaskPositions(r.Context(), issueID, updates); err != nil {
+		if errors.Is(err, ErrTaskNotFound) {
+			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
+			return
+		}
+		LogError("UpdateTaskPositions failed", "issue_id", issueID, "error", err, "user_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	LogInfo("Task positions updated", "issue_id", issueID, "count", len(updates), "user_email", userEmail)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleDeleteTask removes a task.
@@ -1294,7 +1346,7 @@ func getUserEmailFromCookie(r *http.Request) string {
 // Validates the refresh token, checks user is still active, and issues a new access token.
 func HandleRefresh(w http.ResponseWriter, r *http.Request) {
 	if !refreshLimiter.allow(GetClientIP(r)) {
-		http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
+		http.Error(w, errMsgTooManyRequests, http.StatusTooManyRequests)
 		return
 	}
 

@@ -1776,3 +1776,102 @@ func TestGetIssuesByProjectWithRelease(t *testing.T) {
 		t.Error("expected Release to be hydrated with name 'v1.0'")
 	}
 }
+
+func TestUpdateIssuePositionsAtomic(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	a := &Issue{Title: "A", Status: StatusOpen, ProjectID: 1}
+	b := &Issue{Title: "B", Status: StatusOpen, ProjectID: 1}
+	for _, i := range []*Issue{a, b} {
+		if err := CreateIssue(ctx, i); err != nil {
+			t.Fatalf(failedToCreateIssueError, err)
+		}
+	}
+
+	if err := UpdateIssuePositions(ctx, 1, []PositionUpdate{{ID: a.ID, Position: 5}, {ID: b.ID, Position: 4}}); err != nil {
+		t.Fatalf("UpdateIssuePositions: %v", err)
+	}
+	if got, _ := GetIssueByID(ctx, a.ID); got.Position != 5 {
+		t.Errorf("expected position 5, got %d", got.Position)
+	}
+
+	// The second entry fails (wrong project) → the first must be rolled back.
+	err := UpdateIssuePositions(ctx, 2, []PositionUpdate{{ID: a.ID, Position: 9}})
+	if !errors.Is(err, ErrIssueNotFound) {
+		t.Fatalf("expected ErrIssueNotFound for wrong project, got %v", err)
+	}
+	err = UpdateIssuePositions(ctx, 1, []PositionUpdate{{ID: a.ID, Position: 9}, {ID: 99999, Position: 0}})
+	if !errors.Is(err, ErrIssueNotFound) {
+		t.Fatalf("expected ErrIssueNotFound, got %v", err)
+	}
+	if got, _ := GetIssueByID(ctx, a.ID); got.Position != 5 {
+		t.Errorf("expected rollback to position 5, got %d", got.Position)
+	}
+}
+
+func TestUpdateTaskPositionsAtomic(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	issue := &Issue{Title: "Parent", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(ctx, issue); err != nil {
+		t.Fatalf(failedToCreateIssueError, err)
+	}
+	task := &Task{Title: testTaskTitle, IssueID: issue.ID}
+	if err := CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	err := UpdateTaskPositions(ctx, issue.ID, []PositionUpdate{{ID: task.ID, Position: 9}, {ID: 99999, Position: 0}})
+	if !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("expected ErrTaskNotFound, got %v", err)
+	}
+	tasks, _ := GetTasksByIssueID(ctx, issue.ID)
+	if tasks[0].Position != task.Position {
+		t.Errorf("expected rollback to position %d, got %d", task.Position, tasks[0].Position)
+	}
+}
+
+func TestUpdateIssuePositionsExecErrorRollsBack(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	a := &Issue{Title: "A", Status: StatusOpen, ProjectID: 1}
+	b := &Issue{Title: "B", Status: StatusOpen, ProjectID: 1}
+	for _, i := range []*Issue{a, b} {
+		if err := CreateIssue(ctx, i); err != nil {
+			t.Fatalf(failedToCreateIssueError, err)
+		}
+	}
+	// Force a DB error on the second UPDATE only, after the first one succeeded.
+	trigger := fmt.Sprintf("CREATE TRIGGER fail_b BEFORE UPDATE OF position ON issues WHEN NEW.id = %d BEGIN SELECT RAISE(ABORT, 'forced failure'); END", b.ID)
+	if _, err := DB.ExecContext(ctx, trigger); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+
+	err := UpdateIssuePositions(ctx, 1, []PositionUpdate{{ID: a.ID, Position: 9}, {ID: b.ID, Position: 0}})
+	if err == nil || errors.Is(err, ErrIssueNotFound) {
+		t.Fatalf("expected a DB error, got %v", err)
+	}
+	if got, _ := GetIssueByID(ctx, a.ID); got.Position != a.Position {
+		t.Errorf("expected rollback to position %d, got %d", a.Position, got.Position)
+	}
+}
+
+func TestUpdateTaskPositionsPrepareError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	if _, err := DB.ExecContext(ctx, dropTasksTable); err != nil {
+		t.Fatalf("drop tasks table: %v", err)
+	}
+	err := UpdateTaskPositions(ctx, 1, []PositionUpdate{{ID: 1, Position: 0}})
+	if err == nil || errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("expected a DB error, got %v", err)
+	}
+}

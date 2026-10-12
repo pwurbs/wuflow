@@ -248,6 +248,19 @@ export async function updateIssue(projectId, issue, etag = null) {
   return { issue: updatedIssue, etag: newEtag, conflict: false };
 }
 
+/**
+ * Save a reorder in one request. positions: [{ id, position }, ...].
+ * Only positions change; the server applies all of them or none.
+ */
+export async function updateIssuePositions(projectId, positions) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/positions`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(positions)
+  });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to save the new order');
+}
+
 export async function archiveIssue(projectId, id) {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}/archive`, {
     method: 'POST',
@@ -298,6 +311,18 @@ export async function updateTask(projectId, issueId, task) {
   });
   if (!res.ok) throw new Error(await res.text() || 'Failed to update task');
   return res.json();
+}
+
+/**
+ * Save a task reorder in one request. positions: [{ id, position }, ...].
+ */
+export async function updateTaskPositions(projectId, issueId, positions) {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/positions`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(positions)
+  });
+  if (!res.ok) throw new Error(await res.text() || 'Failed to save the task order');
 }
 
 export async function deleteTask(projectId, issueId, taskId) {

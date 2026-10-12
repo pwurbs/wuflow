@@ -1,4 +1,4 @@
-import { updateIssue, archiveIssue } from './api.js';
+import { updateIssue, updateIssuePositions, archiveIssue } from './api.js';
 import { state } from './state.js';
 import { PRIORITY_NORMAL, PRIORITY_HIGH } from './domain-constants.js';
 import { STATUS_ARCHIVE } from './status-config.js';
@@ -20,10 +20,7 @@ export async function handleMoveTop(issue, allIssuesInList, rerenderCallback, re
   try {
     await updatePositions(newOrder, rerenderCallback);
   } catch (err) {
-    showNotification(err.message, 'error');
-    // A partial Promise.all failure can't be safely reverted locally (some positions
-    // may have already persisted server-side), so re-fetch the actual server state.
-    if (refreshCallback) refreshCallback();
+    showSaveFailure(err, rerenderCallback, refreshCallback);
   }
 }
 
@@ -38,9 +35,20 @@ export async function handleMoveBottom(issue, allIssuesInList, rerenderCallback,
   try {
     await updatePositions(newOrder, rerenderCallback);
   } catch (err) {
-    showNotification(err.message, 'error');
-    if (refreshCallback) refreshCallback();
+    showSaveFailure(err, rerenderCallback, refreshCallback);
   }
+}
+
+/**
+ * Error path of every card move (reorder, drag to another list or section). The caller has
+ * already put the old values back on the issues (saveIssueOrder does this for reorders), so
+ * re-rendering moves the cards back right away, even when the server is unreachable. The
+ * refresh then shows the actual server state.
+ */
+export function showSaveFailure(err, rerenderCallback, refreshCallback) {
+  showNotification(err.message, 'error');
+  if (rerenderCallback) rerenderCallback();
+  if (refreshCallback) refreshCallback();
 }
 
 export async function handleTogglePriority(issue, rerenderCallback) {
@@ -73,26 +81,77 @@ export async function handleAssignToMe(issue, currentUser, rerenderCallback) {
 }
 
 export async function updatePositions(orderedIssues, rerenderCallback) {
-  const updates = [];
+  const changes = [];
   orderedIssues.forEach((issue, index) => {
     if (issue.position !== index) {
-      issue.position = index;
-      updates.push(updateIssue(issue.project_id, issue));
+      changes.push(applyOrderChange(issue, issue.status, index));
     }
   });
 
-  if (updates.length > 0) {
-    await Promise.all(updates);
+  if (changes.length > 0) {
+    await saveIssueOrder(changes);
     if (rerenderCallback) rerenderCallback();
   }
 }
 
+/**
+ * Sets an issue's new status and position for a reorder and returns the change for
+ * saveIssueOrder, including the previous values so a failed save can restore them.
+ */
+export function applyOrderChange(issue, status, position) {
+  const change = {
+    issue,
+    statusChanged: issue.status !== status,
+    previous: { status: issue.status, position: issue.position }
+  };
+  issue.status = status;
+  issue.position = position;
+  return change;
+}
+
+/**
+ * Saves a reorder. changes: from applyOrderChange. A status change is a content edit
+ * (validated, recorded in the history), so it keeps the per-issue PUT. All other positions
+ * go in one positions request, which the server applies all-or-nothing and which never
+ * touches other fields.
+ * If anything fails, every issue gets its previous status and position back before the
+ * error is rethrown, so the caller only has to re-render. The positions request saved
+ * nothing in that case; a status PUT that already went through is corrected by the
+ * caller's refresh.
+ */
+export async function saveIssueOrder(changes) {
+  try {
+    const positions = [];
+    for (const { issue, statusChanged } of changes) {
+      if (statusChanged) {
+        await updateIssue(issue.project_id, issue);
+      } else {
+        positions.push({ id: issue.id, position: issue.position });
+      }
+    }
+    if (positions.length > 0) {
+      await updateIssuePositions(changes[0].issue.project_id, positions);
+    }
+  } catch (err) {
+    changes.forEach(({ issue, previous }) => {
+      issue.status = previous.status;
+      issue.position = previous.position;
+    });
+    throw err;
+  }
+}
+
+/**
+ * Applies a list's DOM order to the local issues and returns what must be saved:
+ * `changes` for saveIssueOrder, plus the started archive requests (`archives`) for
+ * cards that were dropped into the Archive list.
+ */
 export function getListUpdates(listId, targetStatus) {
+  const result = { changes: [], archives: [] };
   const listElement = document.getElementById(listId);
-  if (!listElement) return [];
+  if (!listElement) return result;
 
   const cards = [...listElement.querySelectorAll('.card')];
-  const updates = [];
   cards.forEach((card, index) => {
     const id = Number.parseInt(card.dataset.id);
     const issue = state.issues.find(i => i.id === id);
@@ -101,17 +160,16 @@ export function getListUpdates(listId, targetStatus) {
       const positionChanged = targetStatus !== STATUS_ARCHIVE && issue.position !== index;
 
       if (statusChanged || positionChanged) {
-        issue.status = targetStatus;
         if (targetStatus === STATUS_ARCHIVE) {
-          updates.push(archiveIssue(issue.project_id, issue.id));
+          issue.status = targetStatus;
+          result.archives.push(archiveIssue(issue.project_id, issue.id));
         } else {
-          issue.position = index;
-          updates.push(updateIssue(issue.project_id, issue));
+          result.changes.push(applyOrderChange(issue, targetStatus, index));
         }
       }
     }
   });
-  return updates;
+  return result;
 }
 
 /**
@@ -127,9 +185,7 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
 
   section.addEventListener('dragover', (e) => {
     if (section.offsetParent === null) return;
-    const draggedCard = getDraggedCard();
-    const isValidCard = draggedCard?.classList.contains('planning-item') || draggedCard?.classList.contains('card');
-    if (!isValidCard) return;
+    if (!getDraggedCard()?.classList.contains('card')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (list && showDragHighlight) list.classList.add('drag-over');
@@ -152,12 +208,15 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
     if (list) list.classList.remove('drag-over');
 
     const draggedCard = getDraggedCard();
-    const isValidCard = draggedCard?.classList.contains('planning-item') || draggedCard?.classList.contains('card');
-    if (!isValidCard) return;
+    if (!draggedCard?.classList.contains('card')) return;
 
     const issueId = Number.parseInt(draggedCard.dataset.id);
     const issue = state.issues.find(i => i.id === issueId);
     if (!issue || issue.status === targetStatus) return;
+
+    // Recorded before the first await: a drop between cards also reaches the list's own
+    // drop handler, which may change the issue in the meantime.
+    const previousStatus = issue.status;
 
     if (onValidate && !(await onValidate(issue, targetStatus))) {
       rerenderOrRefresh();
@@ -169,15 +228,13 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
       if (targetStatus === STATUS_ARCHIVE) {
         await archiveIssue(issue.project_id, issue.id);
       } else {
-        issue.planned_dates = [];
         await updateIssue(issue.project_id, issue);
       }
       rerenderOrRefresh();
       if (onDrop) onDrop(issue);
     } catch (err) {
-      showNotification(err.message, 'error');
-      // No local revert here, so fall back to the full refresh to resync with the server.
-      if (refreshApp) refreshApp();
+      issue.status = previousStatus;
+      showSaveFailure(err, rerenderCallback, refreshApp);
     }
   });
 }
@@ -195,7 +252,7 @@ export function setupListDrag(listId, targetStatus, options = {}) {
   list.addEventListener('dragover', (e) => {
     if (list.offsetParent === null) return;
     const draggedCard = getDraggedCard();
-    if (!draggedCard?.classList.contains('card') && !draggedCard?.classList.contains('planning-item')) return;
+    if (!draggedCard?.classList.contains('card')) return;
 
     e.preventDefault();
     if (showDragHighlight) list.classList.add('drag-over');
@@ -236,14 +293,13 @@ export function setupListDrag(listId, targetStatus, options = {}) {
       if (onDrop) {
         await onDrop(issue, targetStatus);
       } else {
-        const updates = getListUpdates(listId, targetStatus);
-        await Promise.all(updates);
+        const { changes, archives } = getListUpdates(listId, targetStatus);
+        await Promise.all([...archives, saveIssueOrder(changes)]);
         rerenderOrRefresh();
       }
     } catch (err) {
-      showNotification(err.message, 'error');
-      // No local revert here, so fall back to the full refresh to resync with the server.
-      if (refreshApp) refreshApp();
+      // A failed saveIssueOrder already restored the old order locally.
+      showSaveFailure(err, rerenderCallback, refreshApp);
     }
   });
 }

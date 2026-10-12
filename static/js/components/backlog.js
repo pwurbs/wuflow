@@ -3,7 +3,7 @@ import { STATUS_OPEN, STATUS_TODO } from '../status-config.js';
 import { RELEASE_STATUS_OPEN } from '../domain-constants.js';
 import { fetchOpenIssuesByProject, updateIssue } from '../api.js';
 import { createCardElement } from './card.js';
-import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.js';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.js';
 import { getDraggedCard } from '../drag.js';
@@ -178,11 +178,10 @@ export function setupBacklogView(refreshApp, openModal, rerenderActiveView) {
     rerenderCallback: rerenderActiveViewCallback,
     onValidate: validateUpdate,
     onDrop: async () => {
-      const updates = [
-        ...getListUpdates('backlog-list', STATUS_OPEN),
-        ...getListUpdates('move-to-todo-list', STATUS_TODO)
-      ];
-      await Promise.all(updates);
+      await saveIssueOrder([
+        ...getListUpdates('backlog-list', STATUS_OPEN).changes,
+        ...getListUpdates('move-to-todo-list', STATUS_TODO).changes
+      ]);
       void renderBacklog();
     }
   };

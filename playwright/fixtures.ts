@@ -103,4 +103,4 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 });
 
 export { expect } from '@playwright/test';
-export type { BrowserContext, Page } from '@playwright/test';
+export type { BrowserContext, Locator, Page } from '@playwright/test';

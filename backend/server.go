@@ -258,6 +258,7 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 	hf("GET", "/api/projects/{pId}/issues/archived", withProject(ActionListIssues, handleProjectArchivedIssues), authAPI)
 	hf("GET", "/api/projects/{pId}/issues/open", withProject(ActionListIssues, handleProjectOpenIssues), authAPI)
 	hf("POST", "/api/projects/{pId}/issues", withProject(ActionCreateIssue, handleCreateIssue), authAPI)
+	hf("PUT", "/api/projects/{pId}/issues/positions", withProject(ActionUpdateIssue, handlePutIssuePositions), authAPI)
 	hf("GET", "/api/projects/{pId}/issues/{id}", withProjectResource(ActionGetIssue, handleGetIssue), authAPI) //NOSONAR, ignore double string warning
 	hf("PUT", "/api/projects/{pId}/issues/{id}", withProjectResource(ActionUpdateIssue, handlePutIssue), authAPI)
 	hf("DELETE", "/api/projects/{pId}/issues/{id}", withProjectResource(ActionDeleteIssue, handleDeleteIssue), authAPI)
@@ -285,6 +286,7 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 
 	// --- Project- and issue-scoped tasks --------------------------------------
 	hf("POST", "/api/projects/{pId}/issues/{iId}/tasks", withIssue(ActionCreateTask, handleCreateTask), authAPI)
+	hf("PUT", "/api/projects/{pId}/issues/{iId}/tasks/positions", withIssue(ActionUpdateTask, handlePutTaskPositions), authAPI)
 	hf("PUT", "/api/projects/{pId}/issues/{iId}/tasks/{id}", withIssueResource(ActionUpdateTask, handlePutTask), authAPI)
 	hf("DELETE", "/api/projects/{pId}/issues/{iId}/tasks/{id}", withIssueResource(ActionDeleteTask, handleDeleteTask), authAPI)
 
@@ -457,7 +459,7 @@ func UserRateLimitMiddleware(next http.Handler) http.Handler {
 		if !apiLimiter.allow(userID) {
 			LogWarn("API rate limit exceeded", "user_id", userID,
 				"method", r.Method, "path", r.URL.Path)
-			http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
+			http.Error(w, errMsgTooManyRequests, http.StatusTooManyRequests)
 			return
 		}
 		next.ServeHTTP(w, r)

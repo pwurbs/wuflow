@@ -50,6 +50,7 @@ vi.mock('../drag.js', () => ({
 vi.mock('../utils.js', () => ({
   canArchive: vi.fn().mockReturnValue({ allowed: true }),
   showConfirm: vi.fn().mockResolvedValue(true),
+  showNotification: vi.fn(),
 }));
 
 describe('Archive Component', () => {
@@ -141,32 +142,56 @@ describe('Archive Component', () => {
       expect(refreshApp).toHaveBeenCalled();
     });
 
-    it('should handle drop of planning item to archive section', async () => {
+    it('should ignore a planning item dropped on the archive section (the planning sidebar is not shown here)', async () => {
       const refreshApp = vi.fn();
       setupArchiveView(refreshApp, vi.fn());
 
       const section = document.getElementById('archive-archive-section');
-
-      // Mock Dragged Planning Item
       const item = document.createElement('div');
       item.classList.add('planning-item');
       item.dataset.id = '100';
-
       const dragModule = await import('../drag.js');
       dragModule.getDraggedCard.mockReturnValue(item);
-
-      // Mock State
-      state.state.issues = [{ id: 100, status: 'Todo', planned_date: '2023-01-01' }];
+      state.state.issues = [{ id: 100, status: 'Done', planned_dates: ['2023-01-01'] }];
 
       Object.defineProperty(section, 'offsetParent', {
         get() { return document.body; }
       });
-      const event = new Event('drop', { bubbles: true, cancelable: true });
-      section.dispatchEvent(event);
+      section.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 100);
+      expect(api.archiveIssue).not.toHaveBeenCalled();
+      expect(state.state.issues[0].status).toBe('Done');
+    });
+
+    // Last in this block: archive.js keeps the re-render callback in module state, and the
+    // tests above expect it to be unset.
+    it('should put the card back in Done when archiving by drag cannot be saved', async () => {
+      const refreshApp = vi.fn();
+      const rerenderActiveView = vi.fn();
+      setupArchiveView(refreshApp, vi.fn(), rerenderActiveView);
+
+      const list = document.getElementById('archive-list');
+      const section = document.getElementById('archive-archive-section');
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.id = '98';
+      const dragModule = await import('../drag.js');
+      dragModule.getDraggedCard.mockReturnValue(card);
+      const issue = { id: 98, status: 'Done', position: 0 };
+      state.state.issues = [issue];
+      api.archiveIssue.mockRejectedValueOnce(new Error('Connection to the server failed. The change was not saved.'));
+
+      for (const el of [list, section]) {
+        Object.defineProperty(el, 'offsetParent', { get() { return document.body; } });
+      }
+      list.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => expect(rerenderActiveView).toHaveBeenCalled());
+      expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 98);
+      // Not archived on the server, so it must not look archived
+      expect(issue.status).toBe('Done');
       expect(refreshApp).toHaveBeenCalled();
     });
   });

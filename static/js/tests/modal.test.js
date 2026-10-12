@@ -22,7 +22,7 @@ vi.mock('../api.js', () => ({
   unarchiveIssue: vi.fn().mockResolvedValue({ id: 101, status: 'Done' }),
   moveIssue: vi.fn().mockResolvedValue({ issue: { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }, etag: '"move-etag"' }),
   createTask: vi.fn(),
-  updateTask: vi.fn(),
+  updateTaskPositions: vi.fn(),
   deleteIssue: vi.fn(),
   fetchLabelsByProject: vi.fn(),
   fetchReleases: vi.fn().mockResolvedValue([]),
@@ -1810,7 +1810,9 @@ describe('Modal Component', () => {
       const taskOrderCallback = tasks.renderTasks.mock.calls[0][3].onTaskOrderSave;
       await taskOrderCallback();
 
-      expect(api.updateTask).toHaveBeenCalledWith(7, 1, expect.objectContaining({ id: expect.any(Number) }));
+      // One request carrying the whole new order, not one PUT per task
+      expect(api.updateTaskPositions).toHaveBeenCalledTimes(1);
+      expect(api.updateTaskPositions).toHaveBeenCalledWith(7, 1, [{ id: 102, position: 0 }, { id: 101, position: 1 }]);
       expect(state.currentIssue.tasks[0].id).toBe(102);
     });
 
@@ -2380,13 +2382,17 @@ describe('Modal Component', () => {
         <li class="task-item" data-id="101"></li>
       `;
 
-      api.updateTask.mockRejectedValue(new Error('Order save failed'));
+      api.updateTaskPositions.mockRejectedValue(new Error('Order save failed'));
 
       // Invoke onTaskOrderSave via the captured callback
       const onTaskOrderSave = tasks.renderTasks.mock.calls[tasks.renderTasks.mock.calls.length - 1][3].onTaskOrderSave;
+      const renderCountBefore = tasks.renderTasks.mock.calls.length;
       await onTaskOrderSave();
 
       expect(utils.showNotification).toHaveBeenCalledWith('Order save failed', 'error');
+      // The old positions are restored and the task list is re-rendered in the old order
+      expect(state.currentIssue.tasks.map(t => [t.id, t.position])).toEqual([[101, 0], [102, 1]]);
+      expect(tasks.renderTasks.mock.calls.length).toBe(renderCountBefore + 1);
     });
   });
 });

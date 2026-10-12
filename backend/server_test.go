@@ -796,6 +796,9 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 		if rr.Code != http.StatusTooManyRequests {
 			t.Errorf("expected 429, got %d", rr.Code)
 		}
+		if got := strings.TrimSpace(rr.Body.String()); got != errMsgTooManyRequests {
+			t.Errorf("expected body %q, got %q", errMsgTooManyRequests, got)
+		}
 	})
 
 	t.Run("zero userID passes through", func(t *testing.T) {

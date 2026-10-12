@@ -20,6 +20,7 @@ vi.mock('../state.js', () => ({
 
 vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({}),
+  updateIssuePositions: vi.fn().mockResolvedValue(),
   fetchOpenIssuesByProject: vi.fn().mockResolvedValue([])
 }));
 
@@ -102,7 +103,7 @@ describe('Backlog Component', () => {
       });
     });
 
-    it('handleMoveTop should reorder issues and call updateIssue', async () => {
+    it('handleMoveTop should save the new order in one positions request', async () => {
       const issues = [
         { id: 1, title: 'Item 1', status: 'Open', position: 0 },
         { id: 2, title: 'Item 2', status: 'Open', position: 1 },
@@ -121,12 +122,13 @@ describe('Backlog Component', () => {
       const onMoveTop = card3._callbacks.onMoveTop;
       await onMoveTop();
 
-      // Expect updateIssue to be called
       // Item 3 moves to pos 0. Item 1 to 1, Item 2 to 2.
-      // updatePositions optimizes: only sends updates for changed items.
-      // Item 1 (old 0) -> 1. Item 2 (old 1) -> 2. Item 3 (old 2) -> 0.
-      // All changed.
-      expect(api.updateIssue).toHaveBeenCalledTimes(3);
+      // updatePositions only sends changed items — here all three, in one request.
+      expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+        { id: 3, position: 0 }, { id: 1, position: 1 }, { id: 2, position: 2 }
+      ]);
+      expect(api.updateIssue).not.toHaveBeenCalled();
 
       // On success, only the light local re-render fires — not the full app refresh.
       expect(rerenderActiveView).toHaveBeenCalled();
@@ -168,7 +170,11 @@ describe('Backlog Component', () => {
 
       // Item 1 moves to end (pos 2).
       // Item 2 moves to 0. Item 3 moves to 1.
-      expect(api.updateIssue).toHaveBeenCalledTimes(3);
+      expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+        { id: 2, position: 0 }, { id: 3, position: 1 }, { id: 1, position: 2 }
+      ]);
+      expect(api.updateIssue).not.toHaveBeenCalled();
       expect(rerenderActiveView).toHaveBeenCalled();
       expect(refreshApp).not.toHaveBeenCalled();
     });
@@ -414,42 +420,84 @@ describe('Backlog Component', () => {
       expect(openSectionSpy).toHaveBeenCalledWith('dragover', expect.any(Function));
     });
 
-    it('should handle drop on section (planning item -> backlog)', async () => {
+    it('should put the card back when a drop on a section header cannot be saved', async () => {
+      const refreshApp = vi.fn();
+      const rerenderActiveView = vi.fn();
+      setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
+
+      const todoSection = document.getElementById('backlog-todo-section');
+      const issue = { id: 7, title: 'Open item', status: 'Open', position: 0, planned_dates: ['2026-10-12'] };
+      state.state.issues = [issue];
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.id = '7';
+      const dragModule = await import('../drag.js');
+      dragModule.getDraggedCard.mockReturnValue(card);
+      api.updateIssue.mockRejectedValueOnce(new Error('Connection to the server failed. The change was not saved.'));
+
+      Object.defineProperty(todoSection, 'offsetParent', { get() { return document.body; } });
+      todoSection.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => expect(rerenderActiveView).toHaveBeenCalled());
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ id: 7 }));
+      // The old status is back after the failure, so the re-render shows the card in Open again
+      expect(issue).toMatchObject({ status: 'Open', planned_dates: ['2026-10-12'] });
+      expect(refreshApp).toHaveBeenCalled();
+    });
+
+    it('should change only the status when a card is dropped on a section header', async () => {
       const refreshApp = vi.fn();
       const rerenderActiveView = vi.fn();
       setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
 
       const openSection = document.getElementById('backlog-open-section');
+      const issue = { id: 99, title: 'Todo item', status: 'Todo', planned_dates: ['2026-10-20'] };
+      state.state.issues = [issue];
 
-      // Mock state
-      state.state.issues = [{ id: 99, title: 'Plan Item', status: 'Working', planned_date: '2024-01-01' }];
-
-      // Mock dragged element
-      const mockDragEl = document.createElement('div');
-      mockDragEl.classList.add('planning-item');
-      mockDragEl.dataset.id = '99';
-
-      // We need to mock getDraggedCard to return this element when called inside the event handler
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.id = '99';
       const dragModule = await import('../drag.js');
-      dragModule.getDraggedCard.mockReturnValue(mockDragEl);
+      dragModule.getDraggedCard.mockReturnValue(card);
 
       Object.defineProperty(openSection, 'offsetParent', {
         get() { return document.body; }
       });
-      const event = new Event('drop', { bubbles: true, cancelable: true });
-      openSection.dispatchEvent(event);
+      openSection.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
 
-      // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 0));
 
+      // Planned dates change only in the planning sidebar or the issue modal, never by a status move.
       expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         id: 99,
         status: 'Open',
-        planned_dates: []
+        planned_dates: ['2026-10-20']
       }));
       // On success, only the light local re-render fires — not the full app refresh.
       expect(rerenderActiveView).toHaveBeenCalled();
       expect(refreshApp).not.toHaveBeenCalled();
+    });
+
+    it('should ignore a planning item dropped on a section (the planning sidebar is not shown here)', async () => {
+      setupBacklogView(vi.fn(), vi.fn(), vi.fn());
+
+      const openSection = document.getElementById('backlog-open-section');
+      state.state.issues = [{ id: 98, title: 'Plan Item', status: 'Todo', planned_dates: ['2026-10-20'] }];
+      const item = document.createElement('div');
+      item.classList.add('planning-item');
+      item.dataset.id = '98';
+      const dragModule = await import('../drag.js');
+      dragModule.getDraggedCard.mockReturnValue(item);
+
+      Object.defineProperty(openSection, 'offsetParent', {
+        get() { return document.body; }
+      });
+      openSection.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(state.state.issues[0]).toMatchObject({ status: 'Todo', planned_dates: ['2026-10-20'] });
     });
 
     it('should handle drop on list (reorder within list)', async () => {
@@ -489,15 +537,46 @@ describe('Backlog Component', () => {
       // Wait for async operations
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.updateIssue).toHaveBeenCalledTimes(2);
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
-        id: 2,
-        position: 0
-      }));
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
-        id: 1,
-        position: 1
-      }));
+      // A reorder within one list is a single positions request
+      expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+        { id: 2, position: 0 }, { id: 1, position: 1 }
+      ]);
+      expect(api.updateIssue).not.toHaveBeenCalled();
+    });
+
+    it('should put the cards back in their old order when the reorder cannot be saved', async () => {
+      const refreshApp = vi.fn();
+      const rerenderActiveView = vi.fn();
+      setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
+
+      const backlogList = document.getElementById('backlog-list');
+      state.state.issues = [
+        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
+        { id: 2, title: 'Item 2', status: 'Open', position: 1 }
+      ];
+      const card1 = document.createElement('div');
+      card1.className = 'card';
+      card1.dataset.id = '1';
+      const card2 = document.createElement('div');
+      card2.className = 'card';
+      card2.dataset.id = '2';
+      backlogList.appendChild(card2); // Item 2 dragged above Item 1
+      backlogList.appendChild(card1);
+
+      const dragModule = await import('../drag.js');
+      dragModule.getDraggedCard.mockReturnValue(card2);
+      api.updateIssuePositions.mockRejectedValueOnce(new Error('Connection to the server failed. The change was not saved.'));
+
+      Object.defineProperty(backlogList, 'offsetParent', {
+        get() { return document.body; }
+      });
+      backlogList.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => expect(rerenderActiveView).toHaveBeenCalled());
+      // The old positions are back, so the re-render shows the old order even offline
+      expect(state.state.issues.map(i => [i.id, i.position])).toEqual([[1, 0], [2, 1]]);
+      expect(refreshApp).toHaveBeenCalled();
     });
   });
 });

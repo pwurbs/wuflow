@@ -5,13 +5,34 @@
 //   controls (cards, dropdowns) return to their saved state, and a connection banner shows.
 
 import { test, expect } from './fixtures';
-import type { BrowserContext, Page } from './fixtures';
-import { createIssue, openIssueByTitle, selectPriority, waitForToast } from './helpers/test-utils';
+import type { BrowserContext, Locator, Page } from './fixtures';
+import { createIssue, navigateTo, openIssueByTitle, selectPriority, waitForToast } from './helpers/test-utils';
 
 const NETWORK_ERROR = 'Connection to the server failed';
 
 function boardCard(page: Page, status: string, title: string) {
   return page.locator(`.column[data-status="${status}"] .board-card:has-text("${title}")`);
+}
+
+// Returns the given titles in the order the items show them (other items are ignored).
+// A title that is not shown is left out, so a missing card fails the order check.
+async function orderOf(items: Locator, titles: string[]): Promise<string[]> {
+  const texts = await items.allInnerTexts();
+  return titles
+    .map(title => ({ title, index: texts.findIndex(text => text.includes(title)) }))
+    .filter(({ index }) => index >= 0)
+    .sort((a, b) => a.index - b.index)
+    .map(({ title }) => title);
+}
+
+// Same for the task list, whose titles are input values rather than text.
+async function taskOrder(page: Page): Promise<string[]> {
+  return page.locator('#task-list .task-title-input').evaluateAll(inputs => inputs.map(i => (i as HTMLInputElement).value));
+}
+
+// Drops `source` just above `target`, so it lands before it in the list.
+async function dragAbove(source: Locator, target: Locator) {
+  await source.dragTo(target, { targetPosition: { x: 10, y: 2 } });
 }
 
 // Expires the session and simulates the user returning to the tab: the re-login dialog opens.
@@ -209,5 +230,97 @@ test.describe('Network error: card move', () => {
     await page.reload();
     await expect(boardCard(page, 'Todo', title)).toBeVisible();
     await expect(boardCard(page, 'Stage2', title)).toHaveCount(0);
+  });
+
+  test('cards reordered in a board column while offline return to their old order', async ({ page, context }) => {
+    const a = `Offline-Order-A-${Date.now()}`;
+    const b = `Offline-Order-B-${Date.now()}`;
+    await createIssue(page, { title: a, status: 'Todo' });
+    await createIssue(page, { title: b, status: 'Todo' });
+    const cards = page.locator('.column[data-status="Todo"] .board-card');
+    await expect.poll(() => orderOf(cards, [a, b])).toEqual([a, b]);
+
+    await context.setOffline(true);
+    await dragAbove(boardCard(page, 'Todo', b), boardCard(page, 'Todo', a));
+
+    await waitForToast(page, NETWORK_ERROR);
+    await expect.poll(() => orderOf(cards, [a, b])).toEqual([a, b]);
+
+    await context.setOffline(false);
+    await page.reload();
+    await expect.poll(() => orderOf(cards, [a, b])).toEqual([a, b]);
+  });
+
+  test('backlog cards reordered while offline return to their old order', async ({ page, context }) => {
+    const a = `Offline-Backlog-A-${Date.now()}`;
+    const b = `Offline-Backlog-B-${Date.now()}`;
+    await createIssue(page, { title: a }); // Open status → backlog list
+    await createIssue(page, { title: b });
+    await navigateTo(page, 'backlog');
+    const cards = page.locator('#backlog-list .card');
+    const card = (title: string) => cards.filter({ hasText: title });
+    // The backlog loads its Open issues lazily; wait for them before going offline.
+    await expect(card(a)).toBeVisible();
+    await expect(card(b)).toBeVisible();
+    await expect.poll(() => orderOf(cards, [a, b])).toEqual([a, b]);
+
+    await context.setOffline(true);
+    await dragAbove(card(b), card(a));
+
+    await waitForToast(page, NETWORK_ERROR);
+    await expect.poll(() => orderOf(cards, [a, b])).toEqual([a, b]);
+
+    await context.setOffline(false);
+    await page.reload();
+    await navigateTo(page, 'backlog');
+    await expect.poll(() => orderOf(cards, [a, b])).toEqual([a, b]);
+  });
+
+  test('card archived by drag while offline returns to Done and stays there online', async ({ page, context }) => {
+    const title = `Offline-Archive-${Date.now()}`;
+    await createIssue(page, { title, status: 'Done' });
+    await navigateTo(page, 'archive');
+    const doneCard = page.locator('#archive-done-list .card', { hasText: title });
+    const archivedCard = page.locator('#archive-list .card', { hasText: title });
+    await expect(doneCard).toBeVisible();
+
+    await context.setOffline(true);
+    // The section heading is where archiving by drag is handled (section drop).
+    await doneCard.dragTo(page.locator('#archive-archive-section h2'));
+
+    await waitForToast(page, NETWORK_ERROR);
+    await expect(doneCard).toBeVisible();
+    await expect(archivedCard).toHaveCount(0);
+
+    await context.setOffline(false);
+    await page.reload();
+    await navigateTo(page, 'archive');
+    await expect(doneCard).toBeVisible();
+    await expect(archivedCard).toHaveCount(0);
+  });
+
+  test('tasks reordered while offline return to their old order', async ({ page, context }) => {
+    const title = `Offline-Tasks-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+    for (const task of ['Task A', 'Task B']) {
+      await page.fill('#new-task-title', task);
+      await page.click('#add-task-btn');
+      await expect(page.locator(`#task-list .task-title-input[value="${task}"]`)).toBeVisible();
+    }
+    expect(await taskOrder(page)).toEqual(['Task A', 'Task B']);
+
+    await context.setOffline(true);
+    const items = page.locator('#task-list .task-item');
+    await dragAbove(items.nth(1), items.nth(0));
+
+    await waitForToast(page, NETWORK_ERROR);
+    await expect.poll(() => taskOrder(page)).toEqual(['Task A', 'Task B']);
+
+    await context.setOffline(false);
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+    await openIssueByTitle(page, title);
+    await expect.poll(() => taskOrder(page)).toEqual(['Task A', 'Task B']);
   });
 });

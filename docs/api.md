@@ -27,12 +27,14 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/projects/:pId/issues/archived` | GET | `handleProjectArchivedIssues` | Required | Get archived issues for a project |
 | `/projects/:pId/issues` | POST | `handleCreateIssue` | Required | Create a new issue in this project |
 | `/projects/:pId/issues/:id` | GET | `handleGetIssue` | Required | Get issue details |
+| `/projects/:pId/issues/positions` | PUT | `handlePutIssuePositions` | Required | Save the new order of several issues in one request |
 | `/projects/:pId/issues/:id` | PUT | `handlePutIssue` | Required | Update issue (non-archived only) |
 | `/projects/:pId/issues/:id` | DELETE | `handleDeleteIssue` | Admin | Delete issue |
 | `/projects/:pId/issues/:id/archive` | POST | `handleArchiveIssue` | Admin | Archive an issue |
 | `/projects/:pId/issues/:id/unarchive` | POST | `handleUnarchiveIssue` | Admin | Unarchive an issue (moves to Done) |
 | `/projects/:pId/issues/:id/move` | POST | `handleMoveIssue` | Admin | Move issue to another project (non-archived only; resets label, release, status) |
 | `/projects/:pId/issues/:iId/tasks` | POST | `handleCreateTask` | Required | Create task under an issue |
+| `/projects/:pId/issues/:iId/tasks/positions` | PUT | `handlePutTaskPositions` | Required | Save the new order of an issue's tasks in one request |
 | `/projects/:pId/issues/:iId/tasks/:id` | PUT | `handlePutTask` | Required | Update task |
 | `/projects/:pId/issues/:iId/tasks/:id` | DELETE | `handleDeleteTask` | Required | Delete task |
 | `/projects/:pId/issues/:iId/history` | GET | `handleListHistory` | Required | List an issue's audit trail (oldest first) |
@@ -266,6 +268,26 @@ Updates an existing issue. Returns `404` if the issue belongs to a different pro
   - `403 Forbidden` - Issue is archived
   - `404 Not Found` - Issue doesn't exist in this project
 
+### Reorder Issues
+Saves the new order of several issues in one request (used by every drag and "Move to top/bottom" in the Board, Backlog and Archive views). Only `position` changes: no other field is touched, no history entry is written and `updated_at` (and therefore the `ETag`) stays the same. Status changes go through [Update Issue](#update-issue).
+- **PUT** `/projects/:pId/issues/positions`
+- **Path parameters**: `pId` (project)
+- **Body**: Array of 1–500 entries with unique `id`s:
+  ```json
+  [
+    { "id": 12, "position": 0 },
+    { "id": 7, "position": 1 }
+  ]
+  ```
+- **Notes**:
+  - All positions are saved in one database transaction: either all of them or none
+  - Counts as one write request for the API rate limit
+- **Response**: `204 No Content`
+- **Errors**:
+  - `400 Bad Request` - Empty array, more than 500 entries, invalid or duplicate `id`, negative `position`
+  - `401 Unauthorized` - Not authenticated
+  - `404 Not Found` - An issue doesn't exist in this project or is archived (nothing is saved)
+
 ### Delete Issue
 Deletes an issue and its associated tasks (Admin or Sysadmin).
 - **DELETE** `/projects/:pId/issues/:id`
@@ -362,6 +384,19 @@ Updates a task (e.g., toggle done status, change title).
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Parent issue is archived
   - `404 Not Found` - Task doesn't exist under this `iId`, or issue isn't in this project
+
+### Reorder Tasks
+Saves the new order of an issue's tasks in one request. Only `position` changes; no history entry is written.
+- **PUT** `/projects/:pId/issues/:iId/tasks/positions`
+- **Path parameters**: `pId` (project), `iId` (parent issue)
+- **Body**: Array of 1–500 entries with unique `id`s, e.g. `[{ "id": 102, "position": 0 }, { "id": 101, "position": 1 }]`
+- **Notes**: All positions are saved in one database transaction: either all of them or none
+- **Response**: `204 No Content`
+- **Errors**:
+  - `400 Bad Request` - Empty array, more than 500 entries, invalid or duplicate `id`, negative `position`
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Parent issue is archived
+  - `404 Not Found` - A task doesn't exist under this `iId`, or issue isn't in this project (nothing is saved)
 
 ### Delete Task
 Deletes a task.

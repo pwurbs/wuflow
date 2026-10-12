@@ -1,12 +1,11 @@
 import { state, isFilterActive } from '../state.js';
-import { updateIssue } from '../api.js';
 import { showNotification } from '../utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
 import { getBoardColumns, STATUS_OPEN } from '../status-config.js';
-import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe } from '../list-utils.js';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, applyOrderChange, saveIssueOrder } from '../list-utils.js';
 import { renderPlanningPanel } from './planning.js';
 
 let refreshAppCallback = null;
@@ -155,19 +154,15 @@ function attachColumnDragListeners(colContent) {
 
     setDragSuccess(true);
 
-    const { updates, previous } = getBoardUpdates();
     try {
-      await Promise.all(updates);
+      await saveIssueOrder(getBoardUpdates());
       renderBoard();
       renderPlanningPanel();
     } catch (err) {
       showNotification(err.message, 'error');
-      // Put the cards back right away from local data: when the server is unreachable,
-      // refreshApp cannot reload them and the unsaved move would look saved.
-      previous.forEach(({ issue, status, position }) => {
-        issue.status = status;
-        issue.position = position;
-      });
+      // saveIssueOrder already put the old status/position back locally. Re-render right
+      // away: when the server is unreachable, refreshApp cannot reload the cards and the
+      // unsaved move would look saved.
       renderBoard();
       renderPlanningPanel();
       if (refreshAppCallback) refreshAppCallback();
@@ -182,11 +177,10 @@ export function setupBoardView(refreshApp, openModal, rerenderActiveView) {
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 }
 
-// Applies the dropped order to the local issues and returns the save requests plus the
-// previous status/position of every changed issue, so a failed save can be undone.
+// Applies the dropped order to the local issues and returns the changes for
+// saveIssueOrder (which also restores the old order if the save fails).
 function getBoardUpdates() {
-  const updates = [];
-  const previous = [];
+  const changes = [];
   document.querySelectorAll('.column').forEach(col => {
     const status = col.dataset.status;
     const cards = [...col.querySelectorAll('.column-content .card')];
@@ -194,12 +188,9 @@ function getBoardUpdates() {
       const id = Number.parseInt(card.dataset.id);
       const issue = state.issues.find(i => i.id === id);
       if (issue && (issue.status !== status || issue.position !== index)) {
-        previous.push({ issue, status: issue.status, position: issue.position });
-        issue.status = status;
-        issue.position = index;
-        updates.push(updateIssue(issue.project_id, issue));
+        changes.push(applyOrderChange(issue, status, index));
       }
     });
   });
-  return { updates, previous };
+  return changes;
 }

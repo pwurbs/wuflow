@@ -5374,3 +5374,299 @@ func TestHandleMoveIssueZeroProjectID(t *testing.T) {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
 }
+
+// --- Positions requests (one request per reorder) ----------------------------
+
+const apiIssuePositions = apiIssuesBase + "positions"
+
+func taskPositionsPath(issueID int) string {
+	return apiIssuesBase + strconv.Itoa(issueID) + "/tasks/positions"
+}
+
+func putPositions(path string, body any, role UserRole) *httptest.ResponseRecorder {
+	var buf []byte
+	if s, ok := body.(string); ok {
+		buf = []byte(s)
+	} else {
+		buf, _ = json.Marshal(body)
+	}
+	req := httptest.NewRequest("PUT", path, bytes.NewBuffer(buf))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, role))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	return rr
+}
+
+func TestHandlePutIssuePositions(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	var issues []*Issue
+	for _, title := range []string{"A", "B", "C"} {
+		i := &Issue{Title: title, Status: StatusOpen, ProjectID: 1}
+		if err := CreateIssue(ctx, i); err != nil {
+			t.Fatalf(failedToCreateIssueError, err)
+		}
+		issues = append(issues, i)
+	}
+	before, _ := GetIssueByID(ctx, issues[0].ID)
+
+	rr := putPositions(apiIssuePositions, []PositionUpdate{
+		{ID: issues[2].ID, Position: 0},
+		{ID: issues[0].ID, Position: 1},
+		{ID: issues[1].ID, Position: 2},
+	}, RoleUser)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf(wrongStatusCode, rr.Code, http.StatusNoContent)
+	}
+
+	for want, i := range []*Issue{issues[2], issues[0], issues[1]} {
+		got, _ := GetIssueByID(ctx, i.ID)
+		if got.Position != want {
+			t.Errorf("issue %d: position %d, want %d", i.ID, got.Position, want)
+		}
+	}
+	// Position is display order only: no updated_at/ETag bump and no history entry.
+	after, _ := GetIssueByID(ctx, issues[0].ID)
+	if !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Errorf("updated_at changed from %v to %v", before.UpdatedAt, after.UpdatedAt)
+	}
+	if h, _ := GetHistoryByIssueID(ctx, issues[0].ID); len(h) != 0 {
+		t.Errorf("expected no history entries, got %d", len(h))
+	}
+}
+
+func TestHandlePutIssuePositionsNotFoundRollsBack(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	open := &Issue{Title: "Open", Status: StatusOpen, ProjectID: 1}
+	archived := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
+	p2 := &Project{Name: "P2"}
+	if err := CreateProject(ctx, p2); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	other := &Issue{Title: "Other project", Status: StatusOpen, ProjectID: p2.ID}
+	for _, i := range []*Issue{open, archived, other} {
+		if err := CreateIssue(ctx, i); err != nil {
+			t.Fatalf(failedToCreateIssueError, err)
+		}
+	}
+
+	tests := []struct {
+		name  string
+		badID int
+	}{
+		{"issue of another project", other.ID},
+		{"archived issue", archived.ID},
+		{"unknown issue", 99999},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := putPositions(apiIssuePositions, []PositionUpdate{
+				{ID: open.ID, Position: 42},
+				{ID: tt.badID, Position: 0},
+			}, RoleUser)
+			if rr.Code != http.StatusNotFound {
+				t.Fatalf(wrongStatusCode, rr.Code, http.StatusNotFound)
+			}
+			got, _ := GetIssueByID(ctx, open.ID)
+			if got.Position != open.Position {
+				t.Errorf("position of the valid issue changed to %d; the whole request must be rolled back", got.Position)
+			}
+		})
+	}
+}
+
+func TestHandlePutPositionsInvalidBody(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	tooMany := make([]PositionUpdate, MaxPositionUpdates+1)
+	for i := range tooMany {
+		tooMany[i] = PositionUpdate{ID: i + 1, Position: i}
+	}
+	tests := []struct {
+		name string
+		body any
+	}{
+		{"not json", invalidJSON},
+		{"empty", []PositionUpdate{}},
+		{"zero id", []PositionUpdate{{ID: 0, Position: 0}}},
+		{"negative position", []PositionUpdate{{ID: 1, Position: -1}}},
+		{"duplicate id", []PositionUpdate{{ID: 1, Position: 0}, {ID: 1, Position: 1}}},
+		{"too many", tooMany},
+	}
+	// The task route loads its parent issue before decoding the body.
+	parent := &Issue{Title: "Parent", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(context.Background(), parent); err != nil {
+		t.Fatalf(failedToCreateIssueError, err)
+	}
+	for _, path := range []string{apiIssuePositions, taskPositionsPath(parent.ID)} {
+		for _, tt := range tests {
+			t.Run(path+"/"+tt.name, func(t *testing.T) {
+				if rr := putPositions(path, tt.body, RoleUser); rr.Code != http.StatusBadRequest {
+					t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+				}
+			})
+		}
+	}
+}
+
+func TestHandlePutPositionsForbiddenWithoutRole(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body := []PositionUpdate{{ID: 1, Position: 0}}
+	for _, path := range []string{apiIssuePositions, taskPositionsPath(1)} {
+		if rr := putPositions(path, body, UserRole("")); rr.Code != http.StatusForbidden {
+			t.Errorf("%s: "+wrongStatusCode, path, rr.Code, http.StatusForbidden)
+		}
+	}
+}
+
+func TestHandlePutIssuePositionsDBError(t *testing.T) {
+	setupTestDB()
+	issue := &Issue{Title: "Test", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(context.Background(), issue)
+
+	// Swap the DB only for the update: checkProjectAccess needs the real one.
+	oldDB := DB
+	defer func() { DB = oldDB }()
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+
+	rr := httptest.NewRecorder()
+	body, _ := json.Marshal([]PositionUpdate{{ID: issue.ID, Position: 3}})
+	req := httptest.NewRequest("PUT", apiIssuePositions, bytes.NewBuffer(body))
+	DB = closedDB
+	handlePutIssuePositions(rr, req, 1)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandlePutTaskPositionsDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	issue := &Issue{Title: "Parent", Status: StatusOpen, ProjectID: 1}
+	CreateIssue(context.Background(), issue)
+
+	// Call the handler directly: withIssue needs the real DB to load the issue.
+	oldDB := DB
+	defer func() { DB = oldDB }()
+	closedDB, _ := sql.Open("sqlite3", testDBPath)
+	closedDB.Close()
+
+	rr := httptest.NewRecorder()
+	body, _ := json.Marshal([]PositionUpdate{{ID: 1, Position: 0}})
+	req := httptest.NewRequest("PUT", taskPositionsPath(issue.ID), bytes.NewBuffer(body))
+	DB = closedDB
+	handlePutTaskPositions(rr, req, 1, issue.ID, issue)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestHandleUpdateUserDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	hash, _ := HashPassword("oldpass")
+	user := &User{Email: "t@t.com", FirstName: "Old", LastName: "Name", PasswordHash: hash, Active: true, Role: RoleUser}
+	if err := CreateUser(ctx, user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	// Any write to users fails with an error other than a UNIQUE violation → 500, not 409.
+	if _, err := DB.ExecContext(ctx, "CREATE TRIGGER fail_user_update BEFORE UPDATE ON users BEGIN SELECT RAISE(ABORT, 'forced failure'); END"); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+
+	// Name-only change: needs no admin password, so the request reaches UpdateUser.
+	body, _ := json.Marshal(map[string]any{
+		"email":      user.Email,
+		"first_name": "New",
+		"last_name":  "Name",
+		"role":       "user",
+		"active":     true,
+	})
+	req := httptest.NewRequest("PUT", apiUsersBase+strconv.Itoa(user.ID), bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected 500, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHandlePutTaskPositions(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	issue := &Issue{Title: "Parent", Status: StatusOpen, ProjectID: 1}
+	otherIssue := &Issue{Title: "Other", Status: StatusOpen, ProjectID: 1}
+	for _, i := range []*Issue{issue, otherIssue} {
+		if err := CreateIssue(ctx, i); err != nil {
+			t.Fatalf(failedToCreateIssueError, err)
+		}
+	}
+	t1 := &Task{Title: "T1", IssueID: issue.ID}
+	t2 := &Task{Title: "T2", IssueID: issue.ID}
+	foreign := &Task{Title: "Foreign", IssueID: otherIssue.ID}
+	for _, task := range []*Task{t1, t2, foreign} {
+		if err := CreateTask(ctx, task); err != nil {
+			t.Fatalf("CreateTask: %v", err)
+		}
+	}
+	path := taskPositionsPath(issue.ID)
+
+	t.Run("success", func(t *testing.T) {
+		rr := putPositions(path, []PositionUpdate{{ID: t2.ID, Position: 0}, {ID: t1.ID, Position: 1}}, RoleUser)
+		if rr.Code != http.StatusNoContent {
+			t.Fatalf(wrongStatusCode, rr.Code, http.StatusNoContent)
+		}
+		tasks, _ := GetTasksByIssueID(ctx, issue.ID)
+		if len(tasks) != 2 || tasks[0].ID != t2.ID || tasks[1].ID != t1.ID {
+			t.Errorf("unexpected task order after reorder: %+v", tasks)
+		}
+		if h, _ := GetHistoryByIssueID(ctx, issue.ID); len(h) != 0 {
+			t.Errorf("expected no history entries, got %d", len(h))
+		}
+	})
+
+	t.Run("task of another issue rolls back", func(t *testing.T) {
+		rr := putPositions(path, []PositionUpdate{{ID: t1.ID, Position: 7}, {ID: foreign.ID, Position: 0}}, RoleUser)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf(wrongStatusCode, rr.Code, http.StatusNotFound)
+		}
+		tasks, _ := GetTasksByIssueID(ctx, issue.ID)
+		for _, task := range tasks {
+			if task.Position == 7 {
+				t.Error("valid task position was saved; the whole request must be rolled back")
+			}
+		}
+	})
+
+	t.Run("archived parent", func(t *testing.T) {
+		archived := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
+		CreateIssue(ctx, archived)
+		task := &Task{Title: "T", IssueID: archived.ID}
+		CreateTask(ctx, task)
+		rr := putPositions(taskPositionsPath(archived.ID), []PositionUpdate{{ID: task.ID, Position: 0}}, RoleUser)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
+		}
+	})
+
+	t.Run("unknown parent issue", func(t *testing.T) {
+		rr := putPositions(taskPositionsPath(99999), []PositionUpdate{{ID: t1.ID, Position: 0}}, RoleUser)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+		}
+	})
+}

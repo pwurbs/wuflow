@@ -36,6 +36,8 @@ import {
   deleteComment,
   NetworkError,
   updateTask,
+  updateIssuePositions,
+  updateTaskPositions,
   setSessionExpiredHandler,
   setConnectionListener,
   hasValidSession,
@@ -382,6 +384,39 @@ describe('api', () => {
     it('throws on failure', async () => {
       fetch.mockResolvedValue(makeResponse(403, 'Forbidden'));
       await expect(archiveIssue(1, 1)).rejects.toThrow('Forbidden');
+    });
+  });
+
+  describe('updateIssuePositions', () => {
+    it('sends all positions in one PUT to the positions endpoint', async () => {
+      fetch.mockResolvedValue(new Response(null, { status: 204 }));
+      const positions = [{ id: 3, position: 0 }, { id: 1, position: 1 }];
+      await expect(updateIssuePositions(1, positions)).resolves.toBeUndefined();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch.mock.calls[0][0]).toBe('/api/projects/1/issues/positions');
+      expect(fetch.mock.calls[0][1].method).toBe('PUT');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(positions);
+    });
+
+    it('throws the server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(404, 'Issue not found'));
+      await expect(updateIssuePositions(1, [{ id: 9, position: 0 }])).rejects.toThrow('Issue not found');
+    });
+  });
+
+  describe('updateTaskPositions', () => {
+    it('sends all task positions in one PUT to the task positions endpoint', async () => {
+      fetch.mockResolvedValue(new Response(null, { status: 204 }));
+      const positions = [{ id: 102, position: 0 }, { id: 101, position: 1 }];
+      await expect(updateTaskPositions(1, 2, positions)).resolves.toBeUndefined();
+      expect(fetch.mock.calls[0][0]).toBe('/api/projects/1/issues/2/tasks/positions');
+      expect(fetch.mock.calls[0][1].method).toBe('PUT');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(positions);
+    });
+
+    it('throws the server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(403, 'Tasks of archived issues are read-only'));
+      await expect(updateTaskPositions(1, 2, [{ id: 3, position: 0 }])).rejects.toThrow('Tasks of archived issues are read-only');
     });
   });
 

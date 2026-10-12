@@ -642,6 +642,9 @@ func TestHandleRefreshRateLimit(t *testing.T) {
 	if rr.Code != http.StatusTooManyRequests {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusTooManyRequests)
 	}
+	if got := strings.TrimSpace(rr.Body.String()); got != errMsgTooManyRequests {
+		t.Errorf("expected body %q, got %q", errMsgTooManyRequests, got)
+	}
 }
 
 func TestHandleRefreshNoCookie(t *testing.T) {

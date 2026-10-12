@@ -33,6 +33,7 @@
 | **Release Name** | 20 chars | UI space constraint (release cards, headers). |
 | **Release Description** | 200 chars | Brief summary shown in the release modal. |
 | **Comment** | 1000 chars | Keeps the activity feed scannable; a comment is a quick note, not a description. |
+| **Reorder Request** | 500 entries, unique ids | Must cover the longest list a user reorders (one backlog list or board column); lists of several hundred cards are already impractical to drag. |
 | **Request Body** | 32 KB | Hard limit on all incoming requests to prevent memory exhaustion attacks. |
 
 ## Markdown Field Sanitization

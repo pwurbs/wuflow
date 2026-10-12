@@ -1,6 +1,6 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
-import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTask, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
 import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, singleFlight } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
@@ -1328,22 +1328,28 @@ async function handleTaskSubmit(e) {
 async function saveTaskOrder(issue) {
   if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
   const taskItems = [...document.querySelectorAll('#task-list .task-item')];
-  const updates = [];
+  const positions = [];
+  const previous = [];
   taskItems.forEach((item, index) => {
     const id = Number.parseInt(item.dataset.id);
     const task = issue.tasks.find(t => t.id === id);
     if (task && task.position !== index) {
+      previous.push({ task, position: task.position });
       task.position = index;
-      updates.push(updateTask(issue.project_id, issue.id, task));
+      positions.push({ id, position: index });
     }
   });
 
-  if (updates.length > 0) {
+  if (positions.length > 0) {
     try {
-      await Promise.all(updates);
+      await updateTaskPositions(issue.project_id, issue.id, positions);
       issue.tasks.sort((a, b) => a.position - b.position);
     } catch (err) {
       showNotification(err.message, 'error');
+      // The server saved none of the positions (all-or-nothing), so put the tasks back
+      // in their old order; otherwise the unsaved order would look saved.
+      previous.forEach(({ task, position }) => { task.position = position; });
+      renderTasks(issue.tasks, document.getElementById('task-list'), issue, taskCallbacks(issue));
     }
   }
 }

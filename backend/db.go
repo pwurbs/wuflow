@@ -568,6 +568,64 @@ func UpdateIssuePosition(ctx context.Context, id, position int) error {
 	return checkRowsAffected(res, "UpdateIssuePosition", ErrIssueNotFound)
 }
 
+// UpdateIssuePositions applies a whole reorder in one transaction: either all
+// positions are saved or none. Like UpdateIssuePosition it leaves updated_at and
+// updated_by untouched. Every issue must belong to the project and must not be
+// archived; otherwise the transaction is rolled back and ErrIssueNotFound returned.
+func UpdateIssuePositions(ctx context.Context, projectID int, updates []PositionUpdate) error {
+	return applyPositionUpdates(ctx, "UpdateIssuePositions",
+		"UPDATE issues SET position = ? WHERE id = ? AND project_id = ? AND status != ?",
+		updates, ErrIssueNotFound, projectID, StatusArchive)
+}
+
+// UpdateTaskPositions applies a task reorder in one transaction. Every task must
+// belong to the given issue; otherwise the transaction is rolled back and
+// ErrTaskNotFound returned. updated_at is left untouched, as for issue positions.
+func UpdateTaskPositions(ctx context.Context, issueID int, updates []PositionUpdate) error {
+	return applyPositionUpdates(ctx, "UpdateTaskPositions",
+		"UPDATE tasks SET position = ? WHERE id = ? AND issue_id = ?",
+		updates, ErrTaskNotFound, issueID)
+}
+
+// applyPositionUpdates runs query once per update inside a single transaction.
+// query takes (position, id, scopeArgs...). A statement that matches no row
+// rolls back the whole transaction and returns notFoundErr.
+func applyPositionUpdates(ctx context.Context, caller, query string, updates []PositionUpdate, notFoundErr error, scopeArgs ...any) error {
+	tx, err := DB.BeginTx(ctx, nil)
+	if err != nil {
+		LogError(dbErrPrefix+caller+" BeginTx", "error", err)
+		return err
+	}
+	// Undoes all writes if the function returns before Commit, e.g. on an error.
+	// After a successful Commit there is nothing left to undo, so this changes nothing.
+	defer func() { _ = tx.Rollback() }()
+
+	stmt, err := tx.PrepareContext(ctx, query)
+	if err != nil {
+		LogError(dbErrPrefix+caller+" Prepare", "error", err)
+		return err
+	}
+	defer func() { _ = stmt.Close() }()
+
+	for _, u := range updates {
+		args := append([]any{u.Position, u.ID}, scopeArgs...)
+		res, err := stmt.ExecContext(ctx, args...)
+		if err != nil {
+			LogError(dbErrPrefix+caller, "id", u.ID, "error", err)
+			return err
+		}
+		if err := checkRowsAffected(res, caller, notFoundErr); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		LogError(dbErrPrefix+caller+" Commit", "error", err)
+		return err
+	}
+	return nil
+}
+
 // DeleteIssue removes an issue from the database by its ID.
 func DeleteIssue(ctx context.Context, id int) error {
 	res, err := DB.ExecContext(ctx, "DELETE FROM issues WHERE id = ?", id)

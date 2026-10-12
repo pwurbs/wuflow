@@ -202,7 +202,7 @@ When the session ends while the app is open (24 h idle timeout, session revocati
 - **Check on return**: When the tab becomes visible or the window gets focus, and on the first interaction after 10 minutes of inactivity, the app checks the session (at most once per minute). An expired session therefore shows the dialog before the user starts typing. There is no background keep-alive, so the 24 h idle timeout stays effective.
 - **Login in another tab**: An open dialog closes by itself once the session is valid again.
 - **Page loads**: An expired session at page load still redirects to the login page.
-- **Network errors are not logouts**: If the server cannot be reached (offline, timeout after 20 s, gateway error 502/503/504), the change is not saved and the app shows an error and a connection banner instead of logging out. Text being edited stays in its field; moved cards and changed fields return to their saved state. Read requests are retried once; changes are never resent automatically.
+- **Network errors are not logouts**: If the server cannot be reached (offline, timeout after 20 s, gateway error 502/503/504), the change is not saved and the app shows an error and a connection banner instead of logging out. Text being edited stays in its field; moved or reordered cards and tasks and changed fields return to their saved state. Read requests are retried once; changes are never resent automatically.
 
 ### Custom Secret Key
 

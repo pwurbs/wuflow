@@ -3,6 +3,10 @@
 
 - Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
 - Changing a user's email now requires the admin password and signs the user out of all active sessions (max 15 minutes)
+- Reordering issues and tasks now saves the whole new order in one request instead of one request per moved item, so quick reorders no longer hit the API rate limit or leave the order half-saved, and they no longer overwrite other users' recent edits to the moved issues
+- Card and task moves that fail to save, e.g. while offline, now always return to their old place: reorders on the Board, Backlog and Archive, Move to top/bottom, task reorders, and drops on a Backlog or Archive section including archiving by drag 
+- Fix: Moving a card in the Backlog view by dropping it on the "Board (Todo)" or "Backlog (Open)" title no longer removes its planned dates
+- Fix: The API and session refresh rate limits now answer with "Too many requests" instead of the misleading "Too many login attempts"
 
 # 1.4.2
 
