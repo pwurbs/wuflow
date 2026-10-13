@@ -486,7 +486,7 @@ func TestIsPublicAsset(t *testing.T) {
 		path     string
 		expected bool
 	}{
-		{"/logo.png", true},
+		{"/logo-small.png", true},
 		{"/favicon.ico", true},
 		{"/favicon-16x16.png", true},
 		{"/favicon-32x32.png", true},

@@ -351,7 +351,7 @@ func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 // isPublicAsset returns true if the path is explicitly allowed without authentication.
 func isPublicAsset(path string) bool {
 	publicAssets := map[string]bool{
-		"/logo.png":                       true,
+		"/logo-small.png":                 true,
 		"/favicon.ico":                    true,
 		"/favicon-16x16.png":              true,
 		"/favicon-32x32.png":              true,

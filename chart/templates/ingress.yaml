@@ -1,9 +1,18 @@
+{{- include "wuflow.validateIngress" . }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
-  {{- with .Values.ingress.annotations }}
+  {{- $annotations := deepCopy (.Values.ingress.annotations | default dict) }}
+  {{- if .Values.ingress.compress }}
+  {{- /* Append the compress middleware to middlewares the deployer may already have set. */}}
+  {{- $key := "traefik.ingress.kubernetes.io/router.middlewares" }}
+  {{- $middleware := printf "%s-%s-compress@kubernetescrd" .Release.Namespace .Release.Name }}
+  {{- $existing := get $annotations $key }}
+  {{- $_ := set $annotations $key (ternary (printf "%s,%s" $existing $middleware) $middleware (ne $existing "")) }}
+  {{- end }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

@@ -17,6 +17,13 @@
 {{- end }}
 {{- end }}
 
+{{- /* ingress.compress renders a Traefik Middleware, which only exists with Traefik. */}}
+{{- define "wuflow.validateIngress" -}}
+{{- if and .Values.ingress.compress (ne .Values.ingress.className "traefik") }}
+{{- fail (printf "ingress.compress requires ingress.className \"traefik\" (got %q). With other ingress controllers, enable compression in the controller itself, see the chart README." .Values.ingress.className) }}
+{{- end }}
+{{- end }}
+
 {{- define "wuflow.labels" -}}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/instance: {{ .Release.Name }}

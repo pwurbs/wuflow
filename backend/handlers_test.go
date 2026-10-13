@@ -1504,6 +1504,19 @@ func TestCheckIfMatchConflict(t *testing.T) {
 	if rr.Code != http.StatusConflict {
 		t.Errorf("Expected 409 Conflict, got %d", rr.Code)
 	}
+
+	// 3. No Conflict (Match with weak ETag): a compressing reverse proxy (e.g. Traefik's
+	// compress middleware) turns the ETag into W/"..." and the client sends that back.
+	rr = httptest.NewRecorder()
+	if checkIfMatchConflict(rr, issue, "W/"+originalEtag) {
+		t.Error("Expected no conflict for weak ETag of the current version, got true")
+	}
+
+	// 4. Conflict (Mismatch with weak ETag)
+	rr = httptest.NewRecorder()
+	if !checkIfMatchConflict(rr, issue, `W/"old-etag"`) {
+		t.Error("Expected conflict for stale weak ETag, got false")
+	}
 }
 
 func TestHandlePutIssueReadOnlyArchived(t *testing.T) {

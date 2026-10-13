@@ -4,6 +4,8 @@ Helm chart for deploying [wuFlow](https://github.com/pwurbs/wuflow), a lightweig
 
 This chart aims to provide a secure and simple deployment of wuFlow, keeping the values you need to set to a minimum.
 
+The chart is oriented towards **Traefik** as ingress controller (the default of k3s): the defaults of `ingress.className` and `ingress.annotations` and the option `ingress.compress` are Traefik-specific. With another ingress controller, set `ingress.className`, replace `ingress.annotations` with your controller's equivalents, and enable compression in the controller itself (e.g. `use-gzip` in the ingress-nginx ConfigMap).
+
 The chart runs under the Kubernetes [Restricted Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted) out of the box. The wuFlow image is built to run as a non-root user, so no workarounds are needed.
 
 ## Installation
@@ -31,6 +33,7 @@ Most important values in [`values.yaml`](values.yaml):
 | `storage.data.size` | Size of the data volume. Review before going to production; the default `local-path` StorageClass doesn't support resizing an existing PVC. |
 | `wuflow.initialAdminEmail` | Login of the initial admin account, only used at the very first start. Default `admin@local`. |
 | `secrets.existingSecret` | Name of an already existing Secret in the cluster, see [Secrets](#secrets) below. If empty, the chart creates the Secret itself. |
+| `ingress.compress` | `true` creates a Traefik `compress` Middleware and attaches it to the ingress router, so responses are sent compressed. wuFlow itself doesn't compress, and this makes it considerably faster on slow connections. Requires `ingress.className: traefik` (helm fails otherwise) and Traefik's Kubernetes CRDs (`traefik.io/v1alpha1`, included with k3s and the Traefik Helm chart). Middlewares already set via the `traefik.ingress.kubernetes.io/router.middlewares` annotation are kept. Default `false`; not needed behind a CDN that compresses. |
 
 All other values (log level, cookie and rate limit settings, client IP header, ingress class and TLS, resource requests/limits, image tag, ...) have workable defaults. See [`values.yaml`](values.yaml) for the full list and further explanations.
 

@@ -398,8 +398,8 @@ test.describe('Authentication Security', () => {
     expect(appJsRedirect.status()).toBe(302);
     expect(appJsRedirect.headers()['location']).toContain('/login');
 
-    // 6. Public Asset (/logo.png) -> Should be accessible (200 OK)
-    const logoResponse = await request.get('/logo.png');
+    // 6. Public Asset (/logo-small.png) -> Should be accessible (200 OK)
+    const logoResponse = await request.get('/logo-small.png');
     expect(logoResponse.status()).toBe(200);
   });
 

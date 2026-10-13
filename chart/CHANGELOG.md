@@ -1,6 +1,7 @@
 
 # 1.4.3
 - Added optional value `hostUsers` (default `true`); set to `false` to run the pod in its own Linux user namespace
+- Added optional value `ingress.compress` (default `false`); set to `true` to compress responses via a Traefik `compress` Middleware attached to the ingress
 
 # 1.4.2
 - **Breaking:** Removed values `secrets.initialAdminPassword` and `secrets.secretKey`

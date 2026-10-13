@@ -16,6 +16,7 @@ vi.mock('../state.js', () => ({
 
 vi.mock('../api.js', () => ({
   updateIssue: vi.fn().mockResolvedValue({}),
+  updateIssuePositions: vi.fn().mockResolvedValue(),
   archiveIssue: vi.fn().mockResolvedValue({}),
   fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
   fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
@@ -166,6 +167,42 @@ describe('Archive Component', () => {
 
       expect(api.archiveIssue).not.toHaveBeenCalled();
       expect(state.state.issues[0].status).toBe('Done');
+    });
+
+    it('should save a reorder within Done as one positions request and re-render the archive', async () => {
+      setupArchiveView(vi.fn(), vi.fn());
+
+      const doneList = document.getElementById('archive-done-list');
+      state.state.issues = [
+        { id: 1, title: 'Item 1', status: 'Done', position: 0 },
+        { id: 2, title: 'Item 2', status: 'Done', position: 1 }
+      ];
+      const card1 = document.createElement('div');
+      card1.className = 'card';
+      card1.dataset.id = '1';
+      const card2 = document.createElement('div');
+      card2.className = 'card';
+      card2.dataset.id = '2';
+      doneList.appendChild(card2); // Item 2 dragged above Item 1
+      doneList.appendChild(card1);
+
+      const dragModule = await import('../drag.js');
+      dragModule.getDraggedCard.mockReturnValue(card2);
+
+      Object.defineProperty(doneList, 'offsetParent', {
+        get() { return document.body; }
+      });
+      doneList.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      // renderArchive replaces the dropped cards with freshly created ones
+      await vi.waitFor(() => expect(mockCreateCardElement).toHaveBeenCalledTimes(2));
+      expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+        { id: 2, position: 0 }, { id: 1, position: 1 }
+      ]);
+      expect(api.updateIssue).not.toHaveBeenCalled();
+      expect(api.archiveIssue).not.toHaveBeenCalled();
+      expect([...doneList.children].map(c => c.dataset.id)).toEqual(['2', '1']);
     });
 
     // Last in this block: archive.js keeps the re-render callback in module state, and the

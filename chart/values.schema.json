@@ -131,6 +131,11 @@
               "description": "TLS secret name. Leave empty to use the ingress controller's default certificate."
             }
           }
+        },
+        "compress": {
+          "type": "boolean",
+          "default": false,
+          "description": "Create a Traefik compress Middleware and attach it to the ingress router, so responses are sent compressed. Requires ingress.className \"traefik\" (helm fails otherwise) and Traefik's Kubernetes CRDs (traefik.io/v1alpha1)."
         }
       }
     },

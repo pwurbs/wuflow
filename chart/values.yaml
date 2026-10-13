@@ -36,6 +36,12 @@ ingress:
   tls:
     enabled: true
     secretName: ""  # empty = Traefik default cert; set for cert-manager
+  # true creates a Traefik "compress" Middleware and attaches it to the ingress router, so
+  # responses are sent compressed. Makes the app considerably
+  # faster on slow connections. Requires Traefik's Kubernetes CRDs (traefik.io/v1alpha1, as
+  # installed by k3s and the Traefik Helm chart) and className "traefik"; helm fails otherwise.
+  # Not needed behind a CDN that compresses.
+  compress: false
 
 storage:
   storageClass: local-path   # set to your cluster's storage class (e.g. standard, longhorn)
