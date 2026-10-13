@@ -1,5 +1,6 @@
 
 # 1.4.3
+- The container's root filesystem is now read-only
 - Added optional value `hostUsers` (default `true`); set to `false` to run the pod in its own Linux user namespace
 - Added optional value `ingress.compress` (default `false`); set to `true` to compress responses via a Traefik `compress` Middleware attached to the ingress
 

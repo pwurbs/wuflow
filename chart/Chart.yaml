@@ -32,6 +32,8 @@ annotations:
       description: Optional value hostUsers (default true); set to false to run the pod in its own Linux user namespace
     - kind: added
       description: Optional value ingress.compress (default false); set to true to compress responses via a Traefik compress Middleware
+    - kind: changed
+      description: The container's root filesystem is now read-only; /tmp is a 64Mi emptyDir for SQLite temp files
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/links: |
     - name: Documentation

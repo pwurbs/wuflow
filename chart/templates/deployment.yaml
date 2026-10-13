@@ -37,7 +37,7 @@ spec:
             capabilities:
               drop: ["ALL"]
             privileged: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
           resources: {{- toYaml .Values.resources | nindent 12 }}
           env:
             - name: WF_PORT
@@ -88,10 +88,16 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            # Writable /tmp for SQLite temp files
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
 ---
 apiVersion: v1
 kind: Service
