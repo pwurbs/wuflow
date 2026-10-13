@@ -2,7 +2,7 @@
 // state.issues holds the active issues; the open and archived lists are only needed by the
 // Backlog, Archive and Releases views, so they are loaded on demand and merged into it. A list
 // is fetched at most once per load; concurrent requests for it join the one in flight.
-// Kept separate from state.js, which stays free of API calls. See docs/lazy-loading.md.
+// Kept separate from state.js, which stays free of API calls. See docs/frontend.md (Data Loading).
 import { fetchActiveIssuesByProject, fetchOpenIssuesByProject, fetchArchivedIssuesByProject } from './api.js';
 import { state, setIssues } from './state.js';
 

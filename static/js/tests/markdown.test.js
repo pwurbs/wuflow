@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { marked } from '../vendor/marked.esm.js';
-import DOMPurify from '../vendor/dompurify.esm.js';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
-// Mock the vendor ESM modules so tests don't depend on the actual libraries
-vi.mock('../vendor/marked.esm.js', () => ({
+// Mock the marked and DOMPurify packages so tests don't depend on the actual libraries
+vi.mock('marked', () => ({
   marked: {
     use: vi.fn(),
     parse: vi.fn((md) => `<p>${md}</p>`),
   },
 }));
 
-vi.mock('../vendor/dompurify.esm.js', () => ({
+vi.mock('dompurify', () => ({
   default: {
     sanitize: vi.fn((html, _config) => html),
     addHook: vi.fn(),

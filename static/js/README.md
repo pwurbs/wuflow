@@ -13,6 +13,14 @@ cd static/js
 npm install
 ```
 
+### Building the Frontend
+
+The Go binary embeds the Vite production build (`vite.config.js`, see [docs/frontend.md](../../docs/frontend.md#build)), not the source files. Build it before `go run` and after every change in `static/`:
+```bash
+npm run build
+```
+The output goes to `static/dist/app` (not committed). The "Run locally" task, the Playwright global setup, the Dockerfile and `scripts/run_wapiti_scan.sh` run this build themselves.
+
 ### Running Tests
 
 Run all unit tests:
@@ -27,14 +35,7 @@ npm run test:coverage
 
 ### Project Structure
 
-- **`components/`**: UI components (Board, Backlog, etc.)
-- **`tests/`**: Unit test files (collocated with logic where possible, or in this folder)
-- **`filters.js`**: Pure functions for filtering and sorting issues (extracted for testability)
-- **`state.js`**: Core client-side state management
-- **`issue-lists.js`**: Shared cache that loads the open/archived issue lists on demand and merges them into the issue state (see [docs/lazy-loading.md](../../docs/lazy-loading.md))
-- **`utils.js`**: Helper functions (HTML escaping, debouncing, etc.)
-- **`api.js`**: Backend API interaction
-- **`session.js`**: Re-login dialog, session check on return to the tab, connection banner
+The modules are described in [docs/frontend.md](../../docs/frontend.md#module-structure).
 
 ### Testing Strategy
 

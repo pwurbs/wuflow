@@ -2,8 +2,8 @@ apiVersion: v2
 name: wuflow
 description: wuFlow is a modern and lightweight issue tracking and planning application.
 type: application
-version: 1.4.3-pre1
-appVersion: "1.4.3-pre1"
+version: 1.4.3-pre2
+appVersion: "1.4.3-pre2"
 icon: https://raw.githubusercontent.com/pwurbs/wuflow/main/static/logo.png
 home: https://github.com/pwurbs/wuflow
 sources:
@@ -23,6 +23,11 @@ keywords:
 annotations:
   artifacthub.io/category: skip-prediction
   artifacthub.io/changes: |
+    - kind: changed
+      description: wuFlow 1.4.3
+      links:
+        - name: Release notes
+          url: https://github.com/pwurbs/wuflow/releases/tag/v1.4.3
     - kind: added
       description: Optional value hostUsers (default true); set to false to run the pod in its own Linux user namespace
     - kind: added
@@ -35,7 +40,7 @@ annotations:
       url: https://github.com/pwurbs/wuflow/issues
   artifacthub.io/images: |
     - name: wuflow
-      image: ghcr.io/pwurbs/wuflow:1.4.3-pre1
+      image: ghcr.io/pwurbs/wuflow:1.4.3-pre2
   artifacthub.io/screenshots: |
     - title: Board
       url: https://raw.githubusercontent.com/pwurbs/wuflow/main/docs/screenshots/board.png

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # A script to check for updates for all dependencies in the repository.
-# This script covers Go modules, NPM packages (in multiple subdirectories), 
-# and Docker base images.
+# This script covers Go modules, NPM packages (in multiple subdirectories),
+# Docker base images and the Wapiti vulnerability scanner.
 
 # Exit on unexpected errors
 set -e
@@ -192,6 +192,76 @@ else
     echo -e "${YELLOW}--> Skipping Go (no go.mod found)${NC}"
 fi
 
+
+# 3. Docker Base Images
+echo -e "\n${BLUE}=====================================================${NC}"
+echo -e "${BLUE}              Checking Docker Base Images            ${NC}"
+echo -e "${BLUE}      (newest tag within the same major version)     ${NC}"
+echo -e "${BLUE}=====================================================${NC}"
+
+# latest_docker_tag <repository> <tag> — prints the newest Docker Hub tag of the
+# same form as <tag> within the same major version, e.g. node 24.21.0-alpine3.24
+# → newest 24.x.y-alpineX.Y. The major version stays fixed because a major
+# upgrade (e.g. a new Node LTS line) is a deliberate decision, not a routine bump.
+# The tags are fetched sorted by last update, so the newest ones are on page 1.
+latest_docker_tag() {
+    local repo="$1" tag="$2" major rest pattern
+    major="${tag%%[!0-9]*}"
+    rest="${tag#"$major"}"
+    pattern="^${major}$(printf '%s' "$rest" | sed -E 's/[0-9]+/[0-9]+/g; s/\./\\./g')\$"
+    curl -s "https://hub.docker.com/v2/repositories/${repo}/tags?page_size=100&ordering=last_updated&name=${major}." \
+        | grep -o '"name":"[^"]*"' | sed 's/"name":"//; s/"$//' \
+        | grep -E "$pattern" | sort -V | tail -1
+    return 0
+}
+
+if [[ -f Dockerfile ]]; then
+    # Image of every FROM line, without --platform options and the docker.io/ prefix
+    IMAGES=$(grep -E '^FROM ' Dockerfile | awk '{for (i = 2; i <= NF; i++) if ($i !~ /^--/) { print $i; break }}' | sed 's|^docker\.io/||')
+    set +e
+    for image in $IMAGES; do
+        repo="${image%%:*}"
+        tag="${image#*:}"
+        # Official images live in the "library" namespace of the Docker Hub API
+        [[ "$repo" == */* ]] || repo="library/$repo"
+        LATEST_TAG=$(latest_docker_tag "$repo" "$tag")
+        if [[ -z "$LATEST_TAG" ]]; then
+            echo -e "${YELLOW}${image}: could not fetch the tags from Docker Hub.${NC}"
+        elif [[ "$LATEST_TAG" == "$tag" ]]; then
+            echo -e "${GREEN}${image} is up to date.${NC}"
+        else
+            echo -e "${RED}${image} is outdated! Latest is ${LATEST_TAG}. Update the Dockerfile.${NC}"
+        fi
+    done
+    set -e
+else
+    echo -e "${YELLOW}--> Skipping Docker base images (no Dockerfile found)${NC}"
+fi
+
+
+# 4. Wapiti (vulnerability scanner used by scripts/run_wapiti_scan.sh)
+echo -e "\n${BLUE}=====================================================${NC}"
+echo -e "${BLUE}                  Checking Wapiti                    ${NC}"
+echo -e "${BLUE}=====================================================${NC}"
+WAPITI_VENV="$HOME/python_wapiti_env"
+
+if [[ -x "$WAPITI_VENV/bin/pip" ]]; then
+    set +e
+    WAPITI_VERSION=$("$WAPITI_VENV/bin/pip" show wapiti3 2>/dev/null | awk '/^Version:/ {print $2}')
+    LATEST_WAPITI=$(curl -s "https://pypi.org/pypi/wapiti3/json" | grep -o -m1 '"version":"[^"]*"' | sed -E 's/"version":"([^"]+)"/\1/')
+    if [[ -z "$WAPITI_VERSION" ]]; then
+        echo -e "${RED}wapiti3 is not installed in $WAPITI_VENV.${NC}"
+    elif [[ -z "$LATEST_WAPITI" ]]; then
+        echo -e "${YELLOW}Wapiti $WAPITI_VERSION installed (could not fetch the latest release from PyPI).${NC}"
+    elif [[ "$WAPITI_VERSION" == "$LATEST_WAPITI" ]]; then
+        echo -e "${GREEN}Wapiti ($WAPITI_VERSION) is up to date.${NC}"
+    else
+        echo -e "${RED}Wapiti ($WAPITI_VERSION) is outdated! Latest is $LATEST_WAPITI. Update with: $WAPITI_VENV/bin/pip install --upgrade wapiti3${NC}"
+    fi
+    set -e
+else
+    echo -e "${YELLOW}--> Skipping Wapiti (no virtual environment at $WAPITI_VENV)${NC}"
+fi
 
 
 echo -e "\n${GREEN}======================================================${NC}"

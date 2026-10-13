@@ -4,8 +4,9 @@
 This project uses **Playwright** for automated UI/DOM regression testing.
 
 ### Prerequisites
-- Node.js installed
-- Docker/Podman/Container (for running the containerized app)
+- Node.js (version 24+)
+- Go (the tests start the app from source with `go run`)
+- The frontend dependencies installed once: `npm ci` in `static/js`
 
 ### Setup
 All commands in this section must be executed in the `playwright` directory.
@@ -20,35 +21,17 @@ All commands in this section must be executed in the `playwright` directory.
    ```
 
 ### Running Tests
-The tests run against a containerized instance of the application to ensure a clean state (ephemeral database).
+Run the tests in the `playwright` directory, or with the VS Code task **Run Playwright Tests**:
+```bash
+npm test
+```
 
-1. **Start the Container**:
-   ```bash
-   container run -d -p 8080:8080 --name wuflow-test wuflow
-   ```
+A run proceeds as follows:
+1. **Global setup** (`global-setup.ts`) builds the frontend (`npm run build` in `static/js`), because the Go binary embeds the build output. It also stops servers left over from an earlier run and deletes old test data.
+2. **Per worker** (`fixtures.ts`), Playwright starts its own app server with `go run .` on ports 8090–8094, each with a fresh SQLite database and a random admin password under `test-data/worker-<n>/`.
+3. **Global teardown** (`global-teardown.ts`) opens the HTML report (`playwright-report/index.html`) and lists every WARN/ERROR line of the backend logs (`test-data/worker-<n>/backend.log`).
 
-2. **Run the Tests**:
-   ```bash
-   npm test
-   ```
-
-3. **Cleanup**:
-   ```bash
-   container stop wuflow-test && container rm wuflow-test
-   ```
-
-4. **Open Test Report**:
-   ```bash
-   open playwright-report/index.html
-   ```
-
-### VS Code Tasks
-You can also use the defined VS Code tasks to run the full regression pipeline:
-- **Run Regression Tests**: Executes the full sequence (Start -> Test -> Stop -> Open Report).
-- **Start Test Container**: Starts the ephemeral DB container.
-- **Run E2E Tests**: Runs the Playwright tests.
-- **Stop Test Container**: Stops and removes the container.
-- **Open Test Report**: Opens the HTML report in your default browser.
+Set `SKIP_SETUP=1` to skip the cleanup of the global setup; the frontend build always runs.
 
 ---
 
@@ -56,21 +39,14 @@ You can also use the defined VS Code tasks to run the full regression pipeline:
 
 ### Philosophy
 - **Happy Path Testing**: Tests focus on essential user flows that cover core functionality
-- **Fresh Database**: Each test run starts with an empty database (ephemeral container)
+- **Fresh Database**: Each worker starts with an empty database of its own
 - **Complete User Flows**: Tests simulate real user journeys rather than isolated unit actions
 - **Cross-Browser**: Tests can run on Chromium, Firefox, and WebKit (Chromium only by default for speed)
 
-### Sequential Execution Mode
+### Parallel Execution
+Tests run fully parallel with 5 workers (`playwright.config.ts`). Each worker has its own server and database, so workers never see each other's data. Tests within a worker share that worker's database, so a test must not rely on data it did not create itself, e.g. use unique names (`Date.now()`) and scope selectors to its own items.
 
-> [!IMPORTANT]
-> Tests run in **sequential mode** (`workers: 1`) to avoid database state conflicts.
-
-Since all tests share the same database instance in the container, parallel test execution would cause issues:
-- Tests create data that persists across the test run
-- Multiple tests modifying data simultaneously leads to unpredictable state
-- Selectors may match elements from other tests' data
-
-To enable cross-browser testing, uncomment Firefox/WebKit in `playwright.config.ts`. For a completely fresh state, restart the container between test runs.
+To enable cross-browser testing, uncomment Firefox/WebKit in `playwright.config.ts`.
 
 ### Test Suites
 
@@ -113,9 +89,10 @@ Permission-gated behaviour belongs in `role_authorization.spec.ts` even when the
 playwright/
 ├── playwright.config.ts   # Playwright configuration
 ├── fixtures.ts            # Per-worker server + login fixtures
-├── global-setup.ts        # Builds the binary before the run
+├── global-setup.ts        # Builds the frontend, cleans up stale servers and test data
 ├── global-teardown.ts     # Opens the report, checks backend logs
 ├── *.spec.ts              # Test suites (see the table above)
 └── helpers/
+    ├── server-utils.ts    # Server start/stop helpers for the fixtures
     └── test-utils.ts      # Shared test utilities
 ```

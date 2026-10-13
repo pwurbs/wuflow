@@ -387,20 +387,30 @@ test.describe('Authentication Security', () => {
     const apiResponse = await request.get('/api/projects/1/issues/active');
     expect(apiResponse.status()).toBe(401);
 
-    // 5. Protected Static Asset (/js/app.js) -> Should Redirect to Login
-    //    (app.js is the main application logic, definitely protected)
-    //    Note: request.get follows redirects by default, so we check the final URL or status.
-    //    However, for static assets served via http.FileServer wrapped in middleware, 
-    //    the middleware returns 302. request.get will follow to /login page which returns 200.
-    //    So we should check if the final URL contains 'login' OR use maxRedirects: 0.
+    // 5. App page (/) -> Should Redirect to Login
+    //    request.get follows redirects by default, so use maxRedirects: 0 to see the 302.
+    const appRedirect = await request.get('/', { maxRedirects: 0 });
+    expect(appRedirect.status()).toBe(302);
+    expect(appRedirect.headers()['location']).toContain('/login');
 
-    const appJsRedirect = await request.get('/js/app.js', { maxRedirects: 0 });
-    expect(appJsRedirect.status()).toBe(302);
-    expect(appJsRedirect.headers()['location']).toContain('/login');
+    // 6. Built assets (/assets/*, content-hashed names) -> public and cached as immutable.
+    //    The login page needs them before a session exists, so take their URLs from it.
+    const loginPage = await request.get('/login');
+    expect(loginPage.status()).toBe(200);
+    const assetUrls = [...new Set((await loginPage.text()).match(/\/assets\/[^"]+/g) ?? [])];
+    expect(assetUrls.length, 'login page references its script, style and logo').toBeGreaterThanOrEqual(3);
+    for (const url of assetUrls) {
+      const assetResponse = await request.get(url, { maxRedirects: 0 });
+      expect(assetResponse.status(), url).toBe(200);
+      expect(assetResponse.headers()['cache-control'], url).toContain('immutable');
+    }
 
-    // 6. Public Asset (/logo-small.png) -> Should be accessible (200 OK)
-    const logoResponse = await request.get('/logo-small.png');
-    expect(logoResponse.status()).toBe(200);
+    // 7. HTML -> revalidated on every load; an unchanged page costs only a 304
+    expect(loginPage.headers()['cache-control']).toBe('no-cache');
+    const etag = loginPage.headers()['etag'];
+    expect(etag).toBeTruthy();
+    const revalidated = await request.get('/login', { headers: { 'If-None-Match': etag } });
+    expect(revalidated.status()).toBe(304);
   });
 
 });

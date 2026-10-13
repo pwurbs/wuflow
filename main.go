@@ -11,10 +11,12 @@ import (
 	"github.com/pwurbs/wuflow/backend"
 )
 
-// embeddedFiles holds the static files embedded into the binary.
+// embeddedFiles holds the Vite build of the frontend (static/dist/app).
+// The committed static/dist/README.md lets the pattern match before the first
+// build; "all:" also embeds files starting with "_" or ".".
 // don't remove the line below, it's used by go:embed to embed the static files during build
 //
-//go:embed static/index.html static/login.html static/logo-small.png static/favicon.ico static/favicon-16x16.png static/favicon-32x32.png static/styles static/js/*.js static/js/components static/js/vendor
+//go:embed all:static/dist
 var embeddedFiles embed.FS
 
 // Version is the current version of the application, set by ldflags or defaults to "dev"

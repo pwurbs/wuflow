@@ -16,10 +16,10 @@ This project incorporates the following open-source libraries:
 
 ### JavaScript Dependencies (Bundled)
 
-**DOMPurify (static/js/vendor/dompurify.esm.js)**
+**DOMPurify (npm package `dompurify`)**
 - **License**: Apache License 2.0 / Mozilla Public License 2.0
 - **Copyright**: (c) 2015 Mario Heiderich
 
-**marked (static/js/vendor/marked.esm.js)**
+**marked (npm package `marked`)**
 - **License**: MIT
 - **Copyright**: (c) 2011-2018 Christopher Jeffrey, (c) 2018-2022 marked contributors

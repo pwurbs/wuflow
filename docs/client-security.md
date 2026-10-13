@@ -74,10 +74,6 @@ Notable points:
 | `AuthMiddleware` | Validates JWT from cookie; returns 401 if missing or invalid |
 | `UserRateLimitMiddleware` | Throttles write requests (POST/PUT/DELETE) per user |
 
-### Directory Listing Protection
-
-The application uses a `neuteredFileSystem` wrapper for static assets. This prevents browsers from listing the contents of directories (e.g., `/js/`, `/styles/`) by returning a 404/403 error if an `index.html` file is not present in the requested path.
-
 ---
 
 ## Application-Level Security

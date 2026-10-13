@@ -47,6 +47,13 @@ if [[ -n "$STALE_PID" ]]; then
   sleep 1
 fi
 
+echo "[*] Building the frontend (embedded in the binary)..."
+(cd static/js && npm run build)
+if [[ $? -ne 0 ]]; then
+  echo "[!] Frontend build failed."
+  exit 1
+fi
+
 echo "[*] Building temporary binary..."
 go build -o "$TEMP_BIN" main.go
 if [[ $? -ne 0 ]]; then
@@ -128,11 +135,16 @@ echo "[*] Authenticated scan complete. Report: $REPORT_AUTH"
 
 # --- PHASE 2: Unauthenticated Scan (reuses discovered URLs, no credentials) ---
 echo "[*] Phase 2: Running Unauthenticated Wapiti scan (reusing crawl session)..."
+# --flush-attacks: the session also stores which pages Phase 1 attacked; without
+# it, every module skips them and the report only repeats the Phase 1 findings.
+# Wapiti drops the cookies stored with the crawled requests, so the attacks are
+# sent without the session cookie.
 wapiti -u "http://localhost:$APP_PORT/" \
   -m "$MODULES" \
   --swagger docs/swagger.json \
   -f html \
   -o "$REPORT_DIR" \
+  --flush-attacks \
   --color \
   -v 1
 

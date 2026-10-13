@@ -1,4 +1,21 @@
 
+#------- Frontend build stage ------------------------------------------------
+# Builds the frontend with Vite. The output is plain HTML/JS/CSS and does not
+# depend on the target architecture, so this stage runs on the build platform
+# only, even in multi-arch builds.
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24.21.0-alpine3.24 AS frontend
+
+WORKDIR /app/static/js
+
+# Install the exact versions from package-lock.json first (cached layer).
+# --ignore-scripts: no package install scripts are needed for the build.
+COPY static/js/package.json static/js/package-lock.json ./
+RUN npm ci --ignore-scripts
+
+COPY static /app/static
+RUN npm run build
+
+
 #------- Build stage ---------------------------------------------------------
 # Use Alpine-based Go image to match the runtime and ensure musl libc compatibility for CGO
 FROM docker.io/library/golang:1.27.2-alpine3.24 AS builder
@@ -18,10 +35,10 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy relevant source code
+# Copy relevant source code and the frontend build output
 COPY main.go ./
 COPY backend ./backend
-COPY static ./static
+COPY --from=frontend /app/static/dist ./static/dist
 
 # Build static binary for the target architecture
 # Enable CGO for sqlite3 support

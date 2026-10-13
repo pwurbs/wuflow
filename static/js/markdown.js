@@ -1,5 +1,10 @@
-import { marked } from './vendor/marked.esm.js';
-import DOMPurify from './vendor/dompurify.esm.js';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+// marked's own header is a plain comment that the minifier drops; this legal
+// comment (/*!) keeps its copyright notice in the bundle. DOMPurify's header is
+// already a legal comment.
+/*! marked - a markdown parser | Copyright (c) 2018-2026, MarkedJS. Copyright (c) 2011-2018, Christopher Jeffrey. (MIT License) | https://github.com/markedjs/marked */
 
 // gfm: GitHub Flavored Markdown (~~strikethrough~~, autolinks, etc.)
 // breaks: single newline → <br>, matching textarea UX

@@ -1,42 +1,36 @@
-# Test files and directories
+# Build context for the Dockerfile, as an allowlist: everything is excluded,
+# except what the Dockerfile copies. New files in the repo therefore never
+# reach the builder unless they are added here explicitly.
+#
+# Purposes:
+# - Keep local files (databases, secrets, .git, editor/agent folders) out of
+#   the build context, so a careless COPY can never put them into the image.
+#   The image itself only contains the binary.
+# - Keep the local static/js/node_modules (macOS binaries) out: the frontend
+#   stage installs its own Linux packages with npm ci, and COPY static would
+#   otherwise copy the local ones over them.
+# - Keep the build cache stable: changes to tests, coverage reports or docs
+#   don't invalidate the build layers.
+
+# Exclude everything, allow only what the Dockerfile copies
+*
+!go.mod
+!go.sum
+!main.go
+!backend/
+!static/
+
+# Exclude again inside the allowed folders (the last matching line wins, so
+# these override !backend/ and !static/): tests, generated reports, local
+# packages and build output, docs, the README-only logo
+**/*_test.go
+**/*.md
+**/node_modules/
+**/test-results/
+**/.DS_Store
+backend/testdata/
 static/js/tests/
 static/js/coverage/
-static/js/node_modules/
-
-# Go test files
-*_test.go
-
-# Development configuration files
-static/js/package.json
-static/js/package-lock.json
 static/js/vitest.config.js
-static/js/README.md
-
-# Playwright tests
-playwright/
-
-# Build output / Chart packages
-dist/
-
-# macOS metadata
-.DS_Store
-**/.DS_Store
-
-# Git
-.git/
-.gitignore
-
-# Documentation
-README.md
-DOCS.md
-*.md
-
-# VS Code
-.vscode/
-
-# Agent files
-.agent/
-.claude
-
-# local Trivy scan
-.trivy
+static/dist/
+static/logo.png

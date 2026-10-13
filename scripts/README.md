@@ -46,24 +46,26 @@ The script expects `container` and `trivy` to be installed and available in your
 
 ### `run_wapiti_scan.sh`
 A fully automated two-phase shell script that:
-1. Starts the wuFlow application on port 8088 using a temporary database.
+1. Builds the frontend and the binary, then starts the wuFlow application on port 8088 using a temporary database.
 2. Disables API rate limiting for the scan.
-3. Performs an **Unauthenticated Scan** (saved as `report-unauth.html`).
-4. Automatically authenticates and retrieves a JWT token.
-5. Performs an **Authenticated Scan** (saved as `report-auth.html`).
+3. Automatically authenticates and retrieves a JWT token.
+4. Performs an **Authenticated Scan**, which crawls and discovers all endpoints (saved as `report-auth.html`).
+5. Performs an **Unauthenticated Scan** that attacks the same discovered URLs without the session cookie (saved as `report-unauth.html`).
 6. Cleans up by stopping the server and removing the temporary database.
 
 **Usage:**
 ```bash
 ./scripts/run_wapiti_scan.sh
 ```
-The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory.
+The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory. `check_dependencies.sh` reports when a newer Wapiti release is available; update it with `~/python_wapiti_env/bin/pip install --upgrade wapiti3`.
 
 ### `check_dependencies.sh`
 A shell script to check for available updates across all dependencies in the repository. It checks:
-1. NPM dependencies in `static/js` and `playwright`.
+1. NPM dependencies in `static/js` (including the build tool Vite) and `playwright`.
 2. Go modules updates, the Go version used by the repo (including minor patch updates), and runs `govulncheck`.
 3. Whether the installed system Go and the Go used to build `gopls`, `gosec`, `govulncheck` and `golangci-lint` are older than the `go` directive in `go.mod`, and whether a newer `golangci-lint` release is available.
+4. Whether newer Docker base images are available for the `FROM` lines of the `Dockerfile` (newest tag of the same form within the same major version, via the Docker Hub API).
+5. Whether a newer Wapiti release is available on PyPI than the one in `~/python_wapiti_env` (see `run_wapiti_scan.sh`).
 
 Inside the repo `go version` reports the toolchain selected by `go.mod` (downloaded automatically), not the installed system Go — check 3 catches a system Go or tool build that was left behind after a Go version bump.
 
@@ -71,7 +73,7 @@ Inside the repo `go version` reports the toolchain selected by `go.mod` (downloa
 ```bash
 ./scripts/check_dependencies.sh
 ```
-The script expects `go` and `npm` to be available in your PATH.
+The script expects `go`, `npm` and `curl` to be available in your PATH.
 
 ### `new_version.sh`
 A shell script to automate the versioning process for wuFlow, its Home Assistant Add-on and the Helm chart. It prompts for the new version, updates the `VERSION` file, patches the Home Assistant `config.yaml`, and sets `version`, `appVersion` and the `artifacthub.io/images` image tag in `chart/Chart.yaml` to the new version.

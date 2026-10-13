@@ -481,29 +481,6 @@ func TestAPIMux(t *testing.T) {
 	}
 }
 
-func TestIsPublicAsset(t *testing.T) {
-	tests := []struct {
-		path     string
-		expected bool
-	}{
-		{"/logo-small.png", true},
-		{"/favicon.ico", true},
-		{"/favicon-16x16.png", true},
-		{"/favicon-32x32.png", true},
-		{"/js/login.js", true},
-		{"/styles/pages/login.css", true},
-		{"/js/app.js", false},
-		{"/styles/main.css", false},
-		{"/index.html", false},
-	}
-
-	for _, tt := range tests {
-		if got := isPublicAsset(tt.path); got != tt.expected {
-			t.Errorf("isPublicAsset(%q) = %v, want %v", tt.path, got, tt.expected)
-		}
-	}
-}
-
 func TestHandleLoginHTML(t *testing.T) {
 	// Create a dummy handler that checks the path
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -527,36 +504,24 @@ func TestHandleLoginHTML(t *testing.T) {
 func TestHandleStaticFiles(t *testing.T) {
 	InitSecretKey("testsecret")
 
-	t.Run("Public Asset", testPublicAsset)
-	t.Run("Private Asset No Auth", testPrivateAssetNoAuth)
+	t.Run("Asset Path No Auth", testAssetPathNoAuth)
 	t.Run("HTML No Auth", testHTMLNoAuth)
 	t.Run("HTML Valid Auth", testHTMLValidAuth)
 	t.Run("HTML Expired Access Valid Refresh", testHTMLExpiredAccessValidRefresh)
 }
 
-func testPublicAsset(t *testing.T) {
+// testAssetPathNoAuth: HandleStaticFiles has no public exceptions; the build
+// assets are public only through their own route (see TestStaticRoutes).
+func testAssetPathNoAuth(t *testing.T) {
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		t.Error("Next handler should not be called without auth")
 	})
 	handler := HandleStaticFiles(nextHandler)
-	req := httptest.NewRequest("GET", "/js/login.js", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Errorf("Expected 200 OK for public asset, got %d", rr.Code)
-	}
-}
-
-func testPrivateAssetNoAuth(t *testing.T) {
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("Next handler should not be called for private asset without auth")
-	})
-	handler := HandleStaticFiles(nextHandler)
-	req := httptest.NewRequest("GET", "/js/app.js", nil)
+	req := httptest.NewRequest("GET", "/assets/index-yqFe3kfx.js", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusFound {
-		t.Errorf("Expected 302 Redirect for private asset, got %d", rr.Code)
+		t.Errorf("Expected 302 Redirect without auth, got %d", rr.Code)
 	}
 }
 
@@ -823,6 +788,148 @@ func TestUserRateLimitMiddleware(t *testing.T) {
 			t.Errorf("disabled rate limit should pass through, got %d", rr.Code)
 		}
 	})
+}
+
+func TestComputeETags(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.html":         &fstest.MapFile{Data: []byte("main index")},
+		"login.html":         &fstest.MapFile{Data: []byte("login")},
+		"dir/index.html":     &fstest.MapFile{Data: []byte("dir index")},
+		"assets/app-AbC1.js": &fstest.MapFile{Data: []byte("main index")}, // same content as index.html
+	}
+	etags, err := computeETags(fsys)
+	if err != nil {
+		t.Fatalf("computeETags: %v", err)
+	}
+
+	for _, p := range []string{"/index.html", "/login.html", "/dir/index.html", "/assets/app-AbC1.js", "/", "/dir/"} {
+		etag, ok := etags[p]
+		if !ok {
+			t.Errorf("missing ETag for %q", p)
+			continue
+		}
+		if len(etag) != 34 || etag[0] != '"' || etag[33] != '"' {
+			t.Errorf("ETag for %q = %s, want a quoted 32-digit hex hash", p, etag)
+		}
+	}
+	if len(etags) != 6 {
+		t.Errorf("got %d ETags, want 6 (4 files + 2 directory paths)", len(etags))
+	}
+	if etags["/"] != etags["/index.html"] || etags["/dir/"] != etags["/dir/index.html"] {
+		t.Error("a directory path must have the ETag of its index.html")
+	}
+	if etags["/index.html"] == etags["/login.html"] {
+		t.Error("different content must give different ETags")
+	}
+	if etags["/index.html"] != etags["/assets/app-AbC1.js"] {
+		t.Error("equal content must give equal ETags")
+	}
+}
+
+// staticTestFS is a minimal build output: the two pages and one asset.
+func staticTestFS() fstest.MapFS {
+	return fstest.MapFS{
+		"index.html":         &fstest.MapFile{Data: []byte("APP PAGE")},
+		"login.html":         &fstest.MapFile{Data: []byte("LOGIN PAGE")},
+		"assets/app-AbC1.js": &fstest.MapFile{Data: []byte("console.log(1)")},
+	}
+}
+
+// TestStaticRoutes runs the static routes as wired up in StartServer: auth
+// gate, cache headers and conditional requests.
+func TestStaticRoutes(t *testing.T) {
+	InitSecretKey("testsecret")
+	fsys := staticTestFS()
+	mux := http.NewServeMux()
+	if err := registerStaticRoutes(mux, fsys); err != nil {
+		t.Fatalf("registerStaticRoutes: %v", err)
+	}
+	etags, err := computeETags(fsys)
+	if err != nil {
+		t.Fatalf("computeETags: %v", err)
+	}
+	token, _ := GenerateAccessToken(&User{ID: 1, Email: "test@example.com", Role: RoleAdmin, Active: true})
+
+	tests := []struct {
+		name        string
+		path        string
+		auth        bool
+		ifNoneMatch string
+		wantStatus  int
+		wantCache   string
+		wantETag    string // "" = no ETag expected
+	}{
+		{"asset is public and immutable", "/assets/app-AbC1.js", false, "", http.StatusOK, immutableCacheControl, etags["/assets/app-AbC1.js"]},
+		{"unchanged asset gives 304", "/assets/app-AbC1.js", false, etags["/assets/app-AbC1.js"], http.StatusNotModified, immutableCacheControl, etags["/assets/app-AbC1.js"]},
+		{"login page is public and revalidated", "/login", false, "", http.StatusOK, revalidateCacheControl, etags["/login.html"]},
+		{"weak If-None-Match from a compressing proxy gives 304", "/login", false, "W/" + etags["/login.html"], http.StatusNotModified, revalidateCacheControl, etags["/login.html"]},
+		{"app without session redirects, uncached", "/", false, "", http.StatusFound, "", ""},
+		{"app with session is revalidated", "/", true, "", http.StatusOK, revalidateCacheControl, etags["/index.html"]},
+		{"unchanged app gives 304", "/", true, etags["/index.html"], http.StatusNotModified, revalidateCacheControl, etags["/index.html"]},
+		{"changed app gives 200", "/", true, `"outdated"`, http.StatusOK, revalidateCacheControl, etags["/index.html"]},
+		{"missing asset is not cached", "/assets/missing.js", false, "", http.StatusNotFound, "", ""},
+		{"assets directory is not listed or cached", "/assets/", false, "", http.StatusNotFound, "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			if tt.ifNoneMatch != "" {
+				req.Header.Set("If-None-Match", tt.ifNoneMatch)
+			}
+			if tt.auth {
+				req.AddCookie(&http.Cookie{Name: cookieAccessToken, Value: token})
+			}
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			assertCacheResponse(t, rr, tt.wantStatus, tt.wantCache, tt.wantETag)
+		})
+	}
+}
+
+// TestStaticRoutesNoBypass: no form of a path below /assets/ may deliver the
+// app page without a session. The asset route is rooted at assets/, so
+// encoded ".." stays inside it (404); a literal ".." is redirected by the mux
+// to the cleaned path, which then goes through the login check.
+func TestStaticRoutesNoBypass(t *testing.T) {
+	InitSecretKey("testsecret")
+	mux := http.NewServeMux()
+	if err := registerStaticRoutes(mux, staticTestFS()); err != nil {
+		t.Fatalf("registerStaticRoutes: %v", err)
+	}
+
+	for _, p := range []string{
+		"/assets/../index.html",
+		"/assets/./../index.html",
+		"/assets//../index.html",
+		"/assets/%2e%2e/",
+		"/assets/%2e%2e/index.html",
+		"/assets/..%2findex.html",
+		"/assets/%2e%2e%2findex.html",
+		"/assets/%2e%2e/login.html",
+	} {
+		t.Run(p, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, httptest.NewRequest("GET", p, nil))
+			if rr.Code == http.StatusOK || strings.Contains(rr.Body.String(), "APP PAGE") {
+				t.Errorf("got %d with body %q, want no app page without a session", rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+// assertCacheResponse checks the status and the cache headers of a static file response.
+func assertCacheResponse(t *testing.T, rr *httptest.ResponseRecorder, wantStatus int, wantCache, wantETag string) {
+	t.Helper()
+	if rr.Code != wantStatus {
+		t.Errorf(expectedStatusMsg, wantStatus, rr.Code)
+	}
+	if got := rr.Header().Get("Cache-Control"); got != wantCache {
+		t.Errorf("Cache-Control = %q, want %q", got, wantCache)
+	}
+	if got := rr.Header().Get("ETag"); got != wantETag {
+		t.Errorf("ETag = %q, want %q", got, wantETag)
+	}
 }
 
 func TestNeuteredFileSystem(t *testing.T) {

@@ -13,7 +13,7 @@ test.describe('Landing Page', () => {
 
   test('logo and header are visible', async ({ page }) => {
     // Logo
-    const logo = page.locator('img[src*="logo-small.png"]');
+    const logo = page.locator('img.logo-img');
     await expect(logo).toBeVisible();
 
     // Header title

@@ -1,6 +1,10 @@
 
 # 1.4.3
 
+- Bumped marked to 18.1.1
+- Bumped dompurify to 3.4.17
+- Frontend is now bundled with Vite: much faster page loads, especially on slow connections
+- Building from source now requires Node.js; the Dockerfile builds the frontend in a new Node.js stage
 - Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
 - Helm chart: added optional value `ingress.compress` to send responses compressed via Traefik
 - Changing a user's email now requires the admin password and signs the user out of all active sessions (max 15 minutes)
@@ -8,7 +12,8 @@
 - Card and task moves that fail to save, e.g. while offline, now always return to their old place: reorders on the Board, Backlog and Archive, Move to top/bottom, task reorders, and drops on a Backlog or Archive section including archiving by drag 
 - Faster on slow connections: refreshing a view (e.g. after closing an issue) now sends all its requests at once, the Releases view reuses issues the Backlog or Archive already loaded, and System Settings loads its project and user lists at once
 - The app now uses a much smaller logo file
-- Docs: the reverse proxy section now recommends enabling HTTP/2 and compression on the reverse proxy, which makes the app considerably faster on slow connections
+- Docs: the reverse proxy section now recommends enabling compression on the reverse proxy, which makes the app considerably faster on slow connections
+- Docs: new Frontend doc page covering build, delivery and data loading, containing all frontend aspects
 - Fix: Changing several fields of an issue in quick succession, e.g. on a slow connection, no longer shows a false "modified by another user" conflict
 - Fix: A conflict dialog answered with "Reload" no longer reloads the issue twice when two conflicts occurred at the same time
 - Fix: Moving a card in the Backlog view by dropping it on the "Board (Todo)" or "Backlog (Open)" title no longer removes its planned dates

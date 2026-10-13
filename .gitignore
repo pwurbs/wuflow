@@ -10,8 +10,8 @@
 # Node modules
 node_modules
 
-# Build output / Chart packages
-dist
+# Frontend build output (static/dist/README.md is committed)
+/static/dist/app/
 
 # Playwright
 playwright/.playwright

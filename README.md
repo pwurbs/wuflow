@@ -79,7 +79,9 @@ The app is currently only tested to run in the Chrome browser.
 As a contrast to the other tools, the supply chain is radically minimal. The production runtime ships:
 - Go binary with embedded assets
 - A few Go packages
-- 2 vendored JS files: dompurify and marked — Rather than being reimplemented, these were deliberately vendored to leverage years of community scrutiny and proven security. They are bundled at build time, ensuring no external dependencies are loaded at runtime. 
+- 2 JS libraries: dompurify and marked — Rather than being reimplemented, these were deliberately chosen to leverage years of community scrutiny and proven security. Their exact versions are pinned in `package-lock.json`, and they are bundled into the frontend at build time, ensuring no external dependencies are loaded at runtime. 
+
+The frontend is bundled by Vite, the only build tool beyond Go; it runs at build time and is not part of the runtime.
 
 Maintaining such a minimal dependency count is remarkable for a full-stack application in 2026. While this lean approach is currently unconventional, I believe it could represent a trend enabled by AI-assisted development. By leveraging AI to build logic rather than importing heavy third-party libraries, this project explores a new development paradigm. This 'make-over-buy' strategy is a deliberate security choice, designed to eliminate the risks inherent in modern, over-bloated dependency trees. Supply chain attacks (Log4j, polyfill.io or the XZ Utils backdoors) or unintended security flaws (like React2Shell) have proven that every dependency is a potential liability. Let’s see how successful this strategy proves to be. 
 
@@ -133,12 +135,14 @@ helm install wuflow oci://ghcr.io/pwurbs/charts/wuflow --version <chart-version>
 
 See the [Helm chart documentation](chart/README.md) for configuration options, the dedicated-hostname requirement, and how the initial admin password is generated and retrieved.
 
+The chart's [Artifact Hub page](https://artifacthub.io/packages/helm/wuflow/wuflow) lists all versions with their changes, the default values and the values schema.
+
 ### Via Container (Docker)
 The recommended and easiest way to deploy wuFlow is using the pre-built container image. 
 This is a minimal command to start the app initially for testing purposes in foreground mode. You should adapt it to your needs.
 The version must be adapted to the latest release. There is no "latest" tag.
 
-**Currently, the public image is only built for linux/arm64**
+The image is built for linux/amd64 and linux/arm64.
 
 ```bash
 docker run -it \
@@ -147,17 +151,20 @@ docker run -it \
   -e WF_SECURE_COOKIE=false \
   -v /tmp:/data \
   -e WF_DBPATH="/data/wuflow.db" \
-  ghcr.io/pwurbs/wuflow:1.0.0
+  ghcr.io/pwurbs/wuflow:<image-version>
 ```
 
 Then you can access the app at `http://localhost:8080` and login with email `admin@local` and the configured password.
 
 ### Via Go (Source binary)
-If you prefer running the application directly from the source code, ensure you have Go installed (version 1.25+), clone the repository, and run:
+If you prefer running the application directly from the source code, ensure you have Go and Node.js (version 24+) installed, clone the repository, and run:
 
 ```bash
+(cd static/js && npm ci && npm run build)
 go run . -initial-admin-password "secure-pssw0rd" -secure-cookie=false
 ```
+
+The first command builds the frontend with Vite into `static/dist/app`, which the Go binary embeds. Run `npm run build` again after changing files in `static/`.
 
 The same way, you can access the app at `http://localhost:8080` and login with email `admin@local` and the configured password.
 
@@ -173,13 +180,11 @@ For the Remote IP Header to work correctly and securely:
 
   If the outermost proxy appends its value to any client-supplied header, wuFlow cannot distinguish the real client IP from an attacker-controlled value, and all clients through the proxy will share a single rate-limit bucket.
 
-**Enable HTTP/2 on the reverse proxy.** The app loads its script and style files and several API requests in parallel. Over HTTP/1.1, browsers open at most 6 connections per server, so on slow connections (e.g. mobile) the remaining requests have to wait. HTTP/2 solves this: all requests share a single connection and run in parallel.
-- **Traefik** enables HTTP/2 by default on entry points with TLS.
-- **Nginx** needs `http2 on;` in the `server` block
-
-**Enable compression on the reverse proxy.** Like TLS and HTTP/2, compression is left to the proxy; wuFlow itself sends its responses uncompressed. On slow connections, compression makes the first page load and the Backlog and Archive views considerably faster.
+**Enable compression on the reverse proxy.** Like TLS, compression is left to the proxy; wuFlow itself sends its responses uncompressed. On slow connections, compression makes the first page load and the Backlog and Archive views considerably faster.
 - **Traefik**: add the [`compress` middleware](https://doc.traefik.io/traefik/reference/routing-configuration/http/middlewares/compress/) to the route that serves wuFlow. With the [Helm chart](chart/README.md), set `ingress.compress: true`.
 - **Nginx**: `gzip on;` with `gzip_types text/css text/javascript application/javascript application/json;` (HTML is always compressed when `gzip` is on).
+
+**Caching needs no proxy configuration.** wuFlow sets the cache headers itself; don't let the proxy override them (see [Frontend](docs/frontend.md#delivery)).
 
 ## Home Assistant Add-on
 For instructions on how to deploy wuFlow as a Home Assistant Add-on, please refer to the [Home Assistant Add-on documentation](home-assistant-addon/README.md).
@@ -193,12 +198,12 @@ For deeper technical insights, architecture overviews, and detailed functional d
 - [API Design](docs/api.md)
 - [Swagger](docs/swagger.json)
 - [Backend Architecture](docs/backend-architecture.md)
+- [Frontend](docs/frontend.md)
 - [User Management](docs/user-management.md)
 - [Input Validation](docs/input-validation.md)
 - [Client Security](docs/client-security.md)
 - [Markdown Security & Sanitization](docs/markdown-security.md)
 - [Concurrency Control](docs/concurrency-control.md)
-- [Lazy Loading / Data Fetching](docs/lazy-loading.md)
 - [Testing](docs/testing.md)
 
 ## Outlook

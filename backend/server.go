@@ -2,7 +2,9 @@ package backend
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -46,24 +48,20 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 
 	bootstrapDatabase(dbPath, initialAdminEmail, initialAdminPassword, secretKey)
 
-	// Serve static files from embedded filesystem
+	// Serve the frontend build output from the embedded filesystem
 	fmt.Printf("Serving static files from: embedded in binary\n")
-	staticFS, err := fs.Sub(embeddedFiles, "static")
+	staticFS, err := fs.Sub(embeddedFiles, staticRoot)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fileServer := http.FileServer(neuteredFileSystem{http.FS(staticFS)})
+	if _, err := fs.Stat(staticFS, indexFile); err != nil {
+		log.Fatalf("Frontend not built (%s/index.html missing): run 'npm ci && npm run build' in static/js, then start the server again", staticRoot)
+	}
 
 	mux := APIMux(version)
-
-	// Login page — served without auth (no API middleware). GET only; the mux
-	// returns 405 for any other method.
-	mux.Handle("GET "+loginPath, WithLogging(SecurityHeadersMiddleware(HandleLoginHTML(fileServer))))
-
-	// Static files — require auth, redirect to login if not authenticated.
-	// ValidatePathMiddleware is intentionally NOT applied; we only protect the API.
-	// GET only; non-GET requests to unknown paths get 405 from the mux.
-	mux.Handle("GET /", WithLogging(SecurityHeadersMiddleware(HandleStaticFiles(fileServer))))
+	if err := registerStaticRoutes(mux, staticFS); err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Printf("Server starting on port %s\n", port)
 	LogInfo("Server starting", "port", port)
@@ -311,18 +309,13 @@ func HandleLoginHTML(next http.Handler) http.HandlerFunc {
 	}
 }
 
-// HandleStaticFiles checks auth for HTML pages and serves static assets directly.
+// HandleStaticFiles serves the app (index.html) to authenticated users and
+// redirects everyone else to the login page.
 func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		// Check public assets first — no need to process cookies/auth for these
-		if isPublicAsset(path) {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// Check auth for HTML pages — redirect to login if not authenticated
+		// Check auth — redirect to login if not authenticated
 		accessTokenCookie, err := r.Cookie(cookieAccessToken)
 		authenticated := false
 		if err == nil && accessTokenCookie.Value != "" {
@@ -341,27 +334,100 @@ func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 			return
 		}
 
-		// If we get here, no valid session exists and it's not a public asset
+		// If we get here, no valid session exists
 		LogInfo("Unauthenticated access, redirecting to login", "path", path, "ip", GetClientIP(r))
 		w.Header().Set("Location", loginPath)
 		w.WriteHeader(http.StatusFound)
 	}
 }
 
-// isPublicAsset returns true if the path is explicitly allowed without authentication.
-func isPublicAsset(path string) bool {
-	publicAssets := map[string]bool{
-		"/logo-small.png":                 true,
-		"/favicon.ico":                    true,
-		"/favicon-16x16.png":              true,
-		"/favicon-32x32.png":              true,
-		"/js/login.js":                    true,
-		"/styles/abstracts/variables.css": true,
-		"/styles/base/reset.css":          true,
-		"/styles/base/typography.css":     true,
-		"/styles/pages/login.css":         true,
+// staticRoot is the directory of the embedded filesystem that holds the Vite
+// build output (static/js/vite.config.js).
+const staticRoot = "static/dist/app"
+
+// indexFile is the page http.FileServer serves for a directory path such as "/".
+const indexFile = "index.html"
+
+// assetsDir is the directory of the content-hashed files of the Vite build
+// (scripts, styles, images, favicons), served under /assets/.
+const assetsDir = "assets"
+
+// immutableCacheControl lets browsers and CDNs keep the content-hashed assets
+// for a year without revalidation: a changed file gets a new name in the next
+// build, and the HTML referencing it is revalidated on every load.
+const immutableCacheControl = "public, max-age=31536000, immutable"
+
+// revalidateCacheControl makes browsers revalidate the HTML pages on every load,
+// so that an upgrade is picked up at once.
+const revalidateCacheControl = "no-cache"
+
+// registerStaticRoutes serves the frontend build output in staticFS:
+//   - /assets/: the build assets, public, because the login page needs them
+//     before a session exists (the frontend code is open source anyway). The
+//     route has its own file server rooted at assets/, so no request path,
+//     however encoded, can reach a file outside it, e.g. the app's index.html.
+//   - /login: the login page, public.
+//   - everything else: the app, behind the login.
+//
+// ValidatePathMiddleware is intentionally NOT applied; we only protect the API.
+// GET only; the mux returns 405 for any other method.
+func registerStaticRoutes(mux *http.ServeMux, staticFS fs.FS) error {
+	etags, err := computeETags(staticFS)
+	if err != nil {
+		return err
 	}
-	return publicAssets[path]
+	assetsFS, err := fs.Sub(staticFS, assetsDir)
+	if err != nil {
+		return err
+	}
+	assets := withCacheHeaders(http.StripPrefix("/"+assetsDir, http.FileServer(neuteredFileSystem{http.FS(assetsFS)})), immutableCacheControl, etags)
+	pages := withCacheHeaders(http.FileServer(neuteredFileSystem{http.FS(staticFS)}), revalidateCacheControl, etags)
+
+	mux.Handle("GET /"+assetsDir+"/", WithLogging(SecurityHeadersMiddleware(assets)))
+	mux.Handle("GET "+loginPath, WithLogging(SecurityHeadersMiddleware(HandleLoginHTML(pages))))
+	mux.Handle("GET /", WithLogging(SecurityHeadersMiddleware(HandleStaticFiles(pages))))
+	return nil
+}
+
+// withCacheHeaders sets Cache-Control and, if known for the URL path, the ETag.
+// http.FileServer answers a matching If-None-Match with 304, and it removes
+// both headers again when it serves an error (e.g. 404), so a missing file is
+// never cached.
+func withCacheHeaders(next http.Handler, cacheControl string, etags map[string]string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if etag, ok := etags[r.URL.Path]; ok {
+			w.Header().Set("ETag", etag)
+		}
+		w.Header().Set("Cache-Control", cacheControl)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// computeETags returns a strong ETag (truncated SHA-256 of the content) for
+// every file in fsys, keyed by URL path; an index.html is also keyed by its
+// directory path, under which http.FileServer serves it. embed.FS has no
+// modification times, so http.FileServer sends no Last-Modified and the ETag is
+// the only validator. The files cannot change at runtime, so hashing once at
+// startup is enough, and content hashes are equal across replicas.
+func computeETags(fsys fs.FS) (map[string]string, error) {
+	etags := map[string]string{}
+	err := fs.WalkDir(fsys, ".", func(name string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		data, err := fs.ReadFile(fsys, name)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(data)
+		etag := `"` + hex.EncodeToString(sum[:16]) + `"`
+		etags["/"+name] = etag
+		if name == indexFile || strings.HasSuffix(name, "/"+indexFile) {
+			etags["/"+strings.TrimSuffix(name, indexFile)] = etag
+		}
+		return nil
+	})
+	return etags, err
 }
 
 type neuteredFileSystem struct {
@@ -379,7 +445,7 @@ func (nfs neuteredFileSystem) Open(path string) (http.File, error) {
 		return nil, err
 	}
 	if s.IsDir() {
-		index := strings.TrimSuffix(path, "/") + "/index.html"
+		index := strings.TrimSuffix(path, "/") + "/" + indexFile
 		if _, err := nfs.fs.Open(index); err != nil {
 			return nil, err // Returning error here prevents folder listing
 		}
