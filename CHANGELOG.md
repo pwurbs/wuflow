@@ -3,6 +3,7 @@
 
 - Bumped marked to 18.1.1
 - Bumped dompurify to 3.4.17
+- Major upgrade of vitest to 5.x.x
 - Frontend is now bundled with Vite: much faster page loads, especially on slow connections
 - Building from source now requires Node.js; the Dockerfile builds the frontend in a new Node.js stage
 - Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
