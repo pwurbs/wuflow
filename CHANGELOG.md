@@ -8,6 +8,7 @@
 - Building from source now requires Node.js; the Dockerfile builds the frontend in a new Node.js stage
 - Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
 - Helm chart: the container's root filesystem is now read-only
+- Helm chart: added an ephemeral storage limit
 - Helm chart: added optional value `ingress.compress` to send responses compressed via Traefik
 - Changing a user's email now requires the admin password and signs the user out of all active sessions (max 15 minutes)
 - Reordering issues and tasks now saves the whole new order in one request instead of one request per moved item, so quick reorders no longer hit the API rate limit or leave the order half-saved, and they no longer overwrite other users' recent edits to the moved issues

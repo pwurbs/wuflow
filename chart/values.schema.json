@@ -182,6 +182,11 @@
               "type": "string",
               "default": "64Mi",
               "description": "Requested memory, e.g. 64Mi."
+            },
+            "ephemeral-storage": {
+              "type": "string",
+              "default": "64Mi",
+              "description": "Requested ephemeral storage (container logs and the /tmp emptyDir), e.g. 64Mi."
             }
           }
         },
@@ -196,6 +201,11 @@
               "type": "string",
               "default": "256Mi",
               "description": "Memory limit, e.g. 256Mi."
+            },
+            "ephemeral-storage": {
+              "type": "string",
+              "default": "256Mi",
+              "description": "Ephemeral storage limit, e.g. 256Mi. Covers the container logs (~50Mi with the kubelet's default log rotation) and the /tmp emptyDir (max 64Mi); exceeding it evicts the pod."
             }
           }
         }

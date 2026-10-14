@@ -34,6 +34,8 @@ annotations:
       description: Optional value ingress.compress (default false); set to true to compress responses via a Traefik compress Middleware
     - kind: changed
       description: The container's root filesystem is now read-only; /tmp is a 64Mi emptyDir for SQLite temp files
+    - kind: added
+      description: Ephemeral storage request values
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/links: |
     - name: Documentation
