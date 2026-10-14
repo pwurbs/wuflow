@@ -23,7 +23,7 @@ const LIST_FETCHERS = {
 let generation = 0;
 // Resolves once state.issues holds the active issues of the current generation.
 let activeLoad = Promise.resolve();
-// 'open' | 'archived' -> promise of the current generation (in flight or done).
+// 'open' | 'archived' -> promise of the current generation (in flight or loaded).
 let lists = {};
 
 function mergeIntoIssues(issues) {
@@ -41,25 +41,35 @@ export function loadIssues(kinds = []) {
   generation++;
   lists = {};
   const gen = generation;
-  activeLoad = fetchActiveIssuesByProject(state.selectedProjectId).then(issues => {
+  const load = fetchActiveIssuesByProject(state.selectedProjectId).then(issues => {
     if (gen === generation) setIssues(issues);
   });
-  return Promise.all([activeLoad, ensureIssueLists(kinds)]);
+  // A failed load must not block later list merges: they then merge into the issues
+  // loaded before. The caller still gets the error.
+  activeLoad = load.catch(() => {});
+  return Promise.all([load, ensureIssueLists(kinds)]);
 }
 
 /**
  * Makes sure the given lists ('open', 'archived') are merged into state.issues. Lists
  * already loaded cost nothing; lists in flight are joined instead of fetched again.
+ * A list that failed to load is fetched again by the next call.
  */
 export function ensureIssueLists(kinds) {
   const gen = generation;
   const base = activeLoad;
   return Promise.all(kinds.map(kind => {
-    lists[kind] ??= LIST_FETCHERS[kind](state.selectedProjectId).then(async issues => {
-      // Merge only after the active issues are in place, or setIssues() would drop them.
-      await base;
-      if (gen === generation) mergeIntoIssues(issues);
-    });
+    if (!lists[kind]) {
+      const load = LIST_FETCHERS[kind](state.selectedProjectId).then(async issues => {
+        // Merge only after the active issues are in place, or setIssues() would drop them.
+        await base;
+        if (gen === generation) mergeIntoIssues(issues);
+      }).catch(err => {
+        if (lists[kind] === load) delete lists[kind];
+        throw err;
+      });
+      lists[kind] = load;
+    }
     return lists[kind];
   }));
 }

@@ -395,40 +395,59 @@ async function handleUserSubmit(refreshCallback) {
 }
 
 // Returns the confirmation dialog copy for the update, or null if it needs no confirmation.
+// Several confirmable changes at once get one dialog that lists all of them.
 function getUserUpdateConfirmationCopy(userData, original) {
   const name = `${userData.first_name} ${userData.last_name}`.trim();
+  // title + message: the dialog for this change alone; change: its line in a combined dialog.
+  const cases = [];
   if (userData.password) {
-    return {
+    cases.push({
       title: 'Confirm Password Reset',
-      message: `Do you really want to reset the password for ${name}?\nThis immediately sets a new password and signs them out of every active session (<15min).`
-    };
+      message: `Do you really want to reset the password for ${name}?\nThis immediately sets a new password and signs them out of every active session (<15min).`,
+      change: 'Set a new password',
+      signsOut: true,
+    });
   }
   if (userData.email !== original.email) {
-    return {
+    cases.push({
       title: 'Confirm Email Change',
-      message: `Do you really want to change ${name}'s login email to ${userData.email}?\nThis signs them out of every active session (<15min); they must then log in with the new email.`
-    };
+      message: `Do you really want to change ${name}'s login email to ${userData.email}?\nThis signs them out of every active session (<15min); they must then log in with the new email.`,
+      change: `Change the login email to ${userData.email}; they must then log in with the new email`,
+      signsOut: true,
+    });
   }
   if (userData.active === false && original.active) {
-    return {
+    cases.push({
       title: 'Confirm Deactivation',
-      message: `Do you really want to deactivate ${name}?\nThis blocks new logins until reactivated and signs them out of every active session (<15min).`
-    };
+      message: `Do you really want to deactivate ${name}?\nThis blocks new logins until reactivated and signs them out of every active session (<15min).`,
+      change: 'Deactivate the account; this blocks new logins until reactivated',
+      signsOut: true,
+    });
+  } else if (userData.active !== original.active) {
+    cases.push({
+      title: 'Confirm Reactivation',
+      message: `Do you really want to reactivate ${name}?\nThis allows them to log in again.`,
+      change: 'Reactivate the account; this allows them to log in again',
+      signsOut: false,
+    });
   }
   if (isRolePromotion(original.role, userData.role)) {
     const roleLabel = ROLE_DISPLAY_NAMES[userData.role] ?? userData.role;
-    return {
+    cases.push({
       title: 'Confirm Role Change',
-      message: `Do you really want to change ${name}'s role to ${roleLabel}?\nThis signs them out of every active session (<15min); the new permissions apply from their next login.`
-    };
+      message: `Do you really want to change ${name}'s role to ${roleLabel}?\nThis signs them out of every active session (<15min); the new permissions apply from their next login.`,
+      change: `Change the role to ${roleLabel}; the new permissions apply from their next login`,
+      signsOut: true,
+    });
   }
-  if (userData.active !== original.active) {
-    return {
-      title: 'Confirm Reactivation',
-      message: `Do you really want to reactivate ${name}?\nThis allows them to log in again.`
-    };
-  }
-  return null;
+  if (cases.length === 0) return null;
+  if (cases.length === 1) return { title: cases[0].title, message: cases[0].message };
+  const changes = cases.map(c => `• ${c.change}`).join('\n');
+  const signOut = cases.some(c => c.signsOut) ? '\nThis signs them out of every active session (<15min).' : '';
+  return {
+    title: 'Confirm User Changes',
+    message: `Do you really want to apply these changes to ${name}?\n${changes}${signOut}`
+  };
 }
 
 async function applyUserUpdate(userData) {

@@ -897,6 +897,24 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
     expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ email: 'new@test.com', admin_password: 'AdminPass123!' }));
   });
 
+  it('lists every change in one confirmation when password and email change together', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    api.fetchUsers.mockResolvedValue([user]);
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+
+    document.getElementById('user-email').value = 'new@test.com';
+    document.getElementById('user-password').value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-title').textContent).toBe('Confirm User Changes');
+    const message = document.getElementById('admin-confirm-message').textContent;
+    expect(message).toContain('Set a new password');
+    expect(message).toContain('Change the login email to new@test.com');
+    expect(message.match(/signs them out/g)).toHaveLength(1);
+  });
+
   it('requires confirmation when only the email case changes', async () => {
     const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
     api.fetchUsers.mockResolvedValue([user]);

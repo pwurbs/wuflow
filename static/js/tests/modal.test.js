@@ -432,6 +432,36 @@ describe('Modal Component', () => {
     expect(utils.showNotification).toHaveBeenCalledWith('Issue archived');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
+  it.each([
+    ['archive', { status: 'Done' }, 'archiveIssue'],
+    ['unarchive', { status: 'Archive' }, 'unarchiveIssue'],
+  ])('should let a queued field save finish before the %s closes the modal', async (action, fields, apiFn) => {
+    const issue = { id: 100, title: 'Queued', priority: 'Normal', ...fields };
+    await openModalWithMock(issue);
+    utils.canArchive.mockReturnValue({ allowed: true });
+    utils.showConfirm.mockResolvedValue(true);
+    api[apiFn].mockResolvedValue({ id: 100 });
+
+    let resolveFieldSave;
+    api.updateIssue.mockReturnValueOnce(new Promise(r => { resolveFieldSave = r; }));
+    const prioritySelect = document.getElementById('priority');
+    prioritySelect.value = 'High';
+    prioritySelect.dispatchEvent(new Event('change'));
+    await new Promise(process.nextTick);
+
+    document.getElementById(`${action}-issue-btn`).click();
+    await new Promise(process.nextTick);
+    expect(api[apiFn]).not.toHaveBeenCalled();
+
+    resolveFieldSave({ issue: { id: 100 }, etag: '"e2"', conflict: false });
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ id: 100, priority: 'High' }), expect.any(String));
+    expect(api[apiFn]).toHaveBeenCalledWith(undefined, 100);
+    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+  });
+
   it('should drag and drop task', async () => {
     // Mock drag utils
     const mockTask = document.createElement('div');
@@ -1746,29 +1776,52 @@ describe('Modal Component', () => {
       expect(utils.showNotification).toHaveBeenCalledWith('Reloaded with latest data');
     });
 
-    it('should retry via saveIssueWithConflictCheck when form submit hits a conflict', async () => {
+    it('should keep the modal open when a form submit hits a conflict, without a second save', async () => {
       const issue = { id: 1, title: 'Old', status: 'Todo' };
       await openModalWithMock(issue);
-
-      // Ensure the form passes validation.
       document.getElementById('title').value = 'Old';
       document.getElementById('status').value = 'Todo';
 
-      // First call (from form submit) returns conflict → triggers the fallback
-      // path via saveIssueWithConflictCheck, which calls updateIssue again.
       api.updateIssue.mockReset();
-      api.updateIssue
-        .mockResolvedValueOnce({ issue: null, etag: null, conflict: true })
-        .mockResolvedValueOnce({ issue: { id: 1 }, etag: '"e"', conflict: false });
-      utils.showConfirm.mockResolvedValue(true);
+      api.updateIssue.mockResolvedValue({ issue: null, etag: null, conflict: true });
+      utils.showConfirm.mockResolvedValue(false); // User keeps the current data
 
       document.getElementById('issue-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
 
-      // updateIssue was called from the submit handler; the conflict branch
-      // forwarded to saveIssueWithConflictCheck (covers line 514's conflict path).
-      expect(api.updateIssue.mock.calls.length).toBeGreaterThanOrEqual(1);
+      expect(api.updateIssue).toHaveBeenCalledTimes(1);
+      expect(utils.showConfirm).toHaveBeenCalledWith('Conflict Detected', expect.any(String), 'Reload', 'Cancel', 'primary');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should queue a form submit behind a pending field save and send it with that save\'s ETag', async () => {
+      const issue = { id: 1, title: 'Old', status: 'Todo', priority: 'Normal' };
+      await openModalWithMock(issue);
+      document.getElementById('title').value = 'Old';
+
+      let resolveFieldSave;
+      api.updateIssue.mockReset();
+      api.updateIssue
+        .mockReturnValueOnce(new Promise(r => { resolveFieldSave = r; }))
+        .mockResolvedValueOnce({ issue: { id: 1 }, etag: '"after-submit"', conflict: false });
+
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = 'High';
+      prioritySelect.dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+      document.getElementById('issue-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledTimes(1); // the submit waits for the field save
+
+      resolveFieldSave({ issue: { id: 1 }, etag: '"after-field-save"', conflict: false });
+      await new Promise(process.nextTick);
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledTimes(2);
+      expect(api.updateIssue.mock.calls[1][2]).toBe('"after-field-save"');
+      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should keep modal open when user cancels conflict reload', async () => {

@@ -576,11 +576,8 @@ async function handleIssueSubmit() {
   try {
     if (state.currentIssue) {
       if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
-      issueData.id = state.currentIssue.id;
-      const result = await updateIssue(issueData.project_id, issueData, await etagForSave());
-      if (result.conflict) {
-        await saveIssueWithConflictCheck(issueData, 'Issue updated');
-      }
+      // Queued like the field saves, so it does not race them with an outdated ETag.
+      if (!(await saveIssueChanges(() => issueData, 'Issue updated'))) return;
     } else {
       if (!userCan(state.currentUser, ACTION_CREATE_ISSUE)) return;
       const { strippedHTML } = renderMarkdown(issueData.description || '', true);
@@ -616,6 +613,9 @@ async function handleDeleteIssue() {
 async function handleArchiveIssue() {
   if (!state.currentIssue) return;
   if (!userCan(state.currentUser, ACTION_ARCHIVE_ISSUE)) return;
+  // Let queued field saves finish first, so closing the modal does not drop them.
+  await issueSaveChain;
+  if (!state.currentIssue) return;
 
   const check = canArchive(state.currentIssue);
   if (!check.allowed) {
@@ -639,6 +639,9 @@ async function handleArchiveIssue() {
 async function handleUnarchiveIssue() {
   if (!state.currentIssue) return;
   if (!userCan(state.currentUser, ACTION_UNARCHIVE_ISSUE)) return;
+  // Let queued field saves finish first, so closing the modal does not drop them.
+  await issueSaveChain;
+  if (!state.currentIssue) return;
   if (await showConfirm('Unarchive Issue', `Move "${state.currentIssue.title}" back to specific status?`, 'Move to Done', 'Cancel', 'primary')) {
     try {
       const updated = await unarchiveIssue(state.currentIssue.project_id, state.currentIssue.id);

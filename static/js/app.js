@@ -10,7 +10,7 @@ import { setupProjectSettingsView, renderProjectSettingsView } from './component
 import { setupReleasesView, renderReleasesView, renderReleaseOwnerOptions } from './components/releases.js';
 import { setupModal, openModal } from './components/modal.js';
 import { setupSession } from './session.js';
-import { loadIssues, VIEW_ISSUE_LISTS } from './issue-lists.js';
+import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from './issue-lists.js';
 import { debounce } from './utils.js';
 import { STATUS_OPEN } from './status-config.js';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
@@ -125,8 +125,13 @@ async function refreshApp() {
     try {
         // Everything is requested in one parallel wave: nothing renders before all of it
         // has arrived, so the status config does not need to be awaited first.
+        const issuesLoad = loadIssues();
+        // The lists the visible view needs are requested in the same wave but not awaited
+        // here: the view's render joins the request and handles its errors, so a failed
+        // list does not stop the rest of the refresh.
+        void ensureIssueLists(issueListsFor(getVisibleViews())).catch(() => {});
         const [, , labels, releases, users, projects] = await Promise.all([
-            loadIssues(issueListsFor(getVisibleViews())),
+            issuesLoad,
             loadStatusConfig(),
             state.selectedProjectId ? fetchLabelsByProject(state.selectedProjectId) : Promise.resolve([]),
             state.selectedProjectId ? fetchReleases(state.selectedProjectId) : Promise.resolve([]),

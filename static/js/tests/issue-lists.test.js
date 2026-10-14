@@ -103,6 +103,22 @@ describe('issue-lists', () => {
       expect(ids()).toEqual([1, 2, 3]);
     });
 
+    it('fetches a list again after its load failed', async () => {
+      api.fetchOpenIssuesByProject.mockRejectedValueOnce(new Error('offline'));
+      await expect(ensureIssueLists(['open'])).rejects.toThrow('offline');
+      await ensureIssueLists(['open']);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(2);
+      expect(ids()).toEqual([2]);
+    });
+
+    it('still merges lists after a failed active load', async () => {
+      state.issues = [{ id: 1, status: 'Todo' }];
+      api.fetchActiveIssuesByProject.mockRejectedValueOnce(new Error('offline'));
+      await expect(loadIssues()).rejects.toThrow('offline');
+      await ensureIssueLists(['open']);
+      expect(ids()).toEqual([1, 2]);
+    });
+
     it('waits for a pending active load before merging, so the list survives it', async () => {
       const active = deferred();
       api.fetchActiveIssuesByProject.mockReturnValueOnce(active.promise);
