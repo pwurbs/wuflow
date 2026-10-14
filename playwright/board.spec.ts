@@ -22,12 +22,11 @@ test.describe('Board Functionality', () => {
     // Create an issue with To-Do status
     await createIssue(page, { title: 'Count Test Issue', status: 'Todo' });
 
-    // Wait a bit for the UI to update
-    await page.waitForTimeout(500);
-
     // Verify count increased by checking it's greater than initial
-    const newCount = await page.locator('.column[data-status="Todo"] .count').textContent();
-    expect(Number.parseInt(newCount || '0')).toBeGreaterThan(initialCountNum);
+    await expect.poll(async () => {
+      const newCount = await page.locator('.column[data-status="Todo"] .count').textContent();
+      return Number.parseInt(newCount || '0');
+    }).toBeGreaterThan(initialCountNum);
   });
 
   test('issue appears in correct column based on status', async ({ page }) => {

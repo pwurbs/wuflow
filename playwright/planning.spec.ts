@@ -277,15 +277,17 @@ test.describe('Planning Panel', () => {
     // Check if #day-past is visible (might be due to previous tests)
     const pastSection = page.locator('#day-past');
 
-    // Wait a bit for initial render
-    await page.waitForTimeout(500);
+    // Today's box is always rendered, in the same pass as the past section.
+    await expect(page.locator(`#day-${formatDate(new Date())}`)).toBeVisible();
 
     if (await pastSection.isVisible()) {
       // Clear all items in past section
       // We click the first remove button repeatedly until no items remain
-      while (await pastSection.locator('.planning-item-remove').count() > 0) {
-        await pastSection.locator('.planning-item-remove').first().click();
-        await page.waitForTimeout(300); // Wait for update
+      const removeButtons = pastSection.locator('.planning-item-remove');
+      while (await removeButtons.count() > 0) {
+        const saved = waitForIssueSave(page);
+        await removeButtons.first().click();
+        await saved;
       }
     }
 
@@ -541,11 +543,20 @@ test.describe('Planning Panel', () => {
     const futureSection = page.locator('#day-future');
     await expect(futureSection).toBeVisible();
 
-    // Now drag our 'Future Block Test' issue to the future box
-    await item.dragTo(futureSection);
+    // An accepted drop would send the issue PUT synchronously from the drop handler.
+    const issueSaves: string[] = [];
+    page.on('request', req => {
+      if (req.method() === 'PUT' && /\/api\/projects\/\d+\/issues\/\d+$/.test(req.url())) issueSaves.push(req.url());
+    });
 
-    // Wait for potential update (that shouldn't happen)
-    await page.waitForTimeout(500);
+    // Now drag our 'Future Block Test' issue to the future box. The events are dispatched
+    // directly: the item (Unscheduled) and the future box are too far apart in the panel
+    // for dragTo, whose drop never arrived there, so the test passed without testing anything.
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+    await item.dispatchEvent('dragstart', { dataTransfer });
+    await futureSection.dispatchEvent('drop', { dataTransfer });
+    await item.dispatchEvent('dragend', { dataTransfer });
+    expect(issueSaves).toHaveLength(0);
 
     // Verify it is NOT in future section
     await expect(futureSection.locator('.planning-item', { hasText: title })).toBeHidden();

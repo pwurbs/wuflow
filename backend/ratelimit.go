@@ -51,8 +51,8 @@ type keyedLimiter[K comparable] struct {
 	cleanupEvery int
 }
 
-func newKeyedLimiter[K comparable](max int, window time.Duration, cleanupEvery int) *keyedLimiter[K] {
-	return &keyedLimiter[K]{counts: make(map[K]*failEntry), max: max, window: window, cleanupEvery: cleanupEvery}
+func newKeyedLimiter[K comparable](limit int, window time.Duration, cleanupEvery int) *keyedLimiter[K] {
+	return &keyedLimiter[K]{counts: make(map[K]*failEntry), max: limit, window: window, cleanupEvery: cleanupEvery}
 }
 
 var apiLimiter = newKeyedLimiter[int](apiMaxRequests, apiRateWindow, apiCleanupEvery)
@@ -95,10 +95,10 @@ func (rl *keyedLimiter[K]) cleanup() {
 	}
 }
 
-// isBlocked returns true if the key has exceeded max failures within window.
+// isBlocked returns true if the key has reached limit failures within window.
 // If the window has expired, the entry is reset and false is returned.
 // Must be called with rl.mu held.
-func (rl *rateLimiter) isBlocked(m map[string]*failEntry, key string, max int) bool {
+func (rl *rateLimiter) isBlocked(m map[string]*failEntry, key string, limit int) bool {
 	e, ok := m[key]
 	if !ok {
 		return false
@@ -107,7 +107,7 @@ func (rl *rateLimiter) isBlocked(m map[string]*failEntry, key string, max int) b
 		delete(m, key)
 		return false
 	}
-	return e.count >= max
+	return e.count >= limit
 }
 
 // checkIP reports whether the IP is currently rate-limited.

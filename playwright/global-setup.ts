@@ -14,7 +14,7 @@ import { killProcessesOnPort } from './helpers/server-utils';
 const BASE_PORT = 8090;
 const WORKER_COUNT = 5;
 
-async function globalSetup(config: FullConfig) {
+function globalSetup(config: FullConfig) {
   // Build the frontend once before the workers start their servers with
   // `go run`, which embeds static/dist/app. Runs even with SKIP_SETUP, because
   // the workers always start their own servers.
