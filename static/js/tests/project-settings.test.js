@@ -17,7 +17,8 @@ vi.mock('../components/toolbar.js', () => ({
   updateLabelFilterOptions: vi.fn(),
 }));
 
-vi.mock('../utils.js', () => ({
+vi.mock('../utils.js', async (importOriginal) => ({
+  guardSubmit: (await importOriginal()).guardSubmit,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn((str) => str),
@@ -100,6 +101,26 @@ describe('project-settings.js component', () => {
       await new Promise(process.nextTick);
 
       expect(api.createLabel).toHaveBeenCalledWith(1, expect.objectContaining({ name: 'Bug' }));
+    });
+
+    it('creates a label only once when Enter is pressed again while the first add is in flight', async () => {
+      let resolveCreate;
+      api.createLabel.mockReturnValue(new Promise(r => { resolveCreate = r; }));
+      setupProjectSettingsView();
+
+      const input = document.getElementById('ps-new-label-input');
+      input.value = 'Bug';
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
+      await new Promise(process.nextTick);
+      expect(input.readOnly).toBe(true);
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
+      await new Promise(process.nextTick);
+
+      resolveCreate({ id: 1, name: 'Bug', color: '#EF5350' });
+      await new Promise(process.nextTick);
+
+      expect(api.createLabel).toHaveBeenCalledTimes(1);
+      expect(input.readOnly).toBe(false);
     });
 
     it('does nothing when label name is empty on Enter keypress', async () => {

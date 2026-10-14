@@ -166,25 +166,32 @@ export function promptAdminPasswordConfirmation(title, message, onConfirm, okTex
       input.removeEventListener('keydown', onKeydown);
     }
 
-    async function onOk() {
+    // Enter calls onOk directly (not via a form submit), so a repeated Enter would
+    // run the protected action twice without the guard.
+    const confirm = guardSubmit(async () => {
       if (!input.value) {
         errorDiv.textContent = 'Password is required.';
         errorDiv.classList.remove('hidden');
-        return;
+        return false;
       }
       errorDiv.classList.add('hidden');
-      okBtn.disabled = true;
       try {
         await onConfirm(input.value);
-        okBtn.disabled = false;
-        cleanup();
-        resolve(true);
+        return true;
       } catch (err) {
-        okBtn.disabled = false;
         errorDiv.textContent = err.message || 'Action failed.';
         errorDiv.classList.remove('hidden');
         input.focus();
+        return false;
       }
+    }, { button: okBtn, input });
+
+    // Resolves only after the guard has re-enabled the dialog, so a caller that
+    // opens the next dialog right away gets a usable one.
+    async function onOk() {
+      if (!(await confirm())) return;
+      cleanup();
+      resolve(true);
     }
 
     function onCancel() {
@@ -193,7 +200,7 @@ export function promptAdminPasswordConfirmation(title, message, onConfirm, okTex
     }
 
     function onKeydown(e) {
-      if (e.key === 'Enter') onOk();
+      if (e.key === 'Enter') void onOk();
     }
 
     okBtn.addEventListener('click', onOk);
@@ -246,6 +253,25 @@ export function toDateInputValue(date) {
 export function singleFlight(fn) {
   let inFlight = null;
   return () => (inFlight ??= fn().finally(() => { inFlight = null; }));
+}
+
+// Wraps a save triggered by a button and/or keys. A repeated click or key while it
+// runs joins the running save instead of sending it again, and the button is greyed
+// out and the input read-only until it settles, so a slow save doesn't look like a
+// click that went nowhere and nothing typed meanwhile is lost when the input is
+// cleared afterwards. Resolves to fn's result.
+export function guardSubmit(fn, { button = null, input = null } = {}) {
+  return singleFlight(async () => {
+    const wasReadOnly = input?.readOnly;
+    if (button) button.disabled = true;
+    if (input) input.readOnly = true;
+    try {
+      return await fn();
+    } finally {
+      if (button) button.disabled = false;
+      if (input) input.readOnly = wasReadOnly;
+    }
+  });
 }
 
 // Debounce a function call by a specified wait time, needed for search

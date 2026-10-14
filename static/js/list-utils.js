@@ -111,9 +111,9 @@ export function applyOrderChange(issue, status, position) {
 
 /**
  * Saves a reorder. changes: from applyOrderChange. A status change is a content edit
- * (validated, recorded in the history), so it keeps the per-issue PUT. All other positions
- * go in one positions request, which the server applies all-or-nothing and which never
- * touches other fields.
+ * (validated, recorded in the history), so it keeps the per-issue PUT; these run first, in
+ * parallel. All other positions then go in one positions request, which the server applies
+ * all-or-nothing and which never touches other fields.
  * If anything fails, every issue gets its previous status and position back before the
  * error is rethrown, so the caller only has to re-render. The positions request saved
  * nothing in that case; a status PUT that already went through is corrected by the
@@ -121,14 +121,12 @@ export function applyOrderChange(issue, status, position) {
  */
 export async function saveIssueOrder(changes) {
   try {
-    const positions = [];
-    for (const { issue, statusChanged } of changes) {
-      if (statusChanged) {
-        await updateIssue(issue.project_id, issue);
-      } else {
-        positions.push({ id: issue.id, position: issue.position });
-      }
-    }
+    await Promise.all(changes
+      .filter(({ statusChanged }) => statusChanged)
+      .map(({ issue }) => updateIssue(issue.project_id, issue)));
+    const positions = changes
+      .filter(({ statusChanged }) => !statusChanged)
+      .map(({ issue }) => ({ id: issue.id, position: issue.position }));
     if (positions.length > 0) {
       await updateIssuePositions(changes[0].issue.project_id, positions);
     }
@@ -147,6 +145,7 @@ export async function saveIssueOrder(changes) {
  * cards that were dropped into the Archive list.
  */
 export function getListUpdates(listId, targetStatus) {
+  /** @type {{ changes: ReturnType<typeof applyOrderChange>[], archives: Promise<object>[] }} */
   const result = { changes: [], archives: [] };
   const listElement = document.getElementById(listId);
   if (!listElement) return result;

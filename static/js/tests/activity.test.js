@@ -29,7 +29,8 @@ vi.mock('../utils.js', async (importOriginal) => {
     showConfirm: vi.fn(),
     initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
     // Real implementation — the list auto-continue tests assert on its actual behavior.
-    continueListOnEnter: actual.continueListOnEnter
+    continueListOnEnter: actual.continueListOnEnter,
+    guardSubmit: actual.guardSubmit
   };
 });
 
@@ -264,6 +265,67 @@ describe('Activity Component', () => {
     expect(api.createComment).toHaveBeenCalledWith(7, 1, 'new comment');
     expect(utils.showNotification).toHaveBeenCalledWith('Comment added');
     expect(document.querySelectorAll('.comment-item')).toHaveLength(1);
+  });
+
+  it('posts a new comment only once while the first submit is in flight, with ✓ greyed out', async () => {
+    let resolveCreate;
+    api.createComment.mockReturnValue(new Promise(r => { resolveCreate = r; }));
+    await loadActivity(issue);
+
+    const input = document.getElementById('new-comment-body');
+    const addBtn = document.getElementById('add-comment-btn');
+    input.value = 'new comment';
+    addBtn.click();
+    expect(addBtn.disabled).toBe(true);
+    expect(input.readOnly).toBe(true);
+    // Ctrl+Enter bypasses the disabled button and must still not post again.
+    input.dispatchEvent(new globalThis.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true }));
+
+    resolveCreate({ id: 5 });
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(api.createComment).toHaveBeenCalledTimes(1);
+    expect(addBtn.disabled).toBe(false);
+    expect(input.readOnly).toBe(false);
+  });
+
+  it('saves an edited comment only once while the first save is in flight, with ✓ greyed out', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    let resolveUpdate;
+    api.updateComment.mockReturnValue(new Promise(r => { resolveUpdate = r; }));
+    await loadActivity(issue);
+
+    document.querySelector('.comment-edit-btn').click();
+    const textarea = document.querySelector('.comment-edit-input');
+    const save = document.querySelector('#comment-list .inline-save-btn');
+    textarea.value = 'changed';
+    save.click();
+    expect(save.disabled).toBe(true);
+    expect(textarea.readOnly).toBe(true);
+    save.dispatchEvent(new MouseEvent('click')); // bypasses the disabled state like a stale handler would
+
+    resolveUpdate({});
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(api.updateComment).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-enables ✓ after a failed submit so the user can retry', async () => {
+    api.createComment.mockRejectedValue(new Error('Network error'));
+    await loadActivity(issue);
+
+    document.getElementById('new-comment-body').value = 'new comment';
+    const addBtn = document.getElementById('add-comment-btn');
+    addBtn.click();
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledWith('Network error', 'error');
+    expect(addBtn.disabled).toBe(false);
+    expect(document.getElementById('new-comment-body').value).toBe('new comment');
   });
 
   it('auto-continues a bullet list on Enter in the new-comment textarea', async () => {

@@ -20,6 +20,7 @@
 - Fix: A conflict dialog answered with "Reload" no longer reloads the issue twice when two conflicts occurred at the same time
 - Fix: Moving a card in the Backlog view by dropping it on the "Board (Todo)" or "Backlog (Open)" title no longer removes its planned dates
 - Fix: The API and session refresh rate limits now answer with "Too many requests" instead of the misleading "Too many login attempts"
+- Fix: Clicking or pressing Enter again while something is still being saved, e.g. on a slow connection, no longer saves it twice (duplicate comments, tasks, issues or labels, or a protected action run twice after the admin password confirmation); the save button is now greyed out and the text field read-only until the save completes
 
 # 1.4.2
 

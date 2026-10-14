@@ -15,7 +15,8 @@ vi.mock('../api.js', () => ({
   updateCurrentUser: vi.fn().mockResolvedValue({}),
 }));
 
-vi.mock('../utils.js', () => ({
+vi.mock('../utils.js', async (importOriginal) => ({
+  guardSubmit: (await importOriginal()).guardSubmit,
   showNotification: vi.fn(),
   getUserInitials: vi.fn((user) => (user.first_name[0] + user.last_name[0]).toUpperCase()),
   debounce: vi.fn((fn) => fn),
@@ -840,6 +841,30 @@ describe('User Menu', () => {
     expect(logout).toHaveBeenCalled();
 
     vi.useRealTimers();
+  });
+
+  it('changes the password only once when submitted again while the first save is in flight, with Save greyed out', async () => {
+    const { updateCurrentUser } = await import('../api.js');
+    updateCurrentUser.mockClear();
+    let resolveUpdate;
+    updateCurrentUser.mockReturnValueOnce(new Promise(r => { resolveUpdate = r; }));
+
+    setupUserMenu(mockUser);
+    document.getElementById('current-password').value = 'CurrentPass123!';
+    document.getElementById('new-password').value = TEST_PW_VALID;
+    document.getElementById('confirm-new-password').value = TEST_PW_VALID;
+    const form = document.getElementById('password-form');
+    const saveBtn = form.querySelector('button[type="submit"]');
+
+    form.dispatchEvent(new Event('submit'));
+    expect(saveBtn.disabled).toBe(true);
+    form.dispatchEvent(new Event('submit'));
+
+    resolveUpdate({});
+    await new Promise(process.nextTick);
+
+    expect(updateCurrentUser).toHaveBeenCalledTimes(1);
+    expect(saveBtn.disabled).toBe(false);
   });
 
   it('shows inline error when password validation fails', async () => {

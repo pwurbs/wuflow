@@ -75,7 +75,8 @@ vi.mock('../utils.js', async (importOriginal) => {
     // Real implementation — the list auto-continue tests assert on its actual behavior.
     continueListOnEnter: actual.continueListOnEnter,
     toDateInputValue: actual.toDateInputValue,
-    singleFlight: actual.singleFlight
+    singleFlight: actual.singleFlight,
+    guardSubmit: actual.guardSubmit
   };
 });
 
@@ -319,6 +320,26 @@ describe('Modal Component', () => {
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true); // Should close
   });
 
+  it('creates a new issue only once while the first submit is in flight, with Save greyed out', async () => {
+    openModal(null);
+    document.getElementById('title').value = 'New Title';
+    let resolveCreate;
+    api.createIssue.mockReturnValue(new Promise(r => { resolveCreate = r; }));
+
+    const form = document.getElementById('issue-form');
+    const saveBtn = document.getElementById('save-issue-btn');
+    form.dispatchEvent(new Event('submit'));
+    expect(saveBtn.disabled).toBe(true);
+    // A second submit (e.g. Enter) bypasses the disabled button and must still not create again.
+    form.dispatchEvent(new Event('submit'));
+
+    resolveCreate({ id: 99, title: 'New Title' });
+    await new Promise(process.nextTick);
+
+    expect(api.createIssue).toHaveBeenCalledTimes(1);
+    expect(saveBtn.disabled).toBe(false);
+  });
+
   it('should update existing issue on status change (inline save)', async () => {
     const issue = { id: 1, title: 'Old', status: 'Open' };
     await openModalWithMock(issue);
@@ -359,6 +380,29 @@ describe('Modal Component', () => {
     // Adding a task must refresh the History tab immediately, same as every
     // other task/field mutation, instead of only showing up on modal reopen.
     expect(api.fetchHistory.mock.calls.length).toBeGreaterThan(historyCallsBeforeAdd);
+  });
+
+  it('creates a task only once while the first submit is in flight, with + Add greyed out', async () => {
+    const issue = { id: 1, project_id: 7, title: 'Task Parent', tasks: [] };
+    await openModalWithMock(issue);
+    let resolveCreate;
+    api.createTask.mockReturnValue(new Promise(r => { resolveCreate = r; }));
+
+    const titleInput = document.getElementById('new-task-title');
+    const addBtn = document.getElementById('add-task-btn');
+    titleInput.value = 'Subtask 1';
+    addBtn.click();
+    expect(addBtn.disabled).toBe(true);
+    expect(titleInput.readOnly).toBe(true);
+    // Enter bypasses the disabled button and must still not create again.
+    titleInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', cancelable: true }));
+
+    resolveCreate({ id: 101, title: 'Subtask 1', done: false });
+    await new Promise(process.nextTick);
+
+    expect(api.createTask).toHaveBeenCalledTimes(1);
+    expect(addBtn.disabled).toBe(false);
+    expect(titleInput.readOnly).toBe(false);
   });
 
   it('should delete issue after confirmation', async () => {
@@ -2235,6 +2279,30 @@ describe('Modal Component', () => {
 
       expect(utils.showNotification).toHaveBeenCalledWith('Failed to load issue', 'error');
       expect(modal.classList.contains('hidden')).toBe(true);
+    });
+
+    it('saves the description only once when ✓ is pressed again while the first save is in flight', async () => {
+      const issue = { id: 1, description: 'Original' };
+      await openModalWithMock(issue);
+      let resolveUpdate;
+      api.updateIssue.mockReturnValueOnce(new Promise(r => { resolveUpdate = r; }));
+
+      const descEditor = document.getElementById('description-editor');
+      const saveBtn = document.getElementById('desc-save-btn');
+      document.getElementById('description-preview').click();
+      descEditor.value = 'Changed';
+      saveBtn.dispatchEvent(new MouseEvent('mousedown'));
+      expect(saveBtn.disabled).toBe(true);
+      expect(descEditor.readOnly).toBe(true);
+      saveBtn.dispatchEvent(new MouseEvent('mousedown'));
+
+      resolveUpdate({ issue: {}, etag: '"e2"', conflict: false });
+      await new Promise(process.nextTick);
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledTimes(1);
+      expect(saveBtn.disabled).toBe(false);
+      expect(descEditor.readOnly).toBe(false);
     });
 
     it('should handle cancel description edit', async () => {

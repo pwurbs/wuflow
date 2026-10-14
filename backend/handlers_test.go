@@ -5616,70 +5616,85 @@ func TestHandleUpdateUserDBError(t *testing.T) {
 	}
 }
 
+// createIssueWithTasks creates an issue in the default project with one task per title.
+func createIssueWithTasks(t *testing.T, status IssueStatus, titles ...string) (*Issue, []*Task) {
+	t.Helper()
+	ctx := context.Background()
+	issue := &Issue{Title: "Parent", Status: status, ProjectID: 1}
+	if err := CreateIssue(ctx, issue); err != nil {
+		t.Fatalf(failedToCreateIssueError, err)
+	}
+	var tasks []*Task
+	for _, title := range titles {
+		task := &Task{Title: title, IssueID: issue.ID}
+		if err := CreateTask(ctx, task); err != nil {
+			t.Fatalf("CreateTask: %v", err)
+		}
+		tasks = append(tasks, task)
+	}
+	return issue, tasks
+}
+
 func TestHandlePutTaskPositions(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 	ctx := context.Background()
+	issue, tasks := createIssueWithTasks(t, StatusOpen, "T1", "T2")
+	t1, t2 := tasks[0], tasks[1]
 
-	issue := &Issue{Title: "Parent", Status: StatusOpen, ProjectID: 1}
-	otherIssue := &Issue{Title: "Other", Status: StatusOpen, ProjectID: 1}
-	for _, i := range []*Issue{issue, otherIssue} {
-		if err := CreateIssue(ctx, i); err != nil {
-			t.Fatalf(failedToCreateIssueError, err)
+	rr := putPositions(taskPositionsPath(issue.ID), []PositionUpdate{{ID: t2.ID, Position: 0}, {ID: t1.ID, Position: 1}}, RoleUser)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf(wrongStatusCode, rr.Code, http.StatusNoContent)
+	}
+	got, _ := GetTasksByIssueID(ctx, issue.ID)
+	if len(got) != 2 || got[0].ID != t2.ID || got[1].ID != t1.ID {
+		t.Errorf("unexpected task order after reorder: %+v", got)
+	}
+	if h, _ := GetHistoryByIssueID(ctx, issue.ID); len(h) != 0 {
+		t.Errorf("expected no history entries, got %d", len(h))
+	}
+}
+
+func TestHandlePutTaskPositionsForeignTaskRollsBack(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+	issue, tasks := createIssueWithTasks(t, StatusOpen, "T1")
+	_, foreign := createIssueWithTasks(t, StatusOpen, "Foreign")
+
+	rr := putPositions(taskPositionsPath(issue.ID), []PositionUpdate{{ID: tasks[0].ID, Position: 7}, {ID: foreign[0].ID, Position: 0}}, RoleUser)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+	got, _ := GetTasksByIssueID(ctx, issue.ID)
+	for _, task := range got {
+		if task.Position == 7 {
+			t.Error("valid task position was saved; the whole request must be rolled back")
 		}
 	}
-	t1 := &Task{Title: "T1", IssueID: issue.ID}
-	t2 := &Task{Title: "T2", IssueID: issue.ID}
-	foreign := &Task{Title: "Foreign", IssueID: otherIssue.ID}
-	for _, task := range []*Task{t1, t2, foreign} {
-		if err := CreateTask(ctx, task); err != nil {
-			t.Fatalf("CreateTask: %v", err)
-		}
+}
+
+func TestHandlePutTaskPositionsInvalidParent(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	_, openTasks := createIssueWithTasks(t, StatusOpen, "T")
+	archived, archivedTasks := createIssueWithTasks(t, StatusArchive, "T")
+
+	tests := []struct {
+		name    string
+		issueID int
+		taskID  int
+		want    int
+	}{
+		{"archived parent", archived.ID, archivedTasks[0].ID, http.StatusForbidden},
+		{"unknown parent issue", 99999, openTasks[0].ID, http.StatusNotFound},
 	}
-	path := taskPositionsPath(issue.ID)
-
-	t.Run("success", func(t *testing.T) {
-		rr := putPositions(path, []PositionUpdate{{ID: t2.ID, Position: 0}, {ID: t1.ID, Position: 1}}, RoleUser)
-		if rr.Code != http.StatusNoContent {
-			t.Fatalf(wrongStatusCode, rr.Code, http.StatusNoContent)
-		}
-		tasks, _ := GetTasksByIssueID(ctx, issue.ID)
-		if len(tasks) != 2 || tasks[0].ID != t2.ID || tasks[1].ID != t1.ID {
-			t.Errorf("unexpected task order after reorder: %+v", tasks)
-		}
-		if h, _ := GetHistoryByIssueID(ctx, issue.ID); len(h) != 0 {
-			t.Errorf("expected no history entries, got %d", len(h))
-		}
-	})
-
-	t.Run("task of another issue rolls back", func(t *testing.T) {
-		rr := putPositions(path, []PositionUpdate{{ID: t1.ID, Position: 7}, {ID: foreign.ID, Position: 0}}, RoleUser)
-		if rr.Code != http.StatusNotFound {
-			t.Fatalf(wrongStatusCode, rr.Code, http.StatusNotFound)
-		}
-		tasks, _ := GetTasksByIssueID(ctx, issue.ID)
-		for _, task := range tasks {
-			if task.Position == 7 {
-				t.Error("valid task position was saved; the whole request must be rolled back")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := putPositions(taskPositionsPath(tt.issueID), []PositionUpdate{{ID: tt.taskID, Position: 0}}, RoleUser)
+			if rr.Code != tt.want {
+				t.Errorf(wrongStatusCode, rr.Code, tt.want)
 			}
-		}
-	})
-
-	t.Run("archived parent", func(t *testing.T) {
-		archived := &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1}
-		CreateIssue(ctx, archived)
-		task := &Task{Title: "T", IssueID: archived.ID}
-		CreateTask(ctx, task)
-		rr := putPositions(taskPositionsPath(archived.ID), []PositionUpdate{{ID: task.ID, Position: 0}}, RoleUser)
-		if rr.Code != http.StatusForbidden {
-			t.Errorf(wrongStatusCode, rr.Code, http.StatusForbidden)
-		}
-	})
-
-	t.Run("unknown parent issue", func(t *testing.T) {
-		rr := putPositions(taskPositionsPath(99999), []PositionUpdate{{ID: t1.ID, Position: 0}}, RoleUser)
-		if rr.Code != http.StatusNotFound {
-			t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
-		}
-	})
+		})
+	}
 }

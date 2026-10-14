@@ -29,6 +29,7 @@ vi.mock('../api.js', () => ({
 vi.mock('../utils.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
+    guardSubmit: actual.guardSubmit,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     getUserInitials: vi.fn().mockReturnValue('AD'),
@@ -292,6 +293,30 @@ describe('system-settings.js component', () => {
         password: password
       }));
       expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(true);
+    });
+
+    it('creates a user only once when submitted again while the first save is in flight, with Save greyed out', async () => {
+      setupSystemSettingsView();
+      document.getElementById('add-user-btn').click();
+      document.getElementById('user-email').value = 'new@test.com';
+      document.getElementById('user-first-name').value = 'New';
+      document.getElementById('user-last-name').value = 'User';
+      document.getElementById('user-password').value = generateRandomPassword();
+      document.getElementById('user-role').value = 'user';
+      let resolveCreate;
+      api.createUser.mockReturnValue(new Promise(r => { resolveCreate = r; }));
+      const form = document.getElementById('user-form');
+      const saveBtn = document.getElementById('user-modal-save');
+
+      form.dispatchEvent(new Event('submit'));
+      expect(saveBtn.disabled).toBe(true);
+      form.dispatchEvent(new Event('submit'));
+
+      resolveCreate({ id: 3 });
+      await new Promise(process.nextTick);
+
+      expect(api.createUser).toHaveBeenCalledTimes(1);
+      expect(saveBtn.disabled).toBe(false);
     });
 
     it('should handle user form submission (update)', async () => {
@@ -1091,6 +1116,25 @@ describe('Project Management', () => {
 
       expect(document.getElementById('project-modal-error').textContent)
         .toBe('Project description must not exceed 100 characters.');
+    });
+
+    it('creates a project only once when submitted again while the first save is in flight, with Save greyed out', async () => {
+      let resolveCreate;
+      api.createProject.mockReturnValue(new Promise(r => { resolveCreate = r; }));
+      document.getElementById('add-project-btn').click();
+      document.getElementById('project-name').value = 'New';
+      const form = document.getElementById('project-form');
+      const saveBtn = document.getElementById('project-modal-save');
+
+      form.dispatchEvent(new Event('submit'));
+      expect(saveBtn.disabled).toBe(true);
+      form.dispatchEvent(new Event('submit'));
+
+      resolveCreate({ id: 5, name: 'New' });
+      await new Promise(process.nextTick);
+
+      expect(api.createProject).toHaveBeenCalledTimes(1);
+      expect(saveBtn.disabled).toBe(false);
     });
 
     it('should create project and show success notification', async () => {

@@ -1,5 +1,5 @@
 import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
-import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime, promptAdminPasswordConfirmation } from '../utils.js';
+import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime, promptAdminPasswordConfirmation, guardSubmit } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state, setUsers, setProjects } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
@@ -54,9 +54,12 @@ function setupProjectModal(refreshCallback) {
     cancelBtn.addEventListener('click', closeProjectModal);
   }
   if (form) {
+    // Save and Enter share the in-flight submit instead of saving twice while the
+    // first request is still running.
+    const submitProject = guardSubmit(() => handleProjectSubmit(refreshCallback), { button: document.getElementById('project-modal-save') });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await handleProjectSubmit(refreshCallback);
+      await submitProject();
     });
   }
   if (projectDeleteBtn) {
@@ -275,9 +278,12 @@ function setupUserModal(refreshCallback) {
   }
 
   if (form) {
+    // Save and Enter share the in-flight submit instead of saving twice while the
+    // first request is still running.
+    const submitUser = guardSubmit(() => handleUserSubmit(refreshCallback), { button: document.getElementById('user-modal-save') });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      await handleUserSubmit(refreshCallback);
+      await submitUser();
     });
   }
 

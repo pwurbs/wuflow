@@ -54,6 +54,37 @@ test.describe('Issue Activity (History + Comments)', () => {
     await expect(comment.locator('.comment-time')).toContainText('edited');
   });
 
+  test('a comment is posted only once when submitted again while the first save is still running', async ({ page }) => {
+    await createIssue(page, { title: 'Comment Double Submit Issue', status: 'Todo' });
+    await openIssueByTitle(page, 'Comment Double Submit Issue');
+
+    // Hold the POST until the second attempt was made, like a slow connection.
+    let posts = 0;
+    let release!: () => void;
+    const held = new Promise<void>(r => { release = r; });
+    await page.route(/\/api\/projects\/\d+\/issues\/\d+\/comments$/, async route => {
+      if (route.request().method() !== 'POST') return route.continue();
+      posts++;
+      await held;
+      await route.continue();
+    });
+
+    await page.fill('#new-comment-body', 'Posted only once');
+    await page.click('#add-comment-btn');
+    await expect(page.locator('#add-comment-btn')).toBeDisabled();
+    await expect(page.locator('#new-comment-body')).toHaveJSProperty('readOnly', true);
+    // ✓ is greyed out, so Ctrl/Cmd+Enter is the remaining way to submit again.
+    await page.press('#new-comment-body', 'ControlOrMeta+Enter');
+
+    release();
+    await waitForToast(page, 'Comment added');
+    await expect(page.locator('.comment-item').filter({ hasText: 'Posted only once' })).toHaveCount(1);
+    expect(posts).toBe(1);
+    await expect(page.locator('#add-comment-btn')).toBeEnabled();
+
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
   test('delete a comment', async ({ page }) => {
     await createIssue(page, { title: 'Comment Delete Issue', status: 'Todo' });
     await openIssueByTitle(page, 'Comment Delete Issue');

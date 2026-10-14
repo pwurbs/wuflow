@@ -7,6 +7,7 @@ import {
   getUnusedColor,
   getDeadlineStatus, getTaskDeadlineStatus,
   promptAdminPasswordConfirmation,
+  guardSubmit,
 } from '../utils.js';
 
 describe('getDeadlineStatus', () => {
@@ -452,6 +453,64 @@ describe('showConfirm', () => {
   });
 });
 
+describe('guardSubmit', () => {
+  let button, input;
+
+  beforeEach(() => {
+    button = document.createElement('button');
+    input = document.createElement('input');
+  });
+
+  it('runs a repeated call while the first is in flight only once, sharing its result', async () => {
+    let resolveSave;
+    const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
+    const submit = guardSubmit(fn, { button, input });
+
+    const first = submit();
+    const second = submit();
+    resolveSave('saved');
+
+    expect(await first).toBe('saved');
+    expect(await second).toBe('saved');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs again once the previous call has settled', async () => {
+    const fn = vi.fn().mockResolvedValue(undefined);
+    const submit = guardSubmit(fn);
+    await submit();
+    await submit();
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('greys out the button and makes the input read-only only while the call runs', async () => {
+    let resolveSave;
+    const submit = guardSubmit(() => new Promise(r => { resolveSave = r; }), { button, input });
+
+    const running = submit();
+    expect(button.disabled).toBe(true);
+    expect(input.readOnly).toBe(true);
+
+    resolveSave();
+    await running;
+    expect(button.disabled).toBe(false);
+    expect(input.readOnly).toBe(false);
+  });
+
+  it('restores button and input after a failed call and passes the error on', async () => {
+    const submit = guardSubmit(() => Promise.reject(new Error('boom')), { button, input });
+    await expect(submit()).rejects.toThrow('boom');
+    expect(button.disabled).toBe(false);
+    expect(input.readOnly).toBe(false);
+  });
+
+  it('leaves an input read-only that already was before the call', async () => {
+    input.readOnly = true;
+    await guardSubmit(() => Promise.resolve(), { input })();
+    expect(input.readOnly).toBe(true);
+  });
+});
+
 describe('promptAdminPasswordConfirmation', () => {
   let modal, titleEl, messageEl, input, errorDiv, okBtn, cancelBtn;
 
@@ -539,8 +598,7 @@ describe('promptAdminPasswordConfirmation', () => {
 
     input.value = 'WrongPass123!';
     okBtn.click();
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise(process.nextTick);
 
     // Still open, showing the server's rejection message, ready for retry
     expect(modal.classList.contains('hidden')).toBe(false);
@@ -562,6 +620,22 @@ describe('promptAdminPasswordConfirmation', () => {
     input.value = 'CorrectPass123!';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect(await promise).toBe(true);
+  });
+
+  it('runs the protected action only once when Enter is pressed again while it is in flight', async () => {
+    let resolveConfirm;
+    const onConfirm = vi.fn(() => new Promise(r => { resolveConfirm = r; }));
+    const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
+    input.value = 'CorrectPass123!';
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(okBtn.disabled).toBe(true);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    resolveConfirm();
+    expect(await promise).toBe(true);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(okBtn.disabled).toBe(false);
   });
 
   it('defaults okText to Confirm and okType to danger', () => {

@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.js';
-import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter } from '../utils.js';
+import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { getStatusLabel } from '../status-config.js';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.js';
@@ -58,7 +58,10 @@ export function setupActivity() {
   if (!e.section) return;
   e.tabComments?.addEventListener('click', () => switchTab('comments'));
   e.tabHistory?.addEventListener('click', () => switchTab('history'));
-  e.addBtn?.addEventListener('click', submitNewComment);
+  // ✓ and Ctrl/Cmd+Enter share the in-flight submit instead of posting the same
+  // comment twice while the first request is still running.
+  const submitNewCommentOnce = guardSubmit(submitNewComment, { button: e.addBtn, input: e.input });
+  e.addBtn?.addEventListener('click', submitNewCommentOnce);
   e.cancelBtn?.addEventListener('click', () => closeNewCommentForm({ clear: true }));
   if (e.input) {
     // manual: true — the counter is tied to the form's edit mode (like the
@@ -78,7 +81,7 @@ export function setupActivity() {
     });
     e.input.addEventListener('keydown', (ev) => {
       // Ctrl/Cmd+Enter submits; plain Enter on a list line continues the list.
-      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); void submitNewComment(); return; }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); void submitNewCommentOnce(); return; }
       if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) continueListOnEnter(e.input, ev);
     });
   }
@@ -429,7 +432,7 @@ function enterCommentEdit(comment, li, container) {
     ctx.callbacks.onEditEnd?.();
   };
   cancel.addEventListener('click', () => { finish(); renderAll(); });
-  save.addEventListener('click', async () => {
+  save.addEventListener('click', guardSubmit(async () => {
     const newBody = textarea.value.trim();
     if (!newBody) { showNotification('Comment must not be empty', 'error'); return; }
     try {
@@ -440,7 +443,7 @@ function enterCommentEdit(comment, li, container) {
     } catch (err) {
       showNotification(err.message, 'error');
     }
-  });
+  }, { button: save, input: textarea }));
 }
 
 async function removeComment(comment) {

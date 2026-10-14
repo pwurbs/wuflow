@@ -1,5 +1,5 @@
 import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.js';
-import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation } from '../utils.js';
+import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation, guardSubmit } from '../utils.js';
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.js';
 import { state, setStatusConfig, setLabels } from '../state.js';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.js';
@@ -41,8 +41,12 @@ export function setupProjectSettingsView() {
         }
       };
 
+      // A repeated Enter shares the in-flight add instead of creating the label
+      // twice while the first request is still running.
+      const addLabel = guardSubmit(handleAdd, { input: addLabelInput });
+
       addLabelInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') void handleAdd();
+        if (e.key === 'Enter') void addLabel();
       });
     } else {
       const group = addLabelInput.closest('.label-input-group');

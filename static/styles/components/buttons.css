@@ -15,6 +15,25 @@
   background-color: var(--primary-hover);
 }
 
+/* Greyed out while a save is in flight */
+.btn:disabled,
+.inline-edit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary:disabled:hover {
+  background-color: var(--primary-color);
+}
+
+.btn.danger:disabled:hover {
+  background-color: var(--danger-color);
+}
+
+.inline-edit-btn:disabled:hover {
+  background-color: transparent;
+}
+
 
 
 .btn.secondary {

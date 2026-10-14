@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, singleFlight } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, singleFlight, guardSubmit } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
@@ -31,7 +31,13 @@ export function setupModal(refreshApp, rerenderViews) {
 
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('done-btn').addEventListener('click', handleDone);
-  form.addEventListener('submit', handleIssueSubmit);
+  // Save and Enter share the in-flight submit instead of creating the issue twice
+  // while the first request is still running.
+  const submitIssue = guardSubmit(handleIssueSubmit, { button: document.getElementById('save-issue-btn') });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void submitIssue();
+  });
 
 
   document.getElementById('delete-issue-btn').addEventListener('click', handleDeleteIssue);
@@ -49,11 +55,15 @@ export function setupModal(refreshApp, rerenderViews) {
   initCharCounter(document.getElementById('new-task-title'), MAX_TITLE_LENGTH, { className: 'task-title-counter' });
 
   // Task Form
-  document.getElementById('add-task-btn').addEventListener('click', handleTaskSubmit);
+  // + Add and Enter share the in-flight submit instead of creating the task twice
+  // while the first request is still running.
+  const addTaskBtn = document.getElementById('add-task-btn');
+  const submitTask = guardSubmit(handleTaskSubmit, { button: addTaskBtn, input: document.getElementById('new-task-title') });
+  addTaskBtn.addEventListener('click', submitTask);
   document.getElementById('new-task-title').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      void handleTaskSubmit(e);
+      void submitTask();
     }
   });
 
@@ -565,9 +575,7 @@ function getIssueDataFromForm() {
   };
 }
 
-async function handleIssueSubmit(e) {
-  e.preventDefault();
-
+async function handleIssueSubmit() {
   const issueData = getIssueDataFromForm();
   if (!validateIssueForm(issueData.title, issueData.description)) return;
 
@@ -828,7 +836,7 @@ function setupInlineEditing() {
   };
 
   // Returns false if the description could not be saved (editor stays open with the text).
-  const saveDesc = async () => {
+  const doSaveDesc = async () => {
     const newDesc = descEditor.value;
     if (newDesc !== state.currentIssue.description) {
       try {
@@ -853,6 +861,9 @@ function setupInlineEditing() {
     checkRemoveUnloadListener();
     return true;
   };
+
+  // ✓ and the modal's Done handler share the in-flight save instead of sending it twice.
+  const saveDesc = guardSubmit(doSaveDesc, { button: descSaveBtn, input: descEditor });
 
   _saveDescFn = saveDesc;
   _cancelDescFn = cancelDesc;
@@ -1311,7 +1322,7 @@ function resetTaskForm() {
   }
 }
 
-async function handleTaskSubmit(e) {
+async function handleTaskSubmit() {
   if (!state.currentIssue) return;
   if (!userCan(state.currentUser, ACTION_CREATE_TASK)) return;
   const titleInput = document.getElementById('new-task-title');

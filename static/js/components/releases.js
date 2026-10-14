@@ -1,7 +1,7 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.js';
 import { loadIssues, ensureIssueLists } from '../issue-lists.js';
 import { sortReleasesByDate } from '../list-utils.js';
-import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue } from '../utils.js';
+import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit } from '../utils.js';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
 import { state, setReleases } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
@@ -49,9 +49,12 @@ export async function setupReleasesView() {
   });
 
   cancelBtn?.addEventListener('click', closeReleaseModal);
+  // Save and Enter share the in-flight submit instead of saving twice while the
+  // first request is still running.
+  const submitRelease = guardSubmit(handleReleaseSubmit, { button: document.getElementById('release-modal-save') });
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    await handleReleaseSubmit();
+    await submitRelease();
   });
 
   const deleteBtn = document.getElementById('release-modal-delete');

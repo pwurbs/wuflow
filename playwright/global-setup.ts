@@ -19,7 +19,7 @@ async function globalSetup(config: FullConfig) {
   // `go run`, which embeds static/dist/app. Runs even with SKIP_SETUP, because
   // the workers always start their own servers.
   console.log('Global Setup: Building the frontend (npm run build)...');
-  execSync('npm run build', { cwd: path.join(config.rootDir, '..', 'static', 'js'), stdio: 'inherit' });
+  execSync('npm run build', { cwd: path.join(config.rootDir, '..', 'static', 'js'), stdio: 'inherit' }); //NOSONAR
 
   if (process.env.SKIP_SETUP) {
     console.log('Global Setup: Skipping (SKIP_SETUP env var is set).');
