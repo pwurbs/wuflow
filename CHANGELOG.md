@@ -6,15 +6,14 @@
 - Major upgrade of vitest to 5.x.x
 - Frontend is now bundled with Vite: much faster page loads, especially on slow connections
 - Building from source now requires Node.js; the Dockerfile builds the frontend in a new Node.js stage
-- Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace, see [chart/CHANGELOG.md](chart/CHANGELOG.md)
+- Helm chart: added optional value `hostUsers` to run the pod in its own Linux user namespace
 - Helm chart: the container's root filesystem is now read-only
 - Helm chart: added an ephemeral storage limit
 - Helm chart: added optional value `ingress.compress` to send responses compressed via Traefik
-- Changing a user's email now requires the admin password and signs the user out of all active sessions (max 15 minutes)
+- Changing a user's email now requires the admin password and signs the user out of all active sessions
 - Reordering issues and tasks now saves the whole new order in one request instead of one request per moved item, so quick reorders no longer hit the API rate limit or leave the order half-saved, and they no longer overwrite other users' recent edits to the moved issues
 - Card and task moves that fail to save, e.g. while offline, now always return to their old place: reorders on the Board, Backlog and Archive, Move to top/bottom, task reorders, and drops on a Backlog or Archive section including archiving by drag 
 - Faster on slow connections: refreshing a view (e.g. after closing an issue) now sends all its requests at once, the Releases view reuses issues the Backlog or Archive already loaded, and System Settings loads its project and user lists at once
-- The app now uses a much smaller logo file
 - Docs: the reverse proxy section now recommends enabling compression on the reverse proxy, which makes the app considerably faster on slow connections
 - Docs: new Frontend doc page covering build, delivery and data loading, containing all frontend aspects
 - Fix: Changing several fields of an issue in quick succession, e.g. on a slow connection, no longer shows a false "modified by another user" conflict

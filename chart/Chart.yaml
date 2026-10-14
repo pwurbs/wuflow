@@ -2,8 +2,8 @@ apiVersion: v2
 name: wuflow
 description: wuFlow is a modern and lightweight issue tracking and planning application.
 type: application
-version: 1.4.3-pre2
-appVersion: "1.4.3-pre2"
+version: 1.4.3
+appVersion: "1.4.3"
 icon: https://raw.githubusercontent.com/pwurbs/wuflow/main/static/logo.png
 home: https://github.com/pwurbs/wuflow
 sources:
@@ -44,7 +44,7 @@ annotations:
       url: https://github.com/pwurbs/wuflow/issues
   artifacthub.io/images: |
     - name: wuflow
-      image: ghcr.io/pwurbs/wuflow:1.4.3-pre2
+      image: ghcr.io/pwurbs/wuflow:1.4.3
   artifacthub.io/screenshots: |
     - title: Board
       url: https://raw.githubusercontent.com/pwurbs/wuflow/main/docs/screenshots/board.png
