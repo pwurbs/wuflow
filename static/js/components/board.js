@@ -1,11 +1,10 @@
 import { state, isFilterActive } from '../state.js';
-import { showNotification } from '../utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
 import { createCardElement } from './card.js';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.js';
 import { filterIssues, sortByPosition } from '../filters.js';
 import { getBoardColumns, STATUS_OPEN } from '../status-config.js';
-import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, applyOrderChange, saveIssueOrder } from '../list-utils.js';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, applyOrderChange, saveIssueOrder, showSaveFailure } from '../list-utils.js';
 import { renderPlanningPanel } from './planning.js';
 
 let refreshAppCallback = null;
@@ -159,13 +158,7 @@ function attachColumnDragListeners(colContent) {
       renderBoard();
       renderPlanningPanel();
     } catch (err) {
-      showNotification(err.message, 'error');
-      // saveIssueOrder already put the old status/position back locally. Re-render right
-      // away: when the server is unreachable, refreshApp cannot reload the cards and the
-      // unsaved move would look saved.
-      renderBoard();
-      renderPlanningPanel();
-      if (refreshAppCallback) refreshAppCallback();
+      showSaveFailure(err, () => { renderBoard(); renderPlanningPanel(); }, refreshAppCallback);
     }
   });
 }

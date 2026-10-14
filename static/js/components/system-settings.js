@@ -1,5 +1,5 @@
 import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
-import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime, promptAdminPasswordConfirmation, guardSubmit } from '../utils.js';
+import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state, setUsers, setProjects } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
@@ -53,15 +53,7 @@ function setupProjectModal(refreshCallback) {
   if (cancelBtn) {
     cancelBtn.addEventListener('click', closeProjectModal);
   }
-  if (form) {
-    // Save and Enter share the in-flight submit instead of saving twice while the
-    // first request is still running.
-    const submitProject = guardSubmit(() => handleProjectSubmit(refreshCallback), { button: document.getElementById('project-modal-save') });
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await submitProject();
-    });
-  }
+  if (form) onGuardedSubmit(form, () => handleProjectSubmit(refreshCallback));
   if (projectDeleteBtn) {
     projectDeleteBtn.addEventListener('click', () => handleDeleteProject(refreshCallback));
   }
@@ -250,9 +242,8 @@ async function renderProjectList(refreshCallback) {
 // --- User Management ---
 
 let editingUserId = null;
-let editingUserOriginalRole = null;
-let editingUserOriginalActive = null;
-let editingUserOriginalEmail = null;
+// Role, active flag and email of the user being edited, as loaded (null when creating).
+let editingUserOriginal = null;
 
 const ROLE_RANK = { user: 0, admin: 1, sysadmin: 2 };
 function isRolePromotion(fromRole, toRole) {
@@ -277,15 +268,7 @@ function setupUserModal(refreshCallback) {
     cancelBtn.addEventListener('click', closeUserModal);
   }
 
-  if (form) {
-    // Save and Enter share the in-flight submit instead of saving twice while the
-    // first request is still running.
-    const submitUser = guardSubmit(() => handleUserSubmit(refreshCallback), { button: document.getElementById('user-modal-save') });
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await submitUser();
-    });
-  }
+  if (form) onGuardedSubmit(form, () => handleUserSubmit(refreshCallback));
 
   // Setup custom dropdowns
   setupUserDropdown('user-role-trigger', 'user-role-options', 'user-role', 'user-role-text');
@@ -315,9 +298,7 @@ function openUserModal(user) {
 
   if (user) {
     editingUserId = user.id;
-    editingUserOriginalRole = user.role;
-    editingUserOriginalActive = user.active;
-    editingUserOriginalEmail = user.email;
+    editingUserOriginal = { role: user.role, active: user.active, email: user.email };
     modalTitle.textContent = 'Edit User';
     emailInput.value = user.email;
     firstNameInput.value = user.first_name;
@@ -338,9 +319,7 @@ function openUserModal(user) {
     passwordHint.classList.remove('hidden');
   } else {
     editingUserId = null;
-    editingUserOriginalRole = null;
-    editingUserOriginalActive = null;
-    editingUserOriginalEmail = null;
+    editingUserOriginal = null;
     modalTitle.textContent = 'New User';
     userForm.reset();
     activeInput.checked = true; // Default to active
@@ -368,9 +347,7 @@ function closeUserModal() {
   const overlay = document.getElementById('user-modal-overlay');
   overlay.classList.add('hidden');
   editingUserId = null;
-  editingUserOriginalRole = null;
-  editingUserOriginalActive = null;
-  editingUserOriginalEmail = null;
+  editingUserOriginal = null;
 }
 
 async function handleUserSubmit(refreshCallback) {
@@ -417,7 +394,8 @@ async function handleUserSubmit(refreshCallback) {
   }
 }
 
-function getUserUpdateConfirmationCopy(userData) {
+// Returns the confirmation dialog copy for the update, or null if it needs no confirmation.
+function getUserUpdateConfirmationCopy(userData, original) {
   const name = `${userData.first_name} ${userData.last_name}`.trim();
   if (userData.password) {
     return {
@@ -425,40 +403,39 @@ function getUserUpdateConfirmationCopy(userData) {
       message: `Do you really want to reset the password for ${name}?\nThis immediately sets a new password and signs them out of every active session (<15min).`
     };
   }
-  if (userData.email !== editingUserOriginalEmail) {
+  if (userData.email !== original.email) {
     return {
       title: 'Confirm Email Change',
       message: `Do you really want to change ${name}'s login email to ${userData.email}?\nThis signs them out of every active session (<15min); they must then log in with the new email.`
     };
   }
-  if (userData.active === false && editingUserOriginalActive) {
+  if (userData.active === false && original.active) {
     return {
       title: 'Confirm Deactivation',
       message: `Do you really want to deactivate ${name}?\nThis blocks new logins until reactivated and signs them out of every active session (<15min).`
     };
   }
-  if (isRolePromotion(editingUserOriginalRole, userData.role)) {
+  if (isRolePromotion(original.role, userData.role)) {
     const roleLabel = ROLE_DISPLAY_NAMES[userData.role] ?? userData.role;
     return {
       title: 'Confirm Role Change',
       message: `Do you really want to change ${name}'s role to ${roleLabel}?\nThis signs them out of every active session (<15min); the new permissions apply from their next login.`
     };
   }
-  return {
-    title: 'Confirm Reactivation',
-    message: `Do you really want to reactivate ${name}?\nThis allows them to log in again.`
-  };
+  if (userData.active !== original.active) {
+    return {
+      title: 'Confirm Reactivation',
+      message: `Do you really want to reactivate ${name}?\nThis allows them to log in again.`
+    };
+  }
+  return null;
 }
 
 async function applyUserUpdate(userData) {
-  const requiresConfirmation =
-    !!userData.password ||
-    isRolePromotion(editingUserOriginalRole, userData.role) ||
-    userData.active !== editingUserOriginalActive ||
-    userData.email !== editingUserOriginalEmail;
-
-  if (requiresConfirmation) {
-    const { title, message } = getUserUpdateConfirmationCopy(userData);
+  const original = editingUserOriginal;
+  const confirmation = getUserUpdateConfirmationCopy(userData, original);
+  if (confirmation) {
+    const { title, message } = confirmation;
     const confirmed = await promptAdminPasswordConfirmation(
       title,
       message,
@@ -472,7 +449,7 @@ async function applyUserUpdate(userData) {
     await updateUser(editingUserId, userData);
   }
   const isSelf = editingUserId === state.currentUser?.id;
-  if (isSelf && (userData.password || userData.role !== state.currentUser?.role || userData.email !== editingUserOriginalEmail)) {
+  if (isSelf && (userData.password || userData.role !== state.currentUser?.role || userData.email !== original.email)) {
     void logout();
     return false;
   }

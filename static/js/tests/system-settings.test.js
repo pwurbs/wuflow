@@ -29,7 +29,7 @@ vi.mock('../api.js', () => ({
 vi.mock('../utils.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
-    guardSubmit: actual.guardSubmit,
+    onGuardedSubmit: actual.onGuardedSubmit,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     getUserInitials: vi.fn().mockReturnValue('AD'),

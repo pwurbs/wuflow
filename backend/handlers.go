@@ -20,6 +20,7 @@ const (
 	errMsgTaskNotFound          = "Task not found"
 	errMsgCommentNotFound       = "Comment not found"
 	errMsgArchivedReadOnly      = "Archived issues are read-only"
+	errMsgTasksArchivedReadOnly = "Tasks of archived issues are read-only"
 	errMsgInternalServerError   = "Internal server error"
 	errMsgUserNotFound          = "User not found"
 	errMsgInvalidLabel          = "Invalid label ID"
@@ -854,7 +855,7 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 
 	if issue.Status == StatusArchive {
 		LogWarn("Task update failed: Issue archived", "id", id, "user_email", userEmail)
-		http.Error(w, "Tasks of archived issues are read-only", http.StatusForbidden)
+		http.Error(w, errMsgTasksArchivedReadOnly, http.StatusForbidden)
 		return
 	}
 
@@ -892,7 +893,7 @@ func handlePutTaskPositions(w http.ResponseWriter, r *http.Request, _ int, issue
 
 	if issue.Status == StatusArchive {
 		LogWarn("Task reorder failed: Issue archived", "issue_id", issueID, "user_email", userEmail)
-		http.Error(w, "Tasks of archived issues are read-only", http.StatusForbidden)
+		http.Error(w, errMsgTasksArchivedReadOnly, http.StatusForbidden)
 		return
 	}
 

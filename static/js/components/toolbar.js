@@ -1,7 +1,7 @@
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setFilterRelease, setFilterReleaseOwner, setSelectedProject } from '../state.js';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { logout, updateCurrentUser } from '../api.js';
-import { showNotification, getUserInitials, guardSubmit } from '../utils.js';
+import { showNotification, getUserInitials, onGuardedSubmit } from '../utils.js';
 import { validatePasswordPolicy } from './system-settings.js';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
@@ -450,9 +450,7 @@ function setupPasswordModal(user) {
     form.reset();
   });
 
-  // Save and Enter share the in-flight submit instead of saving twice while the
-  // first request is still running.
-  const submitPassword = guardSubmit(async () => {
+  onGuardedSubmit(form, async () => {
     const currentPassword = document.getElementById('current-password').value;
     const newPassword = document.getElementById('new-password').value;
     const confirmNewPassword = document.getElementById('confirm-new-password').value;
@@ -484,10 +482,6 @@ function setupPasswordModal(user) {
         showNotification(err.message, 'error');
       }
     }
-  }, { button: form.querySelector('button[type="submit"]') });
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await submitPassword();
   });
 }
 

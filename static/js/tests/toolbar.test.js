@@ -16,7 +16,7 @@ vi.mock('../api.js', () => ({
 }));
 
 vi.mock('../utils.js', async (importOriginal) => ({
-  guardSubmit: (await importOriginal()).guardSubmit,
+  onGuardedSubmit: (await importOriginal()).onGuardedSubmit,
   showNotification: vi.fn(),
   getUserInitials: vi.fn((user) => (user.first_name[0] + user.last_name[0]).toUpperCase()),
   debounce: vi.fn((fn) => fn),

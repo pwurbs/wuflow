@@ -6,6 +6,14 @@
 import { fetchActiveIssuesByProject, fetchOpenIssuesByProject, fetchArchivedIssuesByProject } from './api.js';
 import { state, setIssues } from './state.js';
 
+// The lists each view needs on top of the active issues (Releases: progress counts every
+// issue of the project).
+export const VIEW_ISSUE_LISTS = {
+  backlog: ['open'],
+  archive: ['archived'],
+  releases: ['open', 'archived'],
+};
+
 const LIST_FETCHERS = {
   open: fetchOpenIssuesByProject,
   archived: fetchArchivedIssuesByProject,

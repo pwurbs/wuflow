@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, singleFlight, guardSubmit } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, singleFlight, guardSubmit, onGuardedSubmit } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
@@ -31,13 +31,7 @@ export function setupModal(refreshApp, rerenderViews) {
 
   document.getElementById('cancel-btn').addEventListener('click', closeModal);
   document.getElementById('done-btn').addEventListener('click', handleDone);
-  // Save and Enter share the in-flight submit instead of creating the issue twice
-  // while the first request is still running.
-  const submitIssue = guardSubmit(handleIssueSubmit, { button: document.getElementById('save-issue-btn') });
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    void submitIssue();
-  });
+  onGuardedSubmit(form, handleIssueSubmit);
 
 
   document.getElementById('delete-issue-btn').addEventListener('click', handleDeleteIssue);
@@ -1696,8 +1690,7 @@ async function addPlannedDate(dateStr) {
       try {
         // The dates are computed when the save runs, so quick consecutive adds all persist.
         const saved = await saveIssueChanges(issue => ({
-          planned_dates: [...(issue.planned_dates || []), dateStr]
-            .filter((d, i, all) => all.indexOf(d) === i)
+          planned_dates: [...new Set([...(issue.planned_dates || []), dateStr])]
             .sort((a, b) => a.localeCompare(b)),
         }), 'Date added');
         if (saved) renderPlannedDateChips(state.currentIssue);

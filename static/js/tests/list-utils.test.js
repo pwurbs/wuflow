@@ -173,7 +173,7 @@ describe('getListUpdates', () => {
     document.body.appendChild(list);
   }
 
-  it('returns only changed issues, flags status changes and applies them locally', () => {
+  it('returns only changed issues with their previous values and applies them locally', () => {
     state.issues = [
       { id: 1, status: 'Open', position: 0 },
       { id: 2, status: 'Todo', position: 0 },
@@ -184,7 +184,7 @@ describe('getListUpdates', () => {
     const { changes, archives } = getListUpdates('list', 'Open');
 
     expect(archives).toEqual([]);
-    expect(changes.map(c => [c.issue.id, c.statusChanged])).toEqual([[2, true], [1, false]]);
+    expect(changes.map(c => [c.issue.id, c.previous])).toEqual([[2, { status: 'Todo', position: 0 }], [1, { status: 'Open', position: 0 }]]);
     expect(state.issues.map(i => [i.id, i.status, i.position])).toEqual([[1, 'Open', 1], [2, 'Open', 0], [3, 'Open', 2]]);
     expect(api.updateIssue).not.toHaveBeenCalled();
   });

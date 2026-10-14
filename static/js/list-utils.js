@@ -99,14 +99,14 @@ export async function updatePositions(orderedIssues, rerenderCallback) {
  * saveIssueOrder, including the previous values so a failed save can restore them.
  */
 export function applyOrderChange(issue, status, position) {
-  const change = {
-    issue,
-    statusChanged: issue.status !== status,
-    previous: { status: issue.status, position: issue.position }
-  };
+  const change = { issue, previous: { status: issue.status, position: issue.position } };
   issue.status = status;
   issue.position = position;
   return change;
+}
+
+function statusChanged({ issue, previous }) {
+  return issue.status !== previous.status;
 }
 
 /**
@@ -122,10 +122,10 @@ export function applyOrderChange(issue, status, position) {
 export async function saveIssueOrder(changes) {
   try {
     await Promise.all(changes
-      .filter(({ statusChanged }) => statusChanged)
+      .filter(statusChanged)
       .map(({ issue }) => updateIssue(issue.project_id, issue)));
     const positions = changes
-      .filter(({ statusChanged }) => !statusChanged)
+      .filter(change => !statusChanged(change))
       .map(({ issue }) => ({ id: issue.id, position: issue.position }));
     if (positions.length > 0) {
       await updateIssuePositions(changes[0].issue.project_id, positions);

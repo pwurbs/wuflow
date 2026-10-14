@@ -7,7 +7,7 @@ import {
   getUnusedColor,
   getDeadlineStatus, getTaskDeadlineStatus,
   promptAdminPasswordConfirmation,
-  guardSubmit,
+  guardSubmit, onGuardedSubmit,
 } from '../utils.js';
 
 describe('getDeadlineStatus', () => {
@@ -508,6 +508,47 @@ describe('guardSubmit', () => {
     input.readOnly = true;
     await guardSubmit(() => Promise.resolve(), { input })();
     expect(input.readOnly).toBe(true);
+  });
+});
+
+describe('onGuardedSubmit', () => {
+  let form, button;
+
+  beforeEach(() => {
+    form = document.createElement('form');
+    button = document.createElement('button');
+    button.type = 'submit';
+    form.appendChild(button);
+  });
+
+  it('prevents the page submit and saves a repeated submit only once, greying out the form\'s submit button', async () => {
+    let resolveSave;
+    const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
+    onGuardedSubmit(form, fn);
+
+    const first = new Event('submit', { cancelable: true });
+    form.dispatchEvent(first);
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+
+    expect(first.defaultPrevented).toBe(true);
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(button.disabled).toBe(true);
+
+    resolveSave();
+    await vi.waitFor(() => expect(button.disabled).toBe(false));
+  });
+
+  it('uses the given button instead of the form\'s submit button', async () => {
+    const other = document.createElement('button');
+    let resolveSave;
+    onGuardedSubmit(form, () => new Promise(r => { resolveSave = r; }), { button: other });
+
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(other.disabled).toBe(true);
+    expect(button.disabled).toBe(false);
+
+    resolveSave();
+    await vi.waitFor(() => expect(other.disabled).toBe(false));
   });
 });
 

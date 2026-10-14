@@ -1,7 +1,7 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.js';
-import { loadIssues, ensureIssueLists } from '../issue-lists.js';
+import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.js';
 import { sortReleasesByDate } from '../list-utils.js';
-import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit } from '../utils.js';
+import { showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit } from '../utils.js';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.js';
 import { state, setReleases } from '../state.js';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.js';
@@ -11,14 +11,11 @@ import { updateReleaseFilterOptions } from './toolbar.js';
 
 let editingReleaseId = null;
 
-// Release progress counts every issue of the project, so this view needs both lazy lists.
-const RELEASE_ISSUE_LISTS = ['open', 'archived'];
-
 // Issues assigned to a release can change status/release_id as a side effect of a release
 // action on the backend (delete clears release_id, triggering can archive Done issues) —
 // unlike the other release actions below, this can't be resolved from already-known data.
 async function refreshIssuesAfterReleaseSideEffect() {
-  await loadIssues(RELEASE_ISSUE_LISTS);
+  await loadIssues(VIEW_ISSUE_LISTS.releases);
 }
 
 function mergeReleaseIntoState(updated) {
@@ -49,13 +46,7 @@ export async function setupReleasesView() {
   });
 
   cancelBtn?.addEventListener('click', closeReleaseModal);
-  // Save and Enter share the in-flight submit instead of saving twice while the
-  // first request is still running.
-  const submitRelease = guardSubmit(handleReleaseSubmit, { button: document.getElementById('release-modal-save') });
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await submitRelease();
-  });
+  if (form) onGuardedSubmit(form, handleReleaseSubmit);
 
   const deleteBtn = document.getElementById('release-modal-delete');
   if (deleteBtn && userCan(state.currentUser, ACTION_DELETE_RELEASE)) {
@@ -154,8 +145,7 @@ export async function renderReleasesView() {
   const container = document.getElementById('releases-view');
   if (!container) return;
 
-  await ensureIssueLists(RELEASE_ISSUE_LISTS);
-  const allIssues = state.issues;
+  await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
 
   const ownerFilter = state.filter.releaseOwnerFilter;
   const searchTerm = state.filter.releaseSearch?.trim().toLowerCase();
@@ -180,13 +170,13 @@ export async function renderReleasesView() {
   const totalClosed = state.releases.filter(r => r.status === RELEASE_STATUS_CLOSED).length;
 
   container.innerHTML = '';
-  container.appendChild(buildReleasesSection('Open Releases', openReleases, true, allIssues, totalOpen));
+  container.appendChild(buildReleasesSection('Open Releases', openReleases, true, totalOpen));
   if (closedReleases.length > 0 || totalClosed > 0) {
     const divider = document.createElement('hr');
     divider.className = 'releases-divider';
     divider.setAttribute('aria-hidden', 'true');
     container.appendChild(divider);
-    container.appendChild(buildReleasesSection('Closed Releases', closedReleases, false, allIssues, totalClosed));
+    container.appendChild(buildReleasesSection('Closed Releases', closedReleases, false, totalClosed));
   }
 }
 
@@ -201,8 +191,8 @@ function groupReleasesByMonth(releases) {
   return groups;
 }
 
-function appendReleaseRow(rel, isOpenSection, allIssues, list) {
-  const row = buildReleaseRow(rel, isOpenSection, allIssues);
+function appendReleaseRow(rel, isOpenSection, list) {
+  const row = buildReleaseRow(rel, isOpenSection);
   if (userCan(state.currentUser, ACTION_UPDATE_RELEASE)) {
     row.querySelector('.release-card-left').classList.add('release-card-left--clickable');
     row.querySelector('.release-card-left').addEventListener('click', () => openReleaseModal(rel));
@@ -211,7 +201,7 @@ function appendReleaseRow(rel, isOpenSection, allIssues, list) {
   list.appendChild(row);
 }
 
-function buildReleasesSection(title, releases, isOpenSection, allIssues, totalCount) {
+function buildReleasesSection(title, releases, isOpenSection, totalCount) {
   const section = document.createElement('div');
   section.className = 'backlog-section';
 
@@ -239,7 +229,7 @@ function buildReleasesSection(title, releases, isOpenSection, allIssues, totalCo
   if (releases.length === 0) {
     list.innerHTML = '<p class="releases-empty">No releases.</p>';
   } else if (isOpenSection) {
-    releases.forEach(rel => appendReleaseRow(rel, isOpenSection, allIssues, list));
+    releases.forEach(rel => appendReleaseRow(rel, isOpenSection, list));
   } else {
     const groups = groupReleasesByMonth(releases);
     let firstGroup = true;
@@ -249,7 +239,7 @@ function buildReleasesSection(title, releases, isOpenSection, allIssues, totalCo
       if (firstGroup) { header.style.marginTop = '8px'; firstGroup = false; }
       header.textContent = month;
       list.appendChild(header);
-      rels.forEach(rel => appendReleaseRow(rel, isOpenSection, allIssues, list));
+      rels.forEach(rel => appendReleaseRow(rel, isOpenSection, list));
     }
   }
 
@@ -414,8 +404,8 @@ function renderModalStats(release) {
   statsEl.classList.remove('hidden');
 }
 
-function buildReleaseRow(rel, isOpen, allIssues) {
-  const issues = allIssues.filter(i => i.release_id === rel.id);
+function buildReleaseRow(rel, isOpen) {
+  const issues = state.issues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === STATUS_DONE || i.status === STATUS_ARCHIVE).length;
   const inProgress = issues.filter(i => IN_PROGRESS_STATUSES.includes(i.status)).length;
@@ -490,7 +480,7 @@ async function handleDeleteRelease(rel) {
 }
 
 async function handleTriggerReleaseDialog(rel) {
-  await ensureIssueLists(RELEASE_ISSUE_LISTS);
+  await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
   const issues = state.issues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === STATUS_DONE).length;

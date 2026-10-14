@@ -2,7 +2,7 @@ import { state, isFilterActive, toggleBacklogReleaseFilter, pruneReleaseFilterId
 import { STATUS_OPEN, STATUS_TODO } from '../status-config.js';
 import { RELEASE_STATUS_OPEN } from '../domain-constants.js';
 import { updateIssue } from '../api.js';
-import { ensureIssueLists } from '../issue-lists.js';
+import { ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.js';
 import { createCardElement } from './card.js';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.js';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.js';
@@ -97,7 +97,7 @@ export async function renderBacklog(refreshApp, openModal, rerenderActiveView) {
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   // Lazy-load open issues if not already loaded
-  await ensureIssueLists(['open']);
+  await ensureIssueLists(VIEW_ISSUE_LISTS.backlog);
 
   const validReleaseIds = new Set([null, ...state.releases.filter(r => r.status === RELEASE_STATUS_OPEN).map(r => r.id)]);
   pruneReleaseFilterIds(validReleaseIds);

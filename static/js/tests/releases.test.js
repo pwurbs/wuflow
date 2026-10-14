@@ -24,7 +24,7 @@ vi.mock('../components/toolbar.js', () => ({
 
 vi.mock('../utils.js', async (importOriginal) => ({
   toDateInputValue: (await importOriginal()).toDateInputValue,
-  guardSubmit: (await importOriginal()).guardSubmit,
+  onGuardedSubmit: (await importOriginal()).onGuardedSubmit,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => String(s ?? '')),

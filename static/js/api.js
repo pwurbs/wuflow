@@ -253,12 +253,16 @@ export async function updateIssue(projectId, issue, etag = null) {
  * Only positions change; the server applies all of them or none.
  */
 export async function updateIssuePositions(projectId, positions) {
-  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/positions`, {
+  await putPositions(`${API_URL}/projects/${projectId}/issues/positions`, positions, 'Failed to save the new order');
+}
+
+async function putPositions(url, positions, errorMessage) {
+  const res = await authFetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(positions)
   });
-  if (!res.ok) throw new Error(await res.text() || 'Failed to save the new order');
+  if (!res.ok) throw new Error(await res.text() || errorMessage);
 }
 
 export async function archiveIssue(projectId, id) {
@@ -317,12 +321,7 @@ export async function updateTask(projectId, issueId, task) {
  * Save a task reorder in one request. positions: [{ id, position }, ...].
  */
 export async function updateTaskPositions(projectId, issueId, positions) {
-  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/positions`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(positions)
-  });
-  if (!res.ok) throw new Error(await res.text() || 'Failed to save the task order');
+  await putPositions(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/positions`, positions, 'Failed to save the task order');
 }
 
 export async function deleteTask(projectId, issueId, taskId) {

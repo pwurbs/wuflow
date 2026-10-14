@@ -11,7 +11,7 @@
   color: white;
 }
 
-.btn.primary:hover {
+.btn.primary:hover:not(:disabled) {
   background-color: var(--primary-hover);
 }
 
@@ -21,20 +21,6 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-.btn.primary:disabled:hover {
-  background-color: var(--primary-color);
-}
-
-.btn.danger:disabled:hover {
-  background-color: var(--danger-color);
-}
-
-.inline-edit-btn:disabled:hover {
-  background-color: transparent;
-}
-
-
 
 .btn.secondary {
   background-color: var(--secondary-color);
@@ -52,7 +38,7 @@
   color: white;
 }
 
-.btn.danger:hover {
+.btn.danger:hover:not(:disabled) {
   background-color: #b8442f;
 }
 

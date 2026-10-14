@@ -157,7 +157,7 @@
   height: 28px;
 }
 
-.inline-edit-btn:hover {
+.inline-edit-btn:hover:not(:disabled) {
   background-color: var(--hover-bg);
 }
 

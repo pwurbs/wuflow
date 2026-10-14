@@ -10,7 +10,7 @@ import { setupProjectSettingsView, renderProjectSettingsView } from './component
 import { setupReleasesView, renderReleasesView, renderReleaseOwnerOptions } from './components/releases.js';
 import { setupModal, openModal } from './components/modal.js';
 import { setupSession } from './session.js';
-import { loadIssues } from './issue-lists.js';
+import { loadIssues, VIEW_ISSUE_LISTS } from './issue-lists.js';
 import { debounce } from './utils.js';
 import { STATUS_OPEN } from './status-config.js';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
@@ -115,9 +115,9 @@ function getVisibleViews() {
 
 // The open/archived issue lists the given view needs on top of the active issues.
 function issueListsFor(visible) {
-    if (visible.releases) return ['open', 'archived'];
-    if (visible.backlog) return ['open'];
-    if (visible.archive) return ['archived'];
+    if (visible.releases) return VIEW_ISSUE_LISTS.releases;
+    if (visible.backlog) return VIEW_ISSUE_LISTS.backlog;
+    if (visible.archive) return VIEW_ISSUE_LISTS.archive;
     return [];
 }
 

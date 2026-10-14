@@ -76,7 +76,8 @@ vi.mock('../utils.js', async (importOriginal) => {
     continueListOnEnter: actual.continueListOnEnter,
     toDateInputValue: actual.toDateInputValue,
     singleFlight: actual.singleFlight,
-    guardSubmit: actual.guardSubmit
+    guardSubmit: actual.guardSubmit,
+    onGuardedSubmit: actual.onGuardedSubmit
   };
 });
 

@@ -274,6 +274,17 @@ export function guardSubmit(fn, { button = null, input = null } = {}) {
   });
 }
 
+// Submits the form through guardSubmit: Save and Enter share the in-flight submit
+// instead of saving twice while the first request is still running. The button
+// defaults to the form's submit button.
+export function onGuardedSubmit(form, fn, { button = form.querySelector('button[type="submit"]'), input = null } = {}) {
+  const submit = guardSubmit(fn, { button, input });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void submit();
+  });
+}
+
 // Debounce a function call by a specified wait time, needed for search
 export function debounce(func, wait) {
   let timeout;

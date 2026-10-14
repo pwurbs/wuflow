@@ -507,7 +507,7 @@
   transition: background-color 0.15s ease;
 }
 
-.btn.primary:hover {
+.btn.primary:hover:not(:disabled) {
   background-color: var(--primary-hover);
 }
 
