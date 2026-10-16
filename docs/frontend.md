@@ -7,23 +7,49 @@ The frontend is plain JavaScript (ES modules) and CSS, without a UI framework. I
 | Page | Source | Script entry point | Styles |
 |------|--------|--------------------|--------|
 | Login | `static/login.html` | `static/js/login.js` | `static/styles/pages/login.css` and the shared base styles |
-| App | `static/index.html` | `static/js/app.js` | `static/styles/main.css`, which imports all other style files |
+| App | `static/index.html` | `static/js/app.js` | `static/styles/main.css`, which imports all style files of the app (see [Style Structure](#style-structure)) |
 
 The only libraries shipped to the browser are marked and DOMPurify (npm packages, pinned in `static/js/package-lock.json`), used to render Markdown safely (see [markdown-security.md](./markdown-security.md)).
 
+Scripts and styles are split into many small files to organize the source code. Vite bundles each page into one script and one stylesheet (see [Build](#build)), so the number of source files costs nothing at runtime.
+
 ### Module Structure
 
-Paths relative to `static/js/`:
+Each file in `static/js/` is an ES module. Paths relative to `static/js/`:
 
-- **`components/`**: UI components (Board, Backlog, etc.)
-- **`tests/`**: Unit test files (collocated with logic where possible, or in this folder)
-- **`filters.js`**: Pure functions for filtering and sorting issues (extracted for testability)
+- **`app.js`**: Entry point of the app page: loads the data, sets up the views and refreshes them
+- **`login.js`**: Entry point of the login page
+- **`components/`**: One module per view or UI part: Board, Backlog, Archive, Releases, planning panel, system and project settings, issue modal (with `tasks.js` and `activity.js`), card, toolbar
 - **`state.js`**: Core client-side state management
 - **`issue-lists.js`**: Shared cache that loads the open/archived issue lists on demand and merges them into the issue state (see [Data Loading](#data-loading))
-- **`utils.js`**: Helper functions (HTML escaping, debouncing, etc.)
 - **`api.js`**: Backend API interaction
 - **`session.js`**: Re-login dialog, session check on return to the tab, connection banner
+- **`filters.js`**: Pure functions for filtering and sorting issues (extracted for testability)
+- **`list-utils.js`**: List actions shared by Board, Backlog and Archive (move to top/bottom, priority, assign to me, saving the order after drag and drop)
+- **`drag.js`**: Shared drag state for cards and tasks, drop position calculation
+- **`context-menu.js`**: Context menu of the cards
+- **`permissions.js`**: Mirror of the backend policy, used only to show or hide UI elements (the backend enforces authorization)
+- **`status-config.js`**: Status constants and accessors for the configurable board columns
+- **`domain-constants.js`**, **`validation-config.js`**: Mirrors of backend constants (priorities, release statuses, roles, input limits); keep them in sync with the backend
 - **`markdown.js`**: Markdown rendering with marked and DOMPurify (npm packages, bundled by Vite)
+- **`utils.js`**: Helper functions (HTML escaping, notifications, confirm dialogs, character counters, etc.)
+- **`tests/`**: Vitest unit tests, one file per module
+
+### Style Structure
+
+The styles in `static/styles/` follow the 7-1 pattern known from Sass, reduced to the five folders the app needs (no `vendors/`, no `themes/`) and written in plain CSS:
+
+| Folder | Contents |
+|--------|----------|
+| `abstracts/` | `variables.css`: CSS custom properties (colors, sizes); produces no CSS rules |
+| `base/` | Reset, typography, utility classes |
+| `layout/` | Page frame: layout and sidebar |
+| `components/` | Reusable UI parts: buttons, cards, forms, modals, menus, toasts, etc. |
+| `pages/` | Styles of a single view: Board, Backlog/Archive, planning panel, Releases, settings, login |
+
+- **Import order**: `main.css` imports all files of the app page, in the order of the table. This order is the cascade order: a page style can adapt a component, not the other way round.
+- **Login page**: `login.html` does not use `main.css`. It links only `variables.css`, `reset.css`, `typography.css` and `pages/login.css`.
+- **Typography**: font sizes and weights are collected in `base/typography.css`. Before adding them to a component or page file, check whether a selector group there already covers the element.
 
 ---
 
