@@ -50,6 +50,7 @@ The styles in `static/styles/` follow the 7-1 pattern known from Sass, reduced t
 - **Import order**: `main.css` imports all files of the app page, in the order of the table. This order is the cascade order: a page style can adapt a component, not the other way round.
 - **Login page**: `login.html` does not use `main.css`. It links only `variables.css`, `reset.css`, `typography.css` and `pages/login.css`.
 - **Typography**: font sizes and weights are collected in `base/typography.css`. Before adding them to a component or page file, check whether a selector group there already covers the element.
+- **Colors**: most colors come from the custom properties in `abstracts/variables.css`. Some component files still use literal values, e.g. the toast colors in `components/toasts.css`.
 
 ---
 

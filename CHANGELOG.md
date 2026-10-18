@@ -1,4 +1,8 @@
 
+# 1.4.4
+
+- Added Claude Code setup: CLAUDE.md with project instructions, shared permissions in .claude/settings.json and a doc-sync subagent
+
 # 1.4.3
 
 - Bumped marked to 18.1.1

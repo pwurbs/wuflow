@@ -48,6 +48,9 @@ Tests run fully parallel with 5 workers (`playwright.config.ts`). Each worker ha
 
 To enable cross-browser testing, uncomment Firefox/WebKit in `playwright.config.ts`.
 
+### Waiting for Asynchronous Data
+Locator assertions (`expect(locator)…`) retry until they pass, but `page.request` calls run at once. Before reading a field that an asynchronous fetch fills in, wait for it explicitly, e.g. `await expect(page.locator('#issue-id')).toHaveValue(/\d+/)` before using the issue id of an open modal in an API call. Otherwise the request goes out with an empty id. Keep this in mind when replacing a DOM assertion with an API check: the locator waited implicitly, the request doesn't.
+
 ### Test Suites
 
 The three issue-related suites are split by *what* is under test, not by which screen it happens on:

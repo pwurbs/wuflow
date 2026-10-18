@@ -27,17 +27,14 @@ static/js/coverage
 # Go fuzz tests
 backend/testdata
 
-# local AI agents
-.agent
-.claude
-.claudeignore
-.antigravityignore
+# Claude Code: personal settings
+.claude/settings.local.json
 
 # local Trivy scan
 .trivy
 
 # CodeGraph
-.codeGraph
+.codegraph
 
 # local Databases
 local-databases
