@@ -131,7 +131,7 @@ Unlike JWTs, the Refresh Token is a random string (`base64(session_id:secret)`).
 
 | Credential | Algorithm | Key / Cost |
 | :--- | :--- | :--- |
-| User passwords | bcrypt | Default cost (~300 ms) |
+| User passwords | bcrypt | Cost 12 (~200 ms on a current desktop CPU) |
 | JWT access tokens | HMAC-SHA256 (HS256) | Derived from `secretKey` via domain-separated HMAC-KDF |
 | Refresh token integrity | HMAC-SHA256 | Derived from `secretKey` via domain-separated HMAC-KDF |
 
@@ -170,7 +170,7 @@ To protect against credential stuffing and brute force attacks while preventing 
 **Login endpoint** — dual-layer strategy:
 1. **Per-IP Limit**: Maximizes at 20 failures per 15 minutes. Returns a fast `429 Too Many Requests` to shed load and stop automated botnets.
 2. **Per-IP & Email Limit**: Maximizes at 10 failures per 15 minutes. Returns a generic `401 Unauthorized` to prevent attackers from locking out legitimate users from arbitrary IP addresses.
-   - **Timing Side-Channel Protection**: When this limit is hit (or when a requested account doesn't exist or is inactive), the server executes a "dummy" password hash. This intentionally burns the exact same CPU time (~150ms) as a real login attempt, completely hiding the rate-limit or account status from the attacking client's network timing measurements.
+   - **Timing Side-Channel Protection**: When this limit is hit (or when a requested account doesn't exist or is inactive), the server executes a "dummy" password hash. This intentionally burns the exact same CPU time as a real login attempt (one bcrypt hash at the same cost), completely hiding the rate-limit or account status from the attacking client's network timing measurements.
    - **Reset-on-success scope**: Only the per-IP+Email counter is cleared on a successful login. The global per-IP counter persists so an attacker cannot reset IP-wide throttling by authenticating with a secondary account.
    - **Reverse Proxy Support**: If `wuFlow` is deployed behind a proxy or CDN, use `--remote-ip-header=X-Forwarded-For` (or `WF_REMOTE_IP_HEADER=X-Forwarded-For`) to ensure the actual client IP is used for rate limiting. If this setting is not provided, the application defaults to the direct connection IP (`r.RemoteAddr`). wuFlow reads the **first (leftmost) entry** of a comma-separated `X-Forwarded-For` value. This is only safe when wuFlow's port is not directly reachable from the internet **and** the proxy closest to the client sets the header authoritatively. See the [Reverse Proxy section in the README](../README.md#reverse-proxy) for proxy-specific configuration (Nginx, Traefik, Cloudflare).
 

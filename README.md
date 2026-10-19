@@ -203,6 +203,7 @@ For deeper technical insights, architecture overviews, and detailed functional d
 - [Input Validation](docs/input-validation.md)
 - [Client Security](docs/client-security.md)
 - [Markdown Security & Sanitization](docs/markdown-security.md)
+- [Security Guidelines](docs/security-guidelines.md)
 - [Concurrency Control](docs/concurrency-control.md)
 - [Testing](docs/testing.md)
 

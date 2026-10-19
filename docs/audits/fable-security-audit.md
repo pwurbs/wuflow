@@ -1,5 +1,9 @@
 # Security Audit Report by Fable
 
+> Point-in-time report, kept unchanged as a baseline. The accepted issues are maintained in
+> [Security Guidelines](../security-guidelines.md): A1 → I1, L1–L5 → I2–I6. Line numbers below
+> refer to commit `1299256`.
+
 | | |
 |---|---|
 | **Date** | 2026-07-03 |

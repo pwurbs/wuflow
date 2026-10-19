@@ -116,7 +116,7 @@ Warning: <script>alert('XSS!')</script> should be stripped.
 
 Check this <iframe src="https://malicious.site"></iframe> out.
 
-<style>body { background: red; }</style> The <style> tag is blocked (only the style attribute on allowed elements is permitted).
+<style>body { background: red; }</style> The <style> tag is blocked, and so is the style attribute on any element.
 ```
 
 **Disallowed Attributes & Schemes**:

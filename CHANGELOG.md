@@ -2,6 +2,7 @@
 # 1.4.4
 
 - Added Claude Code setup: CLAUDE.md with project instructions, shared permissions in .claude/settings.json and a doc-sync subagent
+- Docs: new Security Guidelines page with the general security rules and the accepted risks
 
 # 1.4.3
 

@@ -21,7 +21,7 @@ Use Bash only for read-only git commands (`git diff`, `git status`, `git tag`).
   so apply every edit to both. Names differ in places: `docs/api.md` ↔ `API.md`,
   `docs/testing.md` ↔ `Testing-Approach.md`, `docs/swagger.json` ↔ `Swagger.md`, otherwise
   kebab-case ↔ Title-Case (e.g. `input-validation.md` ↔ `Input-Validation.md`).
-  `docs/fable-security-audit.md` exists only in the repo.
+  `docs/audits/` exists only in the repo.
 - `README.md` sections ↔ wiki `Home`, `Why`, `Overview`, `Configuration`, `Deployment`,
   `Home-Assistant-Addon`.
 - `docs/swagger.json` is written by hand (no generator): update paths, schemas, limits and status codes.
