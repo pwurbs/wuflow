@@ -41,7 +41,7 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 | Lists (`-`, `1.`)     | `<ul>`, `<ol>`, `<li>` | **Allowed** (Attribute on `<ol>`: `start`) |
 | Paragraphs / Linebreaks | `<p>`, `<br>`     | **Allowed**         |
 | Links (`[text](url)`) | `<a>`              | **Allowed** (Attributes: `href`, `title`, `target`, `rel`) |
-| Code (`inline`, block)| `<code>`, `<pre>`  | **Allowed** (Attribute `class` allowed; marked always emits `class="language-…"` on code blocks) |
+| Code (`inline`, block)| `<code>`, `<pre>`  | **Allowed** (Attribute `class` only on `<code>` and only as one `language-…` class, which marked emits for fenced blocks that name a language; `class` on any other element is stripped, so content can't apply the app's own CSS classes) |
 | GFM Tables (`\| … \|`) | `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` | **Allowed** (Attribute `align` allowed for column alignment; marked emits `align="left\|center\|right"`) |
 | Horizontal Rule (`---`) | `<hr>`               | **Allowed**         |
 
@@ -52,9 +52,9 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 Copy and paste the sections below (snippets within markdown code blocks) into an Issue description field or a comment box to visually verify that rendering and security policies are applied correctly. Both fields render through the same `renderMarkdown()` + DOMPurify pipeline, so a scenario that passes for one passes for the other — note the comment box has a much shorter length limit (1000 characters, see [Input Validation](input-validation.md)), so a couple of the larger snippets below may need trimming to fit.
 
 ### 🟢 1. Standard Markdown
-Tests basic formatting, headers, lists, code blocks, and links.
+Tests basic formatting, headers, lists, code blocks, and links. The block with a language keeps its `language-js` class and must **not** trigger a security alert.
 
-```markdown
+````markdown
 # Heading 1
 ## Heading 2
 
@@ -75,12 +75,17 @@ This is **bold**, *italic*, and ~~strikethrough~~.
 console.log("Hello World");
 ```
 
+```js
+// Block code with a language
+const x = 1;
+```
+
 Text above horizontal rule
 
 ---
 
 Text below horizontal rule
-```markdown
+````
 
 ### 🟢 2. GFM Tables
 Tests GFM table rendering including optional column alignment. Should render a bordered table **without** triggering a security alert.
@@ -122,6 +127,8 @@ Check this <iframe src="https://malicious.site"></iframe> out.
 **Disallowed Attributes & Schemes**:
 ```markdown
 Link with a bad attribute: <a href="https://example.com" onclick="alert(1)">Click Me</a>
+
+<p class="modal-overlay">An app CSS class is stripped — this must not cover the page.</p>
 
 Malicious Link: [Don't click](javascript:alert('XSS'))
 ```

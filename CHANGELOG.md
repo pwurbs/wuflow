@@ -8,6 +8,7 @@
 - Helm chart: added optional value `wuflow.trustedProxies`; `wuflow.remoteIpHeader` is now explained
 - Docs: the reverse proxy section now describes the client IP settings per setup, including Cloudflare
 - Security: passwords are limited to 72 bytes (bcrypt's limit) instead of 128 characters to fix a login timing leak that revealed whether an account exists and an error when saving longer passwords
+- Security: Markdown can no longer use the app's CSS classes, e.g. to fake a dialog
 
 # 1.4.3
 

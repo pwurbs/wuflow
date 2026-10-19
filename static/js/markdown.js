@@ -18,6 +18,12 @@ const PURIFY_CONFIG = {
   FORCE_BODY: true,
 };
 
+// `class` is allowed only for marked's `language-…` class on code blocks; any
+// other class could apply the app's own CSS (e.g. fixed overlays) to user content.
+function isAllowedClass(node, value) {
+  return node.nodeName === 'CODE' && /^language-\S+$/.test(value);
+}
+
 /**
  * Render a Markdown string to safe HTML.
  * marked converts Markdown → HTML (raw HTML in source passes through unchanged).
@@ -41,9 +47,13 @@ export function renderMarkdown(md, returnObject = false) {
     }
   });
 
-  DOMPurify.addHook('uponSanitizeAttribute', (_node, data) => {
+  DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
     // Check if an attribute is being stripped because it's not in the allowlist
     if (!data.allowedAttributes[data.attrName]) {
+      strippedHTML = true;
+    }
+    if (data.attrName === 'class' && !isAllowedClass(node, data.attrValue)) {
+      data.keepAttr = false;
       strippedHTML = true;
     }
     // Detect javascript: URLs (which DOMPurify strips by default for security)
