@@ -1231,7 +1231,8 @@ func validateLoginRequest(req *loginRequest) error {
 // Validates credentials and sets JWT cookies on success.
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	ip := GetClientIP(r)
-	if loginLimiter.checkIP(ip) {
+	key := limiterKey(ip)
+	if loginLimiter.checkIP(key) {
 		LogWarn("Login blocked: IP rate limit exceeded", "ip", ip)
 		http.Error(w, errMsgTooManyAttempts, http.StatusTooManyRequests)
 		return
@@ -1242,7 +1243,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if loginLimiter.checkIPAndEmail(ip, req.Email) {
+	if loginLimiter.checkIPAndEmail(key, req.Email) {
 		LogWarn("Login blocked: IP and email rate limit exceeded", "email", req.Email, "ip", ip)
 		dummyPasswordCheck(req.Password)                           // Equalize timing to prevent side channels
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized) // we don't reveal the actual cause here
@@ -1259,7 +1260,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		// Equalise timing with the valid-user path to prevent user enumeration.
 		dummyPasswordCheck(req.Password)
 		LogWarn(errMsgFailedLogin, "email", req.Email, "reason", "user_not_found")
-		loginLimiter.recordFailure(ip, req.Email)
+		loginLimiter.recordFailure(key, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
@@ -1267,14 +1268,14 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	if !user.Active {
 		dummyPasswordCheck(req.Password) // Equalize timing to prevent side channels
 		LogWarn("Failed login attempt", "email", user.Email, "reason", "inactive_user")
-		loginLimiter.recordFailure(ip, req.Email)
+		loginLimiter.recordFailure(key, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
 
 	if !CheckPassword(user.PasswordHash, req.Password) {
 		LogWarn(errMsgFailedLogin, "email", req.Email, "reason", "invalid_password")
-		loginLimiter.recordFailure(ip, req.Email)
+		loginLimiter.recordFailure(key, req.Email)
 		http.Error(w, errMsgInvalidCreds, http.StatusUnauthorized)
 		return
 	}
@@ -1287,7 +1288,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loginLimiter.resetOnSuccess(ip, req.Email)
+	loginLimiter.resetOnSuccess(key, req.Email)
 	SetAuthCookies(w, accessToken, refreshToken)
 	LogInfo("Successful login", "email", user.Email, "session_id", session.ID)
 
@@ -1360,7 +1361,7 @@ func getUserEmailFromCookie(r *http.Request) string {
 // HandleRefresh handles POST /api/auth/refresh.
 // Validates the refresh token, checks user is still active, and issues a new access token.
 func HandleRefresh(w http.ResponseWriter, r *http.Request) {
-	if !refreshLimiter.allow(GetClientIP(r)) {
+	if !refreshLimiter.allow(limiterKey(GetClientIP(r))) {
 		http.Error(w, errMsgTooManyRequests, http.StatusTooManyRequests)
 		return
 	}

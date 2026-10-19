@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -688,6 +689,56 @@ func TestHandleRefreshRateLimit(t *testing.T) {
 	}
 	if got := strings.TrimSpace(rr.Body.String()); got != errMsgTooManyRequests {
 		t.Errorf("expected body %q, got %q", errMsgTooManyRequests, got)
+	}
+}
+
+func TestHandleRefreshRateLimitIPv6Per64(t *testing.T) {
+	orig := refreshLimiter
+	replacement := newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)
+	replacement.counts["2001:db8::/64"] = &failEntry{count: refreshIPMax + 1, windowEnd: time.Now().Add(time.Minute)}
+	refreshLimiter = replacement
+	defer func() { refreshLimiter = orig }()
+
+	// Another address in the exhausted /64 is blocked.
+	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
+	req.RemoteAddr = "[2001:db8::abcd]:1234"
+	rr := httptest.NewRecorder()
+	HandleRefresh(rr, req)
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusTooManyRequests)
+	}
+
+	// An address in another /64 has its own budget (401: no cookie).
+	req = httptest.NewRequest("POST", apiAuthRefresh, nil)
+	req.RemoteAddr = "[2001:db8:0:1::abcd]:1234"
+	rr = httptest.NewRecorder()
+	HandleRefresh(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestHandleLoginRateLimitIPv6Per64LogsFullIP(t *testing.T) {
+	orig := loginLimiter
+	replacement := newTestLimiter()
+	replacement.byIP["2001:db8::/64"] = &failEntry{count: ipMaxFailures, windowEnd: time.Now().Add(ipWindow)}
+	loginLimiter = replacement
+	defer func() { loginLimiter = orig }()
+	buf, restore := captureLogs(t, slog.LevelWarn)
+	defer restore()
+
+	body, _ := json.Marshal(map[string]string{"email": testEmail, "password": testPassword})
+	req := httptest.NewRequest("POST", apiAuthLogin, bytes.NewBuffer(body))
+	req.RemoteAddr = "[2001:db8::abcd]:1234"
+	rr := httptest.NewRecorder()
+	HandleLogin(rr, req)
+
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusTooManyRequests)
+	}
+	logged := buf.String()
+	if !strings.Contains(logged, `"ip":"2001:db8::abcd"`) || strings.Contains(logged, "/64") {
+		t.Errorf("expected the full client IP in the log, got %q", logged)
 	}
 }
 

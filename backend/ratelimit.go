@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"net/netip"
 	"sync"
 	"time"
 )
@@ -19,7 +20,30 @@ const (
 
 	refreshIPMax    = 10          // max refresh attempts per IP per window
 	refreshIPWindow = time.Minute // sliding window for refresh rate limiting
+
+	// An IPv6 client usually controls a whole /64, so the per-IP limits count
+	// per /64 instead of per address.
+	ipv6LimitPrefix = 64
 )
+
+// limiterKey returns the per-IP rate-limit key for a client IP: IPv4 as is,
+// IPv6 masked to its /64. Unparsable input is returned unchanged. Logs keep
+// the full IP; only the limiters use this key.
+func limiterKey(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	addr = addr.Unmap()
+	if addr.Is4() {
+		return addr.String()
+	}
+	prefix, err := addr.Prefix(ipv6LimitPrefix)
+	if err != nil {
+		return ip
+	}
+	return prefix.String()
+}
 
 type failEntry struct {
 	count     int

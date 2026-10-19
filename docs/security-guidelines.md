@@ -64,8 +64,8 @@ The security rules wuFlow's code follows and the risks the project has deliberat
 - Every API request is limited: 32 KB body, no query parameters, 5 s timeout; the server closes
   connections after 15 s read/write time.
 - `POST /api/auth/login` is rate-limited per IP and per IP+email, `POST /api/auth/refresh` per IP,
-  write requests per user. Login returns one generic error and equal timing for wrong password,
-  unknown and inactive users. → [User Management](user-management.md)
+  write requests per user; the per-IP limits count an IPv6 client per /64. Login returns one
+  generic error and equal timing for wrong password, unknown and inactive users. → [User Management](user-management.md)
 - Code gets the client IP (rate limits, logs) only via `GetClientIP`, which trusts the
   client-IP header only from trusted proxies (see [I1](#i1--private-networks-are-trusted-proxies-by-default)).
 - Password, role and email changes and deactivation revoke the user's sessions; sensitive admin

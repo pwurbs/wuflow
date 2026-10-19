@@ -242,3 +242,27 @@ func TestRateLimiterCleanupPreservesActiveEntries(t *testing.T) {
 		t.Error("active entry should not have been cleaned up")
 	}
 }
+
+func TestLimiterKey(t *testing.T) {
+	tests := []struct {
+		name string
+		ip   string
+		want string
+	}{
+		{"IPv4 unchanged", testIP1, testIP1},
+		{"IPv6 masked to /64", "2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64"},
+		{"IPv6 other address in same /64", "2001:db8:1:2::1", "2001:db8:1:2::/64"},
+		{"IPv6 other /64", "2001:db8:1:3::1", "2001:db8:1:3::/64"},
+		{"IPv4-mapped IPv6 as IPv4", "::ffff:192.0.2.1", "192.0.2.1"},
+		{"zone dropped", "fe80::1%eth0", "fe80::/64"},
+		{"unparsable unchanged", "not-an-ip", "not-an-ip"},
+		{"empty unchanged", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := limiterKey(tt.ip); got != tt.want {
+				t.Errorf("limiterKey(%q) = %q, want %q", tt.ip, got, tt.want)
+			}
+		})
+	}
+}

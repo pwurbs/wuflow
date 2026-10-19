@@ -405,6 +405,9 @@ const revalidateCacheControl = "no-cache"
 //
 // ValidatePathMiddleware is intentionally NOT applied; we only protect the API.
 // GET only; the mux returns 405 for any other method.
+//
+// The tests run on a mux built by this function, so their bypass checks cover
+// the production wiring: register every static route here, never in StartServer.
 func registerStaticRoutes(mux *http.ServeMux, staticFS fs.FS) error {
 	etags, err := computeETags(staticFS)
 	if err != nil {

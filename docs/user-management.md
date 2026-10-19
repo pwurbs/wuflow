@@ -166,7 +166,7 @@ sequenceDiagram
 ```
 
 #### Rate Limiting & Brute Force Protection
-To protect against credential stuffing and brute force attacks while preventing targeted Denial of Service (DoS), the application employs rate limiting at three layers:
+To protect against credential stuffing and brute force attacks while preventing targeted Denial of Service (DoS), the application employs rate limiting at three layers. The per-IP limits below count an IPv6 client per /64 network, not per address: one client usually controls a whole /64 and could otherwise get a fresh limit with every new address. Devices in the same /64 share the limit, as IPv4 devices behind one NAT address do. Logs keep the full IP.
 
 **Login endpoint** — dual-layer strategy:
 1. **Per-IP Limit**: Maximizes at 20 failures per 15 minutes. Returns a fast `429 Too Many Requests` to shed load and stop automated botnets.
