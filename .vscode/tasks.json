@@ -94,9 +94,10 @@
       "problemMatcher": []
     },
     {
-      "label": "Sonar Scanner",
+      "label": "Sonar",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && export BRANCH=$(git branch --show-current) && sonar-scanner -Dsonar.token=${env:SONAR_TOKEN} -Dsonar.projectVersion=$VERSION -Dsonar.branch.name=$BRANCH",
+      // results also after a failed scan or quality gate; the task keeps the scan's exit code
+      "command": "./scripts/sonar_scan.sh; rc=$?; ./scripts/sonar_results.sh; exit $rc",
       "dependsOn": ["Go Test", "JS Test", "Go Checks"],
       "dependsOrder": "sequence",
       "options": {

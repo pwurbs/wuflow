@@ -113,6 +113,24 @@ The script expects `gosec`, `go`, `golangci-lint` (v2), and `govulncheck` to be 
 
 Every check runs even if an earlier one fails, so a single pass reports all problems. The script then prints a summary and exits `1` if any check failed (`0` only when all pass), which is what turns the "Go Checks" task red.
 
+### `sonar_scan.sh`
+Uploads a SonarCloud analysis of the current branch, used by the "Sonar" VS Code task and the `/sonar` Claude Code skill. It waits until SonarCloud has processed the report and exits `1` if the quality gate fails.
+
+**Usage:**
+```bash
+./scripts/sonar_scan.sh
+```
+The script expects `sonar-scanner` in your PATH and a SonarCloud token exported as `SONAR_TOKEN`. It needs the coverage and gosec reports from the "Go Test", "JS Test" and "Go Checks" tasks; the VS Code task runs them first, and the script stops if a report is missing.
+
+### `sonar_results.sh`
+Prints the SonarCloud results for the current branch and for `main`: which commit was analysed (with a warning if it is not HEAD), the quality gate, open issues, security hotspots to review and the names of the rules found. The "Sonar" VS Code task runs it after `sonar_scan.sh`, also when the scan or the quality gate failed. Feature branches list only issues in code changed against `main`, so `main` shows the existing ones.
+
+**Usage:**
+```bash
+./scripts/sonar_results.sh
+```
+The script reads only the public SonarCloud API, so it needs no token; it expects `curl` and `jq` in your PATH.
+
 ### `go_race_fuzz.sh`
 Runs the slow Go test passes used by the "Go Race & Fuzz" VS Code task: the backend test suite under the race detector (`go test -race`), then every fuzz target for a fixed duration each.
 
