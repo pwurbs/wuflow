@@ -4,7 +4,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -34,31 +36,71 @@ func LogError(msg string, args ...any) { safeLogger.Error(msg, args...) }
 func LogDebug(msg string, args ...any) { safeLogger.Debug(msg, args...) }
 
 // GetClientIP extracts the client's IP address from the request.
-// If remoteIPHeader is set, it reads the IP directly from that header and
-// validates it. If the header is missing or contains an invalid IP, it logs a
-// warning and falls back to r.RemoteAddr.
-// If remoteIPHeader is not configured, it always uses r.RemoteAddr.
+// It uses remoteIPHeader only if that is configured and the direct peer
+// (r.RemoteAddr) is a trusted proxy; otherwise it returns the peer's IP.
 func GetClientIP(r *http.Request) string {
-	if remoteIPHeader != "" {
-		if headerIP := r.Header.Get(remoteIPHeader); headerIP != "" {
-			// X-Forwarded-For may contain multiple IPs (e.g. "client, proxy1").
-			// Take the leftmost entry — the original client IP.
-			// This is only trustworthy when the outermost trusted proxy strips
-			// any client-supplied header before appending its own
-			firstIP := strings.TrimSpace(strings.SplitN(headerIP, ",", 2)[0])
-			if net.ParseIP(firstIP) == nil {
-				LogWarn("GetClientIP: invalid IP in header, falling back to RemoteAddr",
-					"header", remoteIPHeader, "value", headerIP)
-			} else {
-				return firstIP
-			}
-		}
+	peer := remoteAddrIP(r)
+	if remoteIPHeader == "" || !isTrustedProxy(peer) {
+		return peer
 	}
+	if ip, ok := clientIPFromHeader(r); ok {
+		return ip
+	}
+	return peer
+}
 
-	// Default fallback: split host:port from RemoteAddr
+// remoteAddrIP returns the host part of r.RemoteAddr, or r.RemoteAddr as is if
+// it has no port.
+func remoteAddrIP(r *http.Request) string {
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return ip
+}
+
+// clientIPFromHeader selects the client IP from remoteIPHeader as described on
+// MDN (X-Forwarded-For, "Trusted proxy list"): all header lines form one list,
+// which is read from the right, skipping trusted proxies. The first untrusted
+// entry is the client; entries left of it may be forged by the client. If every
+// entry is trusted, the leftmost one is the client (as in Gin and Rails).
+// An invalid entry ends the search: ok is false and a warning is logged.
+func clientIPFromHeader(r *http.Request) (ip string, ok bool) {
+	value := strings.Join(r.Header.Values(remoteIPHeader), ",")
+	if value == "" {
+		return "", false
+	}
+	var addr netip.Addr
+	for _, entry := range slices.Backward(strings.Split(value, ",")) {
+		parsed, err := netip.ParseAddr(strings.TrimSpace(entry))
+		if err != nil {
+			LogWarn("GetClientIP: invalid IP in header, falling back to RemoteAddr",
+				"header", remoteIPHeader, "value", value)
+			return "", false
+		}
+		addr = parsed.WithZone("").Unmap()
+		if !trustedProxyContains(addr) {
+			return addr.String(), true
+		}
+	}
+	// Every entry is a trusted proxy: addr is the leftmost one.
+	return addr.String(), true
+}
+
+// isTrustedProxy reports whether ip (a textual IP address) is in trustedProxies.
+func isTrustedProxy(ip string) bool {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	return trustedProxyContains(addr.WithZone("").Unmap())
+}
+
+func trustedProxyContains(addr netip.Addr) bool {
+	for _, prefix := range trustedProxies {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }

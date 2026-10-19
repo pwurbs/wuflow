@@ -52,6 +52,8 @@ spec:
               value: {{ .Values.wuflow.apiRateLimit | quote }}
             - name: WF_REMOTE_IP_HEADER
               value: {{ .Values.wuflow.remoteIpHeader | quote }}
+            - name: WF_TRUSTED_PROXIES
+              value: {{ .Values.wuflow.trustedProxies | quote }}
             - name: WF_INITIAL_ADMIN_EMAIL
               value: {{ .Values.wuflow.initialAdminEmail | quote }}
             - name: WF_INITIAL_ADMIN_PASSWORD

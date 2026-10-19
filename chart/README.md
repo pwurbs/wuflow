@@ -33,9 +33,11 @@ Most important values in [`values.yaml`](values.yaml):
 | `storage.data.size` | Size of the data volume. Review before going to production; the default `local-path` StorageClass doesn't support resizing an existing PVC. |
 | `wuflow.initialAdminEmail` | Login of the initial admin account, only used at the very first start. Default `admin@local`. |
 | `secrets.existingSecret` | Name of an already existing Secret in the cluster, see [Secrets](#secrets) below. If empty, the chart creates the Secret itself. |
+| `wuflow.remoteIpHeader` | HTTP header with the client IP, for login rate limits and request logs. Default `X-Forwarded-For`, as set by the ingress controller; behind the Cloudflare proxy use `CF-Connecting-IP`. Empty = all users share the ingress controller's IP and thus one login rate limit. How wuFlow selects the client IP: [README "Client IP"](https://github.com/pwurbs/wuflow#client-ip). |
+| `wuflow.trustedProxies` | CIDRs or IPs (comma-separated) of the proxies whose `wuflow.remoteIpHeader` is used. Empty (default) = loopback and the private ranges, which include the usual pod networks. No effect if `wuflow.remoteIpHeader` is empty. See [`WF_TRUSTED_PROXIES`](https://github.com/pwurbs/wuflow#configuration). |
 | `ingress.compress` | `true` creates a Traefik `compress` Middleware and attaches it to the ingress router, so responses are sent compressed. wuFlow itself doesn't compress, and this makes it considerably faster on slow connections. Requires `ingress.className: traefik` (helm fails otherwise) and Traefik's Kubernetes CRDs (`traefik.io/v1alpha1`, included with k3s and the Traefik Helm chart). Middlewares already set via the `traefik.ingress.kubernetes.io/router.middlewares` annotation are kept. Default `false`; not needed behind a CDN that compresses. |
 
-All other values (log level, cookie and rate limit settings, client IP header, ingress class and TLS, resource requests/limits, image tag, ...) have workable defaults. See [`values.yaml`](values.yaml) for the full list and further explanations.
+All other values (log level, cookie and rate limit settings, ingress class and TLS, resource requests/limits, image tag, ...) have workable defaults. See [`values.yaml`](values.yaml) for the full list and further explanations.
 
 ## Secrets
 

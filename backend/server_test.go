@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -342,6 +343,88 @@ func TestParseLogLevel(t *testing.T) {
 		if !tt.wantErr && got != tt.expected {
 			t.Errorf("parseLogLevel(%q) = %v, want %v", tt.input, got, tt.expected)
 		}
+	}
+}
+
+// serverConfig is a snapshot of the settings resolveServerConfig resolves.
+type serverConfig struct {
+	logLevel       string
+	secureCookie   bool
+	apiRateLimit   bool
+	remoteIPHeader string
+	trustedProxies string
+}
+
+func currentServerConfig() serverConfig {
+	return serverConfig{logLevel, secureCookie, apiRateLimitEnabled, remoteIPHeader, fmt.Sprint(trustedProxies)}
+}
+
+// resetServerConfig clears the package-level settings as if no flag was given
+// and restores them, including the logger, after the test.
+func resetServerConfig(t *testing.T) {
+	t.Helper()
+	l, sc, scs, arl, arls, rih, tp, tps, logger := logLevel, secureCookie, secureCookieStr, apiRateLimitEnabled,
+		apiRateLimitStr, remoteIPHeader, trustedProxies, trustedProxiesStr, safeLogger
+	t.Cleanup(func() {
+		logLevel, secureCookie, secureCookieStr, apiRateLimitEnabled = l, sc, scs, arl
+		apiRateLimitStr, remoteIPHeader, trustedProxies, trustedProxiesStr, safeLogger = arls, rih, tp, tps, logger
+	})
+	logLevel, secureCookieStr, apiRateLimitStr, remoteIPHeader, trustedProxiesStr = "", "", "", "", ""
+	trustedProxies = defaultTrustedProxies
+}
+
+func TestResolveServerConfig(t *testing.T) {
+	defaults := serverConfig{"info", true, true, "", fmt.Sprint(defaultTrustedProxies)}
+	tests := []struct {
+		name        string
+		env         map[string]string
+		flagProxies string // value of --trusted-proxies, empty = not given
+		want        serverConfig
+		wantErr     bool
+	}{
+		{name: "Defaults", want: defaults},
+		{
+			name: "Environment variables",
+			env: map[string]string{
+				"WF_LOG_LEVEL": "debug", "WF_SECURE_COOKIE": "false", "WF_API_RATE_LIMIT": "false",
+				"WF_REMOTE_IP_HEADER": "X-Forwarded-For", "WF_TRUSTED_PROXIES": "10.42.0.0/16",
+			},
+			want: serverConfig{"debug", false, false, "X-Forwarded-For", "[10.42.0.0/16]"},
+		},
+		{
+			name:        "Flag beats environment for trusted proxies",
+			env:         map[string]string{"WF_TRUSTED_PROXIES": "10.42.0.0/16"},
+			flagProxies: "10.0.0.1",
+			want:        serverConfig{"info", true, true, "", "[10.0.0.1/32]"},
+		},
+		{
+			name:    "Invalid trusted proxy",
+			env:     map[string]string{"WF_TRUSTED_PROXIES": "10.42.0.0/16, proxy.local"},
+			wantErr: true,
+		},
+		{
+			name:    "Invalid log level",
+			env:     map[string]string{"WF_LOG_LEVEL": "verbose"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetServerConfig(t)
+			for _, k := range []string{"WF_LOG_LEVEL", "WF_SECURE_COOKIE", "WF_API_RATE_LIMIT", "WF_REMOTE_IP_HEADER", "WF_TRUSTED_PROXIES"} {
+				t.Setenv(k, tt.env[k])
+			}
+			trustedProxiesStr = tt.flagProxies
+
+			err := resolveServerConfig()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("resolveServerConfig() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && currentServerConfig() != tt.want {
+				t.Errorf("resolveServerConfig() = %+v, want %+v", currentServerConfig(), tt.want)
+			}
+		})
 	}
 }
 

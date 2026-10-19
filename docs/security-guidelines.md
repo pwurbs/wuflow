@@ -65,6 +65,8 @@ The security rules wuFlow's code follows and the risks the project has deliberat
 - `POST /api/auth/login` is rate-limited per IP and per IP+email, `POST /api/auth/refresh` per IP,
   write requests per user. Login returns one generic error and equal timing for wrong password,
   unknown and inactive users. → [User Management](user-management.md)
+- Code gets the client IP (rate limits, logs) only via `GetClientIP`, which trusts the
+  client-IP header only from trusted proxies (see [I1](#i1--private-networks-are-trusted-proxies-by-default)).
 - Password, role and email changes and deactivation revoke the user's sessions; sensitive admin
   actions require the admin's own password. → [User Management](user-management.md)
 
@@ -74,23 +76,23 @@ The security rules wuFlow's code follows and the risks the project has deliberat
   loaded from a CDN (`connect-src 'self'` as backstop).
 - Few dependencies; no new runtime dependency without the maintainer's approval. `gosec` and
   `govulncheck` run in `scripts/go_checks.sh`. → [scripts/README](../scripts/README.md)
-- TLS, HTTP/2 and compression belong in the reverse proxy; the proxy must set the client-IP
-  header authoritatively (see [I1](#i1--client-ip-from-proxy-header-trusts-the-leftmost-entry)).
-  → [README "Reverse Proxy"](../README.md#reverse-proxy)
+- TLS, HTTP/2 and compression belong in the reverse proxy. → [README "Reverse Proxy"](../README.md#reverse-proxy)
 - The container runs as the non-root user `appuser`.
 
 ## Accepted Issues
 
-### I1 — Client IP from proxy header trusts the leftmost entry
+### I1 — Private networks are trusted proxies by default
 
-- **Risk**: If the documented proxy setup is violated (port reachable directly, or a proxy that
-  appends to a client-supplied header), an attacker can forge the client IP. That bypasses the
-  IP-based login and refresh limits and falsifies request logs. The cause is that `GetClientIP`
-  takes the leftmost entry of `WF_REMOTE_IP_HEADER`.
-- **Why accepted**: Reading from the right past trusted proxies needs proxy IPs or hop counts per
-  deployment and is just as easy to misconfigure.
-- **Mitigation**: README and the wiki Deployment page require blocking direct access to the port
-  and an authoritative header at the outermost proxy.
+- **Risk**: With `WF_REMOTE_IP_HEADER` set, every host in a private range (`10.0.0.0/8`,
+  `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`, loopback) counts as a trusted proxy. Such a host —
+  any pod in the cluster, or a LAN client that reaches wuFlow's port directly — can set its own
+  client IP. That bypasses the IP-based login and refresh limits and falsifies request logs.
+  Clients outside the private ranges can't do this: their header is ignored, and entries they add
+  in front of a proxy's entry are skipped.
+- **Why accepted**: The default works without configuration for a proxy on the same host, in a
+  Docker network or in a Kubernetes cluster; an attacker needs a foothold in the private network.
+- **Mitigation**: README "Reverse Proxy" recommends exposing wuFlow's port only to the proxy;
+  `WF_TRUSTED_PROXIES` narrows the list (e.g. to the ingress pod CIDR or the proxy's address).
 - **Revisit if**: IP-based limits gain more weight (e.g. account lockout).
 
 ### I2 — No CSRF token; protection relies on browser rules

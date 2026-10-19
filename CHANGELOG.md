@@ -3,6 +3,10 @@
 
 - Added Claude Code setup: CLAUDE.md with project instructions, shared permissions in .claude/settings.json and a doc-sync subagent
 - Docs: new Security Guidelines page with the general security rules and the accepted risks
+- Security: the client IP header (`WF_REMOTE_IP_HEADER`) is now used only if the request comes from a trusted proxy, and it is read from the right, so IPs a client forges in `X-Forwarded-For` no longer bypass the login rate limits or appear in the logs
+- New setting Trusted Proxies (`WF_TRUSTED_PROXIES`, default: loopback and private ranges)
+- Helm chart: added optional value `wuflow.trustedProxies`; `wuflow.remoteIpHeader` is now explained
+- Docs: the reverse proxy section now describes the client IP settings per setup, including Cloudflare
 
 # 1.4.3
 

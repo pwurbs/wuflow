@@ -1,4 +1,8 @@
 
+# 1.4.4
+- Added optional value `wuflow.trustedProxies` (default empty = wuFlow's default: loopback and private ranges)
+- Fixed the issue that a client IP can be forged by clients, now it uses the client IP header only from trusted proxies
+
 # 1.4.3
 - The container's root filesystem is now read-only
 - Added ephemeral storage request values

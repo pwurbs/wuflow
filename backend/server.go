@@ -12,6 +12,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,17 +26,36 @@ var secureCookie bool
 var apiRateLimitStr string
 var apiRateLimitEnabled bool
 var remoteIPHeader string
+var trustedProxiesStr string
+
+// defaultTrustedProxies covers loopback and the private ranges, where reverse
+// proxies, Docker networks and Kubernetes pod networks usually live.
+var defaultTrustedProxies = []netip.Prefix{
+	netip.MustParsePrefix("127.0.0.0/8"),
+	netip.MustParsePrefix("10.0.0.0/8"),     //NOSONAR - private range, not a host address
+	netip.MustParsePrefix("172.16.0.0/12"),  //NOSONAR - private range, not a host address
+	netip.MustParsePrefix("192.168.0.0/16"), //NOSONAR - private range, not a host address
+	netip.MustParsePrefix("::1/128"),
+	netip.MustParsePrefix("fc00::/7"),
+}
+
+// trustedProxies are the peers whose remoteIPHeader is used (see GetClientIP).
+var trustedProxies = defaultTrustedProxies
 
 func init() {
 	flag.StringVar(&logLevel, "log-level", "", "Log level (debug, info, warn, error)")
 	flag.StringVar(&secureCookieStr, "secure-cookie", "", "Set Secure flag on auth cookies (true/false, default: true)")
 	flag.StringVar(&apiRateLimitStr, "api-rate-limit", "", "Enable per-user API rate limiting (true/false, default: true)")
-	flag.StringVar(&remoteIPHeader, "remote-ip-header", "", "Trusted HTTP header for client IP (first entry of comma-separated values is used)")
+	flag.StringVar(&remoteIPHeader, "remote-ip-header", "", "HTTP header with the client IP, used only from trusted proxies (e.g. X-Forwarded-For)")
+	flag.StringVar(&trustedProxiesStr, "trusted-proxies", "", "Comma-separated CIDRs or IPs of trusted reverse proxies (default: loopback and private ranges)")
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
 func StartServer(version string, port string, dbPath string, initialAdminEmail string, initialAdminPassword string, secretKey string, embeddedFiles embed.FS) {
-	resolveServerConfig()
+	if err := resolveServerConfig(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	fmt.Printf("Starting wuFlow version: %s at %s\n", version, time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Printf("Using database: %s\n", dbPath)
@@ -44,6 +64,7 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 	fmt.Printf("API rate limiting: %v\n", apiRateLimitEnabled)
 	if remoteIPHeader != "" {
 		fmt.Printf("Remote IP header: %s\n", remoteIPHeader)
+		fmt.Printf("Trusted proxies: %v\n", trustedProxies)
 	}
 
 	bootstrapDatabase(dbPath, initialAdminEmail, initialAdminPassword, secretKey)
@@ -77,7 +98,8 @@ func StartServer(version string, port string, dbPath string, initialAdminEmail s
 
 // resolveServerConfig applies the Flag > Env > Default priority to each
 // configuration variable and initialises the package-wide log level.
-func resolveServerConfig() {
+// It returns an error for an invalid log level or trusted-proxy entry.
+func resolveServerConfig() error {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -107,16 +129,28 @@ func resolveServerConfig() {
 		remoteIPHeader = os.Getenv("WF_REMOTE_IP_HEADER")
 	}
 
+	// Priority: Flag > Env > Default (loopback and private ranges)
+	if trustedProxiesStr == "" {
+		trustedProxiesStr = os.Getenv("WF_TRUSTED_PROXIES")
+	}
+	if trustedProxiesStr != "" {
+		proxies, err := parseTrustedProxies(trustedProxiesStr)
+		if err != nil {
+			return err
+		}
+		trustedProxies = proxies
+	}
+
 	level, err := parseLogLevel(logLevel)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	// Initialise the package-wide safeLogger (defined in utils.go) at the
 	// resolved level. All log calls go through LogInfo/LogWarn/LogError/LogDebug
 	// helpers — see utils.go for the gosec G706 rationale.
 	SetLogLevel(level)
+	return nil
 }
 
 // bootstrapDatabase opens the DB, cleans up expired sessions, derives the
@@ -467,6 +501,44 @@ func parseLogLevel(levelStr string) (slog.Level, error) {
 	default:
 		return slog.LevelInfo, fmt.Errorf("invalid log level '%s'", levelStr)
 	}
+}
+
+// parseTrustedProxies parses a comma-separated list of CIDRs or bare IPs (a
+// bare IP becomes a /32 or /128). Empty elements are skipped; an invalid entry
+// is an error. A list with only empty elements yields the default.
+func parseTrustedProxies(s string) ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
+	for entry := range strings.SplitSeq(s, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		prefix, err := parseTrustedProxy(entry)
+		if err != nil {
+			return nil, fmt.Errorf("invalid trusted proxy '%s': must be an IP or CIDR without zone", entry)
+		}
+		prefixes = append(prefixes, prefix)
+	}
+	if len(prefixes) == 0 {
+		return defaultTrustedProxies, nil
+	}
+	return prefixes, nil
+}
+
+func parseTrustedProxy(entry string) (netip.Prefix, error) {
+	if strings.Contains(entry, "/") {
+		prefix, err := netip.ParsePrefix(entry)
+		if err != nil {
+			return netip.Prefix{}, err
+		}
+		return prefix.Masked(), nil
+	}
+	addr, err := netip.ParseAddr(entry)
+	if err != nil || addr.Zone() != "" {
+		return netip.Prefix{}, errors.New("invalid IP")
+	}
+	addr = addr.Unmap()
+	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }
 
 // LimitBodyMiddleware caps the request body size at 32 KB to prevent memory

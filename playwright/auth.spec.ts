@@ -499,34 +499,36 @@ test.describe('Authentication Rate Limiting', () => {
     expect(allowedRes2.status()).toBe(401);
   });
 
-  test('Comma-separated X-Forwarded-For uses first entry for rate limiting', async ({ request, workerServer }) => {
+  test('Comma-separated X-Forwarded-For skips trusted proxies and ignores forged entries', async ({ request, workerServer }) => {
     const loginURL = `http://127.0.0.1:${workerServer.port}/api/auth/login`;
-    // Mimics the Traefik deployment chain where the proxy appends its own IP:
-    // X-Forwarded-For: <real-client-ip>, <traefik-pod-ip>
-    // The server must key rate limiting on the first (leftmost) entry only.
+    // Mimics the Traefik deployment chain where the proxy appends its own IP,
+    // with a client that sends its own (forged) header first:
+    // X-Forwarded-For: <forged>, <real-client-ip>, <traefik-pod-ip>
+    // The server reads from the right, skips the trusted (private) proxy IP and
+    // keys rate limiting on the first untrusted entry, the real client IP.
 
     const clientIP = '3.3.3.3';    //NOSONAR
     const proxyIP  = '10.42.0.1';  //NOSONAR
     const otherIP  = '4.4.4.4';    //NOSONAR
 
-    // 1. Exhaust the per-IP limit for clientIP using comma-separated headers.
+    // 1. Exhaust the per-IP limit for clientIP, with a new forged entry per request.
     for (let i = 0; i < 20; i++) {
       const res = await request.post(loginURL, {
-        headers: { 'X-Forwarded-For': `${clientIP}, ${proxyIP}` },
+        headers: { 'X-Forwarded-For': `198.51.100.${i}, ${clientIP}, ${proxyIP}` },
         data: { email: `xff-comma-${i}@example.com`, password: generatePassword() }
       });
       expect(res.status()).toBe(401);
     }
 
-    // 21st request with the same first entry must be blocked (429).
+    // 21st request from the same client must be blocked (429), whatever it forges.
     const blockedRes = await request.post(loginURL, {
-      headers: { 'X-Forwarded-For': `${clientIP}, ${proxyIP}` },
+      headers: { 'X-Forwarded-For': `198.51.100.99, ${clientIP}, ${proxyIP}` },
       data: { email: 'xff-comma-blocked@example.com', password: generatePassword() }
     });
     expect(blockedRes.status()).toBe(429);
 
-    // A different first entry must still be allowed (401) — proves the bucket
-    // is keyed on the first entry, not the full header string or the proxy IP.
+    // A different client must still be allowed (401) — proves the bucket is
+    // keyed on the client entry, not the full header string or the proxy IP.
     const allowedRes = await request.post(loginURL, {
       headers: { 'X-Forwarded-For': `${otherIP}, ${proxyIP}` },
       data: { email: 'xff-comma-other@example.com', password: generatePassword() }

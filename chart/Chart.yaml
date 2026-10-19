@@ -24,19 +24,15 @@ annotations:
   artifacthub.io/category: skip-prediction
   artifacthub.io/changes: |
     - kind: changed
-      description: wuFlow 1.4.3
+      description: wuFlow 1.4.4
       links:
         - name: Release notes
-          url: https://github.com/pwurbs/wuflow/releases/tag/v1.4.3
+          url: https://github.com/pwurbs/wuflow/releases/tag/v1.4.4
+    - kind: security
+      description: The client IP header (wuflow.remoteIpHeader) is used only from trusted proxies; entries forged by clients are ignored
     - kind: added
-      description: Optional value hostUsers (default true); set to false to run the pod in its own Linux user namespace
-    - kind: added
-      description: Optional value ingress.compress (default false); set to true to compress responses via a Traefik compress Middleware
-    - kind: changed
-      description: The container's root filesystem is now read-only; /tmp is a 64Mi emptyDir for SQLite temp files
-    - kind: added
-      description: Ephemeral storage request values
-  artifacthub.io/containsSecurityUpdates: "false"
+      description: Optional value wuflow.trustedProxies (default empty = wuFlow's default, loopback and private ranges)
+  artifacthub.io/containsSecurityUpdates: "true"
   artifacthub.io/links: |
     - name: Documentation
       url: https://github.com/pwurbs/wuflow/wiki

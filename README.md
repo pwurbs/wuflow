@@ -103,13 +103,14 @@ Configuration is done by either Envvar or command line argument using the follow
 | Log Level | `WF_LOG_LEVEL` | `-log-level` | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`). |
 | Secure Cookie | `WF_SECURE_COOKIE` | `-secure-cookie` | `true` | Restricts auth cookies to HTTPS. Disable (`false`) only for internal HTTP networks. |
 | API Rate Limit | `WF_API_RATE_LIMIT` | `-api-rate-limit` | `true` | Enables per-user API rate limiting to prevent abuse. |
-| Remote IP Header | `WF_REMOTE_IP_HEADER` | `-remote-ip-header` | *None* | Trusted HTTP header for detecting client IP behind a reverse proxy (e.g., `X-Forwarded-For`). Only set this when wuFlow's port is exclusively reachable through the trusted proxy. The proxy must **overwrite** (not append to) the header. |
+| Remote IP Header | `WF_REMOTE_IP_HEADER` | `-remote-ip-header` | *None* | HTTP header with the client IP behind a reverse proxy (e.g. `X-Forwarded-For`, `CF-Connecting-IP`). Used only if the direct peer is a trusted proxy; the client is the rightmost entry that isn't a trusted proxy, see [Reverse Proxy](#reverse-proxy). |
+| Trusted Proxies | `WF_TRUSTED_PROXIES` | `-trusted-proxies` | Loopback and private ranges | Comma-separated CIDRs or IPs of the reverse proxies whose Remote IP Header is used. Only takes effect if Remote IP Header is set. A set value replaces the default list. An invalid entry stops the app at startup. |
 
 Configuration Remarks:
 - **Initial admin email/password** is **only** used to create the first sysadmin user on initial startup and store it in the database. For email, the default can be used, but the password **must** be defined for the initial startup and comply to the password policy (12 characters, no common passwords). The app won't start initially without a valid password. You can change email or password later in the user settings.
 - If the **Secret Key** is not configured, a random key is generated on startup. This invalidates all sessions and forces users to login again. If you want to provide persistent sessions which survive restarts, you **must** provide a stable secret key. This key should have at least 32 characters, be a high-entropy random string and **must** be stored securely. Because it's used for JWT signing and session token hash, a **revealed or compromised key will compromise the security** of the entire application.
 - **Secure Cookie** must be kept **enabled** for production environments. Otherwise, there is the risk that the critical security related cookies are sent over unencrypted connections. The Secure cookie flag requires TLS, so this only works correctly when the app runs behind a TLS-terminating reverse proxy. Setting this to false and going without a TLS terminating reverse proxy **is only recommended for internal and trustworthy HTTP networks**.
-- The **Remote IP Header** setting is used to correctly detect the actual client IP when the app is running behind a reverse proxy. If empty, the client IP is directly taken from the TCP connection. If you are running the app behind a reverse proxy, you **must** set this to the HTTP header that the proxy sets with the actual client IP (e.g., `X-Forwarded-For` or `X-Real-IP`). Otherwise, the login rate limiting is based on wrong IP address information and the request logging contains the IP address of the reverse proxy instead of the actual client IP.
+- The **Remote IP Header** setting lets wuFlow see the actual client IP behind a reverse proxy. If it is empty, the client IP is taken from the TCP connection, which behind a proxy is the proxy's IP: all users then share one login rate limit, and the request logs show the proxy's IP. **Trusted Proxies** defines which peers may set this header. The default (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fc00::/7`) fits a proxy on the same host, in a Docker network or in a Kubernetes cluster. Narrow it to your proxy's address if other hosts in your private networks shouldn't be able to set their own client IP. See [Reverse Proxy](#reverse-proxy).
 - **Timing parameters** are not configurable but are fixed at well-reasoned defaults. None of these require tuning for typical deployments.
   - *Server (transport layer):*
     - `ReadTimeout` — **15 s**: maximum time to read the full HTTP request (headers + body).
@@ -168,17 +169,29 @@ The first command builds the frontend with Vite into `static/dist/app`, which th
 
 The same way, you can access the app at `http://localhost:8080` and login with email `admin@local` and the configured password.
 
-### Reverse Proxy
-As the app only offers unencrypted HTTP, **it is mandatory to run it behind a reverse proxy** (e.g. Nginx, Traefik) within the same environment that **handles TLS termination** and forwards requests to the app. Otherwise, it would not be possible to use the secure cookie flag, which is mandatory for the security of the application. The reverse proxy should also be configured to forward the actual client IP to the app using the configured **Remote IP Header**.
+## Reverse Proxy
+As the app only offers unencrypted HTTP, **it is mandatory to run it behind a reverse proxy** (e.g. Nginx, Traefik) within the same environment that **handles TLS termination** and forwards requests to the app. Otherwise, it would not be possible to use the secure cookie flag, which is mandatory for the security of the application. The reverse proxy should also pass the actual client IP to the app, see below.
 
-For the Remote IP Header to work correctly and securely:
-- **Block direct access to wuFlow's port** — bind it to `localhost` or a private interface, or restrict it with a firewall rule, so it is not reachable from the internet. This is the foundational requirement: if an attacker can connect to wuFlow directly, they can set any `X-Forwarded-For` header they like, bypassing IP-based rate limiting entirely.
-- **The proxy that sees the real client IP must set the header authoritatively.** wuFlow reads the first entry of a comma-separated `X-Forwarded-For` value. That entry is only trustworthy if the proxy closest to the client strips any client-supplied header and sets its own. If your reverse proxy itself sits behind a CDN or runs as a container (so its direct peer is a bridge or node IP, not the real client), then it must be configured to trust and preserve the upstream header rather than overwrite it — the CDN or outermost layer is then responsible for the authoritative first entry:
-  - **Cloudflare** strips client-supplied forwarded headers and sets its own — no extra configuration needed on your reverse proxy for the first entry.
-  - **Nginx**: use `proxy_set_header X-Forwarded-For $remote_addr;` (not `$proxy_add_x_forwarded_for`, which appends to the existing header).
-  - **Traefik**: configure `trustedIPs` on the entry point to include the upstream peer's IP (CDN edge or container bridge). This tells Traefik to trust and preserve the existing `X-Forwarded-For` chain rather than stripping it. Without `trustedIPs`, Traefik strips forwarded headers from untrusted peers and the real client IP is lost (see [Traefik docs on forwarded headers](https://doc.traefik.io/traefik/routing/entrypoints/#forwarded-headers)).
+### Client IP
+wuFlow uses the client IP for the login and token-refresh rate limits and in its request logs. Behind a reverse proxy, the TCP connection comes from the proxy, so set **Remote IP Header** (`WF_REMOTE_IP_HEADER`) to the header in which your proxy passes the client IP. Otherwise all users share the proxy's IP and thus one login rate limit.
 
-  If the outermost proxy appends its value to any client-supplied header, wuFlow cannot distinguish the real client IP from an attacker-controlled value, and all clients through the proxy will share a single rate-limit bucket.
+How wuFlow selects the client IP:
+- It uses the header only if the request comes directly from a **trusted proxy** (`WF_TRUSTED_PROXIES`, default: loopback and the private ranges). From any other peer, it ignores the header and uses the IP of the connection.
+- It reads the header from the right and skips trusted proxies. The first IP that isn't a trusted proxy is the client. Entries left of it are ignored, because the client can write them itself. If every entry is a trusted proxy, the leftmost one is used. Several lines of the header count as one list.
+- If it reaches an entry that isn't an IP address, it uses the IP of the connection and logs a warning.
+
+So the proxy may append to an `X-Forwarded-For` header the client sent; that's the usual behaviour of Nginx and Cloudflare. Hosts in a private network count as trusted proxies under the default, so a client in your LAN that reaches wuFlow's port directly can set its own client IP. Therefore keep wuFlow's port reachable only for the proxy (bind it to `localhost` or a private interface, or use a firewall rule), or narrow `WF_TRUSTED_PROXIES` to the proxy's address.
+
+Settings per setup:
+
+| Setup | `WF_REMOTE_IP_HEADER` | `WF_TRUSTED_PROXIES` | Proxy requirement |
+|---|---|---|---|
+| Proxy on the same host or in a Docker/private network | `X-Forwarded-For` | default | Nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` — Traefik: nothing |
+| Proxy with a public IP | `X-Forwarded-For` | the proxy's IP | as above |
+| Kubernetes ([Helm chart](chart/README.md)) | set by the chart | default | A load balancer or CDN in front of the ingress controller must be trusted by it (Traefik: `forwardedHeaders.trustedIPs`) |
+| Cloudflare proxy | `CF-Connecting-IP` | default | Only Cloudflare may reach the origin (firewall on [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) or Authenticated Origin Pulls); otherwise anyone can set this header |
+
+A proxy that doesn't trust the hop in front of it replaces the header, and all users share that hop's IP. Add only proxies or CDNs you know to a proxy's trusted IPs, never a whole network that internet clients may appear from.
 
 **Enable compression on the reverse proxy.** Like TLS, compression is left to the proxy; wuFlow itself sends its responses uncompressed. On slow connections, compression makes the first page load and the Backlog and Archive views considerably faster.
 - **Traefik**: add the [`compress` middleware](https://doc.traefik.io/traefik/reference/routing-configuration/http/middlewares/compress/) to the route that serves wuFlow. With the [Helm chart](chart/README.md), set `ingress.compress: true`.

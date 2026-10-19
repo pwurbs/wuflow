@@ -22,6 +22,9 @@ recorded as known and accepted. This report serves as a baseline for future audi
 
 ### A1 — Client IP from proxy header trusts the leftmost `X-Forwarded-For` entry
 
+> **Status (2026-10-19): superseded in 1.4.4.** `GetClientIP` now uses the header only from trusted
+> proxies (`WF_TRUSTED_PROXIES`) and reads it from the right; see the Security Guidelines, I1.
+
 `GetClientIP` (`backend/utils.go:48`) takes the **leftmost** entry of the header
 configured via `WF_REMOTE_IP_HEADER`:
 

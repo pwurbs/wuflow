@@ -8,7 +8,19 @@ wuflow:
   logLevel: info
   secureCookie: true
   apiRateLimit: true
+  # HTTP header with the client IP. The chart always runs wuFlow behind the ingress controller, so
+  # this defaults to the controller's X-Forwarded-For (the app itself has no default). wuFlow uses
+  # the header only if the direct peer is a trusted proxy (see trustedProxies); the client is the
+  # rightmost entry that isn't a trusted proxy, so entries a client forged itself are ignored.
+  # Behind the Cloudflare proxy, use CF-Connecting-IP (see the wuFlow README, "Reverse Proxy").
+  # Empty = every request counts as coming from the ingress controller, so all users share one login
+  # rate limit.
   remoteIpHeader: "X-Forwarded-For"
+  # Comma-separated CIDRs or IPs of the proxies whose remoteIpHeader wuFlow trusts. Empty = the app
+  # default: loopback and the private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7),
+  # which include the usual pod networks. To trust fewer hosts, set it to the ingress controller's
+  # pod CIDR (e.g. 10.42.0.0/16 on k3s). No effect if remoteIpHeader is empty.
+  trustedProxies: ""
   initialAdminEmail: admin@local
 
 secrets:

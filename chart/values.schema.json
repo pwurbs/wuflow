@@ -56,7 +56,12 @@
         "remoteIpHeader": {
           "type": "string",
           "default": "X-Forwarded-For",
-          "description": "HTTP header used to determine the client's real IP address behind a reverse proxy."
+          "description": "HTTP header with the client's IP address, set by the ingress controller. wuFlow uses it only if the direct peer is a trusted proxy (trustedProxies); the client is the rightmost entry that isn't a trusted proxy. Use CF-Connecting-IP behind the Cloudflare proxy. Empty = all users share the ingress controller's IP and thus one login rate limit."
+        },
+        "trustedProxies": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated CIDRs or IPs of the proxies whose remoteIpHeader is trusted. Empty = app default: loopback and the private ranges, which include the usual pod networks. No effect if remoteIpHeader is empty."
         },
         "initialAdminEmail": {
           "type": "string",

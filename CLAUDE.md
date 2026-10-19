@@ -42,6 +42,7 @@ After any code change, these must pass (commands above):
 - Check and update docs/, README.md and docs/swagger.json where the change requires it.
 - Then run the doc-sync subagent (.claude/agents/doc-sync.md): it mirrors docs/ and README into
   the GitHub wiki (separate repo, sibling checkout `../wuflow.wiki`) and catches remaining spots.
+- The maintainer commits the wiki right before a release; don't remind about uncommitted wiki changes.
 
 ## Project rules
 - The backend enforces everything — authorization, validation, ownership; frontend checks are UX
