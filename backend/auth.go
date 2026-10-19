@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -81,9 +82,22 @@ func InitSecretKey(secret string) {
 	tokenMACKey = h2.Sum(nil)
 }
 
+// bcryptCost is the bcrypt work factor for password hashes (and dummyPasswordHash).
+const bcryptCost = 12
+
+// dummyPasswordHash returns a bcrypt hash of a random, discarded value, created on
+// first use. It belongs to no user; dummyPasswordCheck compares against it.
+var dummyPasswordHash = sync.OnceValue(func() string {
+	hash, err := HashPassword(rand.Text())
+	if err != nil {
+		LogError("Failed to create dummy password hash", "error", err)
+	}
+	return hash
+})
+
 // HashPassword hashes a plaintext password using bcrypt.
 func HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return "", err
 	}
@@ -104,11 +118,12 @@ func CheckPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-// dummyPasswordCheck runs HashPassword to simulate the same wall-clock time
-// as a real CheckPassword call so that login attempts for non-existent or
-// blocked users are indistinguishable from wrong-password attempts by timing.
+// dummyPasswordCheck runs the same bcrypt comparison as CheckPassword against
+// dummyPasswordHash so that login attempts for non-existent or blocked users are
+// indistinguishable from wrong-password attempts by timing — for any password
+// length (hashing instead would return early for passwords over 72 bytes).
 func dummyPasswordCheck(password string) {
-	_, _ = HashPassword(password)
+	_ = CheckPassword(dummyPasswordHash(), password)
 }
 
 // GenerateAccessToken creates a short-lived JWT access token for the given user.

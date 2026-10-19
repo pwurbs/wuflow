@@ -52,6 +52,20 @@ const (
 // internal error detail to the client.
 var errAdminCheckDB = errors.New("internal admin count check failed")
 
+// errPasswordHash is returned by updateUserPassword when hashing fails after the
+// password passed validation — an internal error (→ 500), not a client error.
+var errPasswordHash = errors.New("failed to hash password")
+
+// writeUserUpdateError sends internal failures (admin count query, password hashing)
+// as a generic 500 and validation errors with their message as 400.
+func writeUserUpdateError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errAdminCheckDB) || errors.Is(err, errPasswordHash) {
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusBadRequest)
+}
+
 // verifyAdminPassword confirms adminEmail's account matches providedPassword,
 // used to re-authenticate an admin before a sensitive action. Returns
 // errAdminCheckDB if the admin's account can't be loaded (existing sentinel,
@@ -1207,7 +1221,7 @@ func validateLoginRequest(req *loginRequest) error {
 	if req.Password == "" {
 		return errors.New("password is required")
 	}
-	if utf8.RuneCountInString(req.Password) > MaxPasswordLength {
+	if len(req.Password) > MaxPasswordBytes {
 		return ErrPasswordTooLong
 	}
 	return nil
@@ -1456,7 +1470,7 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 		}
 		if err := updateUserPassword(existing, req.Password); err != nil {
 			LogError("UpdateSelf: password error", "error", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			writeUserUpdateError(w, err)
 			return
 		}
 	}
@@ -1640,11 +1654,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 
 	revokeSessions, err := validateAndPrepareUserUpdate(r.Context(), existing, req, userEmail)
 	if err != nil {
-		if errors.Is(err, errAdminCheckDB) {
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
+		writeUserUpdateError(w, err)
 		return
 	}
 
@@ -1765,7 +1775,7 @@ func updateUserPassword(user *User, newPassword string) error {
 	}
 	hash, err := HashPassword(newPassword)
 	if err != nil {
-		return fmt.Errorf("failed to hash password")
+		return fmt.Errorf("%w: %w", errPasswordHash, err)
 	}
 	user.PasswordHash = hash
 	return nil

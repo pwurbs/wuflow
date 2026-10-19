@@ -58,7 +58,8 @@ The security rules wuFlow's code follows and the risks the project has deliberat
 ### Authentication and abuse protection
 
 - No default credentials: the first start requires an initial admin password. Passwords have at
-  least 12 characters, must not be the email and must not contain a blocklisted word.
+  least 12 characters and at most 72 bytes (bcrypt's input limit), must not be the email and must
+  not contain a blocklisted word.
   → [User Management](user-management.md)
 - Every API request is limited: 32 KB body, no query parameters, 5 s timeout; the server closes
   connections after 15 s read/write time.
@@ -164,3 +165,16 @@ The security rules wuFlow's code follows and the risks the project has deliberat
   `'unsafe-inline'` would need a nonce per response.
 - **Mitigation**: `script-src` stays without `'unsafe-inline'`.
 - **Revisit if**: inline styles can be replaced by CSS classes or custom properties.
+
+### I9 — Session refresh on page loads is not rate-limited
+
+- **Risk**: A page load without a valid access token refreshes the session from the refresh-token
+  cookie without the per-IP limit of `POST /api/auth/refresh`. Anyone can send unlimited requests
+  that each cause one database lookup by session token (malformed cookies fail before the lookup).
+- **Why accepted**: No brute-force risk: the session token is random (`rand.Text()`, at least
+  128 bit) and the secret is checked by HMAC. The lookup is an indexed read, about as cheap as
+  serving the login page, which is not limited either. A limit here would send legitimate users to
+  the login page when their IP shares the budget with others (NAT, API refreshes).
+- **Mitigation**: Protection against request floods is a job for the reverse proxy.
+- **Revisit if**: the refresh on page loads gets more expensive (more queries, hashing), or the
+  session token gets shorter or guessable.

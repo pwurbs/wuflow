@@ -355,7 +355,7 @@
                         </div>
                         <div class="form-group">
                             <label for="user-password">Password</label>
-                            <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
+                            <!-- maxlength: rough bound above MAX_PASSWORD_BYTES (validation-config.js) on purpose — a lower one would silently cut pasted passwords; the byte limit is checked in validatePasswordPolicy -->
                             <input type="password" id="user-password" maxlength="128" autocomplete="off">
                             <small id="user-password-hint" class="form-hint">Leave empty to keep current password (edit
                                 only)</small>
@@ -880,13 +880,13 @@
                 </div>
                 <div class="form-group">
                     <label for="new-password">New Password</label>
-                    <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
+                    <!-- maxlength: rough bound above MAX_PASSWORD_BYTES (validation-config.js) on purpose — a lower one would silently cut pasted passwords; the byte limit is checked in validatePasswordPolicy -->
                     <input type="password" id="new-password" required placeholder="Enter new password" maxlength="128" autocomplete="new-password">
                     <small class="form-hint">Minimum 12 characters. No common passwords.</small>
                 </div>
                 <div class="form-group">
                     <label for="confirm-new-password">Confirm New Password</label>
-                    <!-- maxlength: sync with MAX_PASSWORD_LENGTH in validation-config.js -->
+                    <!-- maxlength: rough bound above MAX_PASSWORD_BYTES (validation-config.js) on purpose — a lower one would silently cut pasted passwords; the byte limit is checked in validatePasswordPolicy -->
                     <input type="password" id="confirm-new-password" required placeholder="Re-enter new password" maxlength="128" autocomplete="new-password">
                 </div>
                 <div id="password-modal-error" class="form-error hidden" role="alert"></div>

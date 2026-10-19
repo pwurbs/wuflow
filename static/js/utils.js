@@ -303,6 +303,11 @@ export function countCodepoints(str) {
   return [...str].length;
 }
 
+// countUtf8Bytes returns the UTF-8 byte length, as the backend's len() counts it.
+export function countUtf8Bytes(str) {
+  return new TextEncoder().encode(str).length;
+}
+
 // continueListOnEnter auto-continues a bullet/numbered markdown list when Enter
 // is pressed on a list-item line (or ends the list when the item is empty).
 // Shared by the issue-description editor and comment textareas. Returns true

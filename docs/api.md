@@ -83,6 +83,7 @@ Authenticates a user and sets HTTPOnly cookies for access and refresh tokens.
   ```
 - **Response**: User object with role and active status
 - **Errors**:
+  - `400 Bad Request` - Email missing or invalid, or password missing or longer than 72 bytes
   - `401 Unauthorized` - Invalid credentials or inactive account
 
 ### Logout
@@ -120,7 +121,7 @@ Allows the authenticated user to change their own password. All existing session
   - On success, all sessions for the user are revoked; the user is logged out at the next token refresh (max 15 minutes)
 - **Response**: Updated user object
 - **Errors**:
-  - `400 Bad Request` - Password policy violation or `current_password` missing/incorrect
+  - `400 Bad Request` - Password policy violation (12 characters to 72 bytes, see [User Management](user-management.md#password-policy)) or `current_password` missing/incorrect
   - `401 Unauthorized` - Not authenticated
 
 ### List Users
@@ -146,7 +147,7 @@ Creates a new user (Sysadmin only).
   ```
 - **Response**: Created user object
 - **Errors**:
-  - `400 Bad Request` - Validation failed (password policy, invalid email, etc.)
+  - `400 Bad Request` - Validation failed (password policy: 12 characters to 72 bytes, invalid email, etc.)
   - `401 Unauthorized` - Not authenticated
   - `403 Forbidden` - Not a sysadmin
   - `409 Conflict` - Email already exists

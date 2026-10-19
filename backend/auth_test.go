@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -509,6 +511,48 @@ func TestHandleLoginInactiveUser(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
+	}
+}
+
+// A password over the byte limit is rejected before any user lookup or bcrypt work,
+// so its response time cannot reveal whether the email exists.
+func TestHandleLoginPasswordTooLong(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	InitSecretKey("")
+
+	body, _ := json.Marshal(map[string]string{"email": testEmail, "password": strings.Repeat("ä", 37)})
+	req := httptest.NewRequest("POST", apiAuthLogin, bytes.NewBuffer(body))
+	rr := httptest.NewRecorder()
+	HandleLogin(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
+	}
+}
+
+// The longest valid password must hash: bcrypt rejects more than 72 bytes.
+func TestHashPasswordAtByteLimit(t *testing.T) {
+	pw := strings.Repeat("ä", MaxPasswordBytes/2)
+	if err := ValidatePassword(pw, testEmail); err != nil {
+		t.Fatalf("ValidatePassword: %v", err)
+	}
+	if _, err := HashPassword(pw); err != nil {
+		t.Errorf("HashPassword failed at the byte limit: %v", err)
+	}
+}
+
+// dummyPasswordCheck must cost as much as a real CheckPassword: same bcrypt cost,
+// and a full comparison (not an early length error) for long passwords.
+func TestDummyPasswordHash(t *testing.T) {
+	hash := []byte(dummyPasswordHash())
+	cost, err := bcrypt.Cost(hash)
+	if err != nil || cost != bcryptCost {
+		t.Fatalf("dummy hash cost = %d (err %v), want %d", cost, err, bcryptCost)
+	}
+	err = bcrypt.CompareHashAndPassword(hash, []byte(strings.Repeat("a", 100)))
+	if !errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+		t.Errorf("expected a full comparison ending in a mismatch, got %v", err)
 	}
 }
 

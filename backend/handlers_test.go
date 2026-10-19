@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -5694,6 +5695,32 @@ func TestHandlePutTaskPositionsInvalidParent(t *testing.T) {
 			rr := putPositions(taskPositionsPath(tt.issueID), []PositionUpdate{{ID: tt.taskID, Position: 0}}, RoleUser)
 			if rr.Code != tt.want {
 				t.Errorf(wrongStatusCode, rr.Code, tt.want)
+			}
+		})
+	}
+}
+
+// Hash failures are internal (500, generic message); validation errors keep their message (400).
+func TestWriteUserUpdateError(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		wantCode int
+		wantBody string
+	}{
+		{"hash failure", fmt.Errorf("%w: %w", errPasswordHash, errors.New("rand failed")), http.StatusInternalServerError, errMsgInternalServerError},
+		{"admin check DB", errAdminCheckDB, http.StatusInternalServerError, errMsgInternalServerError},
+		{"validation", ErrPasswordTooLong, http.StatusBadRequest, ErrPasswordTooLong.Error()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			writeUserUpdateError(rr, tc.err)
+			if rr.Code != tc.wantCode {
+				t.Errorf(wrongStatusCode, rr.Code, tc.wantCode)
+			}
+			if got := strings.TrimSpace(rr.Body.String()); got != tc.wantBody {
+				t.Errorf("body = %q, want %q", got, tc.wantBody)
 			}
 		})
 	}

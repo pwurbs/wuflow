@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   escapeHtml, debounce, getUserInitials,
-  countCodepoints, canArchive,
+  countCodepoints, countUtf8Bytes, canArchive,
   showNotification, showConfirm,
   updateDateInputStyle, initCharCounter,
   getUnusedColor,
@@ -229,6 +229,16 @@ describe('countCodepoints', () => {
 
   it('should count unicode letters as single codepoints', () => {
     expect(countCodepoints('áéí')).toBe(3);
+  });
+});
+
+describe('countUtf8Bytes', () => {
+  it('should count UTF-8 bytes like the backend', () => {
+    expect(countUtf8Bytes('')).toBe(0);
+    expect(countUtf8Bytes('abc')).toBe(3);
+    expect(countUtf8Bytes('ä')).toBe(2);
+    expect(countUtf8Bytes('€')).toBe(3);
+    expect(countUtf8Bytes('😀')).toBe(4);
   });
 });
 

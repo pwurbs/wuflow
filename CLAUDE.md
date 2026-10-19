@@ -30,17 +30,27 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
 - The "Run locally" VS Code task logs to `local-databases/wuflow-local.log` (JSON slog) — read it
   instead of asking for logs.
 
+## Testing
+- New or changed behaviour needs test cases that assert it: write new tests or extend existing ones
+  in the matching layer (docs/testing.md) — existing tests that merely keep passing don't count.
+  Go logic/handlers → `backend/*_test.go`, JS with decisions → `static/js/tests/`, user-visible
+  flows → `playwright/`.
+- After a production code change, run the existing suites first, before writing new tests.
+- Classify every failure: expected (the test asserts behaviour the change intentionally altered) →
+  adapt that test and name it in the report; otherwise it is a regression → find the root cause and
+  fix the code. Never weaken or delete a test to make it pass.
+- Then add the new tests and run everything again.
+- Required suites (commands above): Go tests, Go checks, JS unit tests, and E2E (Playwright) when
+  production code or dependencies changed: `main.go`, `backend/` (except `_test.go`), `static/`
+  (except `static/js/tests/`), `go.mod`, `package.json`
+- Only do the full playwright test as the final step. After each change only execute the affected tests to save time.
+
 ## Before reporting a task as done
-After any code change, these must pass (commands above):
-- Go tests
-- Go checks (`./scripts/go_checks.sh`)
-- JS unit tests
-- E2E tests (Playwright) — when production code or dependencies changed: `main.go`, `backend/`
-  (except `_test.go`), `static/` (except `static/js/tests/`), `go.mod`, `package.json`
+- Testing done as described in [Testing](#testing); all required suites pass.
+- Check and update docs/, README.md and docs/swagger.json where the change requires it.
 
 ## Wrap-up
-- Check and update docs/, README.md and docs/swagger.json where the change requires it.
-- Then run the doc-sync subagent (.claude/agents/doc-sync.md): it mirrors docs/ and README into
+- Run the doc-sync subagent (.claude/agents/doc-sync.md): it mirrors docs/ and README into
   the GitHub wiki (separate repo, sibling checkout `../wuflow.wiki`) and catches remaining spots.
 - The maintainer commits the wiki right before a release; don't remind about uncommitted wiki changes.
 

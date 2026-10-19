@@ -171,7 +171,7 @@ To protect against credential stuffing and brute force attacks while preventing 
 **Login endpoint** — dual-layer strategy:
 1. **Per-IP Limit**: Maximizes at 20 failures per 15 minutes. Returns a fast `429 Too Many Requests` to shed load and stop automated botnets.
 2. **Per-IP & Email Limit**: Maximizes at 10 failures per 15 minutes. Returns a generic `401 Unauthorized` to prevent attackers from locking out legitimate users from arbitrary IP addresses.
-   - **Timing Side-Channel Protection**: When this limit is hit (or when a requested account doesn't exist or is inactive), the server executes a "dummy" password hash. This intentionally burns the exact same CPU time as a real login attempt (one bcrypt hash at the same cost), completely hiding the rate-limit or account status from the attacking client's network timing measurements.
+   - **Timing Side-Channel Protection**: When this limit is hit (or when a requested account doesn't exist or is inactive), the server runs the same bcrypt comparison as a real login against a dummy hash of the same cost. This intentionally burns the same CPU time as a real login attempt, hiding the rate-limit or account status from the attacking client's network timing measurements. Passwords over 72 bytes are rejected with `400` before any user lookup, so their response time reveals nothing either.
    - **Reset-on-success scope**: Only the per-IP+Email counter is cleared on a successful login. The global per-IP counter persists so an attacker cannot reset IP-wide throttling by authenticating with a secondary account.
    - **Reverse Proxy Support**: If `wuFlow` is deployed behind a proxy or CDN, set `--remote-ip-header` (or `WF_REMOTE_IP_HEADER`) to the header with the client IP, e.g. `X-Forwarded-For`, so that rate limiting uses the actual client IP. Without it, the application uses the direct connection IP (`r.RemoteAddr`). wuFlow uses the header only if the direct peer is a trusted proxy (`--trusted-proxies` / `WF_TRUSTED_PROXIES`, default: loopback and private ranges). It reads the header from the right, skips trusted proxies and takes the first other IP, so entries a client forged at the start of `X-Forwarded-For` are ignored. See the [Reverse Proxy section in the README](../README.md#reverse-proxy) for the settings per setup (Nginx, Traefik, Kubernetes, Cloudflare).
 
@@ -222,6 +222,7 @@ The key should be a long, random string (32+ characters recommended).
 ## Password Policy
 
 - Minimum **12 characters**
+- Maximum **72 bytes** (UTF-8), the input limit of bcrypt: letters, digits and common symbols count 1 byte, umlauts and accented letters 2, emoji 4 — an ASCII password can have 72 characters
 - Must **not** be the user's email address
 - Must **not** be a commonly used password (checked against a blacklist)
 

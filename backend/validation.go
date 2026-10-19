@@ -18,7 +18,7 @@ const (
 	MaxEmailLength        = 254
 	MaxUserNameLength     = 50
 	MinPasswordLength     = 12
-	MaxPasswordLength     = 128
+	MaxPasswordBytes      = 72 // bcrypt only processes the first 72 bytes
 	MaxRefreshTokenLength = 512
 	MaxAccessTokenLength  = 4096
 	MaxProjectNameLen     = 15
@@ -50,7 +50,7 @@ var (
 	ErrInvalidRole     = errors.New("role must be 'admin', 'user', or 'sysadmin'")
 
 	ErrPasswordTooShort  = fmt.Errorf("password must be at least %d characters", MinPasswordLength)
-	ErrPasswordTooLong   = fmt.Errorf("password must not exceed %d characters", MaxPasswordLength)
+	ErrPasswordTooLong   = fmt.Errorf("password must not exceed %d bytes (letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4)", MaxPasswordBytes)
 	ErrPasswordIsEmail   = errors.New("password must not be your email address")
 	ErrPasswordBlacklist = errors.New("password is too common")
 
@@ -316,7 +316,7 @@ func ValidatePassword(password, email string) error {
 	if utf8.RuneCountInString(password) < MinPasswordLength {
 		return ErrPasswordTooShort
 	}
-	if utf8.RuneCountInString(password) > MaxPasswordLength {
+	if len(password) > MaxPasswordBytes {
 		return ErrPasswordTooLong
 	}
 	if strings.EqualFold(password, email) {

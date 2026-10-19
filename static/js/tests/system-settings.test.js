@@ -36,6 +36,7 @@ vi.mock('../utils.js', async (importOriginal) => {
     escapeHtml: vi.fn((str) => str),
     initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
     countCodepoints: vi.fn(s => [...s].length),
+    countUtf8Bytes: actual.countUtf8Bytes,
     getUnusedColor: (usedColors) => {
       const palette = [
         '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
@@ -466,6 +467,14 @@ describe('Password Policy', () => {
     it('should reject blacklisted passwords', () => {
       expect(validatePasswordPolicy('password1234')).toBe('Password is too common');
     });
+
+    it('should count the maximum in UTF-8 bytes, not characters', () => {
+      const tooLong = 'Password must not exceed 72 bytes (letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4)';
+      expect(validatePasswordPolicy('ä'.repeat(36))).toBeNull();
+      expect(validatePasswordPolicy('ä'.repeat(37))).toBe(tooLong);
+      expect(validatePasswordPolicy('x'.repeat(72))).toBeNull();
+      expect(validatePasswordPolicy('x'.repeat(73))).toBe(tooLong);
+    });
   });
 });
 
@@ -564,10 +573,10 @@ describe('Additional Coverage', () => {
       document.getElementById('user-email').value = 'test@test.com';
       document.getElementById('user-first-name').value = 'First';
       document.getElementById('user-last-name').value = 'Last';
-      document.getElementById('user-password').value = 'a'.repeat(129);
+      document.getElementById('user-password').value = 'a'.repeat(73);
       document.getElementById('user-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
-      expect(document.getElementById('user-modal-error').textContent).toBe('Password must not exceed 128 characters.');
+      expect(document.getElementById('user-modal-error').textContent).toBe('Password must not exceed 72 bytes (letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4)');
     });
 
     it('should handle user creation failure', async () => {

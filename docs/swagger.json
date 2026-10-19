@@ -391,7 +391,8 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "description": "Max. 72 bytes UTF-8; longer passwords are rejected with 400."
           }
         },
         "required": ["email", "password"]
@@ -401,7 +402,7 @@
         "properties": {
           "password": {
             "type": "string",
-            "description": "New password."
+            "description": "New password. Min. 12 characters, max. 72 bytes UTF-8 (bcrypt's input limit; umlauts count 2 bytes, emoji 4)."
           },
           "current_password": {
             "type": "string",
@@ -422,7 +423,8 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "description": "Min. 12 characters, max. 72 bytes UTF-8 (bcrypt's input limit; umlauts count 2 bytes, emoji 4)."
           },
           "role": {
             "type": "string",
@@ -448,7 +450,7 @@
           },
           "password": {
             "type": "string",
-            "description": "Optional. Leave empty to keep current password."
+            "description": "Optional. Leave empty to keep current password. Min. 12 characters, max. 72 bytes UTF-8 (bcrypt's input limit; umlauts count 2 bytes, emoji 4)."
           },
           "admin_password": {
             "type": "string",
@@ -777,6 +779,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - email missing or invalid, or password missing or longer than 72 bytes"
           },
           "401": {
             "description": "Unauthorized - invalid credentials or inactive account"

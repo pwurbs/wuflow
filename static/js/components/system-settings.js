@@ -1,6 +1,6 @@
 import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
-import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.js';
-import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
+import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.js';
+import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state, setUsers, setProjects } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
@@ -501,10 +501,6 @@ function validateUserInput(userData, errorDisplay) {
   }
 
   if (userData.password) {
-    if (countCodepoints(userData.password) > MAX_PASSWORD_LENGTH) {
-      showUserError(errorDisplay, `Password must not exceed ${MAX_PASSWORD_LENGTH} characters.`);
-      return false;
-    }
     const pwError = validatePasswordPolicy(userData.password, userData.email);
     if (pwError) {
       showUserError(errorDisplay, pwError);
@@ -527,6 +523,9 @@ function showUserError(el, message) {
 export function validatePasswordPolicy(password, email) {
   if (countCodepoints(password) < MIN_PASSWORD_LENGTH) {
     return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  }
+  if (countUtf8Bytes(password) > MAX_PASSWORD_BYTES) {
+    return `Password must not exceed ${MAX_PASSWORD_BYTES} bytes (letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4)`;
   }
   if (email && password.toLowerCase() === email.toLowerCase()) {
     return 'Password must not be your email address';

@@ -27,7 +27,7 @@
 | **Search Filter** | 50 chars | Prevents performance issues and UX breakdown during string matching. |
 | **Email** | 254 bytes | RFC 5321 standard limit. |
 | **Planned Dates** | 100 entries | Prevents unbounded array iteration; each entry must be a valid `YYYY-MM-DD` date. |
-| **Password** | Min 12, max 128 chars | Minimum complexity baseline; max prevents DoS via bcrypt on long inputs. |
+| **Password** | Min 12 chars, max 72 bytes (UTF-8) | Minimum complexity baseline; the max is bcrypt's input limit (bcrypt ignores everything after 72 bytes). Counted in bytes: letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4 — an ASCII password can have 72 characters. Login rejects longer passwords with 400 before any user lookup. |
 | **Project Name** | 15 chars | UI space constraint (sidebar, header). |
 | **Project Description** | 100 chars | Brief tagline shown in project overview. |
 | **Release Name** | 20 chars | UI space constraint (release cards, headers). |

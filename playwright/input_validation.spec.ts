@@ -211,17 +211,14 @@ test.describe('Validation limits – User', () => {
     await expectUserError(page, 'must not exceed 50 characters');
   });
 
-  test('password exceeding 128 characters is rejected', async ({ page }) => {
+  test('password exceeding 72 bytes is rejected, even with fewer characters', async ({ page }) => {
     await page.fill('#user-email', 'limit-test3@example.com');
     await page.fill('#user-first-name', 'Valid');
     await page.fill('#user-last-name', 'User');
-    await page.evaluate(() => {
-      document.getElementById('user-password')?.removeAttribute('maxlength');
-    });
-    await page.fill('#user-password', 'Aa1!' + 'a'.repeat(125)); // 129 chars
+    await page.fill('#user-password', 'Aa1!' + 'ä'.repeat(35)); // 39 chars, 74 bytes
     await page.click('#user-modal-save');
 
-    await expectUserError(page, 'Password must not exceed 128 characters');
+    await expectUserError(page, 'Password must not exceed 72 bytes');
   });
 
   test('email exceeding 254 characters is rejected', async ({ page }) => {

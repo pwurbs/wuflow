@@ -437,17 +437,39 @@ func TestValidatePasswordTooShort(t *testing.T) {
 }
 
 func TestValidatePasswordTooLong(t *testing.T) {
-	pw := strings.Repeat("A", MaxPasswordLength+1)
+	pw := strings.Repeat("A", MaxPasswordBytes+1)
 	if err := ValidatePassword(pw, testSimpleEmail); !errors.Is(err, ErrPasswordTooLong) {
 		t.Errorf("expected ErrPasswordTooLong, got %v", err)
 	}
 }
 
 func TestValidatePasswordExactlyMaxLength(t *testing.T) {
-	pw := strings.Repeat("A", MaxPasswordLength)
+	pw := strings.Repeat("A", MaxPasswordBytes)
 	err := ValidatePassword(pw, testSimpleEmail)
 	if err != nil && !errors.Is(err, ErrPasswordBlacklist) {
 		t.Errorf("expected nil or ErrPasswordBlacklist at exact max length, got %v", err)
+	}
+}
+
+// The limit counts UTF-8 bytes (bcrypt's limit), not characters.
+func TestValidatePasswordCountsBytes(t *testing.T) {
+	cases := []struct {
+		name    string
+		pw      string
+		tooLong bool
+	}{
+		{"36 umlauts = 72 bytes", strings.Repeat("ä", 36), false},
+		{"37 umlauts = 74 bytes", strings.Repeat("ä", 37), true},
+		{"18 emoji = 72 bytes", strings.Repeat("😀", 18), false},
+		{"19 emoji = 76 bytes", strings.Repeat("😀", 19), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidatePassword(tc.pw, testSimpleEmail)
+			if got := errors.Is(err, ErrPasswordTooLong); got != tc.tooLong {
+				t.Errorf("ErrPasswordTooLong = %v, want %v (err: %v)", got, tc.tooLong, err)
+			}
+		})
 	}
 }
 

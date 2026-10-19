@@ -610,4 +610,27 @@ test.describe('User Management', () => {
     await page.click('#password-cancel-btn');
   });
 
+  test('Self-service password change rejects a password over 72 bytes before saving', async ({ page, workerServer }) => {
+    const updateRequests: string[] = [];
+    page.on('request', req => {
+      if (req.method() === 'PUT' && req.url().endsWith('/api/auth/me')) updateRequests.push(req.url());
+    });
+
+    await page.click('#user-menu-btn');
+    await page.click('#user-menu-password');
+    await expect(page.locator('#password-modal')).toBeVisible();
+    // Correct current password: without the length check the change would be saved and log out
+    await page.fill('#current-password', workerServer.adminPassword);
+    const tooLong = 'Aa1!' + 'ä'.repeat(35); // 39 chars, 74 bytes
+    await page.fill('#new-password', tooLong);
+    await page.fill('#confirm-new-password', tooLong);
+    await page.locator('#password-form button[type="submit"]').click();
+
+    await expect(page.locator('#password-modal-error')).toContainText('Password must not exceed 72 bytes');
+    await expect(page.locator('#password-modal')).toBeVisible();
+    await expect(page).not.toHaveURL(/\/login/);
+    expect(updateRequests).toHaveLength(0);
+    await page.click('#password-cancel-btn');
+  });
+
 });
