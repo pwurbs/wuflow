@@ -54,6 +54,8 @@ Steps 1–3 also write the coverage and gosec reports that the Sonar scan in P7 
    compare with the accepted risks in docs/security-guidelines.md.
 7. `helm lint chart --set ingress.host=wuflow.example.com` (the chart requires a host)
 8. `./scripts/trivy_scan.sh` — builds the arm64 image `wuflow:X.Y.Z` and lists HIGH/CRITICAL findings.
+9. `cd playwright && npm test` — last, as the full E2E run (CLAUDE.md "Testing"); P6's fast-forward
+   puts exactly this state on main, so a failure stops the run before main changes.
 
 **P5 Commit** all release changes on the feature branch, one commit:
 `chore(release): Finalized changelog and version for X.Y.Z`.
@@ -61,11 +63,9 @@ Steps 1–3 also write the coverage and gosec reports that the Sonar scan in P7 
 **P6 Merge:** `git checkout main`, then `git merge --ff-only <feature branch>`. If it is not a
 fast-forward, stop: main then differs from what P4 tested.
 
-**P7 Final QA on main:**
-- `cd playwright && npm test`
-- Sonar: `./scripts/sonar_scan.sh`, then `./scripts/sonar_results.sh`. Only the quality gate counts
-  here: if it failed, stop and report the failed conditions; the fix belongs on the feature branch.
-  Mention the number of open issues on main for information, without classifying them.
+**P7 Sonar on main:** `./scripts/sonar_scan.sh`, then `./scripts/sonar_results.sh`. Only the
+quality gate counts here: if it failed, stop and report the failed conditions; the fix belongs on the
+feature branch. Mention the number of open issues on main for information, without classifying them.
 
 Next: `/release publish`, once the user decided the release goes out.
 

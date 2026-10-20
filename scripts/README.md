@@ -134,6 +134,7 @@ The script reads only the public SonarCloud API, so it needs no token; it expect
 
 ### `release_check.sh`
 Checks whether a release can start: the `/release` Claude Code skill runs it first in both modes and stops if it reports a problem. It prints the branch, `VERSION`, the last release (the highest `v*` tag on the `github` remote), the target version (`VERSION` without a `-preN` suffix) and the state: `pre`, `final` (not released yet) or `released` (no new version started). It exits `1` if the release can't go on:
+- Both modes: a version copy that `new_version.sh` writes (Home Assistant `config.yaml`; `version`, `appVersion` and the `artifacthub.io/images` tag in `chart/Chart.yaml`) differs from `VERSION`; in state `final` also a missing `# X.Y.Z` section in `CHANGELOG.md`, `home-assistant-addon/CHANGELOG.md` or `chart/CHANGELOG.md`.
 - `prepare`: not on a feature branch; uncommitted changes outside the files a release changes; or main has commits the feature branch lacks, so the merge would not be a fast-forward.
 - `publish`: not on main; uncommitted changes; `VERSION` still has a pre suffix; or the version is already released.
 

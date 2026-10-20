@@ -93,6 +93,34 @@ check_publish() {
     return 0
 }
 
+# The version copies new_version.sh writes must all equal VERSION; the
+# changelog sections are written by prepare, so pre versions don't need them.
+check_copy() {
+    if [[ "$2" != "$VERSION" ]]; then
+        problem "$1 is '$2', VERSION is '$VERSION'; run ./scripts/new_version.sh $VERSION."
+    fi
+    return 0
+}
+
+check_versions() {
+    local file
+    check_copy "home-assistant-addon/config.yaml version" \
+        "$(awk -F'"' '/^version:/ {print $2}' home-assistant-addon/config.yaml)"
+    check_copy "chart/Chart.yaml version" "$(awk '/^version:/ {print $2}' chart/Chart.yaml)"
+    check_copy "chart/Chart.yaml appVersion" "$(awk -F'"' '/^appVersion:/ {print $2}' chart/Chart.yaml)"
+    check_copy "chart/Chart.yaml artifacthub.io/images tag" \
+        "$(sed -n -E 's#.*ghcr\.io/pwurbs/wuflow:([^"[:space:]]+).*#\1#p' chart/Chart.yaml)"
+    if [[ "$STATE" == "final" ]]; then
+        for file in CHANGELOG.md home-assistant-addon/CHANGELOG.md chart/CHANGELOG.md; do
+            if ! grep -qxF "# $TARGET" "$file"; then
+                problem "$file has no section '# $TARGET'."
+            fi
+        done
+    fi
+    return 0
+}
+
+check_versions
 "check_$MODE"
 
 if [[ "$PROBLEMS" -gt 0 ]]; then
