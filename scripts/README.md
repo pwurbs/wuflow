@@ -66,6 +66,7 @@ A shell script to check for available updates across all dependencies in the rep
 3. Whether the installed system Go and the Go used to build `gopls`, `gosec`, `govulncheck` and `golangci-lint` are older than the `go` directive in `go.mod`, and whether a newer `golangci-lint` release is available.
 4. Whether newer Docker base images are available for the `FROM` lines of the `Dockerfile` (newest tag of the same form within the same major version, via the Docker Hub API).
 5. Whether a newer Wapiti release is available on PyPI than the one in `~/python_wapiti_env` (see `run_wapiti_scan.sh`).
+6. Whether a newer SonarScanner CLI release is available on GitHub than the installed `sonar-scanner` (see `sonar_scan.sh`). Only the CLI needs updating: SonarCloud supplies the analyzers on each scan.
 
 Inside the repo `go version` reports the toolchain selected by `go.mod` (downloaded automatically), not the installed system Go — check 3 catches a system Go or tool build that was left behind after a Go version bump.
 
@@ -123,7 +124,7 @@ Uploads a SonarCloud analysis of the current branch, used by the "Sonar" VS Code
 The script expects `sonar-scanner` in your PATH and a SonarCloud token exported as `SONAR_TOKEN`. It needs the coverage and gosec reports from the "Go Test", "JS Test" and "Go Checks" tasks; the VS Code task runs them first, and the script stops if a report is missing.
 
 ### `sonar_results.sh`
-Prints the SonarCloud results for the current branch and for `main`: which commit was analysed (with a warning if it is not HEAD), the quality gate, open issues, security hotspots to review and the names of the rules found. The "Sonar" VS Code task runs it after `sonar_scan.sh`, also when the scan or the quality gate failed. Feature branches list only issues in code changed against `main`, so `main` shows the existing ones.
+Prints the SonarCloud results for the current branch and for `main`: which commit was analysed (with a warning if it is not HEAD), the quality gate, open issues, security hotspots to review and the names of the rules found. The "Sonar" VS Code task runs it after `sonar_scan.sh`, also when the scan or the quality gate failed. Feature branches list the issues that `main`'s last analysis doesn't have, so `main` shows the existing ones; these are mostly in changed code, but a newer SonarCloud analyzer can also add findings in unchanged code.
 
 **Usage:**
 ```bash

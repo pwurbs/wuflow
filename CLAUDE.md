@@ -36,9 +36,12 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   Go logic/handlers → `backend/*_test.go`, JS with decisions → `static/js/tests/`, user-visible
   flows → `playwright/`.
 - After a production code change, run the existing suites first, before writing new tests.
-- Classify every failure: expected (the test asserts behaviour the change intentionally altered) →
-  adapt that test and name it in the report; otherwise it is a regression → find the root cause and
-  fix the code. Never weaken or delete a test to make it pass.
+- Classify every failure: expected (the test asserts behaviour the change intentionally altered)
+  or regression. There is no third class: a failure the change doesn't explain is a regression,
+  also when it is "unrelated" or passes on rerun. Name the expected ones in the report and adapt
+  those tests explicitly; find the root cause of every regression and fix it. Never adapt, weaken
+  or delete a test just to make it pass. Keep the full output of every test run, so each failure
+  can be named.
 - Then add the new tests and run everything again.
 - Required suites (commands above): Go tests, Go checks, JS unit tests, and E2E (Playwright) when
   production code or dependencies changed: `main.go`, `backend/` (except `_test.go`), `static/`

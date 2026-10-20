@@ -515,8 +515,8 @@
 .settings-modal input:-webkit-autofill,
 .settings-modal input:-webkit-autofill:hover,
 .settings-modal input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 30px rgb(16, 22, 35) inset !important;
-  -webkit-text-fill-color: var(--text-color) !important;
+  -webkit-box-shadow: 0 0 0 30px rgb(16, 22, 35) inset;
+  -webkit-text-fill-color: var(--text-color);
   caret-color: var(--text-color);
 }
 
@@ -555,7 +555,6 @@
 }
 
 .user-options-row {
-  display: flex !important;
   justify-content: space-between;
   align-items: flex-end;
 }

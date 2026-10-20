@@ -31,7 +31,8 @@ problem() {
 
 # newer <a> <b> — true if version a is higher than version b.
 newer() {
-    [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" == "$1" ]]
+    local a="$1" b="$2"
+    [[ "$a" != "$b" && "$(printf '%s\n%s\n' "$a" "$b" | sort -V | tail -1)" == "$a" ]]
 }
 
 BRANCH="$(git branch --show-current)"
@@ -87,6 +88,7 @@ check_publish() {
     case "$STATE" in
         pre) problem "VERSION still has a pre suffix; run prepare first." ;;
         released) problem "v$TARGET is already released." ;;
+        *) ;; # final: nothing to check
     esac
     return 0
 }

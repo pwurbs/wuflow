@@ -64,14 +64,16 @@ print_analysis_state() {
         echo "NOTE: the working tree has uncommitted changes; the results may not match it."
     fi
     if [[ "$BRANCH" != "main" ]]; then
-        echo "NOTE: $BRANCH is a short-lived branch: it lists only issues in code changed against main."
+        echo "NOTE: $BRANCH is a short-lived branch: it lists the issues main's last analysis doesn't have"
+        echo "      (mostly in changed code, but also new analyzer findings in unchanged code)."
     fi
     return 0
 }
 
 print_quality_gate() {
+    local branch="$1"
     echo "Quality gate:"
-    api qualitygates/project_status -d projectKey="$PROJECT" --data-urlencode "branch=$1" \
+    api qualitygates/project_status -d projectKey="$PROJECT" --data-urlencode "branch=$branch" \
         | jq -r '.projectStatus | "  \(.status)", (.conditions[] | select(.status != "OK")
             | "  failed: \(.metricKey) = \(.actualValue) (\(.comparator) \(.errorThreshold))")'
     return 0
@@ -79,10 +81,10 @@ print_quality_gate() {
 
 # fetch_issues <branch> — one TSV row per open issue, all pages.
 fetch_issues() {
-    local page=1 json total
+    local branch="$1" page=1 json total
     while :; do
         json="$(api issues/search -d componentKeys="$PROJECT" -d organization="$ORG" \
-            --data-urlencode "branch=$1" -d resolved=false -d ps="$PAGE_SIZE" -d p="$page")"
+            --data-urlencode "branch=$branch" -d resolved=false -d ps="$PAGE_SIZE" -d p="$page")"
         jq -r '.issues[] | [.rule, .severity, .type,
             "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv' <<<"$json"
         total="$(jq -r '.total' <<<"$json")"
@@ -95,8 +97,8 @@ fetch_issues() {
 }
 
 print_issues() {
-    local rows
-    rows="$(fetch_issues "$1")"
+    local branch="$1" rows
+    rows="$(fetch_issues "$branch")"
     echo ""
     if [[ -z "$rows" ]]; then
         echo "Open issues: 0"
@@ -109,8 +111,8 @@ print_issues() {
 }
 
 print_hotspots() {
-    local rows
-    rows="$(api hotspots/search -d projectKey="$PROJECT" --data-urlencode "branch=$1" \
+    local branch="$1" rows
+    rows="$(api hotspots/search -d projectKey="$PROJECT" --data-urlencode "branch=$branch" \
         -d status=TO_REVIEW -d ps="$PAGE_SIZE" \
         | jq -r '.hotspots[] | [.ruleKey, .vulnerabilityProbability,
             "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv')"
@@ -126,10 +128,11 @@ print_hotspots() {
 }
 
 print_branch() {
-    section "Branch $1"
-    print_quality_gate "$1"
-    print_issues "$1"
-    print_hotspots "$1"
+    local branch="$1"
+    section "Branch $branch"
+    print_quality_gate "$branch"
+    print_issues "$branch"
+    print_hotspots "$branch"
     return 0
 }
 

@@ -108,10 +108,12 @@
   text-decoration: underline;
 }
 
-/* Inline Editing Styles for Title and Description */
-.inline-editable {
-  background-color: rgb(16, 22, 35) !important;
-  border: 1px solid var(--card-border) !important;
+/* Inline Editing Styles for Title and Description. #title needs the id to win
+   over `.form-group input` and its :focus rule (forms.css). */
+#title.inline-editable,
+.editor-container.inline-editable {
+  background-color: rgb(16, 22, 35);
+  border: 1px solid var(--card-border);
   cursor: default;
   transition: background-color 0.2s, border-color 0.2s;
 }
@@ -120,9 +122,10 @@
   border-color: var(--card-border);
 }
 
-.inline-editing {
-  background-color: rgb(14, 18, 30) !important;
-  border-color: var(--primary-color) !important;
+#title.inline-editing,
+.editor-container.inline-editing {
+  background-color: rgb(14, 18, 30);
+  border-color: var(--primary-color);
   cursor: text;
 }
 

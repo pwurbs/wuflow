@@ -178,11 +178,11 @@ body:not(.is-dragging) .card.is-archived:hover {
 
 
 .card.high-priority {
-  background-color: rgba(255, 0, 0, 0.1) !important;
+  background-color: rgba(255, 0, 0, 0.1);
 }
 
 body:not(.is-dragging) .card.high-priority:hover {
-  background-color: rgba(255, 0, 0, 0.15) !important;
+  background-color: rgba(255, 0, 0, 0.15);
 }
 
 /* Backlog/archive rows: no vertical lift on hover */

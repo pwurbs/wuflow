@@ -39,6 +39,35 @@ test.describe('Issue Edit Modal Behavior', () => {
     await expect(page.locator('#title')).toHaveValue('Modified Title');
   });
 
+  test('title and description show the read and edit look of inline editing', async ({ page }) => {
+    await createIssue(page, { title: 'Inline Look Issue', status: 'Todo' });
+    await openIssueByTitle(page, 'Inline Look Issue');
+    const title = page.locator('#title');
+    const description = page.locator('.editor-container');
+
+    // A read-only title focused without a click (e.g. by Tab) keeps the read look,
+    // although the generic input :focus style would apply. The colours change with
+    // a CSS transition, so wait for it before checking, or the old colour passes.
+    await title.focus();
+    await title.evaluate(el => Promise.allSettled(el.getAnimations().map(a => a.finished)));
+    await expect(title).toHaveClass(/inline-editable/);
+    await expect(title).toHaveCSS('background-color', 'rgb(16, 22, 35)');
+    await expect(title).toHaveCSS('border-color', 'rgb(45, 59, 85)');
+
+    await title.click();
+    await expect(title).toHaveClass(/inline-editing/);
+    await expect(title).toHaveCSS('background-color', 'rgb(14, 18, 30)');
+    await expect(title).toHaveCSS('border-color', 'rgb(59, 130, 246)');
+    await page.keyboard.press('Escape');
+    await expect(title).toHaveClass(/inline-editable/);
+
+    await expect(description).toHaveCSS('background-color', 'rgb(16, 22, 35)');
+    await page.click('#description-preview');
+    await expect(description).toHaveClass(/inline-editing/);
+    await expect(description).toHaveCSS('background-color', 'rgb(14, 18, 30)');
+    await expect(description).toHaveCSS('border-color', 'rgb(59, 130, 246)');
+  });
+
   test('should autosave title on Done click', async ({ page }) => {
     await createIssue(page, { title: 'Save Test Issue', status: 'Todo' });
     await openIssueByTitle(page, 'Save Test Issue');

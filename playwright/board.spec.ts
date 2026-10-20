@@ -220,6 +220,11 @@ test.describe('Board Functionality', () => {
       await updateDone;
 
       await expect(card).toHaveClass(/high-priority/);
+      // The red tint wins over the card's own background and hover colour.
+      await page.mouse.move(0, 0);
+      await expect(card).toHaveCSS('background-color', 'rgba(255, 0, 0, 0.1)');
+      await card.hover();
+      await expect(card).toHaveCSS('background-color', 'rgba(255, 0, 0, 0.15)');
 
       await card.click({ button: 'right' });
       await expect(page.locator('.card-context-menu-item:has-text("Remove high priority")')).toBeVisible();

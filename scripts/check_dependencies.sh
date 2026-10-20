@@ -2,7 +2,7 @@
 
 # A script to check for updates for all dependencies in the repository.
 # This script covers Go modules, NPM packages (in multiple subdirectories),
-# Docker base images and the Wapiti vulnerability scanner.
+# Docker base images, the Wapiti vulnerability scanner and the SonarScanner CLI.
 
 # Exit on unexpected errors
 set -e
@@ -261,6 +261,28 @@ if [[ -x "$WAPITI_VENV/bin/pip" ]]; then
     set -e
 else
     echo -e "${YELLOW}--> Skipping Wapiti (no virtual environment at $WAPITI_VENV)${NC}"
+fi
+
+
+# 5. SonarScanner CLI (used by scripts/sonar_scan.sh)
+echo -e "\n${BLUE}=====================================================${NC}"
+echo -e "${BLUE}               Checking SonarScanner CLI             ${NC}"
+echo -e "${BLUE}=====================================================${NC}"
+
+if command -v sonar-scanner >/dev/null 2>&1; then
+    set +e
+    SCANNER_VERSION=$(sonar-scanner --version 2>/dev/null | sed -nE 's/.*SonarScanner CLI ([0-9][0-9.]*).*/\1/p' | head -n 1)
+    LATEST_SCANNER=$(curl -s "https://api.github.com/repos/SonarSource/sonar-scanner-cli/releases/latest" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+    if [[ -z "$LATEST_SCANNER" ]]; then
+        echo -e "${YELLOW}SonarScanner CLI $SCANNER_VERSION installed (could not fetch the latest release from GitHub).${NC}"
+    elif [[ "$SCANNER_VERSION" == "$LATEST_SCANNER" ]]; then
+        echo -e "${GREEN}SonarScanner CLI ($SCANNER_VERSION) is up to date.${NC}"
+    else
+        echo -e "${RED}SonarScanner CLI ($SCANNER_VERSION) is outdated! Latest is $LATEST_SCANNER. Update with: brew upgrade sonar-scanner${NC}"
+    fi
+    set -e
+else
+    echo -e "${YELLOW}--> Skipping SonarScanner CLI (sonar-scanner not found in PATH)${NC}"
 fi
 
 

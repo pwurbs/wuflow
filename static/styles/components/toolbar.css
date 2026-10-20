@@ -155,11 +155,6 @@
 
 /* Tooltip removed */
 
-/* Utilities */
-.hidden {
-  display: none !important;
-}
-
 /* Search Input Styling */
 .search-input {
   background-color: rgb(16, 22, 35);
