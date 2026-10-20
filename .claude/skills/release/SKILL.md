@@ -3,7 +3,6 @@ name: release
 description: Prepares and publishes a wuFlow release — version, changelogs, Artifact Hub annotations, docs, all tests and scans, Sonar, container image, Helm chart, GitHub, wiki.
 argument-hint: "prepare|publish"
 disable-model-invocation: true
-allowed-tools: Bash(./scripts/release_check.sh*) Bash(./scripts/run_wapiti_scan.sh*) Bash(sh scripts/trivy_scan.sh*) Bash(./scripts/sonar_scan.sh*) Bash(./scripts/sonar_results.sh*)
 ---
 
 Mode `$ARGUMENTS`:
@@ -12,7 +11,7 @@ Mode `$ARGUMENTS`:
 - Anything else: ask which mode.
 
 ## Rules for both modes
-- Commits, pushes, the merge, `new_version.sh`, `helm` and the release scripts ask the user (ask rules).
+- Commits, pushes, the merge, `helm` and the release scripts ask the user (ask rules).
   If the user declines, stop and report — never try another way.
 - Checkpoint = say what to check and where, then wait for the user's "ok".
 - A failed step stops the run: report it, classify test failures as in CLAUDE.md "Testing". After the
@@ -53,8 +52,8 @@ Steps 1–3 also write the coverage and gosec reports that the Sonar scan in P7 
    govulncheck findings; the user decides whether one blocks the release.
 6. `./scripts/run_wapiti_scan.sh` — findings from `test-results/wapiti/` (console log, reports);
    compare with the accepted risks in docs/security-guidelines.md.
-7. `helm lint chart`
-8. `sh scripts/trivy_scan.sh` — builds the arm64 image `wuflow:X.Y.Z` and lists HIGH/CRITICAL findings.
+7. `helm lint chart --set ingress.host=wuflow.example.com` (the chart requires a host)
+8. `./scripts/trivy_scan.sh` — builds the arm64 image `wuflow:X.Y.Z` and lists HIGH/CRITICAL findings.
 
 **P5 Commit** all release changes on the feature branch, one commit:
 `chore(release): Finalized changelog and version for X.Y.Z`.
@@ -75,10 +74,10 @@ Next: `/release publish`, once the user decided the release goes out.
 `./scripts/sonar_results.sh`: the quality gate on main must be OK and the analysis must be of HEAD;
 otherwise stop.
 
-**U2 Image:** `bash ./scripts/image_release.sh` — builds and pushes the multi-arch image. It needs a
+**U2 Image:** `./scripts/image_release.sh` — builds and pushes the multi-arch image. It needs a
 cached ghcr.io login or `GHCR_TOKEN`; if it asks for a token, stop: the user runs the "Image Release" task.
 
-**U3 Chart:** `bash ./scripts/helm_release.sh`. Checkpoint: the chart package on GitHub (Artifact Hub
+**U3 Chart:** `./scripts/helm_release.sh`. Checkpoint: the chart package on GitHub (Artifact Hub
 picks it up later).
 
 **U4 Push main:** `git push github main`.

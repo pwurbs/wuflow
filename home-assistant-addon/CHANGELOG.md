@@ -1,4 +1,20 @@
 
+# 1.4.4
+
+- Added Claude Code setup: CLAUDE.md with project instructions, shared permissions in .claude/settings.json and a doc-sync subagent
+- Added a `/sonar` Claude Code skill: runs the SonarCloud analysis, reads the issues, hotspots and quality gate, and sorts the issues for fixing
+- The "Sonar Scanner" VS Code task now waits for the quality gate and fails if it fails
+- Added a `/release` Claude Code skill that prepares and publishes a release step by step. Some scripts adapted.
+- Docs: new Security Guidelines page with the general security rules and the accepted risks
+- Security: the client IP header (`WF_REMOTE_IP_HEADER`) is now used only if the request comes from a trusted proxy, and it is read from the right, so IPs a client forges in `X-Forwarded-For` no longer bypass the login rate limits or appear in the logs
+- New setting Trusted Proxies (`WF_TRUSTED_PROXIES`, default: loopback and private ranges)
+- Helm chart: added optional value `wuflow.trustedProxies`; `wuflow.remoteIpHeader` is now explained
+- Docs: the reverse proxy section now describes the client IP settings per setup, including Cloudflare
+- Security: passwords are limited to 72 bytes (bcrypt's limit) instead of 128 characters to fix a login timing leak that revealed whether an account exists and an error when saving longer passwords
+- Security: Markdown can no longer use the app's CSS classes, e.g. to fake a dialog
+- Security: login and refresh rate limits count IPv6 clients now per /64
+- Bumped Go to 1.27.3
+
 # 1.4.3
 
 - Bumped marked to 18.1.1

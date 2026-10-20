@@ -2,7 +2,7 @@
 # scripts/image_release.sh
 # Builds the multi-arch (amd64, arm64) container image and pushes it to GitHub Container Registry (ghcr.io).
 #
-# Usage: bash scripts/image_release.sh
+# Usage: ./scripts/image_release.sh
 #
 # Prerequisites:
 #   - Apple container CLI installed and its system service running (`container system start`)

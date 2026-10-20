@@ -140,7 +140,7 @@
     {
       "label": "Scan Image",
       "type": "shell",
-      "command": "sh scripts/trivy_scan.sh",
+      "command": "./scripts/trivy_scan.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -151,7 +151,7 @@
     {
       "label": "Image Release",
       "type": "shell",
-      "command": "bash ./scripts/image_release.sh",
+      "command": "./scripts/image_release.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -181,7 +181,7 @@
     {
       "label": "Helm Release",
       "type": "shell",
-      "command": "bash ./scripts/helm_release.sh",
+      "command": "./scripts/helm_release.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",

@@ -40,7 +40,7 @@ A shell script to perform a local Trivy security scan on the container image, us
 
 **Usage:**
 ```bash
-sh scripts/trivy_scan.sh
+./scripts/trivy_scan.sh
 ```
 The script expects `container` and `trivy` to be installed and available in your PATH.
 
@@ -90,7 +90,7 @@ A shell script to package the Helm chart in [`chart/`](../chart) and push it to 
 
 **Usage:**
 ```bash
-bash scripts/helm_release.sh
+./scripts/helm_release.sh
 ```
 The script expects `helm` (3.8+) to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted.
 
@@ -99,7 +99,7 @@ A shell script to build the multi-arch (`amd64`, `arm64`) container image with t
 
 **Usage:**
 ```bash
-bash scripts/image_release.sh
+./scripts/image_release.sh
 ```
 The script expects the Apple `container` CLI to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted. The login is skipped if a cached `ghcr.io` login already exists.
 

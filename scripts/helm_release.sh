@@ -2,7 +2,7 @@
 # scripts/helm_release.sh
 # Packages the Helm chart and pushes it to GitHub Container Registry (ghcr.io) as an OCI artifact.
 #
-# Usage: bash scripts/helm_release.sh
+# Usage: ./scripts/helm_release.sh
 #
 # Prerequisites:
 #   - helm 3.8+ installed

@@ -3,7 +3,6 @@ name: sonar
 description: Runs the SonarCloud analysis for the current branch, reads the open issues, hotspots and quality gate from the SonarCloud API, classifies them and proposes fixes.
 argument-hint: "[fetch]"
 disable-model-invocation: true
-allowed-tools: Bash(./scripts/sonar_scan.sh*) Bash(./scripts/sonar_results.sh*)
 ---
 
 SonarCloud project `wuflow-oss`, organization `pwurbs-oss` (sonar-project.properties). The project

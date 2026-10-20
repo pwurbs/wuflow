@@ -9,21 +9,20 @@
       "Bash(./scripts/go_race_fuzz.sh *)",
       "Bash(./scripts/diff_coverage.sh)",
       "Bash(./scripts/check_dependencies.sh)",
+      "Bash(./scripts/release_check.sh *)",
+      "Bash(./scripts/new_version.sh *)",
+      "Bash(./scripts/sonar_scan.sh)",
+      "Bash(./scripts/sonar_results.sh)",
+      "Bash(./scripts/run_wapiti_scan.sh)",
+      "Bash(./scripts/trivy_scan.sh)",
       "Bash(npm test)",
       "Bash(npm run test:coverage)",
       "Bash(npm run build)",
       "Bash(npx playwright test *)"
     ],
     "ask": [
-      "Bash(./scripts/image_release.sh*)",
-      "Bash(bash scripts/image_release.sh*)",
-      "Bash(bash ./scripts/image_release.sh*)",
-      "Bash(./scripts/helm_release.sh*)",
-      "Bash(bash scripts/helm_release.sh*)",
-      "Bash(bash ./scripts/helm_release.sh*)",
-      "Bash(./scripts/new_version.sh*)",
-      "Bash(bash scripts/new_version.sh*)",
-      "Bash(bash ./scripts/new_version.sh*)"
+      "Bash(*image_release.sh*)",
+      "Bash(*helm_release.sh*)"
     ]
   }
 }
