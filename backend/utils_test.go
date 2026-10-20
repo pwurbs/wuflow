@@ -210,12 +210,9 @@ func TestGetClientIP(t *testing.T) {
 	}
 }
 
-// testTrustedProxies parses s, or returns the default list if s is empty.
+// testTrustedProxies parses s; an empty s yields the default list.
 func testTrustedProxies(t *testing.T, s string) []netip.Prefix {
 	t.Helper()
-	if s == "" {
-		return defaultTrustedProxies
-	}
 	proxies, err := parseTrustedProxies(s)
 	if err != nil {
 		t.Fatalf("parseTrustedProxies(%q): %v", s, err)

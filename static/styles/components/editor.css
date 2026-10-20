@@ -118,10 +118,6 @@
   transition: background-color 0.2s, border-color 0.2s;
 }
 
-.inline-editable:hover {
-  border-color: var(--card-border);
-}
-
 #title.inline-editing,
 .editor-container.inline-editing {
   background-color: rgb(14, 18, 30);

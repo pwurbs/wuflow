@@ -72,13 +72,13 @@ func clientIPFromHeader(r *http.Request) (ip string, ok bool) {
 	}
 	var addr netip.Addr
 	for _, entry := range slices.Backward(strings.Split(value, ",")) {
-		parsed, err := netip.ParseAddr(strings.TrimSpace(entry))
+		parsed, err := parseIP(strings.TrimSpace(entry))
 		if err != nil {
 			LogWarn("GetClientIP: invalid IP in header, falling back to RemoteAddr",
 				"header", remoteIPHeader, "value", value)
 			return "", false
 		}
-		addr = parsed.WithZone("").Unmap()
+		addr = parsed
 		if !trustedProxyContains(addr) {
 			return addr.String(), true
 		}
@@ -87,20 +87,25 @@ func clientIPFromHeader(r *http.Request) (ip string, ok bool) {
 	return addr.String(), true
 }
 
+// parseIP parses a textual IP address without its zone, with an IPv4-mapped
+// IPv6 address as plain IPv4, so that the same client always yields the same Addr.
+func parseIP(ip string) (netip.Addr, error) {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	return addr.WithZone("").Unmap(), nil
+}
+
 // isTrustedProxy reports whether ip (a textual IP address) is in trustedProxies.
 func isTrustedProxy(ip string) bool {
-	addr, err := netip.ParseAddr(ip)
+	addr, err := parseIP(ip)
 	if err != nil {
 		return false
 	}
-	return trustedProxyContains(addr.WithZone("").Unmap())
+	return trustedProxyContains(addr)
 }
 
 func trustedProxyContains(addr netip.Addr) bool {
-	for _, prefix := range trustedProxies {
-		if prefix.Contains(addr) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(trustedProxies, func(p netip.Prefix) bool { return p.Contains(addr) })
 }

@@ -109,6 +109,28 @@ minor_older() {
     [[ "$a" != "$b" ]] && [[ "$(printf '%s\n%s\n' "$a" "$b" | sort -V | head -n 1)" == "$a" ]]
 }
 
+# latest_github_release <owner/repo> — tag of the latest GitHub release without
+# a leading "v", or empty if the API can't be reached.
+latest_github_release() {
+    curl -s "https://api.github.com/repos/$1/releases/latest" | grep -m1 '"tag_name"' \
+        | sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/'
+    return 0
+}
+
+# report_version <name> <installed> <latest> <source> <update-hint> — prints
+# whether the installed version is the latest one.
+report_version() {
+    local name="$1" installed="$2" latest="$3" source="$4" hint="$5"
+    if [[ -z "$latest" ]]; then
+        echo -e "${YELLOW}$name $installed installed (could not fetch the latest release from $source).${NC}"
+    elif [[ "$installed" == "$latest" ]]; then
+        echo -e "${GREEN}$name ($installed) is up to date.${NC}"
+    else
+        echo -e "${RED}$name ($installed) is outdated! Latest is $latest. $hint${NC}"
+    fi
+    return 0
+}
+
 # The toolchain switch only covers `go` commands run in this repo. The system Go
 # and tools built from source keep the Go version they were installed/built with,
 # and both lag silently behind a go.mod bump unless checked explicitly.
@@ -153,14 +175,9 @@ govulncheck|go install golang.org/x/vuln/cmd/govulncheck@latest"
         # Parsed from the full output: v1 has no --short flag, and source builds
         # print the version with a "v" prefix ("v2.14.0") while releases do not.
         GOLANGCI_VERSION=$(golangci-lint version 2>/dev/null | sed -E 's/.*has version v?([0-9][0-9.]*).*/\1/')
-        LATEST_GOLANGCI=$(curl -s "https://api.github.com/repos/golangci/golangci-lint/releases/latest" | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
-        if [[ -z "$LATEST_GOLANGCI" ]]; then
-            echo -e "${YELLOW}golangci-lint $GOLANGCI_VERSION installed (could not fetch the latest release from GitHub).${NC}"
-        elif [[ "$GOLANGCI_VERSION" == "$LATEST_GOLANGCI" ]]; then
-            echo -e "${GREEN}golangci-lint ($GOLANGCI_VERSION) is up to date.${NC}"
-        else
-            echo -e "${RED}golangci-lint ($GOLANGCI_VERSION) is outdated! Latest is $LATEST_GOLANGCI. Update via 'Go: Install/Update Tools' in VS Code (go.lintTool: golangci-lint-v2).${NC}"
-        fi
+        LATEST_GOLANGCI=$(latest_github_release golangci/golangci-lint)
+        report_version golangci-lint "$GOLANGCI_VERSION" "$LATEST_GOLANGCI" GitHub \
+            "Update via 'Go: Install/Update Tools' in VS Code (go.lintTool: golangci-lint-v2)."
     else
         echo -e "${RED}golangci-lint is not installed.${NC}"
     fi
@@ -251,12 +268,9 @@ if [[ -x "$WAPITI_VENV/bin/pip" ]]; then
     LATEST_WAPITI=$(curl -s "https://pypi.org/pypi/wapiti3/json" | grep -o -m1 '"version":"[^"]*"' | sed -E 's/"version":"([^"]+)"/\1/')
     if [[ -z "$WAPITI_VERSION" ]]; then
         echo -e "${RED}wapiti3 is not installed in $WAPITI_VENV.${NC}"
-    elif [[ -z "$LATEST_WAPITI" ]]; then
-        echo -e "${YELLOW}Wapiti $WAPITI_VERSION installed (could not fetch the latest release from PyPI).${NC}"
-    elif [[ "$WAPITI_VERSION" == "$LATEST_WAPITI" ]]; then
-        echo -e "${GREEN}Wapiti ($WAPITI_VERSION) is up to date.${NC}"
     else
-        echo -e "${RED}Wapiti ($WAPITI_VERSION) is outdated! Latest is $LATEST_WAPITI. Update with: $WAPITI_VENV/bin/pip install --upgrade wapiti3${NC}"
+        report_version Wapiti "$WAPITI_VERSION" "$LATEST_WAPITI" PyPI \
+            "Update with: $WAPITI_VENV/bin/pip install --upgrade wapiti3"
     fi
     set -e
 else
@@ -272,14 +286,9 @@ echo -e "${BLUE}=====================================================${NC}"
 if command -v sonar-scanner >/dev/null 2>&1; then
     set +e
     SCANNER_VERSION=$(sonar-scanner --version 2>/dev/null | sed -nE 's/.*SonarScanner CLI ([0-9][0-9.]*).*/\1/p' | head -n 1)
-    LATEST_SCANNER=$(curl -s "https://api.github.com/repos/SonarSource/sonar-scanner-cli/releases/latest" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
-    if [[ -z "$LATEST_SCANNER" ]]; then
-        echo -e "${YELLOW}SonarScanner CLI $SCANNER_VERSION installed (could not fetch the latest release from GitHub).${NC}"
-    elif [[ "$SCANNER_VERSION" == "$LATEST_SCANNER" ]]; then
-        echo -e "${GREEN}SonarScanner CLI ($SCANNER_VERSION) is up to date.${NC}"
-    else
-        echo -e "${RED}SonarScanner CLI ($SCANNER_VERSION) is outdated! Latest is $LATEST_SCANNER. Update with: brew upgrade sonar-scanner${NC}"
-    fi
+    LATEST_SCANNER=$(latest_github_release SonarSource/sonar-scanner-cli)
+    report_version "SonarScanner CLI" "$SCANNER_VERSION" "$LATEST_SCANNER" GitHub \
+        "Update with: brew upgrade sonar-scanner"
     set -e
 else
     echo -e "${YELLOW}--> Skipping SonarScanner CLI (sonar-scanner not found in PATH)${NC}"

@@ -133,13 +133,11 @@ func resolveServerConfig() error {
 	if trustedProxiesStr == "" {
 		trustedProxiesStr = os.Getenv("WF_TRUSTED_PROXIES")
 	}
-	if trustedProxiesStr != "" {
-		proxies, err := parseTrustedProxies(trustedProxiesStr)
-		if err != nil {
-			return err
-		}
-		trustedProxies = proxies
+	proxies, err := parseTrustedProxies(trustedProxiesStr)
+	if err != nil {
+		return err
 	}
+	trustedProxies = proxies
 
 	level, err := parseLogLevel(logLevel)
 	if err != nil {

@@ -10,8 +10,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 API="https://sonarcloud.io/api"
-PROJECT="wuflow-oss"
-ORG="pwurbs-oss"
+# The same project the scanner uploads to (sonar_scan.sh).
+PROJECT="$(sed -n 's/^sonar\.projectKey=//p' sonar-project.properties)"
+ORG="$(sed -n 's/^sonar\.organization=//p' sonar-project.properties)"
 PAGE_SIZE=500
 
 BRANCH="$(git branch --show-current)"
@@ -96,34 +97,35 @@ fetch_issues() {
     return 0
 }
 
-print_issues() {
-    local branch="$1" rows
-    rows="$(fetch_issues "$branch")"
+# print_rows <label> <header> <rows> — count and table of TSV rows whose first
+# column is a rule key; the keys are collected for print_rules.
+print_rows() {
+    local label="$1" header="$2" rows="$3"
     echo ""
     if [[ -z "$rows" ]]; then
-        echo "Open issues: 0"
+        echo "$label: 0"
         return 0
     fi
-    echo "Open issues: $(grep -c . <<<"$rows")"
-    { printf 'RULE\tSEVERITY\tTYPE\tFILE:LINE\tMESSAGE\n'; printf '%s\n' "$rows"; } | table
+    echo "$label: $(grep -c . <<<"$rows")"
+    { printf '%s\n' "$header"; printf '%s\n' "$rows"; } | table
     RULES="${RULES}$(cut -f1 <<<"$rows")"$'\n'
     return 0
 }
 
+print_issues() {
+    local rows
+    rows="$(fetch_issues "$1")"
+    print_rows "Open issues" $'RULE\tSEVERITY\tTYPE\tFILE:LINE\tMESSAGE' "$rows"
+    return 0
+}
+
 print_hotspots() {
-    local branch="$1" rows
-    rows="$(api hotspots/search -d projectKey="$PROJECT" --data-urlencode "branch=$branch" \
+    local rows
+    rows="$(api hotspots/search -d projectKey="$PROJECT" --data-urlencode "branch=$1" \
         -d status=TO_REVIEW -d ps="$PAGE_SIZE" \
         | jq -r '.hotspots[] | [.ruleKey, .vulnerabilityProbability,
             "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv')"
-    echo ""
-    if [[ -z "$rows" ]]; then
-        echo "Security hotspots to review: 0"
-        return 0
-    fi
-    echo "Security hotspots to review: $(grep -c . <<<"$rows")"
-    { printf 'RULE\tPROBABILITY\tFILE:LINE\tMESSAGE\n'; printf '%s\n' "$rows"; } | table
-    RULES="${RULES}$(cut -f1 <<<"$rows")"$'\n'
+    print_rows "Security hotspots to review" $'RULE\tPROBABILITY\tFILE:LINE\tMESSAGE' "$rows"
     return 0
 }
 

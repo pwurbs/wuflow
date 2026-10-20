@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"net/netip"
 	"sync"
 	"time"
 )
@@ -30,18 +29,14 @@ const (
 // IPv6 masked to its /64. Unparsable input is returned unchanged. Logs keep
 // the full IP; only the limiters use this key.
 func limiterKey(ip string) string {
-	addr, err := netip.ParseAddr(ip)
+	addr, err := parseIP(ip)
 	if err != nil {
 		return ip
 	}
-	addr = addr.Unmap()
 	if addr.Is4() {
 		return addr.String()
 	}
-	prefix, err := addr.Prefix(ipv6LimitPrefix)
-	if err != nil {
-		return ip
-	}
+	prefix, _ := addr.Prefix(ipv6LimitPrefix) // cannot fail: a valid IPv6 address has 128 bits
 	return prefix.String()
 }
 

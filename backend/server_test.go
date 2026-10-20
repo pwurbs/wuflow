@@ -359,16 +359,25 @@ func currentServerConfig() serverConfig {
 	return serverConfig{logLevel, secureCookie, apiRateLimitEnabled, remoteIPHeader, fmt.Sprint(trustedProxies)}
 }
 
+// keep restores *p to its current value after the test.
+func keep[T any](t *testing.T, p *T) {
+	old := *p
+	t.Cleanup(func() { *p = old })
+}
+
 // resetServerConfig clears the package-level settings as if no flag was given
 // and restores them, including the logger, after the test.
 func resetServerConfig(t *testing.T) {
 	t.Helper()
-	l, sc, scs, arl, arls, rih, tp, tps, logger := logLevel, secureCookie, secureCookieStr, apiRateLimitEnabled,
-		apiRateLimitStr, remoteIPHeader, trustedProxies, trustedProxiesStr, safeLogger
-	t.Cleanup(func() {
-		logLevel, secureCookie, secureCookieStr, apiRateLimitEnabled = l, sc, scs, arl
-		apiRateLimitStr, remoteIPHeader, trustedProxies, trustedProxiesStr, safeLogger = arls, rih, tp, tps, logger
-	})
+	keep(t, &logLevel)
+	keep(t, &secureCookie)
+	keep(t, &secureCookieStr)
+	keep(t, &apiRateLimitEnabled)
+	keep(t, &apiRateLimitStr)
+	keep(t, &remoteIPHeader)
+	keep(t, &trustedProxies)
+	keep(t, &trustedProxiesStr)
+	keep(t, &safeLogger)
 	logLevel, secureCookieStr, apiRateLimitStr, remoteIPHeader, trustedProxiesStr = "", "", "", "", ""
 	trustedProxies = defaultTrustedProxies
 }

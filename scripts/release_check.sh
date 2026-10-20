@@ -38,7 +38,7 @@ newer() {
 BRANCH="$(git branch --show-current)"
 VERSION="$(cat VERSION)"
 TARGET="${VERSION%%-*}"
-LAST_RELEASE="$(git ls-remote --tags "$REMOTE" 'v*' | awk '{print $2}' | grep -v '\^{}$' \
+LAST_RELEASE="$(git ls-remote --tags --refs "$REMOTE" 'v*' | awk '{print $2}' \
     | sed 's#^refs/tags/v##' | sort -V | tail -1)"
 
 # pre: VERSION is X.Y.Z-preN, final: X.Y.Z not released yet,
