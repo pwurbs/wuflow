@@ -4,6 +4,7 @@
 - Added Claude Code setup: CLAUDE.md with project instructions, shared permissions in .claude/settings.json and a doc-sync subagent
 - Added a `/sonar` Claude Code skill: runs the SonarCloud analysis, reads the issues, hotspots and quality gate, and sorts the issues for fixing
 - The "Sonar Scanner" VS Code task now waits for the quality gate and fails if it fails
+- Added a `/release` Claude Code skill that prepares and publishes a release step by step. Some scripts adapted.
 - Docs: new Security Guidelines page with the general security rules and the accepted risks
 - Security: the client IP header (`WF_REMOTE_IP_HEADER`) is now used only if the request comes from a trusted proxy, and it is read from the right, so IPs a client forges in `X-Forwarded-For` no longer bypass the login rate limits or appear in the logs
 - New setting Trusted Proxies (`WF_TRUSTED_PROXIES`, default: loopback and private ranges)

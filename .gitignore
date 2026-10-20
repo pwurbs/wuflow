@@ -29,6 +29,8 @@ backend/testdata
 
 # Claude Code: personal settings
 .claude/settings.local.json
+# Release steps for the maintainer's own environments (see .claude/skills/release/SKILL.md)
+.claude/skills/release/local.md
 
 # local Trivy scan
 .trivy

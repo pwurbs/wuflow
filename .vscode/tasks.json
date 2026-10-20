@@ -138,9 +138,9 @@
       "problemMatcher": []
     },
     {
-      "label": "Build & Scan Image",
+      "label": "Scan Image",
       "type": "shell",
-      "command": "export VERSION=$(cat VERSION) && container build --no-cache --arch arm64 --build-arg VERSION=$VERSION -t wuflow:$VERSION . && sh scripts/trivy_scan.sh",
+      "command": "sh scripts/trivy_scan.sh",
       "group": "build",
       "presentation": {
         "reveal": "always",

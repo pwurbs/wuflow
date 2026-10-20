@@ -36,7 +36,7 @@ The script will ask for the admin password (`admin@local`) when started. It cove
 It expects a running instance at http://localhost:8080
 
 ### `trivy_scan.sh`
-A shell script to perform a local Trivy security scan on the container image. It saves the current version's image to a tarball, extracts it, and scans the contents for vulnerabilities.
+A shell script to perform a local Trivy security scan on the container image, used by the "Scan Image" VS Code task and the `/release` Claude Code skill. It builds the image for arm64 only, tagged with the version from `VERSION`, saves it to a tarball, extracts it, and scans the contents for HIGH and CRITICAL vulnerabilities. The released multi-arch image comes from `image_release.sh`; scanning the arm64 build is enough as a check and much faster.
 
 **Usage:**
 ```bash
@@ -57,7 +57,7 @@ A fully automated two-phase shell script that:
 ```bash
 ./scripts/run_wapiti_scan.sh
 ```
-The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory. `check_dependencies.sh` reports when a newer Wapiti release is available; update it with `~/python_wapiti_env/bin/pip install --upgrade wapiti3`.
+The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory. If port 8088 is already in use, e.g. by a server left over from an aborted scan, the script stops and names the process instead of killing it. `check_dependencies.sh` reports when a newer Wapiti release is available; update it with `~/python_wapiti_env/bin/pip install --upgrade wapiti3`.
 
 ### `check_dependencies.sh`
 A shell script to check for available updates across all dependencies in the repository. It checks:
@@ -80,9 +80,9 @@ A shell script to automate the versioning process for wuFlow, its Home Assistant
 
 **Usage:**
 ```bash
-./scripts/new_version.sh
+./scripts/new_version.sh [version]
 ```
-The script uses `osascript` to trigger macOS dialog boxes for input, so it must be run on a macOS environment.
+Without `version`, the script asks for it in a macOS dialog box (`osascript`), so it must be run on a macOS environment.
 
 ### `helm_release.sh`
 A shell script to package the Helm chart in [`chart/`](../chart) and push it to GitHub Container Registry (`ghcr.io`) as an OCI artifact, using the version currently set in `chart/Chart.yaml`. It doesn't modify any files: it aborts if the chart `version`, `appVersion` and the `artifacthub.io/images` image tag differ.
@@ -130,6 +130,17 @@ Prints the SonarCloud results for the current branch and for `main`: which commi
 ./scripts/sonar_results.sh
 ```
 The script reads only the public SonarCloud API, so it needs no token; it expects `curl` and `jq` in your PATH.
+
+### `release_check.sh`
+Checks whether a release can start: the `/release` Claude Code skill runs it first in both modes and stops if it reports a problem. It prints the branch, `VERSION`, the last release (the highest `v*` tag on the `github` remote), the target version (`VERSION` without a `-preN` suffix) and the state: `pre`, `final` (not released yet) or `released` (no new version started). It exits `1` if the release can't go on:
+- `prepare`: not on a feature branch; uncommitted changes outside the files a release changes; or main has commits the feature branch lacks, so the merge would not be a fast-forward.
+- `publish`: not on main; uncommitted changes; `VERSION` still has a pre suffix; or the version is already released.
+
+**Usage:**
+```bash
+./scripts/release_check.sh prepare|publish
+```
+The script only reads, including the tags on GitHub (`git ls-remote`); it changes no files.
 
 ### `go_race_fuzz.sh`
 Runs the slow Go test passes used by the "Go Race & Fuzz" VS Code task: the backend test suite under the race detector (`go test -race`), then every fuzz target for a fixed duration each.

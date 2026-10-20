@@ -39,12 +39,13 @@ cleanup() {
 # Set trap for cleanup
 trap cleanup EXIT
 
-# Kill any stale process on the target port
-STALE_PID=$(lsof -t -i :$APP_PORT)
-if [[ -n "$STALE_PID" ]]; then
-  echo "[*] Killing stale process on port $APP_PORT (PID: $STALE_PID)..."
-  kill -9 "$STALE_PID" 2>/dev/null
-  sleep 1
+# Stop if the port is taken, e.g. by a server left over from an aborted scan.
+# Not killed here: the process may be something else (and the /release skill
+# runs this script).
+PORT_PIDS=$(lsof -t -i :$APP_PORT | tr '\n' ' ')
+if [[ -n "$PORT_PIDS" ]]; then
+  echo "[!] Port $APP_PORT is in use (PID: ${PORT_PIDS% }). Stop that process and run the scan again."
+  exit 1
 fi
 
 echo "[*] Building the frontend (embedded in the binary)..."

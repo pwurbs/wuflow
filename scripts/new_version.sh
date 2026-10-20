@@ -8,8 +8,12 @@ set -e
 # Get old version
 OLD_VERSION=$(cat VERSION)
 
-# Prompt for new version using AppleScript (since we're on macOS)
-NEW_VERSION=$(osascript -e "display dialog \"New Version:\" default answer \"$OLD_VERSION\"" -e "text returned of result")
+# New version from the first argument (used by the /release skill), otherwise
+# prompt for it using AppleScript (since we're on macOS)
+NEW_VERSION="${1:-}"
+if [[ -z "$NEW_VERSION" ]]; then
+    NEW_VERSION=$(osascript -e "display dialog \"New Version:\" default answer \"$OLD_VERSION\"" -e "text returned of result")
+fi
 
 if [[ -z "$NEW_VERSION" ]]; then
     echo "No version entered. Aborting."
