@@ -2,11 +2,10 @@
 
 ## 🎉 Highlights
 
-
-## ⚡️Security Fixes
+## ⚠️ Breaking Changes
 - 
 
-## ⚠️ Breaking Changes
+## ⚡️Security Fixes
 - 
 
 ## 🚀 New Features

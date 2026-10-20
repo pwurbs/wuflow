@@ -28,6 +28,11 @@ if [[ -z "${GHCR_TOKEN}" ]] && container registry list -q 2>/dev/null | grep -qx
     echo "==> Already logged in to ghcr.io (cached credentials), skipping login"
 else
     if [[ -z "${GHCR_TOKEN}" ]]; then
+        # Without a terminal (e.g. run by the /release skill) nobody can answer the prompt.
+        if [[ ! -t 0 ]]; then
+            echo "No cached ghcr.io login and no GHCR_TOKEN; run the \"Image Release\" VS Code task. Aborting."
+            exit 1
+        fi
         read -rsp "GitHub PAT for ${GITHUB_USER} (write:packages scope): " GHCR_TOKEN
         echo
     fi

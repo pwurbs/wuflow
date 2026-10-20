@@ -19,7 +19,12 @@ Mode `$ARGUMENTS`:
 - `X.Y.Z` below = the target version from the start check.
 - Local steps: if `.claude/skills/release/local.md` exists (gitignored), follow it where it says. It
   holds steps for the maintainer's own environments.
-- End each mode with a short report: what was done, findings, what's next.
+- End each mode with a short report: what was done, findings, what's next, and which files are
+  still uncommitted.
+- Run each command exactly as written here, from the repo root, without wrappers (`cd`, redirects,
+  pipes, `echo`), so that the allow and ask rules in `.claude/settings.json` match. Run long ones
+  in the background; their output file keeps the full output. Don't re-check what a script
+  checks itself.
 
 ## prepare
 **P1 Start and version:** `./scripts/release_check.sh prepare`. On `PROBLEM` lines stop. By `State`:
@@ -72,22 +77,38 @@ Next: `/release publish`, once the user decided the release goes out.
 ## publish
 **U1 Start:** `./scripts/release_check.sh publish`; on `PROBLEM` lines stop. Then
 `./scripts/sonar_results.sh`: the quality gate on main must be OK and the analysis must be of HEAD;
-otherwise stop.
+otherwise stop. Publish may run days after prepare: this is the check that main is still the state
+P4 and P7 tested.
 
-**U2 Image:** `./scripts/image_release.sh` — builds and pushes the multi-arch image. It needs a
-cached ghcr.io login or `GHCR_TOKEN`; if it asks for a token, stop: the user runs the "Image Release" task.
+**U2 Image:** `./scripts/image_release.sh` — builds and pushes the multi-arch image. If it stops for
+a missing ghcr.io login, stop: the user runs the "Image Release" task.
 
-**U3 Chart:** `./scripts/helm_release.sh`. Checkpoint: the chart package on GitHub (Artifact Hub
-picks it up later).
+**U3 Chart:** `./scripts/helm_release.sh`; if it stops for a missing login, the user runs the
+"Helm Release" task. Checkpoint: the chart package on GitHub (Artifact Hub picks it up later).
 
 **U4 Push main:** `git push github main`.
 
-**U5 Checkpoint:** the GitHub security report (Security tab of pwurbs/wuflow).
+**U5 Checkpoint:** the GitHub security report (Security tab of pwurbs/wuflow), together with the
+checks `local.md` assigns to U5.
 
-**U6 Wiki:** in `../wuflow.wiki`, if `git status` shows changes: commit `Changes for X.Y.Z`, then push.
+**U6 Wiki:** run the doc-sync agent once more, on `git diff v<last release> main -- docs/ README.md`
+(last release from U1), so that the wiki matches main. Then in `../wuflow.wiki`: if `git status` shows changes, commit
+`Changes for X.Y.Z`; if it is ahead of `origin`, push.
 
-**U7 GitHub release:** write the release notes from `.github/release_template.md`: sort the lines of
-`CHANGELOG.md` `# X.Y.Z` into its sections, drop empty sections, add 1–3 highlights. Checkpoint: the
-user creates the release with tag `vX.Y.Z` on main. Then `git fetch github --tags`.
+**U7 GitHub release:** write the release notes to `release-notes-X.Y.Z.md` in the scratchpad and
+open them with `open -a "Visual Studio Code" <file>`. Base: `.github/release_template.md`:
+- Highlights: a short paragraph on the release's focus in general terms ("This release focuses
+  on …"), not a list of the changes.
+- All other lines are the lines of `CHANGELOG.md` `# X.Y.Z`, each in its section, worded as in the
+  changelog; only a prefix the section heading already says (`Security:`, `Docs:`) is dropped.
+  Drop empty sections.
+- Breaking Changes: for a change that needs action after the upgrade, one line saying what to do;
+  it repeats an entry from another section.
+- New Features: only new functions users see in the app; Helm chart lines go under Maintenance.
+
+Checkpoint: the user creates the release with tag `vX.Y.Z` on main. Then check both:
+`curl -s 'https://api.github.com/repos/pwurbs/wuflow/releases?per_page=1'` shows `vX.Y.Z` with
+`"draft": false` (the single-release endpoint lags behind), and `git ls-remote --tags github vX.Y.Z`
+points to `git rev-parse main`.
 
 **U8 Local steps** from `local.md`, if it exists.
