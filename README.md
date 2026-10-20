@@ -104,7 +104,7 @@ Configuration is done by either Envvar or command line argument using the follow
 | Secure Cookie | `WF_SECURE_COOKIE` | `-secure-cookie` | `true` | Restricts auth cookies to HTTPS. Disable (`false`) only for internal HTTP networks. |
 | API Rate Limit | `WF_API_RATE_LIMIT` | `-api-rate-limit` | `true` | Enables per-user API rate limiting to prevent abuse. |
 | Remote IP Header | `WF_REMOTE_IP_HEADER` | `-remote-ip-header` | *None* | HTTP header with the client IP behind a reverse proxy (e.g. `X-Forwarded-For`, `CF-Connecting-IP`). Used only if the direct peer is a trusted proxy; the client is the rightmost entry that isn't a trusted proxy, see [Reverse Proxy](#reverse-proxy). |
-| Trusted Proxies | `WF_TRUSTED_PROXIES` | `-trusted-proxies` | Loopback and private ranges | Comma-separated CIDRs or IPs of the reverse proxies whose Remote IP Header is used. Only takes effect if Remote IP Header is set. A set value replaces the default list. An invalid entry stops the app at startup. |
+| Trusted Proxies | `WF_TRUSTED_PROXIES` | `-trusted-proxies` | Loopback and private ranges | Comma-separated CIDRs or IPs of the reverse proxies whose Remote IP Header is used. Only takes effect if Remote IP Header is set. A set value replaces the default list. An invalid entry stops the app at startup, including an IPv4-mapped IPv6 range like `::ffff:10.0.0.0/104` (write it in IPv4 notation). |
 
 Configuration Remarks:
 - **Initial admin email/password** is **only** used to create the first sysadmin user on initial startup and store it in the database. For email, the default can be used, but the password **must** be defined for the initial startup and comply to the password policy (at least 12 characters, at most 72 bytes, no common passwords). The app won't start initially without a valid password. You can change email or password later in the user settings.
@@ -180,7 +180,7 @@ How wuFlow selects the client IP:
 - It reads the header from the right and skips trusted proxies. The first IP that isn't a trusted proxy is the client. Entries left of it are ignored, because the client can write them itself. If every entry is a trusted proxy, the leftmost one is used. Several lines of the header count as one list.
 - If it reaches an entry that isn't an IP address, it uses the IP of the connection and logs a warning.
 
-So the proxy may append to an `X-Forwarded-For` header the client sent; that's the usual behaviour of Nginx and Cloudflare. Hosts in a private network count as trusted proxies under the default, so a client in your LAN that reaches wuFlow's port directly can set its own client IP. Therefore keep wuFlow's port reachable only for the proxy (bind it to `localhost` or a private interface, or use a firewall rule), or narrow `WF_TRUSTED_PROXIES` to the proxy's address.
+So the proxy may append to an `X-Forwarded-For` header the client sent; that's the usual behaviour of Nginx and Cloudflare. Hosts in a private network count as trusted proxies under the default, so a client in your LAN can set its own client IP: directly at wuFlow's port, and through a proxy that appends to the header. Keeping wuFlow's port reachable only for the proxy (bind it to `localhost` or a private interface, or use a firewall rule) closes only the direct path. To rule out both, narrow `WF_TRUSTED_PROXIES` to the proxy's address.
 
 Settings per setup:
 

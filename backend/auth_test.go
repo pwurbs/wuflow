@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -546,7 +545,11 @@ func TestHashPasswordAtByteLimit(t *testing.T) {
 // dummyPasswordCheck must cost as much as a real CheckPassword: same bcrypt cost,
 // and a full comparison (not an early length error) for long passwords.
 func TestDummyPasswordHash(t *testing.T) {
-	hash := []byte(dummyPasswordHash())
+	s, err := dummyPasswordHash()
+	if err != nil {
+		t.Fatalf("dummyPasswordHash: %v", err)
+	}
+	hash := []byte(s)
 	cost, err := bcrypt.Cost(hash)
 	if err != nil || cost != bcryptCost {
 		t.Fatalf("dummy hash cost = %d (err %v), want %d", cost, err, bcryptCost)
@@ -677,7 +680,7 @@ func TestHandleRefreshRateLimit(t *testing.T) {
 	orig := refreshLimiter
 	replacement := newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)
 	replacement.counts["192.0.2.1"] = &failEntry{count: refreshIPMax + 1, windowEnd: time.Now().Add(time.Minute)}
-	refreshLimiter = replacement
+	refreshLimiter = ipLimiter{replacement}
 	defer func() { refreshLimiter = orig }()
 
 	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
@@ -696,7 +699,7 @@ func TestHandleRefreshRateLimitIPv6Per64(t *testing.T) {
 	orig := refreshLimiter
 	replacement := newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)
 	replacement.counts["2001:db8::/64"] = &failEntry{count: refreshIPMax + 1, windowEnd: time.Now().Add(time.Minute)}
-	refreshLimiter = replacement
+	refreshLimiter = ipLimiter{replacement}
 	defer func() { refreshLimiter = orig }()
 
 	// Another address in the exhausted /64 is blocked.
@@ -724,7 +727,7 @@ func TestHandleLoginRateLimitIPv6Per64LogsFullIP(t *testing.T) {
 	replacement.byIP["2001:db8::/64"] = &failEntry{count: ipMaxFailures, windowEnd: time.Now().Add(ipWindow)}
 	loginLimiter = replacement
 	defer func() { loginLimiter = orig }()
-	buf, restore := captureLogs(t, slog.LevelWarn)
+	buf, restore := captureLogs(t)
 	defer restore()
 
 	body, _ := json.Marshal(map[string]string{"email": testEmail, "password": testPassword})

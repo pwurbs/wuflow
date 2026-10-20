@@ -86,14 +86,15 @@ The security rules wuFlow's code follows and the risks the project has deliberat
 
 - **Risk**: With `WF_REMOTE_IP_HEADER` set, every host in a private range (`10.0.0.0/8`,
   `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`, loopback) counts as a trusted proxy. Such a host —
-  any pod in the cluster, or a LAN client that reaches wuFlow's port directly — can set its own
-  client IP. That bypasses the IP-based login and refresh limits and falsifies request logs.
+  any pod in the cluster, or a LAN client, directly or through a proxy that appends to the header —
+  can set its own client IP. That bypasses the IP-based login and refresh limits and falsifies request logs.
   Clients outside the private ranges can't do this: their header is ignored, and entries they add
   in front of a proxy's entry are skipped.
 - **Why accepted**: The default works without configuration for a proxy on the same host, in a
   Docker network or in a Kubernetes cluster; an attacker needs a foothold in the private network.
-- **Mitigation**: README "Reverse Proxy" recommends exposing wuFlow's port only to the proxy;
-  `WF_TRUSTED_PROXIES` narrows the list (e.g. to the ingress pod CIDR or the proxy's address).
+- **Mitigation**: Narrowing `WF_TRUSTED_PROXIES` (e.g. to the ingress pod CIDR or the proxy's address)
+  closes both paths. Exposing wuFlow's port only to the proxy (README "Reverse Proxy") closes only the
+  direct one.
 - **Revisit if**: IP-based limits gain more weight (e.g. account lockout).
 
 ### I2 — No CSRF token; protection relies on browser rules

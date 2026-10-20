@@ -59,6 +59,9 @@ func remoteAddrIP(r *http.Request) string {
 	return ip
 }
 
+// maxLoggedHeaderEntry caps the bytes of an invalid header entry in the log.
+const maxLoggedHeaderEntry = 64
+
 // clientIPFromHeader selects the client IP from remoteIPHeader as described on
 // MDN (X-Forwarded-For, "Trusted proxy list"): all header lines form one list,
 // which is read from the right, skipping trusted proxies. The first untrusted
@@ -72,10 +75,16 @@ func clientIPFromHeader(r *http.Request) (ip string, ok bool) {
 	}
 	var addr netip.Addr
 	for _, entry := range slices.Backward(strings.Split(value, ",")) {
-		parsed, err := parseIP(strings.TrimSpace(entry))
+		entry = strings.TrimSpace(entry)
+		parsed, err := parseIP(entry)
 		if err != nil {
+			// Only the offending entry, shortened: the header is client-controlled
+			// and may be as large as the server's header limit.
+			if len(entry) > maxLoggedHeaderEntry {
+				entry = entry[:maxLoggedHeaderEntry] + "…"
+			}
 			LogWarn("GetClientIP: invalid IP in header, falling back to RemoteAddr",
-				"header", remoteIPHeader, "value", value)
+				"header", remoteIPHeader, "entry", entry)
 			return "", false
 		}
 		addr = parsed

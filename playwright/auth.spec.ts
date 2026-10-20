@@ -555,7 +555,7 @@ test.describe('Authentication Rate Limiting', () => {
     if (fs.existsSync(logPath)) {
       const logs = fs.readFileSync(logPath, 'utf8');
       expect(logs).toContain('GetClientIP: invalid IP in header, falling back to RemoteAddr');
-      expect(logs).toContain('"value":"not-an-ip"');
+      expect(logs).toContain('"entry":"not-an-ip"');
     }
   });
 

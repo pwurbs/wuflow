@@ -26,8 +26,9 @@ const (
 )
 
 // limiterKey returns the per-IP rate-limit key for a client IP: IPv4 as is,
-// IPv6 masked to its /64. Unparsable input is returned unchanged. Logs keep
-// the full IP; only the limiters use this key.
+// IPv6 masked to its /64. Unparsable input is returned unchanged. The per-IP
+// limiters (rateLimiter, ipLimiter) apply it themselves, so callers pass and
+// log the full IP.
 func limiterKey(ip string) string {
 	addr, err := parseIP(ip)
 	if err != nil {
@@ -133,15 +134,14 @@ func (rl *rateLimiter) isBlocked(m map[string]*failEntry, key string, limit int)
 func (rl *rateLimiter) checkIP(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	return rl.isBlocked(rl.byIP, ip, ipMaxFailures)
+	return rl.isBlocked(rl.byIP, limiterKey(ip), ipMaxFailures)
 }
 
 // checkIPAndEmail reports whether the IP+Email combination is currently rate-limited.
 func (rl *rateLimiter) checkIPAndEmail(ip, email string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	key := ip + "|" + email
-	return rl.isBlocked(rl.byIPAndEmail, key, emailMaxFailures)
+	return rl.isBlocked(rl.byIPAndEmail, limiterKey(ip)+"|"+email, emailMaxFailures)
 }
 
 // recordFailure increments failure counters for the given IP and email.
@@ -158,8 +158,9 @@ func (rl *rateLimiter) recordFailure(ip, email string) {
 			e.count++
 		}
 	}
-	record(rl.byIP, ip, ipWindow)
-	record(rl.byIPAndEmail, ip+"|"+email, emailWindow)
+	key := limiterKey(ip)
+	record(rl.byIP, key, ipWindow)
+	record(rl.byIPAndEmail, key+"|"+email, emailWindow)
 
 	rl.calls++
 	if rl.calls%rlCleanupEvery == 0 {
@@ -173,7 +174,7 @@ func (rl *rateLimiter) recordFailure(ip, email string) {
 func (rl *rateLimiter) resetOnSuccess(ip, email string) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	delete(rl.byIPAndEmail, ip+"|"+email)
+	delete(rl.byIPAndEmail, limiterKey(ip)+"|"+email)
 }
 
 // cleanup removes stale entries. Must be called with rl.mu held.
@@ -191,6 +192,16 @@ func (rl *rateLimiter) cleanup() {
 	}
 }
 
+// ipLimiter is a keyedLimiter keyed by client IP, counted per limiterKey.
+type ipLimiter struct {
+	*keyedLimiter[string]
+}
+
+// allow records one attempt for the client IP; see keyedLimiter.allow.
+func (l ipLimiter) allow(ip string) bool {
+	return l.keyedLimiter.allow(limiterKey(ip))
+}
+
 // refreshLimiter is a per-IP sliding-window rate limiter used for
 // unauthenticated endpoints where only the IP is known (e.g. token refresh).
-var refreshLimiter = newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)
+var refreshLimiter = ipLimiter{newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)}

@@ -42,7 +42,7 @@ trap cleanup EXIT
 # Stop if the port is taken, e.g. by a server left over from an aborted scan.
 # Not killed here: the process may be something else (and the /release skill
 # runs this script).
-PORT_PIDS=$(lsof -t -i :$APP_PORT | tr '\n' ' ')
+PORT_PIDS=$(lsof -t -iTCP:$APP_PORT -sTCP:LISTEN | tr '\n' ' ')
 if [[ -n "$PORT_PIDS" ]]; then
   echo "[!] Port $APP_PORT is in use (PID: ${PORT_PIDS% }). Stop that process and run the scan again."
   exit 1

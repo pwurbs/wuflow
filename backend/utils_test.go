@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -210,6 +211,31 @@ func TestGetClientIP(t *testing.T) {
 	}
 }
 
+// The warning for an invalid header entry logs only that entry, shortened,
+// not the whole client-controlled header.
+func TestGetClientIPLogsShortenedInvalidEntry(t *testing.T) {
+	origHeader, origProxies := remoteIPHeader, trustedProxies
+	defer func() { remoteIPHeader, trustedProxies = origHeader, origProxies }()
+	remoteIPHeader, trustedProxies = headerForwardedBy, defaultTrustedProxies
+	buf, restore := captureLogs(t)
+	defer restore()
+
+	invalid := strings.Repeat("x", 1000)
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = utilTestPodAddr
+	req.Header.Set(headerForwardedBy, utilTestForged+", "+invalid+", "+utilTestPodIP)
+
+	if got := GetClientIP(req); got != "10.42.0.5" {
+		t.Errorf("GetClientIP() = %v, want the peer 10.42.0.5", got)
+	}
+	logged := buf.String()
+	want := `"entry":"` + invalid[:maxLoggedHeaderEntry] + `…"`
+	if !strings.Contains(logged, want) || strings.Contains(logged, invalid[:maxLoggedHeaderEntry+1]) ||
+		strings.Contains(logged, utilTestForged) {
+		t.Errorf("expected only the shortened invalid entry in the log, got %q", logged)
+	}
+}
+
 // testTrustedProxies parses s; an empty s yields the default list.
 func testTrustedProxies(t *testing.T, s string) []netip.Prefix {
 	t.Helper()
@@ -246,6 +272,7 @@ func TestParseTrustedProxies(t *testing.T) {
 		{"Invalid entry", "10.0.0.0/8, proxy.local", "", true},
 		{"Invalid prefix length", "10.0.0.0/33", "", true},
 		{"Zoned IPv6", "fe80::1%eth0", "", true},
+		{"IPv4-mapped CIDR is rejected", "::ffff:10.0.0.0/104", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

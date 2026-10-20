@@ -243,6 +243,50 @@ func TestRateLimiterCleanupPreservesActiveEntries(t *testing.T) {
 	}
 }
 
+// The per-IP limiters count IPv6 clients per /64 themselves, so callers can
+// pass the full client IP.
+func TestRateLimiterCountsIPv6Per64(t *testing.T) {
+	const addrA, addrB, otherNet = "2001:db8::a", "2001:db8::b", "2001:db8:0:1::a" //NOSONAR - documentation range
+	rl := newTestLimiter()
+	for range emailMaxFailures {
+		rl.recordFailure(addrA, testEmail1)
+	}
+	if !rl.checkIPAndEmail(addrB, testEmail1) {
+		t.Error("another address in the same /64 should share the IP+email limit")
+	}
+	if rl.checkIPAndEmail(otherNet, testEmail1) {
+		t.Error("an address in another /64 should have its own IP+email limit")
+	}
+	rl.resetOnSuccess(addrB, testEmail1)
+	if rl.checkIPAndEmail(addrA, testEmail1) {
+		t.Error("a success from the same /64 should reset the IP+email limit")
+	}
+
+	for range ipMaxFailures {
+		rl.recordFailure(addrA, testEmail2)
+	}
+	if !rl.checkIP(addrB) {
+		t.Error("another address in the same /64 should share the IP limit")
+	}
+	if rl.checkIP(otherNet) {
+		t.Error("an address in another /64 should have its own IP limit")
+	}
+}
+
+func TestIPLimiterCountsIPv6Per64(t *testing.T) {
+	const addrA, addrB, otherNet = "2001:db8::a", "2001:db8::b", "2001:db8:0:1::a" //NOSONAR - documentation range
+	l := ipLimiter{newKeyedLimiter[string](1, time.Minute, rlCleanupEvery)}
+	if !l.allow(addrA) {
+		t.Fatal("first request should be allowed")
+	}
+	if l.allow(addrB) {
+		t.Error("another address in the same /64 should share the limit")
+	}
+	if !l.allow(otherNet) {
+		t.Error("an address in another /64 should have its own limit")
+	}
+}
+
 func TestLimiterKey(t *testing.T) {
 	tests := []struct {
 		name string

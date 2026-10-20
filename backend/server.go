@@ -171,6 +171,11 @@ func bootstrapDatabase(dbPath, initialAdminEmail, initialAdminPassword, secretKe
 
 	InitSecretKey(secretKey)
 
+	if _, err := dummyPasswordHash(); err != nil {
+		LogError("Failed to create dummy password hash", "error", err)
+		os.Exit(1)
+	}
+
 	if err := EnsureInitialAdmin(startupCtx, initialAdminEmail, initialAdminPassword); err != nil {
 		LogError("Failed to ensure initial admin user", "error", err)
 		os.Exit(1)
@@ -531,6 +536,10 @@ func parseTrustedProxy(entry string) (netip.Prefix, error) {
 		prefix, err := netip.ParsePrefix(entry)
 		if err != nil {
 			return netip.Prefix{}, err
+		}
+		// Client addresses are unmapped (parseIP), so a mapped range would never match.
+		if prefix.Addr().Is4In6() {
+			return netip.Prefix{}, errors.New("IPv4-mapped range: write it in IPv4 notation")
 		}
 		return prefix.Masked(), nil
 	}

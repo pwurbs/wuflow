@@ -87,12 +87,9 @@ const bcryptCost = 12
 
 // dummyPasswordHash returns a bcrypt hash of a random, discarded value, created on
 // first use. It belongs to no user; dummyPasswordCheck compares against it.
-var dummyPasswordHash = sync.OnceValue(func() string {
-	hash, err := HashPassword(rand.Text())
-	if err != nil {
-		LogError("Failed to create dummy password hash", "error", err)
-	}
-	return hash
+// bootstrapDatabase creates it at startup, so no login request pays for the hashing.
+var dummyPasswordHash = sync.OnceValues(func() (string, error) {
+	return HashPassword(rand.Text())
 })
 
 // HashPassword hashes a plaintext password using bcrypt.
@@ -123,7 +120,8 @@ func CheckPassword(hash, password string) bool {
 // indistinguishable from wrong-password attempts by timing — for any password
 // length (hashing instead would return early for passwords over 72 bytes).
 func dummyPasswordCheck(password string) {
-	_ = CheckPassword(dummyPasswordHash(), password)
+	hash, _ := dummyPasswordHash() // an error already stopped the app at startup
+	_ = CheckPassword(hash, password)
 }
 
 // GenerateAccessToken creates a short-lived JWT access token for the given user.

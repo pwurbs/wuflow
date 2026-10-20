@@ -33,11 +33,12 @@ section() {
     return 0
 }
 
-# api <path> <curl args...> — GET request to the SonarCloud API.
+# api <path> <curl args...> — GET request to the SonarCloud API. bash turns off
+# `set -e` inside $(...), so callers there must pass a failure on themselves.
 api() {
     local path="$1"
     shift
-    curl -sSfG "$API/$path" "$@"
+    curl -sSfG "$API/$path" "$@" || return 1
     return 0
 }
 
@@ -80,15 +81,15 @@ print_quality_gate() {
     return 0
 }
 
-# fetch_issues <branch> — one TSV row per open issue, all pages.
-fetch_issues() {
-    local branch="$1" page=1 json total
+# fetch_all <path> <jq row filter> <curl args...> — the rows of all result
+# pages. Runs inside $(...), so every step passes a failure on explicitly.
+fetch_all() {
+    local path="$1" filter="$2" page=1 json total
+    shift 2
     while :; do
-        json="$(api issues/search -d componentKeys="$PROJECT" -d organization="$ORG" \
-            --data-urlencode "branch=$branch" -d resolved=false -d ps="$PAGE_SIZE" -d p="$page")"
-        jq -r '.issues[] | [.rule, .severity, .type,
-            "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv' <<<"$json"
-        total="$(jq -r '.total' <<<"$json")"
+        json="$(api "$path" "$@" -d ps="$PAGE_SIZE" -d p="$page")" || return 1
+        jq -r "$filter" <<<"$json" || return 1
+        total="$(jq -r '.paging.total' <<<"$json")" || return 1
         if (( page * PAGE_SIZE >= total )); then
             break
         fi
@@ -114,17 +115,18 @@ print_rows() {
 
 print_issues() {
     local rows
-    rows="$(fetch_issues "$1")"
+    rows="$(fetch_all issues/search '.issues[] | [.rule, .severity, .type,
+            "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv' \
+        -d componentKeys="$PROJECT" -d organization="$ORG" --data-urlencode "branch=$1" -d resolved=false)"
     print_rows "Open issues" $'RULE\tSEVERITY\tTYPE\tFILE:LINE\tMESSAGE' "$rows"
     return 0
 }
 
 print_hotspots() {
     local rows
-    rows="$(api hotspots/search -d projectKey="$PROJECT" --data-urlencode "branch=$1" \
-        -d status=TO_REVIEW -d ps="$PAGE_SIZE" \
-        | jq -r '.hotspots[] | [.ruleKey, .vulnerabilityProbability,
-            "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv')"
+    rows="$(fetch_all hotspots/search '.hotspots[] | [.ruleKey, .vulnerabilityProbability,
+            "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv' \
+        -d projectKey="$PROJECT" --data-urlencode "branch=$1" -d status=TO_REVIEW)"
     print_rows "Security hotspots to review" $'RULE\tPROBABILITY\tFILE:LINE\tMESSAGE' "$rows"
     return 0
 }

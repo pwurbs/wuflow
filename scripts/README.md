@@ -57,7 +57,7 @@ A fully automated two-phase shell script that:
 ```bash
 ./scripts/run_wapiti_scan.sh
 ```
-The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory. If port 8088 is already in use, e.g. by a server left over from an aborted scan, the script stops and names the process instead of killing it. `check_dependencies.sh` reports when a newer Wapiti release is available; update it with `~/python_wapiti_env/bin/pip install --upgrade wapiti3`.
+The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory. If a server already listens on port 8088, e.g. one left over from an aborted scan, the script stops and names the process instead of killing it. `check_dependencies.sh` reports when a newer Wapiti release is available; update it with `~/python_wapiti_env/bin/pip install --upgrade wapiti3`.
 
 ### `check_dependencies.sh`
 A shell script to check for available updates across all dependencies in the repository. It checks:
@@ -130,7 +130,7 @@ Prints the SonarCloud results for the current branch and for `main`: which commi
 ```bash
 ./scripts/sonar_results.sh
 ```
-The script reads only the public SonarCloud API, so it needs no token; it expects `curl` and `jq` in your PATH.
+The script reads only the public SonarCloud API, so it needs no token; it expects `curl` and `jq` in your PATH. If an API request fails, it stops with exit code 1 instead of printing incomplete results.
 
 ### `release_check.sh`
 Checks whether a release can start: the `/release` Claude Code skill runs it first in both modes and stops if it reports a problem. It prints the branch, `VERSION`, the last release (the highest `v*` tag on the `github` remote), the target version (`VERSION` without a `-preN` suffix) and the state: `pre`, `final` (not released yet) or `released` (no new version started). It exits `1` if the release can't go on:

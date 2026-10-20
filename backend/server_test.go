@@ -220,14 +220,14 @@ func TestWithLogging(t *testing.T) {
 	// but we've verified the middleware passes through correctly.
 }
 
-// captureLogs swaps safeLogger for one that writes JSON to a buffer at the
-// given level, and returns the buffer plus a restore func. Used to assert
-// that a middleware emits an expected log line.
-func captureLogs(t *testing.T, level slog.Level) (*bytes.Buffer, func()) {
+// captureLogs swaps safeLogger for one that writes JSON warnings and errors to
+// a buffer, and returns the buffer plus a restore func. Used to assert that
+// code emits an expected warning.
+func captureLogs(t *testing.T) (*bytes.Buffer, func()) {
 	t.Helper()
 	buf := &bytes.Buffer{}
 	orig := safeLogger
-	safeLogger = slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: level}))
+	safeLogger = slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	return buf, func() { safeLogger = orig }
 }
 
@@ -235,7 +235,7 @@ func TestTimeoutMiddleware_HandlerCompletesInTime(t *testing.T) {
 	// Handler runs synchronously and completes well within the deadline.
 	// Expectations: no WARN log, ctx.Err() is nil during handler execution,
 	// status 200 is propagated.
-	buf, restore := captureLogs(t, slog.LevelWarn)
+	buf, restore := captureLogs(t)
 	defer restore()
 
 	var ctxErrDuringHandler error
@@ -264,7 +264,7 @@ func TestTimeoutMiddleware_DeadlineFires(t *testing.T) {
 	// Handler sleeps past the deadline, then checks its own ctx.
 	// Expectations: ctx.Err() reports DeadlineExceeded by the time the handler
 	// returns, and the middleware emits a WARN log line afterwards.
-	buf, restore := captureLogs(t, slog.LevelWarn)
+	buf, restore := captureLogs(t)
 	defer restore()
 
 	var ctxErrAfterSleep error

@@ -54,7 +54,7 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
 
 ## Wrap-up
 - Run the doc-sync subagent (.claude/agents/doc-sync.md): it mirrors docs/ and README into
-  the GitHub wiki (separate repo, sibling checkout `../wuflow.wiki`) and catches remaining spots.
+  the GitHub wiki (separate repo, sibling checkout `../wuflow.wiki`).
 - The maintainer commits the wiki right before a release; don't remind about uncommitted wiki changes.
 
 ## Project rules
