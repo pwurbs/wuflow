@@ -62,9 +62,17 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   only. Exception: Markdown is sanitized in the frontend (docs/markdown-security.md).
 - Secrets (passwords, password hashes, session/JWT tokens, the secret key) must never appear in API
   responses, logs or error messages. Check every new output path for this.
-- Backend errors: the client gets a validation message (400) or a generic `errMsg…` constant;
-  internal details go only to the log. Log via `LogDebug`/`LogInfo`/`LogWarn`/`LogError`
-  (backend/utils.go) with key-value pairs; `fmt`/`log` only for startup output.
+- Errors: handle each error once — return it or log it, not both. Backend: the client gets a
+  validation message (400) or a generic `errMsg…` constant; internal details go only to the log
+  (`LogError`). Every successful write logs `LogInfo` with resource ID and `user_email` (audit
+  trail). Log via `LogDebug`/`LogInfo`/`LogWarn`/`LogError` (backend/utils.go) with key-value
+  pairs; `fmt`/`log` only for startup output. Frontend: API errors go to `showNotification`;
+  no empty `catch` without a comment saying why.
+- New input fields, on input: reject what's invalid — a validator in `backend/validation.go`
+  (length, format; 400) plus its mirror in `validation-config.js`; then decide plain text vs
+  Markdown. Plain text is cleaned with `sanitizeString` before storing and rendered with
+  `textContent`/`escapeHtml`; Markdown is stored raw and rendered via `renderMarkdown`
+  (docs/markdown-security.md). No user data in `innerHTML` otherwise.
 - Keep each function's cognitive complexity at 15 or below (SonarQube rule S3776, Go and JS):
   prefer early returns and small helpers over deep nesting.
 - Frontend mirrors of backend definitions (`permissions.js`, `domain-constants.js`,
