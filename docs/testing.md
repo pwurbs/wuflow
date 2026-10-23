@@ -39,7 +39,7 @@ Any JavaScript file containing "decisions" (if/else, state transitions, data map
 * **Requirement:** Decouple state logic from the DOM.
 * **Tool:** Vitest (preferred for speed).
 * **Why:** Testing state transitions in a unit test is ~100x faster than in a browser.
-All Unit tests are located in the [static/js](static/js/README.md) directory.
+All Unit tests are located in the [static/js](../static/js/README.md) directory.
 
 
 ## End-to-End (E2E) Tests
@@ -47,7 +47,7 @@ We use **Playwright** to ensure that the essential user related functions are wo
 * **Focus:** Authentication flows, multi-step forms, and "critical path" UI rendering.
 * **Policy:** We do not track code coverage for Playwright in SonarQube. E2E tests prove *functionality*, while Unit tests prove *logic correctness*. High E2E coverage often provides a false sense of security regarding edge cases.
 This E2E test acts also as a kind of smoke or regression test.
-All E2E tests are located in the [playwright](playwright/README.md) directory.
+All E2E tests are located in the [playwright](../playwright/README.md) directory.
 
 
 ## Quality Gate & SonarQube

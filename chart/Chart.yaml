@@ -5,7 +5,7 @@ type: application
 version: 1.4.4
 appVersion: "1.4.4"
 icon: https://raw.githubusercontent.com/pwurbs/wuflow/main/static/logo.png
-home: https://github.com/pwurbs/wuflow
+home: https://wuflow.dev
 sources:
   - https://github.com/pwurbs/wuflow
 maintainers:
@@ -34,6 +34,8 @@ annotations:
       description: Optional value wuflow.trustedProxies (default empty = wuFlow's default, loopback and private ranges)
   artifacthub.io/containsSecurityUpdates: "true"
   artifacthub.io/links: |
+    - name: Website
+      url: https://wuflow.dev
     - name: Documentation
       url: https://github.com/pwurbs/wuflow/wiki
     - name: Support

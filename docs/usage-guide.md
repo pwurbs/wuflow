@@ -1,5 +1,7 @@
 # wuFlow Usage Guide
 
+wuFlow runs in current versions of common modern browsers, but it is tested only in Chrome.
+
 ## First Login & Initial Setup
 
 When you start the application for the very first time, the system automatically creates an initial sysadmin account.

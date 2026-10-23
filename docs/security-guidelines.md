@@ -77,7 +77,7 @@ The security rules wuFlow's code follows and the risks the project has deliberat
   loaded from a CDN (`connect-src 'self'` as backstop).
 - Few dependencies; no new runtime dependency without the maintainer's approval. `gosec` and
   `govulncheck` run in `scripts/go_checks.sh`. → [scripts/README](../scripts/README.md)
-- TLS, HTTP/2 and compression belong in the reverse proxy. → [README "Reverse Proxy"](../README.md#reverse-proxy)
+- TLS, HTTP/2 and compression belong in the reverse proxy. → [Deployment "Reverse proxy"](deployment.md#reverse-proxy)
 - The container runs as the non-root user `appuser`.
 
 ## Accepted Issues
@@ -93,7 +93,7 @@ The security rules wuFlow's code follows and the risks the project has deliberat
 - **Why accepted**: The default works without configuration for a proxy on the same host, in a
   Docker network or in a Kubernetes cluster; an attacker needs a foothold in the private network.
 - **Mitigation**: Narrowing `WF_TRUSTED_PROXIES` (e.g. to the ingress pod CIDR or the proxy's address)
-  closes both paths. Exposing wuFlow's port only to the proxy (README "Reverse Proxy") closes only the
+  closes both paths. Exposing wuFlow's port only to the proxy ([Deployment "Client IP"](deployment.md#client-ip)) closes only the
   direct one.
 - **Revisit if**: IP-based limits gain more weight (e.g. account lockout).
 

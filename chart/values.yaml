@@ -12,7 +12,7 @@ wuflow:
   # this defaults to the controller's X-Forwarded-For (the app itself has no default). wuFlow uses
   # the header only if the direct peer is a trusted proxy (see trustedProxies); the client is the
   # rightmost entry that isn't a trusted proxy, so entries a client forged itself are ignored.
-  # Behind the Cloudflare proxy, use CF-Connecting-IP (see the wuFlow README, "Reverse Proxy").
+  # Behind the Cloudflare proxy, use CF-Connecting-IP (see wuFlow's docs/deployment.md, "Client IP").
   # Empty = every request counts as coming from the ingress controller, so all users share one login
   # rate limit.
   remoteIpHeader: "X-Forwarded-For"

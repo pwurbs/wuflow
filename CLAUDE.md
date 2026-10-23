@@ -12,7 +12,8 @@ Docs are the source of truth — read the matching one before changing an area:
 - Frontend modules, styles, build, delivery → docs/frontend.md
 - Test strategy → docs/testing.md; writing E2E tests → playwright/README.md
 - Scripts and their required tools → scripts/README.md
-- Configuration, deployment, Helm chart → README.md, chart/README.md
+- Configuration options → docs/configuration.md
+- Deployment, reverse proxy, client IP → docs/deployment.md; Helm chart → chart/README.md
 - Security rules and accepted risks → docs/security-guidelines.md
 
 ## Code search
@@ -82,7 +83,7 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
 - Few dependencies: Go stdlib plus a few packages; plain JS (ES modules) and CSS, no UI framework.
   No new runtime dependency without asking.
 - Cross-cutting transport concerns — TLS, HTTP/2, compression — belong in the reverse proxy, not
-  the app (README "Reverse Proxy").
+  the app (docs/deployment.md "Reverse proxy").
 - CSS: before writing a new rule, check what exists — custom properties in
   `static/styles/abstracts/variables.css`, selector groups in `base/typography.css`, existing
   component classes. Use a custom property (add one if needed) instead of a literal color or size,
