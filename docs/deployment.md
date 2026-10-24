@@ -20,10 +20,12 @@ docker run -d --name wuflow --restart unless-stopped \
 `wuflow.env`:
 
 ```
-WF_INITIAL_ADMIN_PASSWORD=choose-a-long-password
+WF_INITIAL_ADMIN_PASSWORD=change-me-to-something-long
 WF_SECRET_KEY=<random string, at least 32 characters>
 WF_REMOTE_IP_HEADER=X-Forwarded-For
 ```
+
+The initial admin password must meet the [password policy](user-management.md#password-policy), otherwise the app doesn't start.
 
 The database is stored in the volume at `/data/wuflow.db`. After the first start, remove `WF_INITIAL_ADMIN_PASSWORD` from the env file. It is only used to create the first admin. All configuration options are listed in [Configuration](configuration.md).
 

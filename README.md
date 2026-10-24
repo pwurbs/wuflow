@@ -63,13 +63,13 @@ Try wuFlow locally with Docker (images for linux/amd64 and linux/arm64):
 
 ```bash
 docker run -p 8080:8080 \
-  -e WF_INITIAL_ADMIN_PASSWORD="choose-a-long-password" \
+  -e WF_INITIAL_ADMIN_PASSWORD="change-me-to-something-long" \
   -e WF_SECURE_COOKIE=false \
   -v wuflow-data:/data \
   ghcr.io/pwurbs/wuflow:<version>
 ```
 
-Replace `<version>` with the newest tag in the [image repository](https://github.com/pwurbs/wuflow/pkgs/container/wuflow). There is no `latest` tag. Then open `http://localhost:8080` and log in as `admin@local` with the password you chose.
+Replace `<version>` with the newest tag in the [image repository](https://github.com/pwurbs/wuflow/pkgs/container/wuflow). There is no `latest` tag. Then open `http://localhost:8080` and log in as `admin@local` with the given password. This password must meet the [password policy](docs/user-management.md#password-policy), otherwise the app doesn't start.
 
 Data is stored in the embedded SQLite database. PostgreSQL support is planned.
 
@@ -92,7 +92,7 @@ cd ../..
 go build -o wuflow .
 
 # Start it
-./wuflow -initial-admin-password "choose-a-long-password" -secure-cookie=false
+./wuflow -initial-admin-password "change-me-to-something-long" -secure-cookie=false
 ```
 
 ## Configuration
