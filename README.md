@@ -71,7 +71,7 @@ docker run -p 8080:8080 \
 
 Replace `<version>` with the newest tag in the [image repository](https://github.com/pwurbs/wuflow/pkgs/container/wuflow). There is no `latest` tag. Then open `http://localhost:8080` and log in as `admin@local` with the given password. This password must meet the [password policy](docs/user-management.md#password-policy), otherwise the app doesn't start.
 
-Data is stored in the embedded SQLite database. PostgreSQL support is planned.
+Data is stored in an embedded SQLite database in the `/data` volume. PostgreSQL support is planned.
 
 Deployment options, described in [Deployment](docs/deployment.md#deployment-options):
 - Docker: for quick tests and simple setups.
