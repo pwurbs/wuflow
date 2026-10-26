@@ -2,7 +2,7 @@
 
 # wuFlow
 
-**Keep your work flowing.** wuFlow is a lean, security-first issue tracker: Kanban board, backlog, releases and a daily planner in one place. Open source, self-hosted, no subscription, no tracking.
+**Keep your work flowing.** wuFlow is a lean, security-first, self-hosted issue tracker: Kanban board, backlog, releases and a daily planner in one place. Open source, no subscription, no tracking.
 
 [Website](https://wuflow.dev) · [Documentation](https://github.com/pwurbs/wuflow/wiki) · [Releases](https://github.com/pwurbs/wuflow/releases)
 

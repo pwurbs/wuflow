@@ -1,6 +1,6 @@
 # wuFlow Helm Chart
 
-Helm chart for deploying [wuFlow](https://github.com/pwurbs/wuflow), a lightweight issue tracking and planning application, on Kubernetes. wuFlow runs as a single pod with an embedded SQLite database on a persistent volume, so no external database is needed.
+Helm chart for deploying [wuFlow](https://github.com/pwurbs/wuflow), a lean, self-hosted issue tracker, on Kubernetes. wuFlow runs as a single pod with an embedded SQLite database on a persistent volume, so no external database is needed.
 
 This chart aims to provide a secure and simple deployment of wuFlow, keeping the values you need to set to a minimum.
 
