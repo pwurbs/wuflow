@@ -90,3 +90,5 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   even where older files still contain literals.
 - Shared UI mechanisms (`showNotification`, `showConfirm`, `guardSubmit`) are app-wide conventions:
   change them only deliberately and app-wide, never as a side effect of a feature.
+- The README intro is the reference wording for every description of wuFlow (website, chart,
+  add-on, GitHub About, pwurbs.github.io); when it changes, update them all to match.

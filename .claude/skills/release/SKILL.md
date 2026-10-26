@@ -86,7 +86,7 @@ a missing ghcr.io login, stop: the user runs the "Image Release" task.
 **U3 Chart:** `./scripts/helm_release.sh`; if it stops for a missing login, the user runs the
 "Helm Release" task. Checkpoint: the chart package on GitHub (Artifact Hub picks it up later).
 
-**U4 Push main:** `git push github main`.
+**U4 Push main:** `git push origin main`.
 
 **U5 Checkpoint:** the GitHub security report (Security tab of pwurbs/wuflow), together with the
 checks `local.md` assigns to U5.
@@ -108,7 +108,7 @@ open them with `open -a "Visual Studio Code" <file>`. Base: `.github/release_tem
 
 Checkpoint: the user creates the release with tag `vX.Y.Z` on main. Then check both:
 `curl -s 'https://api.github.com/repos/pwurbs/wuflow/releases?per_page=1'` shows `vX.Y.Z` with
-`"draft": false` (the single-release endpoint lags behind), and `git ls-remote --tags github vX.Y.Z`
+`"draft": false` (the single-release endpoint lags behind), and `git ls-remote --tags origin vX.Y.Z`
 points to `git rev-parse main`.
 
 **U8 Local steps** from `local.md`, if it exists.
