@@ -4,10 +4,9 @@
   display: flex;
   align-items: center;
   background-color: var(--column-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
   padding: 0 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   position: relative;
 }
 
@@ -54,7 +53,7 @@
 }
 
 .custom-select-trigger {
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--text-color);
   padding: 6px 12px;
@@ -91,7 +90,7 @@
   /* No focus ring needed on button usually if we manage active state, or use default */
   outline: none;
   border-color: var(--primary-color);
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
 }
 
 .toolbar-icon-arrow {
@@ -145,7 +144,7 @@
 }
 
 .custom-option.selected {
-  background-color: var(--primary-color);
+  background-color: var(--fill-blue);
   /* Or a tint */
   color: white;
 }
@@ -157,7 +156,7 @@
 
 /* Search Input Styling */
 .search-input {
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--text-color);
   padding: 6px 12px;
@@ -177,7 +176,7 @@
 .search-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
 }
 
 /* Extra left gap for the filter items that follow the first (label) filter */

@@ -2,7 +2,7 @@
    user menu, planning entries, issue timestamps). */
 .user-badge {
   border-radius: 50%;
-  background-color: var(--accent-blue);
+  background-color: var(--fill-blue);
   color: white;
   display: flex;
   align-items: center;
@@ -15,4 +15,20 @@
   width: 20px;
   height: 20px;
   font-size: var(--fs-2xs);
+}
+
+/* Count pill next to a column or section heading */
+.column-header .count,
+.sidebar-header .count,
+.backlog-header .count {
+  background-color: var(--count-bg);
+  color: var(--text-color);
+  border-radius: 999px;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
 }

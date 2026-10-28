@@ -196,7 +196,8 @@ describe('Modal Component', () => {
                 <ul id="task-list"></ul>
               </div>
             </div>
-            <button type="button" class="scroll-cue"></button>
+            <button type="button" class="scroll-cue scroll-cue-down"></button>
+            <button type="button" class="scroll-cue scroll-cue-up"></button>
 
             <button id="delete-issue-btn" type="button"></button>
             <button id="archive-issue-btn" type="button"></button>
@@ -1185,7 +1186,7 @@ describe('Modal Component', () => {
   describe('Scroll Cue', () => {
     it('is hidden when the content does not overflow', () => {
       const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue');
+      const cue = document.querySelector('.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 200, clientHeight: 200, scrollTop: 0 });
 
       scrollEl.dispatchEvent(new Event('scroll'));
@@ -1195,7 +1196,7 @@ describe('Modal Component', () => {
 
     it('becomes visible once there is more content below the fold', () => {
       const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue');
+      const cue = document.querySelector('.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
 
       scrollEl.dispatchEvent(new Event('scroll'));
@@ -1205,7 +1206,7 @@ describe('Modal Component', () => {
 
     it('hides again once scrolled down to the bottom', () => {
       const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue');
+      const cue = document.querySelector('.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
       scrollEl.dispatchEvent(new Event('scroll'));
       expect(cue.classList.contains('visible')).toBe(true);
@@ -1218,7 +1219,7 @@ describe('Modal Component', () => {
 
     it('re-evaluates when content is added dynamically (e.g. a loaded comment)', async () => {
       const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue');
+      const cue = document.querySelector('.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 200, clientHeight: 200, scrollTop: 0 });
       scrollEl.dispatchEvent(new Event('scroll'));
       expect(cue.classList.contains('visible')).toBe(false);
@@ -1233,7 +1234,7 @@ describe('Modal Component', () => {
     });
 
     it('is a plain button so clicking it cannot submit the issue form', () => {
-      const cue = document.querySelector('.scroll-cue');
+      const cue = document.querySelector('.scroll-cue-down');
 
       expect(cue.tagName).toBe('BUTTON');
       expect(cue.type).toBe('button');
@@ -1241,7 +1242,7 @@ describe('Modal Component', () => {
 
     it('jumps to the bottom of the main column when clicked', () => {
       const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue');
+      const cue = document.querySelector('.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
       // jsdom does not implement scrollTo.
       scrollEl.scrollTo = vi.fn();
@@ -1249,6 +1250,49 @@ describe('Modal Component', () => {
       cue.click();
 
       expect(scrollEl.scrollTo).toHaveBeenCalledWith({ top: 600, behavior: 'smooth' });
+    });
+
+    it('top marker is hidden at the top and shown once scrolled down', () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      const up = document.querySelector('.scroll-cue-up');
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
+      scrollEl.dispatchEvent(new Event('scroll'));
+      expect(up.classList.contains('visible')).toBe(false);
+
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 150 });
+      scrollEl.dispatchEvent(new Event('scroll'));
+      expect(up.classList.contains('visible')).toBe(true);
+    });
+
+    it('top marker is a plain button and jumps to the top of the main column when clicked', () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      const up = document.querySelector('.scroll-cue-up');
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 400 });
+      scrollEl.scrollTo = vi.fn();
+
+      up.click();
+
+      expect(up.type).toBe('button');
+      expect(scrollEl.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    });
+
+    it('both markers can be visible at the same time in the middle of a long issue', () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 150 });
+
+      scrollEl.dispatchEvent(new Event('scroll'));
+
+      expect(document.querySelector('.scroll-cue-up').classList.contains('visible')).toBe(true);
+      expect(document.querySelector('.scroll-cue-down').classList.contains('visible')).toBe(true);
+    });
+
+    it('opening an issue starts at the top, not where the previous issue was left', async () => {
+      const scrollEl = document.querySelector('.modal-main-scroll');
+      scrollEl.scrollTop = 300;
+
+      await openModalWithMock({ id: 2, title: 'Another long issue' });
+
+      expect(scrollEl.scrollTop).toBe(0);
     });
   });
 

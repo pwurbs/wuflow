@@ -20,7 +20,7 @@
 }
 
 .menu-btn.active {
-  background-color: rgba(59, 130, 246, 0.15);
+  background-color: color-mix(in srgb, var(--accent-blue) 15%, transparent);
   /* Tinted background for active */
   color: var(--accent-blue);
   border: 1px solid var(--accent-blue);
@@ -37,7 +37,7 @@
   left: 100%;
   top: 50%;
   transform: translateY(-50%) translateX(10px);
-  background-color: #1e293b;
+  background-color: var(--card-bg);
   /* Darker tooltip bg */
   color: white;
   padding: 6px 12px;
@@ -73,7 +73,7 @@
   transform: translateY(-50%);
   border-width: 4px 4px 4px 0;
   border-style: solid;
-  border-color: transparent #1e293b transparent transparent;
+  border-color: transparent var(--card-bg) transparent transparent;
 }
 
 .menu-btn:hover .menu-tooltip {
@@ -172,7 +172,7 @@
 }
 
 .dropdown-item.danger {
-  color: var(--danger-color);
+  color: var(--danger-text);
 }
 
 .dropdown-item.danger:hover {

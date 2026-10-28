@@ -756,7 +756,7 @@ describe('updateDateInputStyle', () => {
     container.remove();
   });
 
-  it('should set display to empty string for new-task-deadline when value is cleared', () => {
+  it('should set display to the same placeholder for new-task-deadline when value is cleared', () => {
     const container = document.createElement('div');
     container.className = 'custom-date-input';
     const display = document.createElement('span');
@@ -769,7 +769,7 @@ describe('updateDateInputStyle', () => {
     input.value = '';
     updateDateInputStyle(input);
 
-    expect(display.textContent).toBe('');
+    expect(display.textContent).toBe('Select date...');
     expect(display.classList.contains('placeholder')).toBe(true);
 
     container.remove();

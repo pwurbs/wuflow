@@ -113,8 +113,7 @@ describe('planning.js', () => {
       const badge = createDeadlineBadge(issue);
 
       expect(badge.tagName).toBe('SPAN');
-      expect(badge.textContent).toContain('⏰');
-      expect(badge.textContent).toContain('Oct 15');
+      expect(badge.textContent).toBe('Oct 15');
       expect(badge.title).toBe('Deadline');
       expect(badge.className).toBe('planning-item-deadline ');
     });
@@ -123,7 +122,7 @@ describe('planning.js', () => {
       const issue = { id: 1, deadline: '2023-10-05' };
       const badge = createDeadlineBadge(issue);
 
-      expect(badge.textContent).toContain('⚠️');
+      expect(badge.textContent).toBe('Oct 5');
       expect(badge.title).toBe('Overdue!');
       expect(badge.classList.contains('overdue')).toBe(true);
     });
@@ -146,7 +145,7 @@ describe('planning.js', () => {
       };
       const badge = createDeadlineBadge(issue, '2023-10-15');
 
-      expect(badge.textContent).toContain('⚠️');
+      expect(badge.textContent).toBe('Oct 12');
       expect(badge.classList.contains('overdue')).toBe(true);
       expect(badge.title).toBe('Planned late!');
     });
@@ -160,7 +159,7 @@ describe('planning.js', () => {
       // No specificDateStr provided (e.g. general board view summary)
       const badge = createDeadlineBadge(issue);
 
-      expect(badge.textContent).toContain('⚠️');
+      expect(badge.classList.contains('overdue')).toBe(true);
       expect(badge.title).toBe('Planned late!');
     });
   });

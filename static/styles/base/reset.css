@@ -4,8 +4,20 @@
   padding: 0;
 }
 
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 body {
   font-family: var(--font-sans);
+  /* Figtree ships up to 600: render bold as 600 instead of a faked heavier weight */
+  font-synthesis-weight: none;
+  /* Light text on dark looks bolder on macOS by default; render it with regular stroke weight */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-color);
   color: var(--text-color);
   line-height: 1.5;

@@ -22,7 +22,7 @@
   color: var(--text-color);
   border: 1px solid var(--card-border);
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   width: 500px;
   max-width: 90%;
   max-height: 90vh;
@@ -88,8 +88,8 @@
   top: 0;
   z-index: 2;
   background-color: var(--column-bg);
-  padding-bottom: 12px;
-  margin-bottom: -12px;
+  /* Same as the column's gap: the line sits as far below the title field as the label below the line */
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--card-border);
 }
 
@@ -114,6 +114,11 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s ease, background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+/* Top marker: sits in the pinned title block, centred on its line */
+.scroll-cue-up {
+  bottom: -14px;
 }
 
 .scroll-cue.visible {
@@ -164,7 +169,7 @@
 }
 
 .placeholder-box {
-  background-color: var(--bg-color);
+  background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   padding: 8px;
   border-radius: 4px;
@@ -260,7 +265,7 @@
 }
 
 .date-chip .remove:hover {
-  color: var(--danger-color);
+  color: var(--danger-text);
 }
 
 .date-chip-add {
@@ -283,5 +288,5 @@
 .date-chip-add:hover {
   color: var(--primary-color);
   border-color: var(--primary-color);
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: color-mix(in srgb, var(--accent-blue) 10%, transparent);
 }

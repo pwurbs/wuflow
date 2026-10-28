@@ -51,21 +51,24 @@ test.describe('Issue Edit Modal Behavior', () => {
     await title.focus();
     await title.evaluate(el => Promise.allSettled(el.getAnimations().map(a => a.finished)));
     await expect(title).toHaveClass(/inline-editable/);
-    await expect(title).toHaveCSS('background-color', 'rgb(16, 22, 35)');
-    await expect(title).toHaveCSS('border-color', 'rgb(45, 59, 85)');
+    await expect(title).toHaveCSS('background-color', 'rgb(22, 29, 41)');
+    await expect(title).toHaveCSS('border-color', 'rgb(53, 67, 87)');
 
     await title.click();
     await expect(title).toHaveClass(/inline-editing/);
-    await expect(title).toHaveCSS('background-color', 'rgb(14, 18, 30)');
-    await expect(title).toHaveCSS('border-color', 'rgb(59, 130, 246)');
+    await expect(title).toHaveCSS('background-color', 'rgb(19, 25, 36)');
+    await expect(title).toHaveCSS('border-color', 'rgb(126, 164, 224)');
     await page.keyboard.press('Escape');
     await expect(title).toHaveClass(/inline-editable/);
 
-    await expect(description).toHaveCSS('background-color', 'rgb(16, 22, 35)');
+    await expect(description).toHaveCSS('background-color', 'rgb(22, 29, 41)');
     await page.click('#description-preview');
     await expect(description).toHaveClass(/inline-editing/);
-    await expect(description).toHaveCSS('background-color', 'rgb(14, 18, 30)');
-    await expect(description).toHaveCSS('border-color', 'rgb(59, 130, 246)');
+    await expect(description).toHaveCSS('background-color', 'rgb(19, 25, 36)');
+    await expect(description).toHaveCSS('border-color', 'rgb(126, 164, 224)');
+
+    // Buttons with white text use the darker fill blue, not the light text blue
+    await expect(page.locator('#done-btn')).toHaveCSS('background-color', 'rgb(47, 99, 176)');
   });
 
   test('should autosave title on Done click', async ({ page }) => {
@@ -122,7 +125,7 @@ test.describe('Issue Edit Modal Behavior', () => {
     await openIssueByTitle(page, title);
 
     const scrollArea = page.locator('.modal-main-scroll');
-    const cue = page.locator('.scroll-cue');
+    const cue = page.locator('.scroll-cue-down');
 
     // Content extends below the fold, so the cue is shown.
     await expect(cue).toHaveClass(/visible/);
@@ -136,6 +139,78 @@ test.describe('Issue Edit Modal Behavior', () => {
 
     // Nothing left below the fold — the cue hides itself again.
     await expect(cue).not.toHaveClass(/visible/);
+  });
+
+  test('top marker appears after scrolling down and jumps back to the top', async ({ page }) => {
+    const title = `TopCue_${Date.now()}`;
+    const description = Array.from({ length: 60 }, (_, i) => `Line ${i + 1} of a long description.`).join('\n\n');
+    await createIssue(page, { title, description, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    const scrollArea = page.locator('.modal-main-scroll');
+    const up = page.locator('.scroll-cue-up');
+
+    // At the top there is nothing to jump back to; the title stays pinned while scrolling
+    await expect(up).not.toHaveClass(/visible/);
+    await scrollArea.evaluate(el => { el.scrollTop = 300; });
+    await expect(up).toHaveClass(/visible/);
+    await expect(page.locator('#title')).toBeInViewport();
+
+    await up.click();
+    await expect.poll(() => scrollArea.evaluate(el => el.scrollTop)).toBeLessThanOrEqual(4);
+    await expect(up).not.toHaveClass(/visible/);
+  });
+
+  test('an issue opens at the top, not where the previous issue was scrolled', async ({ page }) => {
+    const description = Array.from({ length: 60 }, (_, i) => `Line ${i + 1} of a long description.`).join('\n\n');
+    const first = `ReopenA_${Date.now()}`;
+    const second = `ReopenB_${Date.now()}`;
+    await createIssue(page, { title: first, description, status: 'Todo' });
+    await createIssue(page, { title: second, description, status: 'Todo' });
+
+    await openIssueByTitle(page, first);
+    const scrollArea = page.locator('.modal-main-scroll');
+    await scrollArea.evaluate(el => { el.scrollTop = 400; });
+    await expect.poll(() => scrollArea.evaluate(el => el.scrollTop)).toBeGreaterThan(300);
+    await page.click('#done-btn');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    await openIssueByTitle(page, second);
+    await expect.poll(() => scrollArea.evaluate(el => el.scrollTop)).toBe(0);
+    await expect(page.locator('#description-label')).toBeInViewport();
+  });
+
+  test('pinned title block has a line with equal space above and below', async ({ page }) => {
+    const title = `PinnedLine_${Date.now()}`;
+    const description = Array.from({ length: 60 }, (_, i) => `Line ${i + 1} of a long description.`).join('\n\n');
+    await createIssue(page, { title, description, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    const scrollArea = page.locator('.modal-main-scroll');
+    // The column keeps its scroll position from the previous use of the modal
+    await scrollArea.evaluate(el => { el.scrollTop = 0; });
+
+    const pinned = scrollArea.locator('> .form-group').first();
+    await expect(pinned).toHaveCSS('border-bottom-width', '1px');
+
+    const gaps = await page.evaluate(() => {
+      const top = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+      const input = top('#title');
+      const block = top('.modal-main-scroll > .form-group:first-child');
+      const label = top('#description-label');
+      return { above: Math.round(block.bottom - 1 - input.bottom), below: Math.round(label.top - block.bottom) };
+    });
+    expect(gaps).toEqual({ above: 16, below: 16 });
+
+    // While scrolled, the text still ends at the same line instead of touching the title field
+    await scrollArea.evaluate(el => { el.scrollTop = 200; });
+    await expect(pinned).toBeVisible();
+    const stillPinned = await page.evaluate(() => {
+      const input = document.querySelector('#title')!.getBoundingClientRect();
+      const block = document.querySelector('.modal-main-scroll > .form-group:first-child')!.getBoundingClientRect();
+      return Math.round(block.bottom - 1 - input.bottom);
+    });
+    expect(stillPinned).toBe(16);
   });
 
   test('renders issue details immediately without waiting for the issue fetch', async ({ page }) => {

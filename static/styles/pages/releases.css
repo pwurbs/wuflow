@@ -34,9 +34,8 @@
     gap: 8px;
     background-color: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 4px 0 0 4px;
+    border-radius: var(--radius-item) 0 0 var(--radius-item);
     padding: 6px 12px 6px 10px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
@@ -132,7 +131,7 @@
 }
 
 .release-dates--overdue {
-    color: var(--danger-color);
+    color: var(--danger-text);
 }
 
 .release-count {
@@ -148,9 +147,8 @@
     flex-shrink: 0;
     background-color: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 0 4px 4px 0;
+    border-radius: 0 var(--radius-item) var(--radius-item) 0;
     padding: 6px 10px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     margin-left: -1px;
     cursor: default;
 }
@@ -246,7 +244,7 @@
     background-color: var(--column-bg);
     color: var(--text-color);
     border: 1px solid var(--card-border);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     width: 400px;
     max-width: 90%;
     overflow: hidden;
@@ -300,7 +298,7 @@
 }
 
 .release-dialog-warning {
-    color: var(--danger-color);
+    color: var(--danger-text);
     margin: 4px 0 0;
 }
 

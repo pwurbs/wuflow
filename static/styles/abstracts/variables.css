@@ -1,22 +1,45 @@
 :root {
-  --bg-color: #0b1121;
-  --text-color: #cbd5e1;
-  --column-bg: #151e32;
-  --card-bg: #1e293b;
-  --card-border: #2d3b55;
-  --primary-color: #3b82f6;
-  --primary-hover: #60a5fa;
-  --accent-blue: #3b82f6;
-  --secondary-color: #151e32;
+  /* Surfaces, darkest to lightest: inputs, panels (columns, toolbar, menus) as trays on the page, cards */
+  --input-bg: #161d29;
+  --input-bg-focus: #131924;
+  --column-bg: #1a2230;
+  --secondary-color: #1a2230;
+  --bg-color: #202939;
+  --card-bg: #222c3c;
+  --hover-bg: #2a3648;
+  --panel-border: #283346;
+  --card-border: #354357;
+
+  --text-color: #dce3eb;
+  --muted-text: #a3afc0;
+  /* Blue for text, icons, borders and tints */
+  --primary-color: #7ea4e0;
+  --primary-hover: #a5c0ea;
+  --accent-blue: #7ea4e0;
+  /* Blue for solid fills behind white text (buttons, avatars); the light blue is too bright for white text */
+  --fill-blue: #2f63b0;
+  --fill-blue-hover: #3a70c0;
+  --count-bg: #2a3648;
   --danger-color: #ef4444;
+  /* Readable red for text on dark surfaces; --danger-color is for fills */
+  --danger-text: #f87171;
   --success-color: #22c55e;
-  --muted-text: #94a3b8;
-  --hover-bg: #2d3b55;
+
+  --priority-bg: #3a2533;
+  --priority-bg-hover: #45293a;
+  --priority-border: #5b3346;
+
+  /* Corner radius */
+  --radius-panel: 14px;
+  --radius-card: 10px;
+  --radius-item: 8px;
+  --radius-chip: 5px;
 
   /* Typography — font families */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+  --font-sans: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
     "Noto Color Emoji";
+  --font-display: "Gabarito", var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
     monospace;
 

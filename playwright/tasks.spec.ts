@@ -59,6 +59,29 @@ test.describe('Task (Subtask) Management', () => {
     await expect(page.locator('#task-list .task-title-input[value="Deadline Task"]')).toBeVisible();
   });
 
+  test('new-task deadline field shows a calendar icon with the date placeholder', async ({ page }) => {
+    await createIssue(page, { title: 'Task Date Icon Issue', status: 'Todo' });
+    await page.click('.card:has-text("Task Date Icon Issue")');
+    await expect(page.locator('#issue-modal')).toBeVisible();
+
+    const display = page.locator('#new-task-deadline-display');
+    await expect(display).toHaveText('Select date...');
+    const icon = await display.evaluate(el => {
+      const style = getComputedStyle(el, '::before');
+      return { opacity: style.opacity, width: style.width, cut: el.scrollWidth > el.clientWidth };
+    });
+    // Full-strength icon, and the placeholder is not cut off in the narrow field
+    expect(icon).toEqual({ opacity: '1', width: '14px', cut: false });
+
+    // After adding a task the field returns to its placeholder
+    await page.fill('#new-task-title', 'Label Reset Task');
+    await page.fill('#new-task-deadline', '2029-01-01', { force: true });
+    await expect(display).not.toHaveText('Select date...');
+    await page.click('#add-task-btn');
+    await expect(page.locator('#task-list .task-title-input[value="Label Reset Task"]')).toBeVisible();
+    await expect(display).toHaveText('Select date...');
+  });
+
   test('toggle task completion', async ({ page }) => {
     // Create an issue with a task
     // Create an issue with a task
@@ -83,6 +106,8 @@ test.describe('Task (Subtask) Management', () => {
     // Check it
     await checkbox.check();
     await expect(checkbox).toBeChecked();
+    // App fill blue, not the browser's default blue
+    await expect(checkbox).toHaveCSS('accent-color', 'rgb(47, 99, 176)');
   });
 
   test('delete a task', async ({ page }) => {

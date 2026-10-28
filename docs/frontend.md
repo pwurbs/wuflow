@@ -50,7 +50,8 @@ The styles in `static/styles/` follow the 7-1 pattern known from Sass, reduced t
 - **Import order**: `main.css` imports all files of the app page, in the order of the table. This order is the cascade order: a page style can adapt a component, not the other way round.
 - **Login page**: `login.html` does not use `main.css`. It links only `variables.css`, `reset.css`, `typography.css` and `pages/login.css`.
 - **Typography**: font sizes and weights are collected in `base/typography.css`. Before adding them to a component or page file, check whether a selector group there already covers the element.
-- **Colors**: most colors come from the custom properties in `abstracts/variables.css`. Some component files still use literal values, e.g. the toast colors in `components/toasts.css`.
+- **Fonts**: Figtree (text, `--font-sans`) and Gabarito (headings, `--font-display`) are self-hosted in `static/fonts/` under the SIL Open Font License (see `CREDITS.md`), so the browser makes no third-party request. Markdown written by users (description, comments) always uses the text font. Text is drawn with `-webkit-font-smoothing: antialiased` in `base/reset.css`, because macOS renders light text on a dark background bolder otherwise.
+- **Colors**: most colors come from the custom properties in `abstracts/variables.css`. Some component files still use literal values, e.g. the toast colors in `components/toasts.css`. Blue exists in two variables: `--accent-blue` (text, icons, borders and tints) and `--fill-blue` (fills behind white text, e.g. primary buttons, avatars, ticked checkboxes). Red text uses `--danger-text`, red fills `--danger-color`.
 
 ---
 
@@ -58,7 +59,7 @@ The styles in `static/styles/` follow the 7-1 pattern known from Sass, reduced t
 
 Vite (`static/js/vite.config.js`) bundles both pages for production:
 
-- **One script and one stylesheet per page.** Images and favicons are copied. All files go to `static/dist/app/assets/` with a content hash in their name (e.g. `index-yqFe3kfx.js`), and the built HTML pages reference these names.
+- **One script and one stylesheet per page.** Images, favicons and fonts are copied. All files go to `static/dist/app/assets/` with a content hash in their name (e.g. `index-yqFe3kfx.js`), and the built HTML pages reference these names.
 - **Why**: unbundled, the first load of the app took about 60 requests, which dominated the load time on slow connections. The content hashes make long-term caching safe without versioning code of our own (see [Delivery](#delivery)).
 - **License comments** of the bundled libraries are kept. The modulepreload polyfill is disabled, because every current browser supports modulepreload natively.
 

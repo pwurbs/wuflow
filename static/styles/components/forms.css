@@ -7,6 +7,11 @@
   margin-bottom: 16px;
 }
 
+/* A ticked box is a fill behind a white check mark */
+input[type="checkbox"] {
+  accent-color: var(--fill-blue);
+}
+
 .form-group label,
 .form-group .form-label {
   display: block;
@@ -19,7 +24,7 @@
   width: 100%;
   padding: 8px;
   border: 1px solid var(--card-border);
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   color: var(--text-color);
   border-radius: 4px;
 }
@@ -28,7 +33,7 @@
 .form-group select:focus,
 .form-group textarea:focus {
   border-color: var(--primary-color);
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
   outline: none;
 }
 
@@ -63,7 +68,7 @@ input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active,
 #new-task-title:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 30px var(--bg-color) inset;
+  -webkit-box-shadow: 0 0 0 30px var(--input-bg) inset;
   -webkit-text-fill-color: var(--text-color);
   transition: background-color 5000s ease-in-out 0s;
   caret-color: var(--text-color);
@@ -113,7 +118,7 @@ input:-webkit-autofill:active,
 
 .input-group input {
   border: 1px solid var(--card-border);
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   color: var(--text-color);
   padding: 4px 8px;
   border-radius: 4px;
@@ -125,7 +130,7 @@ input:-webkit-autofill:active,
 
 .input-group input:focus {
   border-color: var(--primary-color);
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
   outline: none;
 }
 
@@ -135,7 +140,7 @@ input:-webkit-autofill:active,
   width: 100%;
   padding: 8px;
   border: 1px solid var(--card-border);
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   color: var(--text-color);
   border-radius: 4px;
   display: flex;
@@ -147,7 +152,7 @@ input:-webkit-autofill:active,
 
 .custom-date-input:focus-within {
   border-color: var(--primary-color);
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
 }
 
 .custom-date-display {
@@ -162,8 +167,6 @@ input:-webkit-autofill:active,
 }
 
 .custom-date-display::before {
-  content: '📅';
-  font-size: var(--fs-base);
   opacity: 0.7;
 }
 
@@ -172,7 +175,7 @@ input:-webkit-autofill:active,
 }
 
 .custom-date-display.overdue {
-  color: var(--danger-color);
+  color: var(--danger-text);
 }
 
 .custom-date-input input[type="date"] {
@@ -195,7 +198,7 @@ input:-webkit-autofill:active,
 }
 
 .read-only-meta {
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--muted-text);
   padding: 6px 12px;
@@ -221,7 +224,7 @@ input:-webkit-autofill:active,
 }
 
 .char-counter.at-limit {
-  color: var(--danger-color, #e74c3c);
+  color: var(--danger-text);
 }
 
 /* Description editor counter: overlays bottom-right of the editor (no space wasted) */

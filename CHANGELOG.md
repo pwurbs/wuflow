@@ -1,7 +1,10 @@
 
 # 1.4.5
 
-Docs: Redesign of Readme and doc files
+- Docs: Redesign of Readme and doc files
+- Changed the look of the app: softer colors, rounder corners, the Figtree and Gabarito fonts and plain icons instead of emoji on cards, dates and tasks
+- Added a "scroll to top" button to the issue dialog
+- Fixed: the issue dialog now opens at the top instead of where the previous issue was scrolled
 
 # 1.4.4
 

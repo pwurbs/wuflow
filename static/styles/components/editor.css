@@ -1,7 +1,7 @@
 .editor-container {
   border: 1px solid var(--card-border);
   border-radius: 4px;
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -54,7 +54,7 @@
 }
 
 .editor-btn.active {
-  background-color: rgba(59, 130, 246, 0.2);
+  background-color: color-mix(in srgb, var(--accent-blue) 20%, transparent);
   border-color: var(--primary-color);
   color: var(--primary-color);
 }
@@ -112,7 +112,7 @@
    over `.form-group input` and its :focus rule (forms.css). */
 #title.inline-editable,
 .editor-container.inline-editable {
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   cursor: default;
   transition: background-color 0.2s, border-color 0.2s;
@@ -120,7 +120,7 @@
 
 #title.inline-editing,
 .editor-container.inline-editing {
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
   border-color: var(--primary-color);
   cursor: text;
 }
@@ -161,7 +161,7 @@
 }
 
 .inline-cancel-btn {
-  color: var(--danger-color);
+  color: var(--danger-text);
 }
 
 .inline-save-btn {
@@ -211,7 +211,7 @@
   padding: 12px;
   outline: none;
   color: var(--text-color);
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   border: none;
   resize: none;
   line-height: 1.5;
@@ -239,7 +239,7 @@
 }
 
 .md-preview.active {
-  background-color: rgba(59, 130, 246, 0.05);
+  background-color: color-mix(in srgb, var(--accent-blue) 5%, transparent);
   border-radius: 4px;
 }
 

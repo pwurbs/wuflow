@@ -27,7 +27,7 @@
   padding: 2px 8px;
   font-size: var(--fs-base);
   border-radius: 4px;
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   /* Match Assignee placeholder opacity */
   border: 1px solid var(--card-border);
   margin-bottom: 4px;
@@ -41,7 +41,7 @@
 
 .task-item.editing {
   border-color: var(--primary-color);
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
   /* Solid background for edit mode */
 }
 
@@ -126,6 +126,9 @@
 }
 
 .task-deadline-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
@@ -133,7 +136,7 @@
 }
 
 .task-deadline-display.overdue {
-  color: var(--danger-color);
+  color: var(--danger-text);
 }
 
 .task-deadline-display:hover {
@@ -177,7 +180,7 @@
 }
 
 .delete-task-btn:hover {
-  color: var(--danger-color);
+  color: var(--danger-text);
   background-color: rgba(239, 68, 68, 0.1);
 }
 
@@ -201,6 +204,8 @@
   font-size: var(--fs-md);
 }
 
+/* No label next to the icon here, so it is drawn at full strength */
 .input-group .custom-date-input.task-input-date .custom-date-display::before {
-  font-size: var(--fs-md);
+  font-size: var(--fs-base);
+  opacity: 1;
 }

@@ -441,8 +441,9 @@ test.describe('Planning Panel', () => {
 
     const badge = item.locator('.planning-item-deadline');
     await expect(badge).toBeVisible();
-    // Should have warning icon (checks for emoji or class)
+    // Late is shown by the overdue class (red), not by an emoji
     await expect(badge).toHaveClass(/overdue/);
+    await expect(badge).not.toContainText(/⚠|⏰/u);
     await expect(badge).toHaveAttribute('title', 'Planned late!');
   });
 
@@ -749,6 +750,18 @@ test.describe('Planning Panel', () => {
     // The planning item should still be visible but styled as done (faded + strikethrough)
     await expect(planningItem).toBeVisible();
     await expect(planningItem).toHaveClass(/done/);
+  });
+
+  test('hovering a planning item highlights a high-priority card with the blue border', async ({ page }) => {
+    const dateStr = formatDate(new Date());
+    await createIssue(page, { title: 'Prio Highlight Test', status: 'Todo', priority: 'High', plannedDate: dateStr });
+
+    const card = page.locator('.column[data-status="Todo"] .board-card:has-text("Prio Highlight Test")');
+    await expect(card).toHaveCSS('border-color', 'rgb(91, 51, 70)');
+
+    await page.locator(`#day-${dateStr} .planning-item`, { hasText: 'Prio Highlight Test' }).hover();
+    await expect(card).toHaveClass(/hover-highlight/);
+    await expect(card).toHaveCSS('border-color', 'rgb(126, 164, 224)');
   });
 
 });

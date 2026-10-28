@@ -232,11 +232,7 @@ export function updateDateInputStyle(input) {
         });
         display.classList.remove('placeholder');
       } else {
-        if (input.id === 'new-task-deadline') {
-          display.textContent = '';
-        } else {
-          display.textContent = 'Select date...';
-        }
+        display.textContent = 'Select date...';
         display.classList.add('placeholder');
       }
     }

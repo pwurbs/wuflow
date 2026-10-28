@@ -174,6 +174,24 @@ describe('Tasks Component', () => {
     expect(callbacks.onTaskUpdate).toHaveBeenCalled();
   });
 
+  it('shows the deadline with a calendar icon instead of an emoji', async () => {
+    renderTasks(issue.tasks, container, issue, callbacks);
+    const display = container.querySelector('.task-deadline-display');
+
+    // No deadline: the icon alone is the trigger for the date picker
+    expect(display.querySelector('.icon-calendar')).not.toBeNull();
+    expect(display.textContent.trim()).toBe('');
+
+    const deadlineInput = container.querySelector('.task-deadline-input');
+    deadlineInput.value = '2023-10-10';
+    deadlineInput.dispatchEvent(new Event('change'));
+    await new Promise(process.nextTick);
+
+    expect(display.querySelector('.icon-calendar')).not.toBeNull();
+    expect(display.textContent).toBe('Oct 10');
+    expect(display.textContent).not.toMatch(/📅/u);
+  });
+
   it('should handle keyboard navigation in edit mode', async () => {
     renderTasks(issue.tasks, container, issue, callbacks);
     const item = container.querySelector('.task-item');

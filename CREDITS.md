@@ -23,3 +23,13 @@ This project incorporates the following open-source libraries:
 **marked (npm package `marked`)**
 - **License**: MIT
 - **Copyright**: (c) 2011-2018 Christopher Jeffrey, (c) 2018-2022 marked contributors
+
+### Fonts (Bundled)
+
+**Figtree** (`static/fonts/`)
+- **License**: SIL Open Font License 1.1 (`static/fonts/OFL-Figtree.txt`)
+- **Copyright**: (c) 2022 The Figtree Project Authors
+
+**Gabarito** (`static/fonts/`)
+- **License**: SIL Open Font License 1.1 (`static/fonts/OFL-Gabarito.txt`)
+- **Copyright**: (c) 2023 The Gabarito Project Authors

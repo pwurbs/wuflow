@@ -1,3 +1,48 @@
+/* Self-hosted fonts (SIL Open Font License, see static/fonts/) */
+@font-face {
+  font-family: "Figtree";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/figtree-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/figtree-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/figtree-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Gabarito";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/gabarito-latin-700-normal.woff2") format("woff2");
+}
+
+/* Headings and toolbar labels; the brand name (h1) stays in the text font, as on the website */
+h2,
+.sidebar-header h3,
+.toolbar-label {
+  font-family: var(--font-display);
+}
+
+/* Markdown written by users (description, comments) keeps the text font for every format */
+.md-preview h2 {
+  font-family: var(--font-sans);
+}
+
 /* Page title */
 h1 {
   font-size: var(--fs-2xl);
@@ -9,8 +54,9 @@ h1 {
 .backlog-header h2,
 .sidebar-header h3,
 .toolbar-label {
-  font-size: var(--fs-lg);
-  font-weight: var(--fw-semibold);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.07em;
 }
 
 /* Modal / dialog titles */

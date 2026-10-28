@@ -13,7 +13,7 @@
   max-width: 400px;
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   padding: 40px 32px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
@@ -49,7 +49,7 @@
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--card-border);
-  background-color: rgb(16, 22, 35);
+  background-color: var(--input-bg);
   color: var(--text-color);
   border-radius: 6px;
   transition: border-color 0.15s ease;
@@ -57,7 +57,7 @@
 
 .login-card .form-group input:focus {
   border-color: var(--primary-color);
-  background-color: rgb(14, 18, 30);
+  background-color: var(--input-bg-focus);
   outline: none;
 }
 
@@ -66,7 +66,7 @@
 .login-card input:-webkit-autofill:hover,
 .login-card input:-webkit-autofill:focus,
 .login-card input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px rgb(16, 22, 35) inset;
+  -webkit-box-shadow: 0 0 0 30px var(--input-bg) inset;
   -webkit-text-fill-color: var(--text-color);
   transition: background-color 5000s ease-in-out 0s;
   caret-color: var(--text-color);
@@ -75,7 +75,7 @@
 .login-btn {
   width: 100%;
   padding: 10px;
-  background-color: var(--primary-color);
+  background-color: var(--fill-blue);
   color: white;
   border: none;
   border-radius: 6px;
@@ -85,7 +85,7 @@
 }
 
 .login-btn:hover {
-  background-color: var(--primary-hover);
+  background-color: var(--fill-blue-hover);
 }
 
 .login-btn:disabled {
@@ -96,7 +96,7 @@
 .login-error {
   background-color: rgba(239, 68, 68, 0.1);
   border: 1px solid var(--danger-color);
-  color: var(--danger-color);
+  color: var(--danger-text);
   padding: 10px 12px;
   border-radius: 6px;
   margin-bottom: 12px;

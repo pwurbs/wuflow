@@ -271,7 +271,7 @@ export function createDeadlineBadge(issue, specificDateStr) {
 
   const badge = document.createElement('span');
   badge.className = `planning-item-deadline ${isWarning ? 'overdue' : ''}`;
-  badge.innerHTML = `${isWarning ? '⚠️ ' : '⏰ '}${d.toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}`;
+  badge.textContent = d.toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' });
   badge.title = tooltip;
   return badge;
 }

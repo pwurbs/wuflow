@@ -15,15 +15,14 @@
 
 .column {
   background-color: var(--column-bg);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   width: 330px;
   min-width: 200px;
   flex-shrink: 1;
   display: flex;
   flex-direction: column;
   /* Allow column to grow */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--panel-border);
 }
 
 .column-header {
@@ -35,8 +34,8 @@
   top: 0;
   z-index: 10;
   background-color: var(--column-bg);
-  border-radius: 8px 8px 0 0;
-  border-bottom: 1px solid var(--card-border);
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  border-bottom: 1px solid var(--panel-border);
 }
 
 /* Shared Header Styling (replicated from style.css lines 234-241) */
@@ -45,18 +44,6 @@
   text-transform: uppercase;
   margin: 0;
   /* implicit reset */
-}
-
-.column-header .count {
-  background-color: #15803d;
-  color: white;
-  border-radius: 12px;
-  min-width: 24px;
-  padding: 0 6px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .column-content {
@@ -118,13 +105,13 @@
 }
 
 .board-card-deadline.overdue {
-  color: var(--danger-color);
+  color: var(--danger-text);
 }
 
 .board-task-info {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .board-task-tooltip {
@@ -137,7 +124,7 @@
   width: 258px;
   /* Maintain left position (230px from right) */
   background-color: var(--card-bg);
-  border: 1px solid #475569;
+  border: 1px solid var(--card-border);
   border-radius: 4px;
   padding: 8px;
   z-index: 100;
@@ -173,9 +160,14 @@
   color: var(--muted-text);
 }
 
+/* Open-task box */
+.board-task-icon,
 .board-task-tooltip .tooltip-icon {
-  font-size: var(--fs-base);
-  line-height: 1;
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--accent-blue);
+  border-radius: 2px;
   flex-shrink: 0;
 }
 
@@ -191,13 +183,6 @@
   font-size: var(--fs-2xs);
   color: var(--muted-text);
   white-space: nowrap;
-}
-
-.board-task-icon {
-  color: #3b82f6;
-  font-size: var(--fs-xl);
-  position: relative;
-  top: -1px;
 }
 
 /* Align sidebar to the right */

@@ -118,16 +118,21 @@ export function setupModal(refreshApp, rerenderViews) {
 
 function setupScrollCue() {
   const scrollEl = document.querySelector('.modal-main-scroll');
-  const cue = document.querySelector('.scroll-cue');
-  if (!scrollEl || !cue) return;
+  const down = document.querySelector('.scroll-cue-down');
+  const up = document.querySelector('.scroll-cue-up');
+  if (!scrollEl || !down || !up) return;
 
   const update = () => {
     const hasMore = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight > 4;
-    cue.classList.toggle('visible', hasMore);
+    down.classList.toggle('visible', hasMore);
+    up.classList.toggle('visible', scrollEl.scrollTop > 4);
   };
 
-  cue.addEventListener('click', () => {
+  down.addEventListener('click', () => {
     scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+  });
+  up.addEventListener('click', () => {
+    scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   scrollEl.addEventListener('scroll', update, { passive: true });
@@ -138,6 +143,9 @@ function setupScrollCue() {
 export async function openModal(issue = null) {
   const modal = document.getElementById('issue-modal');
   modal.classList.remove('hidden');
+  // The modal element is reused: start every issue at the top, not where the last one was left
+  const scrollEl = document.querySelector('.modal-main-scroll');
+  if (scrollEl) scrollEl.scrollTop = 0;
   hasSavedDuringSession = false;
 
   const seq = ++issueLoadSeq;

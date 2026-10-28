@@ -124,7 +124,7 @@ function getBoardCardHTML(issue, openTasks) {
   return `
             <div class="board-card-title">${escapeHtml(issue.title)}</div>
             <div class="board-card-label-space">
-                ${issue.label ? `<span class="label-chip" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
+                ${issue.label ? `<span class="label-chip" title="${escapeHtml(issue.label.name)}" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
                 ${getReleaseChipHTML(issue.release)}
             </div>
             <div class="board-card-bottom">
@@ -133,18 +133,18 @@ function getBoardCardHTML(issue, openTasks) {
                   ${getAssigneeBadgeHTML(issue)}
                 </div>
                 <div class="board-card-meta-right">
-                    ${issue.deadline ? `<div class="board-card-deadline${deadlineClass}"${deadlineTitle}>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    ${issue.deadline ? `<div class="board-card-deadline${deadlineClass}"${deadlineTitle}>${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
                     <div class="board-task-info">
-                        <span class="board-task-icon">☐</span>
+                        <span class="board-task-icon" aria-hidden="true"></span>
                         <span>${openTasks}</span>
                         ${issue.tasks && openTasks > 0 ? `
                         <div class="board-task-tooltip">
                             <ul>
                                 ${issue.tasks.filter(t => !t.done).map(t => `
                                     <li>
-                                        <span class="tooltip-icon">☐</span>
+                                        <span class="tooltip-icon" aria-hidden="true"></span>
                                         <span class="tooltip-title">${escapeHtml(t.title)}</span>
-                                        ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                                        ${t.deadline ? `<span class="tooltip-deadline">${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                                     </li>
                                 `).join('')}
                             </ul>
@@ -167,9 +167,9 @@ function getBacklogCardHTML(issue, openTasks, totalTasks) {
         <ul>
             ${issue.tasks.filter(t => !t.done).map(t => `
                 <li>
-                    <span class="tooltip-icon">☐</span>
+                    <span class="tooltip-icon" aria-hidden="true"></span>
                     <span class="tooltip-title">${escapeHtml(t.title)}</span>
-                    ${t.deadline ? `<span class="tooltip-deadline">📅 ${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                    ${t.deadline ? `<span class="tooltip-deadline">${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                 </li>
             `).join('')}
         </ul>
@@ -183,11 +183,11 @@ function getBacklogCardHTML(issue, openTasks, totalTasks) {
     </div>
     <div class="backlog-card-spacer"></div>
     <div class="backlog-card-right">
-        ${issue.label ? `<span class="label-chip" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
-        ${issue.deadline ? `<span class="backlog-card-deadline${deadlineClass}"${deadlineTitle}>📅 ${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
+        ${issue.label ? `<span class="label-chip" title="${escapeHtml(issue.label.name)}" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
+        ${issue.deadline ? `<span class="backlog-card-deadline${deadlineClass}"${deadlineTitle}>${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
         ${totalTasks > 0 ? `
         <div class="board-task-info">
-            <span class="board-task-icon">☐</span>
+            <span class="board-task-icon" aria-hidden="true"></span>
             <span>${openTasks}</span>
             ${taskTooltipHTML}
         </div>

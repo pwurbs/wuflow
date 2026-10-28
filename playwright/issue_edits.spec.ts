@@ -323,12 +323,15 @@ test.describe('Project change resets project-scoped fields', () => {
       // Assign the release
       await page.click('#release-trigger');
       await page.locator(`#release-options .custom-option:has-text("${relName}")`).waitFor({ state: 'visible' });
+      // Start waiting before the action: the response can arrive before a wait registered afterwards
+      const releaseSaved = waitForIssueSave(page);
       await page.click(`#release-options .custom-option:has-text("${relName}")`);
-      await page.waitForResponse(r => /\/api\/projects\/\d+\/issues\/\d+/.test(r.url()) && r.request().method() === 'PUT');
+      await releaseSaved;
 
       // Set a deadline after the release date — should trigger amber warning toast
+      const deadlineSaved = waitForIssueSave(page);
       await page.fill('#deadline', dlDateStr, { force: true });
-      await page.waitForResponse(r => /\/api\/projects\/\d+\/issues\/\d+/.test(r.url()) && r.request().method() === 'PUT');
+      await deadlineSaved;
 
       const toast = page.locator('#notification-toast');
       await expect(toast).toBeVisible();

@@ -5,6 +5,12 @@ import { setDraggedTask } from '../drag.js';
 import { userCan, ACTION_UPDATE_TASK, ACTION_DELETE_TASK } from '../permissions.js';
 import { state } from '../state.js';
 
+// Calendar icon plus the short date; without a deadline the icon alone opens the date picker.
+function taskDeadlineHTML(deadline) {
+  const date = deadline ? new Date(deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' }) : '';
+  return `<span class="icon-calendar" aria-hidden="true"></span>${date}`;
+}
+
 export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
   container.innerHTML = '';
 
@@ -27,9 +33,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
                 <input type="text" id="task-title-${taskId}" name="task_title_${taskId}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
                 <div class="task-actions">
                     <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="${dlStatus.late ? dlStatus.reason : 'Set Deadline'}">
-                        <span class="task-deadline task-deadline-display${dlStatus.late ? ' overdue' : ''}">
-                            ${task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅'}
-                        </span>
+                        <span class="task-deadline task-deadline-display${dlStatus.late ? ' overdue' : ''}">${taskDeadlineHTML(task.deadline)}</span>
                         <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${toDateInputValue(task.deadline)}">
                     </div>
                     <div class="delete-task-btn" title="Delete Task">
@@ -183,7 +187,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         try {
           await updateTask(currentIssue.project_id, currentIssue.id, task);
           const display = li.querySelector('.task-deadline-display');
-          display.textContent = task.deadline ? `📅 ${new Date(task.deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' })}` : '📅';
+          display.innerHTML = taskDeadlineHTML(task.deadline);
           deadlineContainer.classList.toggle('no-deadline', !task.deadline);
           const updatedStatus = getTaskDeadlineStatus(task.deadline, currentIssue);
           display.classList.toggle('overdue', updatedStatus.late);

@@ -30,6 +30,25 @@ test.describe('Issue Activity (History + Comments)', () => {
     await expect(comment.locator('.comment-body strong')).toHaveText('first');
   });
 
+  test('markdown headings in description and comment use the text font, not the heading font', async ({ page }) => {
+    await createIssue(page, {
+      title: 'Markdown Font Issue', status: 'Todo',
+      description: '# One\n\n## Two\n\n### Three',
+    });
+    await openIssueByTitle(page, 'Markdown Font Issue');
+
+    await page.fill('#new-comment-body', '## Comment heading\n\nbody');
+    await page.click('#add-comment-btn');
+    await waitForToast(page, 'Comment added');
+
+    for (const heading of ['h1', 'h2', 'h3']) {
+      await expect(page.locator(`#description-preview ${heading}`)).toHaveCSS('font-family', /^Figtree/);
+    }
+    await expect(page.locator('.comment-body h2')).toHaveCSS('font-family', /^Figtree/);
+    // The app's own headings keep the heading font
+    await expect(page.locator('#modal-title')).toHaveCSS('font-family', /^Gabarito/);
+  });
+
   test('edit an existing comment', async ({ page }) => {
     await createIssue(page, { title: 'Comment Edit Issue', status: 'Todo' });
     await openIssueByTitle(page, 'Comment Edit Issue');

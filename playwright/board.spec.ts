@@ -14,6 +14,49 @@ test.describe('Board Functionality', () => {
     }
   });
 
+  test('column headings use the heading colour and a neutral count pill', async ({ page }) => {
+    const header = page.locator('.column[data-status="Todo"] .column-header');
+    await expect(header.locator('h2')).toHaveCSS('color', 'rgb(126, 164, 224)');
+    await expect(header.locator('.count')).toHaveCSS('background-color', 'rgb(42, 54, 72)');
+    await expect(page.locator('.sidebar-header .count')).toHaveCSS('background-color', 'rgb(42, 54, 72)');
+  });
+
+  test('self-hosted fonts load and are used for text and headings', async ({ page }) => {
+    const loaded = await page.evaluate(async () => {
+      await document.fonts.load('400 14px Figtree');
+      await document.fonts.load('700 13px Gabarito');
+      return [...document.fonts]
+        .filter(f => f.status === 'loaded')
+        .map(f => `${f.family.replaceAll('"', '')} ${f.weight}`);
+    });
+    expect(loaded).toEqual(expect.arrayContaining(['Figtree 400', 'Gabarito 700']));
+    await expect(page.locator('.column[data-status="Todo"] h2')).toHaveCSS('font-family', /^Gabarito/);
+    await expect(page.locator('body')).toHaveCSS('font-family', /^Figtree/);
+    await expect(page.locator('body')).toHaveCSS('-webkit-font-smoothing', 'antialiased');
+  });
+
+  test('long label and release chip stay in one row on a narrow card', async ({ page }) => {
+    const api = page.request;
+    const label = await (await api.post('/api/projects/1/labels', { data: { name: 'Documentation12', color: '#f59e0b' } })).json();
+    const release = await (await api.post('/api/projects/1/releases', { data: { name: 'v1.3.0', description: '' } })).json();
+    await api.post('/api/projects/1/issues', {
+      data: { title: 'Narrow Chip Card', status: 'Todo', priority: 'Normal', label: { id: label.id }, release_id: release.id },
+    });
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.reload();
+
+    const card = page.locator('.board-card:has-text("Narrow Chip Card")');
+    const labelChip = card.locator('.label-chip');
+    const releaseChip = card.locator('.release-chip');
+    await expect(releaseChip).toBeVisible();
+    const labelBox = await labelChip.boundingBox();
+    const releaseBox = await releaseChip.boundingBox();
+    expect(Math.abs(labelBox!.y - releaseBox!.y)).toBeLessThan(2);
+    // The release chip is never cut; the label shows its full name on hover
+    expect(await releaseChip.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await expect(labelChip).toHaveAttribute('title', 'Documentation12');
+  });
+
   test('column counts update when issues are added', async ({ page }) => {
     // Get initial count
     const initialCount = await page.locator('.column[data-status="Todo"] .count').textContent();
@@ -220,11 +263,12 @@ test.describe('Board Functionality', () => {
       await updateDone;
 
       await expect(card).toHaveClass(/high-priority/);
-      // The red tint wins over the card's own background and hover colour.
+      // The priority colours win over the card's own background, border and hover colour.
       await page.mouse.move(0, 0);
-      await expect(card).toHaveCSS('background-color', 'rgba(255, 0, 0, 0.1)');
+      await expect(card).toHaveCSS('background-color', 'rgb(58, 37, 51)');
+      await expect(card).toHaveCSS('border-color', 'rgb(91, 51, 70)');
       await card.hover();
-      await expect(card).toHaveCSS('background-color', 'rgba(255, 0, 0, 0.15)');
+      await expect(card).toHaveCSS('background-color', 'rgb(69, 41, 58)');
 
       await card.click({ button: 'right' });
       await expect(page.locator('.card-context-menu-item:has-text("Remove high priority")')).toBeVisible();
@@ -279,6 +323,8 @@ test.describe('Board Functionality', () => {
       const deadline = page.locator(`.board-card:has-text("${title}") .board-card-deadline`);
       await expect(deadline).toBeVisible();
       await expect(deadline).toHaveClass(/overdue/);
+      // Text red, not the fill red: readable on the dark card (WCAG AA)
+      await expect(deadline).toHaveCSS('color', 'rgb(248, 113, 113)');
     });
 
     test('deadline past release date shows red on board card', async ({ page }) => {

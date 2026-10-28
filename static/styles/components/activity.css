@@ -57,7 +57,7 @@
 }
 
 .comment-item {
-  background: rgb(16, 22, 35);
+  background: var(--input-bg);
   border: 1px solid var(--card-border);
   border-radius: 6px;
   padding: 10px 12px;
@@ -128,11 +128,11 @@
 
 .comment-edit-btn:hover {
   color: var(--primary-hover);
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: color-mix(in srgb, var(--accent-blue) 10%, transparent);
 }
 
 .comment-delete-btn:hover {
-  color: var(--danger-color);
+  color: var(--danger-text);
   background-color: rgba(239, 68, 68, 0.1);
 }
 
@@ -161,7 +161,7 @@
   width: 100%;
   field-sizing: content;
   resize: none;
-  background: var(--bg-color);
+  background: var(--input-bg);
   border: 1px solid var(--card-border);
   border-radius: 4px;
   color: var(--text-color);
@@ -234,7 +234,7 @@
   border-top: 1px solid var(--card-border);
   /* Match the textarea's own background so the shared border-top is the only
      seam between the two areas. */
-  background-color: var(--bg-color);
+  background-color: var(--input-bg);
 }
 
 #new-comment-body {
@@ -242,7 +242,7 @@
   width: 100%;
   field-sizing: content;
   resize: none;
-  background: var(--bg-color);
+  background: var(--input-bg);
   border: 1px solid var(--card-border);
   border-radius: 6px;
   color: var(--text-color);
