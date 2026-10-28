@@ -2,8 +2,8 @@ apiVersion: v2
 name: wuflow
 description: "wuFlow is a lean, security-first, self-hosted issue tracker: Kanban board, backlog, releases and a daily planner in one place."
 type: application
-version: 1.4.5-pre1
-appVersion: "1.4.5-pre1"
+version: 1.4.5-pre2
+appVersion: "1.4.5-pre2"
 icon: https://raw.githubusercontent.com/pwurbs/wuflow/main/static/logo.png
 home: https://wuflow.dev
 sources:
@@ -43,7 +43,7 @@ annotations:
       url: https://github.com/pwurbs/wuflow/issues
   artifacthub.io/images: |
     - name: wuflow
-      image: ghcr.io/pwurbs/wuflow:1.4.5-pre1
+      image: ghcr.io/pwurbs/wuflow:1.4.5-pre2
   artifacthub.io/screenshots: |
     - title: Board
       url: https://raw.githubusercontent.com/pwurbs/wuflow/main/docs/screenshots/board.png

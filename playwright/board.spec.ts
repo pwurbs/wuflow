@@ -32,7 +32,6 @@ test.describe('Board Functionality', () => {
     expect(loaded).toEqual(expect.arrayContaining(['Figtree 400', 'Gabarito 700']));
     await expect(page.locator('.column[data-status="Todo"] h2')).toHaveCSS('font-family', /^Gabarito/);
     await expect(page.locator('body')).toHaveCSS('font-family', /^Figtree/);
-    await expect(page.locator('body')).toHaveCSS('-webkit-font-smoothing', 'antialiased');
   });
 
   test('long label and release chip stay in one row on a narrow card', async ({ page }) => {

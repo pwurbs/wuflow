@@ -50,7 +50,7 @@ The styles in `static/styles/` follow the 7-1 pattern known from Sass, reduced t
 - **Import order**: `main.css` imports all files of the app page, in the order of the table. This order is the cascade order: a page style can adapt a component, not the other way round.
 - **Login page**: `login.html` does not use `main.css`. It links only `variables.css`, `reset.css`, `typography.css` and `pages/login.css`.
 - **Typography**: font sizes and weights are collected in `base/typography.css`. Before adding them to a component or page file, check whether a selector group there already covers the element.
-- **Fonts**: Figtree (text, `--font-sans`) and Gabarito (headings, `--font-display`) are self-hosted in `static/fonts/` under the SIL Open Font License (see `CREDITS.md`), so the browser makes no third-party request. Markdown written by users (description, comments) always uses the text font. Text is drawn with `-webkit-font-smoothing: antialiased` in `base/reset.css`, because macOS renders light text on a dark background bolder otherwise.
+- **Fonts**: Figtree (text, `--font-sans`) and Gabarito (headings, `--font-display`) are self-hosted in `static/fonts/` under the SIL Open Font License (see `CREDITS.md`), so the browser makes no third-party request. Markdown written by users (description, comments) always uses the text font.
 - **Colors**: most colors come from the custom properties in `abstracts/variables.css`. Some component files still use literal values, e.g. the toast colors in `components/toasts.css`. Blue exists in two variables: `--accent-blue` (text, icons, borders and tints) and `--fill-blue` (fills behind white text, e.g. primary buttons, avatars, ticked checkboxes). Red text uses `--danger-text`, red fills `--danger-color`.
 
 ---
