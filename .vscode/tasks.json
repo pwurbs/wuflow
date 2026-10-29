@@ -16,6 +16,12 @@
   ],
   "tasks": [
     {
+      "label": "New Version",
+      "type": "shell",
+      "command": "./scripts/new_version.sh",
+      "problemMatcher": []
+    },
+    {
       // for both standalone execution and precondition for sonar-scanner
       "label": "Go Test",
       "type": "shell",
@@ -162,7 +168,7 @@
     {
       "label": "Run locally",
       "type": "shell",
-      "command": "(cd static/js && npm run build) && mkdir -p local-databases && go run -ldflags=\"-w -s -X main.Version=$(cat VERSION)\" . -secret-key 12345 -dbpath ./local-databases/wuflow-test.db 2>&1 | tee local-databases/wuflow-local.log",
+      "command": "(cd static/js && npm run build) && mkdir -p local-databases && go run -ldflags=\"-w -s -X main.Version=$(cat VERSION)\" . -secret-key 12345 -dbpath ./local-databases/wuflow-test.db 2>&1 | tee local-databases/wuflow-test.log",
       "group": "build",
       "presentation": {
         "reveal": "always",
@@ -171,12 +177,6 @@
       "problemMatcher": [
         "$go"
       ]
-    },
-    {
-      "label": "New Version",
-      "type": "shell",
-      "command": "./scripts/new_version.sh",
-      "problemMatcher": []
     },
     {
       "label": "Helm Release",

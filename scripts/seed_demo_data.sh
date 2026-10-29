@@ -254,15 +254,15 @@ INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('labels', 9);
 -- ── Releases ──────────────────────────────────────────────────────────────────
 -- Project 1
 INSERT INTO releases (id, project_id, name, description, start_date, release_date, closed_at, status, owner_id) VALUES
-  (1, 1, 'v1.2.0',
+  (1, 1, 'v1.4.0',
    'Initial release: core Kanban board, user management, and label support.',
    datetime('now', '-70 days'), datetime('now', '-21 days'), datetime('now', '-21 days'),
    'closed', 2),
-  (2, 1, 'v1.3.0',
+  (2, 1, 'v1.5.0',
    'Multi-project support, release management view, and UX improvements.',
    datetime('now', '-28 days'), datetime('now', '+14 days'), NULL,
    'open', 2),
-  (3, 1, 'v1.4.0',
+  (3, 1, 'v1.6.0',
    'Issue search and filtering, bulk operations, and OAuth2 / SSO integration.',
    datetime('now', '+21 days'), datetime('now', '+70 days'), NULL,
    'open', 2),
@@ -272,11 +272,11 @@ INSERT INTO releases (id, project_id, name, description, start_date, release_dat
    'open', 2);
 -- Project 2
 INSERT INTO releases (id, project_id, name, description, start_date, release_date, closed_at, status, owner_id) VALUES
-  (4, 2, 'Q1 2025 Refresh',
+  (4, 2, 'Q3 2026 Refresh',
    'Hosting migration, brand refresh, and GDPR compliance updates.',
    datetime('now', '-98 days'), datetime('now', '-42 days'), datetime('now', '-42 days'),
    'closed', 3),
-  (5, 2, 'Q2 2025 Launch',
+  (5, 2, 'Q4 2026 Launch',
    'Full redesign of pricing, homepage, and contact pages.',
    datetime('now', '-14 days'), datetime('now', '+28 days'), NULL,
    'open', 4);
@@ -302,7 +302,7 @@ INSERT INTO issues (id, title, description, status, position, priority, label_id
    'Open', 3, 'Normal', 2, 2, NULL, 1, 3, NULL,
    datetime('now', '-2 days'));
 
--- Todo (committed to v1.3.0)
+-- Todo (committed to v1.5.0)
 INSERT INTO issues (id, title, description, status, position, priority, label_id, creator_id, assignee_id, project_id, release_id, deadline, created_at) VALUES
   (4,
    'Fix drag-and-drop on mobile browsers',
@@ -428,7 +428,7 @@ INSERT INTO issues (id, title, description, status, position, priority, label_id
    'Done', 4, 'Normal', 3, 5, 5, 5, 1, 2,
    datetime('now', '-22 days'), datetime('now', '-8 days'));
 
--- Archive (linked to v1.2.0 — either rejected or deferred during that cycle)
+-- Archive (linked to v1.4.0 — either rejected or deferred during that cycle)
 INSERT INTO issues (id, title, description, status, position, priority, label_id, creator_id, project_id, release_id, created_at, updated_at) VALUES
   (18,
    'Migrate backend from REST to GraphQL',
@@ -437,7 +437,7 @@ INSERT INTO issues (id, title, description, status, position, priority, label_id
    datetime('now', '-60 days'), datetime('now', '-58 days')),
   (19,
    'Real-time push notifications via WebSocket',
-   'Deferred to v1.4.0. Requires infrastructure changes (connection state, reconnect logic) that are out of scope for the current sprint.',
+   'Deferred to v1.6.0. Requires infrastructure changes (connection state, reconnect logic) that are out of scope for the current sprint.',
    'Archive', 2, 'Normal', 3, 3, 1, 1,
    datetime('now', '-55 days'), datetime('now', '-52 days'));
 
@@ -567,7 +567,7 @@ INSERT INTO tasks (issue_id, title, done, position) VALUES
   (26, 'Block analytics scripts until consent is given',     0, 3),
   (26, 'QA: test opt-in and opt-out flows across browsers',  0, 4);
 
-INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('tasks', 24);
+INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('tasks', 25);
 
 -- ── Issue history ─────────────────────────────────────────────────────────────
 -- Mirrors what the app itself records: one 'created' entry per issue, then one
@@ -794,13 +794,13 @@ INSERT INTO issue_history (issue_id, user_id, event, data, created_at) VALUES
   (31, 5, 'updated', json_object('field', 'status', 'from', 'Stage1', 'to', 'Stage2'), datetime('now', '-36 days')),
   (31, 5, 'updated', json_object('field', 'status', 'from', 'Stage2', 'to', 'Done'), datetime('now', '-32 days'));
 
-INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('issue_history', 123);
+INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('issue_history', 125);
 
 -- ── Issue comments ────────────────────────────────────────────────────────────
 -- A representative subset of issues carry a short, contextual conversation.
 -- Fresh, untouched backlog items are intentionally left without comments.
 INSERT INTO issue_comments (issue_id, user_id, body, edited, created_at, updated_at) VALUES
-  (3, 3, 'This is a big one -- let us scope for Google and GitHub OIDC only in v1.4.0, and defer SAML and enterprise SSO to v2.0.', 0,
+  (3, 3, 'This is a big one -- let us scope for Google and GitHub OIDC only in v1.6.0, and defer SAML and enterprise SSO to v2.0.', 0,
    datetime('now', '-1 days'), datetime('now', '-1 days')),
   (4, 3, 'Reproduced on iOS Safari and Android Chrome -- root cause is the drag library only listening for mousedown, not pointerdown. Working on a fix.', 0,
    datetime('now', '-6 days'), datetime('now', '-6 days')),
@@ -828,9 +828,9 @@ INSERT INTO issue_comments (issue_id, user_id, body, edited, created_at, updated
    datetime('now', '-18 days'), datetime('now', '-18 days')),
   (13, 4, 'Project switcher looks great in the nav bar. Tested switching between two projects and labels and releases stay correctly scoped.', 0,
    datetime('now', '-12 days'), datetime('now', '-12 days')),
-  (13, 3, 'In staging now -- final smoke tests before this goes out with v1.3.0.', 0,
+  (13, 3, 'In staging now -- final smoke tests before this goes out with v1.5.0.', 0,
    datetime('now', '-3 days'), datetime('now', '-3 days')),
-  (14, 2, 'Root cause was the refresh-token loop silently failing when the tab lost visibility -- added a visibilitychange listener to resume it. Shipped in v1.2.0.', 0,
+  (14, 2, 'Root cause was the refresh-token loop silently failing when the tab lost visibility -- added a visibilitychange listener to resume it. Shipped in v1.4.0.', 0,
    datetime('now', '-21 days'), datetime('now', '-21 days')),
   (15, 3, 'Added j and k for card navigation, n for new issue, and ? to show the shortcuts overlay. Feels much faster now.', 0,
    datetime('now', '-16 days'), datetime('now', '-16 days')),
@@ -840,7 +840,7 @@ INSERT INTO issue_comments (issue_id, user_id, body, edited, created_at, updated
    datetime('now', '-8 days'), datetime('now', '-8 days')),
   (18, 3, 'Discussed in planning -- REST is sufficient for our current needs. Closing this; revisit only if a concrete GraphQL use case comes up.', 0,
    datetime('now', '-58 days'), datetime('now', '-58 days')),
-  (19, 2, 'Deferring to v1.4.0 -- needs connection-state and reconnect-logic work that is out of scope for this sprint.', 0,
+  (19, 2, 'Deferring to v1.6.0 -- needs connection-state and reconnect-logic work that is out of scope for this sprint.', 0,
    datetime('now', '-52 days'), datetime('now', '-52 days')),
   (22, 3, 'Competitive analysis done -- three main patterns: tiered cards, feature comparison table, and usage-based slider. Drafting wireframes next.', 0,
    datetime('now', '-3 days'), datetime('now', '-3 days')),
