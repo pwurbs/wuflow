@@ -90,18 +90,34 @@ test.describe('Issue Activity (History + Comments)', () => {
 
     await page.fill('#new-comment-body', 'Posted only once');
     await page.click('#add-comment-btn');
-    await expect(page.locator('#add-comment-btn')).toBeDisabled();
-    await expect(page.locator('#new-comment-body')).toHaveJSProperty('readOnly', true);
-    // ✓ is greyed out, so Ctrl/Cmd+Enter is the remaining way to submit again.
+    await expect(page.locator('#new-comment-editor')).toHaveAttribute('aria-busy', 'true');
+    // ✓ can't be clicked while the editor is busy, so Ctrl/Cmd+Enter is the remaining way to submit again.
     await page.press('#new-comment-body', 'ControlOrMeta+Enter');
 
     release();
     await waitForToast(page, 'Comment added');
     await expect(page.locator('.comment-item').filter({ hasText: 'Posted only once' })).toHaveCount(1);
     expect(posts).toBe(1);
-    await expect(page.locator('#add-comment-btn')).toBeEnabled();
+    await expect(page.locator('#new-comment-editor')).not.toHaveAttribute('aria-busy', 'true');
 
     await page.unrouteAll({ behavior: 'wait' });
+  });
+
+  test('a link in a comment opens in a new tab and the app stays', async ({ page }) => {
+    await createIssue(page, { title: 'Comment Link Issue', status: 'Todo' });
+    await openIssueByTitle(page, 'Comment Link Issue');
+    const appUrl = page.url();
+
+    await page.fill('#new-comment-body', 'See [the login page](/login)');
+    await page.click('#add-comment-btn');
+    await waitForToast(page, 'Comment added');
+
+    const opened = page.context().waitForEvent('page');
+    await page.locator('.comment-body a').click();
+    await opened;
+
+    expect(page.url()).toBe(appUrl);
+    await expect(page.locator('#issue-modal')).toBeVisible();
   });
 
   test('delete a comment', async ({ page }) => {

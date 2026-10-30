@@ -8,22 +8,20 @@
 
 .btn.primary {
   background-color: var(--fill-blue);
-  color: white;
+  color: var(--text-on-fill);
 }
 
 .btn.primary:hover:not(:disabled) {
   background-color: var(--fill-blue-hover);
 }
 
-/* Greyed out while a save is in flight */
 .btn:disabled,
 .inline-edit-btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .btn.secondary {
-  background-color: var(--secondary-color);
+  background-color: var(--column-bg);
   color: var(--text-color);
   border: 1px solid var(--card-border);
 }
@@ -35,15 +33,9 @@
 
 .btn.danger {
   background-color: var(--danger-color);
-  color: white;
+  color: var(--text-on-fill);
 }
 
 .btn.danger:hover:not(:disabled) {
-  background-color: #b8442f;
-}
-
-.btn--sm {
-  padding: 3px 10px;
-  font-size: var(--fs-sm);
-  min-width: unset;
+  background-color: var(--fill-red);
 }

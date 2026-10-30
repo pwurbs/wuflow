@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setupActivity, loadActivity, refreshHistory } from '../components/activity.js';
+import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from '../components/activity.js';
 import * as api from '../api.js';
 import { state } from '../state.js';
 import * as utils from '../utils.js';
@@ -30,7 +30,9 @@ vi.mock('../utils.js', async (importOriginal) => {
     initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
     // Real implementation — the list auto-continue tests assert on its actual behavior.
     continueListOnEnter: actual.continueListOnEnter,
-    guardSubmit: actual.guardSubmit
+    guardSubmit: actual.guardSubmit,
+    // Discards without asking; tests that need the question override it.
+    confirmDiscard: vi.fn(async () => true)
   };
 });
 
@@ -242,6 +244,34 @@ describe('Activity Component', () => {
     expect(document.getElementById('comment-form-container').classList.contains('hidden')).toBe(true);
   });
 
+  it('greys out the comments of an archived issue, but not those of an open one', async () => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    await loadActivity({ ...issue, status: 'Archive' });
+    expect(document.querySelector('.comment-item').getAttribute('aria-disabled')).toBe('true');
+
+    await loadActivity(issue);
+    expect(document.querySelector('.comment-item').hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  it.each([['an open', 'Open'], ['an archived', 'Archive']])('opens a link in a comment of %s issue in a new tab instead of leaving the app', async (_label, status) => {
+    api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'see [docs](https://example.com/a)', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+    const marked = await import('../markdown.js');
+    marked.renderMarkdown.mockReturnValueOnce('<p>see <a href="https://example.com/a"><span>docs</span></a></p>');
+    await loadActivity({ ...issue, status });
+    const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => ({}));
+
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    document.querySelector('.comment-body span').dispatchEvent(click);
+
+    expect(openSpy).toHaveBeenCalledWith('https://example.com/a', '_blank', 'noopener,noreferrer');
+    expect(click.defaultPrevented).toBe(true);
+    openSpy.mockRestore();
+  });
+
   it('shows the comment form on a non-archived issue', async () => {
     await loadActivity(issue);
     expect(document.getElementById('comment-form-container').classList.contains('hidden')).toBe(false);
@@ -267,18 +297,19 @@ describe('Activity Component', () => {
     expect(document.querySelectorAll('.comment-item')).toHaveLength(1);
   });
 
-  it('posts a new comment only once while the first submit is in flight, with ✓ greyed out', async () => {
+  it('posts a new comment only once while the first submit is in flight, with the editor greyed out', async () => {
     let resolveCreate;
     api.createComment.mockReturnValue(new Promise(r => { resolveCreate = r; }));
     await loadActivity(issue);
 
+    const editor = document.getElementById('new-comment-editor');
     const input = document.getElementById('new-comment-body');
     const addBtn = document.getElementById('add-comment-btn');
     input.value = 'new comment';
     addBtn.click();
-    expect(addBtn.disabled).toBe(true);
-    expect(input.readOnly).toBe(true);
-    // Ctrl+Enter bypasses the disabled button and must still not post again.
+    expect(editor.getAttribute('aria-busy')).toBe('true');
+    // A second ✓ (e.g. a stale handler) and Ctrl+Enter must not post again.
+    addBtn.click();
     input.dispatchEvent(new globalThis.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true }));
 
     resolveCreate({ id: 5 });
@@ -286,11 +317,10 @@ describe('Activity Component', () => {
     await new Promise(process.nextTick);
 
     expect(api.createComment).toHaveBeenCalledTimes(1);
-    expect(addBtn.disabled).toBe(false);
-    expect(input.readOnly).toBe(false);
+    expect(editor.hasAttribute('aria-busy')).toBe(false);
   });
 
-  it('saves an edited comment only once while the first save is in flight, with ✓ greyed out', async () => {
+  it('saves an edited comment only once while the first save is in flight, with the editor greyed out', async () => {
     api.fetchComments.mockResolvedValue([
       { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
     ]);
@@ -303,9 +333,8 @@ describe('Activity Component', () => {
     const save = document.querySelector('#comment-list .inline-save-btn');
     textarea.value = 'changed';
     save.click();
-    expect(save.disabled).toBe(true);
-    expect(textarea.readOnly).toBe(true);
-    save.dispatchEvent(new MouseEvent('click')); // bypasses the disabled state like a stale handler would
+    expect(textarea.closest('.comment-editor-container').getAttribute('aria-busy')).toBe('true');
+    save.dispatchEvent(new MouseEvent('click')); // a second ✓, e.g. from a stale handler
 
     resolveUpdate({});
     await new Promise(process.nextTick);
@@ -423,6 +452,7 @@ describe('Activity Component', () => {
     input.focus();
     input.value = 'draft';
     document.getElementById('cancel-comment-btn').click();
+    await new Promise(process.nextTick); // ✕ asks before discarding changed text
 
     expect(input.value).toBe('');
     expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
@@ -504,8 +534,10 @@ describe('Activity Component', () => {
     await loadActivity(issue);
 
     const input = document.getElementById('new-comment-body');
+    const editor = document.getElementById('new-comment-editor');
     document.querySelector('.comment-edit-btn').click();
     expect(input.readOnly).toBe(true);
+    expect(editor.getAttribute('aria-disabled')).toBe('true');
 
     document.querySelector('.comment-edit-input').value = 'updated';
     document.querySelector(finishBtn).click();
@@ -513,6 +545,7 @@ describe('Activity Component', () => {
     await new Promise(process.nextTick);
 
     expect(input.readOnly).toBe(false);
+    expect(editor.hasAttribute('aria-disabled')).toBe(false);
   });
 
   it('deletes a comment after confirmation and refreshes the list', async () => {
@@ -611,6 +644,7 @@ describe('Activity Component', () => {
     await loadActivity(issue);
     document.querySelector('.comment-edit-btn').click();
     document.querySelector('#comment-list .inline-cancel-btn').click();
+    await new Promise(process.nextTick); // ✕ asks before discarding changed text
 
     expect(api.updateComment).not.toHaveBeenCalled();
     expect(document.querySelector('.comment-edit-input')).toBeNull();
@@ -635,7 +669,8 @@ describe('Activity Component', () => {
     expect(items[1].querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(true);
 
     document.querySelector('#comment-list .inline-cancel-btn').click();
-    expect(items[1].querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(false);
+    await new Promise(process.nextTick); // ✕ asks before discarding changed text
+    expect(document.querySelectorAll('.comment-item')[1].querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(false);
   });
 
   it('blocks editing a second comment while another is already being edited', async () => {
@@ -715,6 +750,113 @@ describe('Activity Component', () => {
     await new Promise(process.nextTick);
 
     expect(utils.showNotification).toHaveBeenCalledWith('refresh failed', 'error');
+  });
+
+  // docs/frontend.md "Editing Fields"
+  describe('editor keys and drafts', () => {
+    const key = (el, k, opts = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
+    const tick = async () => { for (let i = 0; i < 3; i++) await new Promise(process.nextTick); };
+    const oneComment = () => api.fetchComments.mockResolvedValue([
+      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+    ]);
+
+    it('discards the new comment with Escape, asking because text was typed', async () => {
+      await loadActivity(issue);
+      const input = document.getElementById('new-comment-body');
+      input.focus();
+      input.value = 'draft';
+
+      utils.confirmDiscard.mockResolvedValueOnce(false); // Keep editing
+      key(input, 'Escape');
+      await tick();
+      expect(utils.confirmDiscard).toHaveBeenLastCalledWith(true);
+      expect(input.value).toBe('draft');
+
+      key(input, 'Escape');
+      await tick();
+      expect(input.value).toBe('');
+      expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+    });
+
+    it('saves an edited comment with Cmd/Ctrl+Enter', async () => {
+      oneComment();
+      api.updateComment.mockResolvedValue({});
+      await loadActivity(issue);
+      document.querySelector('.comment-edit-btn').click();
+      const textarea = document.querySelector('.comment-edit-input');
+      textarea.value = 'changed';
+
+      key(textarea, 'Enter', { ctrlKey: true });
+      await tick();
+
+      expect(api.updateComment).toHaveBeenCalledWith(7, 1, 1, 'changed');
+    });
+
+    it('cancels an edited comment with Escape or ✕, asking only when the text was changed', async () => {
+      oneComment();
+      await loadActivity(issue);
+
+      document.querySelector('.comment-edit-btn').click();
+      key(document.querySelector('.comment-edit-input'), 'Escape');
+      await tick();
+      expect(utils.confirmDiscard).toHaveBeenLastCalledWith(false);
+      expect(document.querySelector('.comment-edit-input')).toBeNull();
+
+      document.querySelector('.comment-edit-btn').click();
+      document.querySelector('.comment-edit-input').value = 'changed';
+      utils.confirmDiscard.mockResolvedValueOnce(false); // Keep editing
+      document.querySelector('#comment-list .inline-cancel-btn').click();
+      await tick();
+      expect(utils.confirmDiscard).toHaveBeenLastCalledWith(true);
+      expect(document.querySelector('.comment-edit-input').value).toBe('changed');
+      expect(api.updateComment).not.toHaveBeenCalled();
+    });
+
+    it('offers the open new comment as a draft whose save reports success', async () => {
+      api.createComment.mockResolvedValue({ id: 5 });
+      await loadActivity(issue);
+      expect(getOpenCommentDraft()).toBeNull();
+
+      const input = document.getElementById('new-comment-body');
+      input.focus();
+      expect(getOpenCommentDraft().changed).toBe(false);
+      input.value = 'draft';
+      const draft = getOpenCommentDraft();
+      expect(draft.changed).toBe(true);
+
+      expect(await draft.save()).toBe(true);
+      expect(api.createComment).toHaveBeenCalledWith(7, 1, 'draft');
+      expect(getOpenCommentDraft()).toBeNull();
+    });
+
+    it('reports a failed draft save as false and keeps the editor open', async () => {
+      oneComment();
+      api.updateComment.mockRejectedValue(new Error('Network error'));
+      await loadActivity(issue);
+      document.querySelector('.comment-edit-btn').click();
+      document.querySelector('.comment-edit-input').value = 'changed';
+
+      const draft = getOpenCommentDraft();
+      expect(draft.changed).toBe(true);
+      expect(await draft.save()).toBe(false);
+      expect(getOpenCommentDraft()).not.toBeNull();
+    });
+
+    it('closes an open comment editor without saving and tells the modal', async () => {
+      oneComment();
+      const onEditEnd = vi.fn();
+      await loadActivity(issue, { onEditStart: vi.fn(), onEditEnd });
+      document.querySelector('.comment-edit-btn').click();
+      document.querySelector('.comment-edit-input').value = 'changed';
+
+      closeCommentEditors();
+
+      expect(getOpenCommentDraft()).toBeNull();
+      expect(onEditEnd).toHaveBeenCalled();
+      expect(document.querySelector('.comment-edit-input')).toBeNull();
+      expect(document.getElementById('new-comment-editor').hasAttribute('aria-disabled')).toBe(false);
+      expect(api.updateComment).not.toHaveBeenCalled();
+    });
   });
 
   describe('history sentence text for less common event and field types', () => {

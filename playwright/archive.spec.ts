@@ -263,17 +263,24 @@ test.describe('Archive View', () => {
     // 1. Task form hidden
     await expect(page.locator('#task-form-container')).toBeHidden();
 
-    // 2. Title not inline-editable (click doesn't change class to inline-editing)
-    await page.click('#title');
+    // 2. Title not inline-editable (click doesn't change class to inline-editing), greyed out
+    //    with its frame
+    await page.locator('#title').click({ force: true });
     await expect(page.locator('#title')).not.toHaveClass(/inline-editing/);
     await expect(page.locator('#title-edit-actions')).toBeHidden();
+    await expect(page.locator('#title')).toHaveCSS('opacity', '0.5');
+    await expect(page.locator('#title')).toHaveCSS('border-color', 'rgb(53, 67, 87)');
 
-    // 3. Description not inline-editable
-    await page.click('#description-preview');
+    // 3. Description not inline-editable, greyed out with its frame
+    await page.locator('#description-preview').click({ force: true });
     await expect(page.locator('.editor-container')).not.toHaveClass(/inline-editing/);
+    await expect(page.locator('.editor-container')).toHaveCSS('opacity', '0.5');
+    await expect(page.locator('.editor-container')).toHaveCSS('border-color', 'rgb(53, 67, 87)');
 
-    // 4. Dropdowns disabled
-    await expect(page.locator('#status-trigger')).toHaveCSS('pointer-events', 'none');
+    // 4. Dropdowns and dates disabled and greyed out
+    await expect(page.locator('#status-trigger')).toBeDisabled();
+    await expect(page.locator('#status-trigger')).toHaveCSS('opacity', '0.5');
+    await expect(page.locator('#deadline').locator('xpath=..')).toHaveAttribute('aria-disabled', 'true');
 
     // 6. Buttons visibility
     await expect(page.locator('#save-issue-btn')).toBeHidden();

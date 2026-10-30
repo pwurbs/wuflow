@@ -43,7 +43,7 @@ export function setupProjectSettingsView() {
 
       // A repeated Enter shares the in-flight add instead of creating the label
       // twice while the first request is still running.
-      const addLabel = guardSubmit(handleAdd, { input: addLabelInput });
+      const addLabel = guardSubmit(handleAdd, { field: addLabelInput.closest('.label-input-group') });
 
       addLabelInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') void addLabel();

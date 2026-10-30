@@ -13,7 +13,7 @@ vi.mock('../utils.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     toDateInputValue: actual.toDateInputValue,
-    singleFlight: actual.singleFlight,
+    guardSubmit: actual.guardSubmit,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     escapeHtml: vi.fn(s => s),
@@ -89,6 +89,30 @@ describe('Tasks Component', () => {
     expect(checkbox.disabled).toBe(true);
     expect(item.draggable).toBe(false);
     expect(item.querySelector('.delete-task-btn').classList.contains('hidden')).toBe(true);
+    expect(item.querySelector('.task-drag-handle').classList.contains('hidden')).toBe(true);
+    expect(item.querySelector('.task-deadline-container').getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('marks the task row busy while its title saves and ignores Escape meanwhile', async () => {
+    let answerSave;
+    api.updateTask.mockReturnValueOnce(new Promise(r => { answerSave = r; }));
+    renderTasks(issue.tasks, container, issue, callbacks);
+    const item = container.querySelector('.task-item');
+    const titleInput = item.querySelector('.task-title-input');
+
+    titleInput.click();
+    titleInput.value = 'Renamed';
+    titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(item.getAttribute('aria-busy')).toBe('true');
+    titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(titleInput.value).toBe('Renamed');
+
+    answerSave({});
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+    expect(item.hasAttribute('aria-busy')).toBe(false);
+    expect(item.classList.contains('editing')).toBe(false);
+    expect(titleInput.readOnly).toBe(true);
   });
 
   it('should toggle task status', async () => {

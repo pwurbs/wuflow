@@ -125,6 +125,12 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
   });
 }
 
+// ✕ and Escape of a Markdown editor: resolves true if its text may be thrown away,
+// asking first if the user changed it.
+export async function confirmDiscard(changed) {
+  return !changed || showConfirm('Unsaved Changes', 'Discard changes?', 'Discard', 'Keep editing');
+}
+
 // Shows the merged password re-confirmation dialog (title + consequence message +
 // password field) used by every admin-password-protected action (project delete,
 // user update, issue/release/label delete, move issue). onConfirm(password) is
@@ -184,7 +190,7 @@ export function promptAdminPasswordConfirmation(title, message, onConfirm, okTex
         input.focus();
         return false;
       }
-    }, { button: okBtn, input });
+    }, { field: document.getElementById('admin-confirm-form') });
 
     // Resolves only after the guard has re-enabled the dialog, so a caller that
     // opens the next dialog right away gets a usable one.
@@ -251,30 +257,55 @@ export function singleFlight(fn) {
   return () => (inFlight ??= fn().finally(() => { inFlight = null; }));
 }
 
-// Wraps a save triggered by a button and/or keys. A repeated click or key while it
-// runs joins the running save instead of sending it again, and the button is greyed
-// out and the input read-only until it settles, so a slow save doesn't look like a
-// click that went nowhere and nothing typed meanwhile is lost when the input is
-// cleared afterwards. Resolves to fn's result.
-export function guardSubmit(fn, { button = null, input = null } = {}) {
-  return singleFlight(async () => {
-    const wasReadOnly = input?.readOnly;
-    if (button) button.disabled = true;
-    if (input) input.readOnly = true;
-    try {
-      return await fn();
-    } finally {
-      if (button) button.disabled = false;
-      if (input) input.readOnly = wasReadOnly;
+function blockWhileBusy(e) {
+  if (e.type === 'keydown' && e.key === 'Tab') return;
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+// Number of saves running per busy field
+const busySaves = new WeakMap();
+
+// Runs the save fn with the field (the element framing the input and its buttons)
+// marked aria-busy, which dims it and blocks clicks (base/utilities.css), and with
+// typing and keys ignored, so a slow save doesn't look like a click that went nowhere.
+// Overlapping saves on one field keep it busy until the last one settles. Resolves to
+// fn's result.
+export async function markBusy(field, fn) {
+  if (!field) return fn();
+  const running = busySaves.get(field) ?? 0;
+  busySaves.set(field, running + 1);
+  if (running === 0) {
+    field.setAttribute('aria-busy', 'true');
+    field.addEventListener('beforeinput', blockWhileBusy, true);
+    field.addEventListener('keydown', blockWhileBusy, true);
+  }
+  try {
+    return await fn();
+  } finally {
+    const left = busySaves.get(field) - 1;
+    busySaves.set(field, left);
+    if (left === 0) {
+      field.removeAttribute('aria-busy');
+      field.removeEventListener('beforeinput', blockWhileBusy, true);
+      field.removeEventListener('keydown', blockWhileBusy, true);
     }
-  });
+  }
+}
+
+// Wraps a save triggered by a button and/or keys. A repeated click or key while it
+// runs joins the running save instead of sending it again, and the field is busy
+// until it settles (markBusy), so nothing typed meanwhile is lost when the input is
+// cleared afterwards. Resolves to fn's result.
+export function guardSubmit(fn, { field = null } = {}) {
+  return singleFlight(() => markBusy(field, fn));
 }
 
 // Submits the form through guardSubmit: Save and Enter share the in-flight submit
-// instead of saving twice while the first request is still running. The button
-// defaults to the form's submit button.
-export function onGuardedSubmit(form, fn, { button = form.querySelector('button[type="submit"]'), input = null } = {}) {
-  const submit = guardSubmit(fn, { button, input });
+// instead of saving twice while the first request is still running. The whole form
+// is the busy field.
+export function onGuardedSubmit(form, fn) {
+  const submit = guardSubmit(fn, { field: form });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     void submit();

@@ -547,6 +547,21 @@ test.describe('XSS and Sanitization', () => {
     const finalValue = await titleInput.inputValue();
     expect(finalValue).toBe('Updated Italic');
   });
+
+  test('title: Done keeps the warning toast instead of "Issue updated"', async ({ page }) => {
+    const base = `Title-Done-${Date.now().toString().slice(-6)}`;
+    await createIssue(page, { title: base, status: 'Todo' });
+    await page.locator('.board-card', { hasText: base }).click();
+
+    const titleInput = page.locator('#title');
+    await titleInput.click();
+    await titleInput.fill('Test<b>');
+    await page.click('#done-btn');
+
+    await expect(page.locator('#issue-modal')).toBeHidden();
+    await expect(page.locator('.board-card-title', { hasText: /^Test$/ })).toBeVisible();
+    await expect(page.locator('#notification-toast')).toContainText('Unsupported HTML tags are not rendered for security.');
+  });
 });
 
 // ─── Validation limits — Release ──────────────────────────────────────────────

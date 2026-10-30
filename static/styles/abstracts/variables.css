@@ -3,7 +3,6 @@
   --input-bg: #161d29;
   --input-bg-focus: #131924;
   --column-bg: #1a2230;
-  --secondary-color: #1a2230;
   --bg-color: #202939;
   --card-bg: #222c3c;
   --hover-bg: #2a3648;
@@ -13,17 +12,44 @@
   --text-color: #dce3eb;
   --muted-text: #a3afc0;
   /* Blue for text, icons, borders and tints */
-  --primary-color: #7ea4e0;
-  --primary-hover: #a5c0ea;
   --accent-blue: #7ea4e0;
+  --accent-blue-hover: #a5c0ea;
   /* Blue for solid fills behind white text (buttons, avatars); the light blue is too bright for white text */
   --fill-blue: #2f63b0;
   --fill-blue-hover: #3a70c0;
-  --count-bg: #2a3648;
   --danger-color: #ef4444;
   /* Readable red for text on dark surfaces; --danger-color is for fills */
   --danger-text: #f87171;
   --success-color: #22c55e;
+
+  /* Text on solid fills, and fills dark enough for it: toasts, connection banner, danger button hover */
+  --text-on-fill: #fff;
+  --fill-green: #15803d;
+  --fill-red: #dc2626;
+  --fill-amber: #b45309;
+
+  /* Tints and overlays */
+  --danger-tint: color-mix(in srgb, var(--danger-color) 10%, transparent);
+  --danger-tint-subtle: color-mix(in srgb, var(--danger-color) 5%, transparent);
+  --code-bg: rgba(255, 255, 255, 0.08);
+  --table-stripe-bg: rgba(255, 255, 255, 0.02);
+  --tint-dark: rgba(0, 0, 0, 0.1);
+  --tint-dark-hover: rgba(0, 0, 0, 0.2);
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+
+  /* Role badges in the user list */
+  --badge-admin-bg: #4c1d95;
+  --badge-admin-text: #f5f3ff;
+  --badge-admin-border: #7c3aed;
+  --badge-sysadmin-bg: #0e4f6e;
+  --badge-sysadmin-text: #e0f2fe;
+  --badge-sysadmin-border: #0284c7;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-dropdown: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.5);
 
   --priority-bg: #3a2533;
   --priority-bg-hover: #45293a;
@@ -34,6 +60,9 @@
   --radius-card: 10px;
   --radius-item: 8px;
   --radius-chip: 5px;
+
+  /* Disabled, read-only and saving elements (base/utilities.css) */
+  --inactive-opacity: 0.5;
 
   /* Typography — font families */
   --font-sans: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,

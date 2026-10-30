@@ -843,7 +843,7 @@ describe('User Menu', () => {
     vi.useRealTimers();
   });
 
-  it('changes the password only once when submitted again while the first save is in flight, with Save greyed out', async () => {
+  it('changes the password only once when submitted again while the first save is in flight, with the form greyed out', async () => {
     const { updateCurrentUser } = await import('../api.js');
     updateCurrentUser.mockClear();
     let resolveUpdate;
@@ -854,17 +854,16 @@ describe('User Menu', () => {
     document.getElementById('new-password').value = TEST_PW_VALID;
     document.getElementById('confirm-new-password').value = TEST_PW_VALID;
     const form = document.getElementById('password-form');
-    const saveBtn = form.querySelector('button[type="submit"]');
 
     form.dispatchEvent(new Event('submit'));
-    expect(saveBtn.disabled).toBe(true);
+    expect(form.getAttribute('aria-busy')).toBe('true');
     form.dispatchEvent(new Event('submit'));
 
     resolveUpdate({});
     await new Promise(process.nextTick);
 
     expect(updateCurrentUser).toHaveBeenCalledTimes(1);
-    expect(saveBtn.disabled).toBe(false);
+    expect(form.hasAttribute('aria-busy')).toBe(false);
   });
 
   it('shows inline error when password validation fails', async () => {

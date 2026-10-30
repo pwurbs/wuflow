@@ -51,7 +51,26 @@ The styles in `static/styles/` follow the 7-1 pattern known from Sass, reduced t
 - **Login page**: `login.html` does not use `main.css`. It links only `variables.css`, `reset.css`, `typography.css` and `pages/login.css`.
 - **Typography**: font sizes and weights are collected in `base/typography.css`. Before adding them to a component or page file, check whether a selector group there already covers the element.
 - **Fonts**: Figtree (text, `--font-sans`) and Gabarito (headings, `--font-display`) are self-hosted in `static/fonts/` under the SIL Open Font License (see `CREDITS.md`), so the browser makes no third-party request. Markdown written by users (description, comments) always uses the text font.
-- **Colors**: most colors come from the custom properties in `abstracts/variables.css`. Some component files still use literal values, e.g. the toast colors in `components/toasts.css`. Blue exists in two variables: `--accent-blue` (text, icons, borders and tints) and `--fill-blue` (fills behind white text, e.g. primary buttons, avatars, ticked checkboxes). Red text uses `--danger-text`, red fills `--danger-color`.
+- **Colors**: all colors, including tints and shadows, come from the custom properties in `abstracts/variables.css`. Only label colors are set inline, because users pick them. Blue exists in two variables: `--accent-blue` (text, icons, borders and tints) and `--fill-blue` (fills behind white text, e.g. primary buttons, avatars, ticked checkboxes). Red text uses `--danger-text`, red fills `--danger-color`. White text on a fill uses `--text-on-fill`, and the fills dark enough for it are `--fill-blue`, `--fill-green`, `--fill-red` and `--fill-amber`.
+
+---
+
+## Editing Fields
+
+All inline editors of the issue modal follow one behaviour:
+
+| Editor | Enter | Cmd/Ctrl+Enter | Escape / ✕ | Tab | Done with unsaved text |
+|--------|-------|----------------|------------|-----|------------------------|
+| Title, task title | Saves | Saves | Discards | Saves (on blur) | Saves |
+| Description | Continues a list | Saves | Discards, asks "Discard changes?" if changed | Indents | Asks "Save description?" |
+| New comment, comment edit | Continues a list | Saves | Discards, asks "Discard changes?" if changed | Moves focus | Asks "Save comment?" |
+| New task | Adds the task | Adds the task | – | Moves focus | Asks "Add task?" |
+
+- **Buttons**: ✓ and ✕ react to `click`. The Markdown toolbar buttons block `mousedown`, so the text selection stays in the editor.
+- **Saving**: while a save is in flight, the field's frame, including its ✓ and ✕, is dimmed, shows the normal border instead of the blue edit border, cannot be clicked, and ignores typing and keys other than Tab. Modal forms (new issue, release, project, user, password) are dimmed as a whole. `markBusy` in `utils.js` does this by setting `aria-busy="true"` on the field, and `guardSubmit` / `onGuardedSubmit` use it so that a second click or Enter during the save does nothing.
+- **Sidebar fields** of the issue modal (status, planned dates, deadline, assignee, priority, label, release) save on change. The changed field, label included, is dimmed until its save is done. The other fields stay usable, and further changes are saved one after another.
+- **Inactive means greyed out, greyed out means inactive**: everything that cannot be used right now is shown at `--inactive-opacity`, and nothing else is. One rule in `base/utilities.css` styles the three markers: `:disabled` (native controls), `[aria-disabled="true"]` (other elements, also not clickable) and `[aria-busy="true"]` (saving). An archived issue is greyed out as a whole: title, description, comments, dropdowns and dates. Links in greyed-out text still open.
+- **Leaving the page**: while any editor holds unsaved text, the browser asks before a reload or navigation (`beforeunload`).
 
 ---
 

@@ -14,3 +14,34 @@
 .hidden {
   display: none !important; /* NOSONAR - utility class must win over component display rules */
 }
+
+/* Inactive and saving (docs/frontend.md "Editing Fields"): greyed out means inactive.
+   aria-disabled and aria-busy have no native effect, so clicks are blocked here. */
+:disabled,
+[aria-disabled="true"],
+[aria-busy="true"] {
+  opacity: var(--inactive-opacity);
+}
+
+[aria-disabled="true"],
+[aria-busy="true"] {
+  pointer-events: none;
+}
+
+/* Links in greyed-out text (archived issue) still open */
+[aria-disabled="true"] a {
+  pointer-events: auto;
+}
+
+/* Dimmed once: inactive parts of an inactive element keep their strength.
+   :where keeps the specificity low, so component rules still win. */
+:where(:disabled, [aria-disabled="true"], [aria-busy="true"]) :is(:disabled, [aria-disabled="true"]) {
+  opacity: 1;
+}
+
+/* A saving field shows its normal border instead of the blue edit border, also when the
+   save started on blur, e.g. the title's */
+[aria-busy="true"],
+[aria-busy="true"] :is(:focus, .inline-editing) {
+  border-color: var(--card-border) !important; /* NOSONAR - a state must win over every edit and focus rule */
+}

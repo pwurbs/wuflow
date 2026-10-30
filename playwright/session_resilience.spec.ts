@@ -141,7 +141,7 @@ test.describe('Network error: change not saved, nothing lost or faked', () => {
     await expect(page.locator('#connection-banner')).toBeVisible();
 
     await page.click('#done-btn');
-    await page.click('#confirm-ok-btn'); // "Save Description?" → Save
+    await page.click('#confirm-ok-btn'); // "Save description?" → Save
     await waitForToast(page, NETWORK_ERROR);
     await expect(page.locator('#issue-modal')).toBeVisible();
     await expect(page.locator('#description-editor')).toHaveValue(text);

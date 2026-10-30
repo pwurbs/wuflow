@@ -7,8 +7,14 @@ import * as permissions from '../permissions.js';
 import { state } from '../state.js';
 
 // Helper to generate random pass
+// Drawn again when the random part happens to contain a blacklisted word (e.g. "m0nd" in
+// about 0.2 % of draws), which the password policy would reject.
 function generateRandomPassword() {
-  return btoa(Math.random().toString()).slice(0, 16) + 'U1!'; // NOSONAR
+  let password;
+  do {
+    password = btoa(Math.random().toString()).slice(0, 16) + 'U1!'; // NOSONAR
+  } while (isBlacklistedPassword(password));
+  return password;
 }
 
 // Mock dependencies
@@ -296,7 +302,7 @@ describe('system-settings.js component', () => {
       expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(true);
     });
 
-    it('creates a user only once when submitted again while the first save is in flight, with Save greyed out', async () => {
+    it('creates a user only once when submitted again while the first save is in flight, with the form greyed out', async () => {
       setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       document.getElementById('user-email').value = 'new@test.com';
@@ -307,17 +313,16 @@ describe('system-settings.js component', () => {
       let resolveCreate;
       api.createUser.mockReturnValue(new Promise(r => { resolveCreate = r; }));
       const form = document.getElementById('user-form');
-      const saveBtn = document.getElementById('user-modal-save');
 
       form.dispatchEvent(new Event('submit'));
-      expect(saveBtn.disabled).toBe(true);
+      expect(form.getAttribute('aria-busy')).toBe('true');
       form.dispatchEvent(new Event('submit'));
 
       resolveCreate({ id: 3 });
       await new Promise(process.nextTick);
 
       expect(api.createUser).toHaveBeenCalledTimes(1);
-      expect(saveBtn.disabled).toBe(false);
+      expect(form.hasAttribute('aria-busy')).toBe(false);
     });
 
     it('should handle user form submission (update)', async () => {
@@ -1145,23 +1150,22 @@ describe('Project Management', () => {
         .toBe('Project description must not exceed 100 characters.');
     });
 
-    it('creates a project only once when submitted again while the first save is in flight, with Save greyed out', async () => {
+    it('creates a project only once when submitted again while the first save is in flight, with the form greyed out', async () => {
       let resolveCreate;
       api.createProject.mockReturnValue(new Promise(r => { resolveCreate = r; }));
       document.getElementById('add-project-btn').click();
       document.getElementById('project-name').value = 'New';
       const form = document.getElementById('project-form');
-      const saveBtn = document.getElementById('project-modal-save');
 
       form.dispatchEvent(new Event('submit'));
-      expect(saveBtn.disabled).toBe(true);
+      expect(form.getAttribute('aria-busy')).toBe('true');
       form.dispatchEvent(new Event('submit'));
 
       resolveCreate({ id: 5, name: 'New' });
       await new Promise(process.nextTick);
 
       expect(api.createProject).toHaveBeenCalledTimes(1);
-      expect(saveBtn.disabled).toBe(false);
+      expect(form.hasAttribute('aria-busy')).toBe(false);
     });
 
     it('should create project and show success notification', async () => {

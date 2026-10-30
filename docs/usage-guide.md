@@ -88,7 +88,10 @@ See [this article](https://medium.com/@pwurbs/issue-attributes-what-you-actually
 
 In the bottom right corner there is information when and by whom the issue was created and lastly updated. The user is indicated using the users badge. These fields are automatically filled and can't be edited.
 
-The Issue details view is closed by clicking the DONE button at the bottom of the view. In case of unsaved description changes, you will be asked if you want to save them before closing the view. All other fields are saved automatically.
+The Issue details view is closed by clicking the DONE button at the bottom of the view. If the description, a comment or the new-task field holds unsaved text, you are asked whether to save it before the view closes. All other fields are saved automatically.
+
+In the description and in comments, Ctrl+Enter (Cmd+Enter on macOS) saves and Escape cancels. If you changed the text, you are asked first. In the title and in task titles, Enter saves and Escape cancels. While a field is being saved, it is greyed out.
+
 Additionally, users owning the Admin or Sysadmin role can archive or delete the issue by clicking the Archive or Delete button at the bottom of the view. Admins can also **move an issue to a different project** by changing the project in the issue details view. Moving an issue resets its label, release, and status to Open.
 
 ### Tasks

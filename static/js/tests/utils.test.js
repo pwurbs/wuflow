@@ -7,7 +7,7 @@ import {
   getUnusedColor,
   getDeadlineStatus, getTaskDeadlineStatus,
   promptAdminPasswordConfirmation,
-  guardSubmit, onGuardedSubmit,
+  guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
 } from '../utils.js';
 
 describe('getDeadlineStatus', () => {
@@ -463,18 +463,47 @@ describe('showConfirm', () => {
   });
 });
 
+describe('confirmDiscard', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="confirm-modal" class="hidden">
+        <div id="confirm-title"></div><div id="confirm-message"></div>
+        <button id="confirm-ok-btn"></button><button id="confirm-cancel-btn"></button>
+      </div>`;
+  });
+
+  it('discards unchanged text without asking', async () => {
+    expect(await confirmDiscard(false)).toBe(true);
+    expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(true);
+  });
+
+  it('asks before discarding changed text and follows the answer', async () => {
+    const discard = confirmDiscard(true);
+    await Promise.resolve();
+    expect(document.getElementById('confirm-message').textContent).toBe('Discard changes?');
+    document.getElementById('confirm-cancel-btn').click(); // Keep editing
+    expect(await discard).toBe(false);
+
+    const second = confirmDiscard(true);
+    await Promise.resolve();
+    document.getElementById('confirm-ok-btn').click(); // Discard
+    expect(await second).toBe(true);
+  });
+});
+
 describe('guardSubmit', () => {
-  let button, input;
+  let field, input;
 
   beforeEach(() => {
-    button = document.createElement('button');
-    input = document.createElement('input');
+    field = document.createElement('div');
+    input = document.createElement('textarea');
+    field.appendChild(input);
   });
 
   it('runs a repeated call while the first is in flight only once, sharing its result', async () => {
     let resolveSave;
     const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
-    const submit = guardSubmit(fn, { button, input });
+    const submit = guardSubmit(fn, { field });
 
     const first = submit();
     const second = submit();
@@ -493,31 +522,89 @@ describe('guardSubmit', () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  it('greys out the button and makes the input read-only only while the call runs', async () => {
+  const keydown = (key) => {
+    const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    input.dispatchEvent(e);
+    return e;
+  };
+  const beforeinput = () => {
+    const e = new InputEvent('beforeinput', { bubbles: true, cancelable: true });
+    input.dispatchEvent(e);
+    return e;
+  };
+
+  it('marks the field busy only while the call runs', async () => {
     let resolveSave;
-    const submit = guardSubmit(() => new Promise(r => { resolveSave = r; }), { button, input });
+    const submit = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field });
 
     const running = submit();
-    expect(button.disabled).toBe(true);
-    expect(input.readOnly).toBe(true);
+    expect(field.getAttribute('aria-busy')).toBe('true');
 
     resolveSave();
     await running;
-    expect(button.disabled).toBe(false);
-    expect(input.readOnly).toBe(false);
+    expect(field.hasAttribute('aria-busy')).toBe(false);
   });
 
-  it('restores button and input after a failed call and passes the error on', async () => {
-    const submit = guardSubmit(() => Promise.reject(new Error('boom')), { button, input });
+  it('ignores typing and keys inside the field while busy, except Tab', async () => {
+    const onKey = vi.fn();
+    input.addEventListener('keydown', onKey);
+    let resolveSave;
+    const running = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field })();
+
+    expect(beforeinput().defaultPrevented).toBe(true);
+    expect(keydown('Escape').defaultPrevented).toBe(true);
+    expect(keydown('Enter').defaultPrevented).toBe(true);
+    expect(onKey).not.toHaveBeenCalled();
+    expect(keydown('Tab').defaultPrevented).toBe(false);
+    expect(onKey).toHaveBeenCalledTimes(1);
+
+    resolveSave();
+    await running;
+    expect(beforeinput().defaultPrevented).toBe(false);
+    expect(keydown('Escape').defaultPrevented).toBe(false);
+    expect(onKey).toHaveBeenCalledTimes(2);
+  });
+
+  it('frees the field after a failed call and passes the error on', async () => {
+    const submit = guardSubmit(() => Promise.reject(new Error('boom')), { field });
     await expect(submit()).rejects.toThrow('boom');
-    expect(button.disabled).toBe(false);
-    expect(input.readOnly).toBe(false);
+    expect(field.hasAttribute('aria-busy')).toBe(false);
+    expect(beforeinput().defaultPrevented).toBe(false);
   });
 
-  it('leaves an input read-only that already was before the call', async () => {
+  it('leaves the input\'s readOnly alone, which editors use for their edit mode', async () => {
     input.readOnly = true;
-    await guardSubmit(() => Promise.resolve(), { input })();
-    expect(input.readOnly).toBe(true);
+    let resolveSave;
+    const running = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field })();
+    input.readOnly = false; // e.g. the save left read mode
+    resolveSave();
+    await running;
+    expect(input.readOnly).toBe(false);
+  });
+});
+
+describe('markBusy', () => {
+  it('keeps the field busy until the last of overlapping saves settles', async () => {
+    const field = document.createElement('div');
+    let answerFirst, answerSecond;
+    const first = markBusy(field, () => new Promise(r => { answerFirst = r; }));
+    const second = markBusy(field, () => new Promise(r => { answerSecond = r; }));
+    expect(field.getAttribute('aria-busy')).toBe('true');
+
+    answerFirst('a');
+    expect(await first).toBe('a');
+    expect(field.getAttribute('aria-busy')).toBe('true');
+
+    answerSecond('b');
+    expect(await second).toBe('b');
+    expect(field.hasAttribute('aria-busy')).toBe(false);
+  });
+
+  it('runs the save without a field and frees the field after a failure', async () => {
+    expect(await markBusy(null, async () => 'saved')).toBe('saved');
+    const field = document.createElement('div');
+    await expect(markBusy(field, () => Promise.reject(new Error('boom')))).rejects.toThrow('boom');
+    expect(field.hasAttribute('aria-busy')).toBe(false);
   });
 });
 
@@ -531,7 +618,7 @@ describe('onGuardedSubmit', () => {
     form.appendChild(button);
   });
 
-  it('prevents the page submit and saves a repeated submit only once, greying out the form\'s submit button', async () => {
+  it('prevents the page submit and saves a repeated submit only once, with the whole form busy', async () => {
     let resolveSave;
     const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
     onGuardedSubmit(form, fn);
@@ -542,28 +629,15 @@ describe('onGuardedSubmit', () => {
 
     expect(first.defaultPrevented).toBe(true);
     expect(fn).toHaveBeenCalledTimes(1);
-    expect(button.disabled).toBe(true);
+    expect(form.getAttribute('aria-busy')).toBe('true');
 
     resolveSave();
-    await vi.waitFor(() => expect(button.disabled).toBe(false));
-  });
-
-  it('uses the given button instead of the form\'s submit button', async () => {
-    const other = document.createElement('button');
-    let resolveSave;
-    onGuardedSubmit(form, () => new Promise(r => { resolveSave = r; }), { button: other });
-
-    form.dispatchEvent(new Event('submit', { cancelable: true }));
-    expect(other.disabled).toBe(true);
-    expect(button.disabled).toBe(false);
-
-    resolveSave();
-    await vi.waitFor(() => expect(other.disabled).toBe(false));
+    await vi.waitFor(() => expect(form.hasAttribute('aria-busy')).toBe(false));
   });
 });
 
 describe('promptAdminPasswordConfirmation', () => {
-  let modal, titleEl, messageEl, input, errorDiv, okBtn, cancelBtn;
+  let modal, titleEl, messageEl, form, input, errorDiv, okBtn, cancelBtn;
 
   beforeEach(() => {
     modal = document.createElement('div');
@@ -585,17 +659,23 @@ describe('promptAdminPasswordConfirmation', () => {
     errorDiv.classList.add('hidden');
 
     okBtn = document.createElement('button');
+    okBtn.type = 'button';
     okBtn.id = 'admin-confirm-ok-btn';
     okBtn.className = 'btn';
 
     cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
     cancelBtn.id = 'admin-confirm-cancel-btn';
 
-    document.body.append(modal, titleEl, messageEl, input, errorDiv, okBtn, cancelBtn);
+    form = document.createElement('form');
+    form.id = 'admin-confirm-form';
+    form.append(input, errorDiv, okBtn, cancelBtn);
+
+    document.body.append(modal, titleEl, messageEl, form);
   });
 
   afterEach(() => {
-    [modal, titleEl, messageEl, input, errorDiv, okBtn, cancelBtn].forEach(el => el.remove());
+    [modal, titleEl, messageEl, form].forEach(el => el.remove());
   });
 
   it('shows the modal and populates title, message and button text', () => {
@@ -680,13 +760,14 @@ describe('promptAdminPasswordConfirmation', () => {
     input.value = 'CorrectPass123!';
 
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    expect(okBtn.disabled).toBe(true);
+    expect(form.getAttribute('aria-busy')).toBe('true');
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    okBtn.click();
 
     resolveConfirm();
     expect(await promise).toBe(true);
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(okBtn.disabled).toBe(false);
+    expect(form.hasAttribute('aria-busy')).toBe(false);
   });
 
   it('defaults okText to Confirm and okType to danger', () => {

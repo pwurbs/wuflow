@@ -12,7 +12,7 @@
 body:not(.is-dragging) .card:hover {
   background-color: var(--hover-bg);
   transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
+  box-shadow: var(--shadow-popover);
   border: 1px solid var(--accent-blue);
   z-index: 50;
 }
@@ -35,14 +35,14 @@ body:not(.is-dragging) .card.is-archived:hover {
 
 .card.highlighted {
   background-color: color-mix(in srgb, var(--accent-blue) 15%, transparent);
-  box-shadow: 0 0 0 3px var(--primary-color);
+  box-shadow: 0 0 0 3px var(--accent-blue);
   animation: pulse 0.5s ease-in-out;
 }
 
 .card.hover-highlight {
   background-color: var(--hover-bg);
   transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(9, 30, 66, 0.25);
+  box-shadow: var(--shadow-popover);
   border: 1px solid var(--accent-blue);
 }
 
@@ -55,6 +55,12 @@ body:not(.is-dragging) .card.is-archived:hover {
 
   50% {
     transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.highlighted {
+    animation: none;
   }
 }
 
@@ -146,7 +152,7 @@ body:not(.is-dragging) .card.is-archived:hover {
 }
 
 .release-chip-check {
-  color: #4caf50;
+  color: var(--success-color);
   margin-right: 3px;
   font-size: var(--fs-2xs);
 }
@@ -213,7 +219,7 @@ body:not(.is-dragging) .card.high-priority:hover {
   border-radius: 6px;
   min-width: 160px;
   padding: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-popover);
 }
 .card-context-menu.hidden { display: none; }
 
@@ -230,7 +236,7 @@ body:not(.is-dragging) .card.high-priority:hover {
   border-radius: 4px;
 }
 .card-context-menu-item:hover:not(:disabled) { background-color: var(--hover-bg); }
-.card-context-menu-item:disabled { color: var(--muted-text); cursor: default; opacity: 0.5; }
+.card-context-menu-item:disabled { color: var(--muted-text); cursor: default; }
 
 .card--clickable {
   cursor: pointer;

@@ -43,7 +43,6 @@
 
 .editor-btn.disabled,
 .editor-btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -55,8 +54,8 @@
 
 .editor-btn.active {
   background-color: color-mix(in srgb, var(--accent-blue) 20%, transparent);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
 }
 
 .separator {
@@ -104,7 +103,7 @@
 
 .rich-editor a {
   cursor: pointer;
-  color: var(--primary-hover);
+  color: var(--accent-blue-hover);
   text-decoration: underline;
 }
 
@@ -121,12 +120,19 @@
 #title.inline-editing,
 .editor-container.inline-editing {
   background-color: var(--input-bg-focus);
-  border-color: var(--primary-color);
+  border-color: var(--accent-blue);
   cursor: text;
 }
 
+/* Archived issue: keeps its frame and is greyed out (aria-disabled), but never gets the edit look */
+#title.read-only-text,
+.editor-container.read-only-text {
+  cursor: default;
+}
+
 /* Hide toolbar when not editing description in inline mode */
-.editor-container.inline-editable .editor-toolbar {
+.editor-container.inline-editable .editor-toolbar,
+.editor-container.read-only-text .editor-toolbar {
   display: none;
 }
 
@@ -304,7 +310,7 @@
 
 .md-preview a {
   cursor: pointer;
-  color: var(--primary-hover);
+  color: var(--accent-blue-hover);
   text-decoration: underline;
 }
 
@@ -316,7 +322,7 @@
    Code's dark themes). */
 .rich-editor code,
 .md-preview code {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--code-bg);
   padding: 2px 4px;
   border-radius: 4px;
   color: var(--text-color);
@@ -326,7 +332,7 @@
 
 .rich-editor pre,
 .md-preview pre {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--code-bg);
   padding: 12px;
   border-radius: 4px;
   overflow-x: auto;
@@ -369,5 +375,5 @@
 
 .md-preview tbody tr:nth-child(even),
 .rich-editor tbody tr:nth-child(even) {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--table-stripe-bg);
 }

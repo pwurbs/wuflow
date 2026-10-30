@@ -1,13 +1,13 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, singleFlight, guardSubmit, onGuardedSubmit } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
-import { setupActivity, loadActivity, refreshHistory } from './activity.js';
+import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from './activity.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
 let refreshAppCallback = null;
@@ -52,14 +52,16 @@ export function setupModal(refreshApp, rerenderViews) {
   // + Add and Enter share the in-flight submit instead of creating the task twice
   // while the first request is still running.
   const addTaskBtn = document.getElementById('add-task-btn');
-  const submitTask = guardSubmit(handleTaskSubmit, { button: addTaskBtn, input: document.getElementById('new-task-title') });
-  addTaskBtn.addEventListener('click', submitTask);
-  document.getElementById('new-task-title').addEventListener('keypress', (e) => {
+  const newTaskTitle = document.getElementById('new-task-title');
+  _submitTaskFn = guardSubmit(handleTaskSubmit, { field: addTaskBtn.closest('.input-group') });
+  addTaskBtn.addEventListener('click', _submitTaskFn);
+  newTaskTitle.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      void submitTask();
+      void _submitTaskFn();
     }
   });
+  newTaskTitle.addEventListener('input', syncUnloadListener);
 
   // Task Drag Reordering Logic
   const taskList = document.getElementById('task-list');
@@ -242,7 +244,7 @@ function setupProjectDropdown(issue) {
 
   if (projectTrigger) {
     const restricted = !!issue && !userCan(state.currentUser, ACTION_MOVE_ISSUE);
-    projectTrigger.disabled = restricted;
+    projectTrigger.disabled = restricted || issue?.status === STATUS_ARCHIVE;
     projectTrigger.title = restricted ? 'Insufficient permissions to move this issue' : '';
   }
 }
@@ -320,8 +322,8 @@ function setupEditModal(issue) {
 
   // Activity area (History + Comments) — fetches its own data lazily on open.
   void loadActivity(issue, {
-    onEditStart: () => addUnloadListener(),
-    onEditEnd: () => checkRemoveUnloadListener()
+    onEditStart: syncUnloadListener,
+    onEditEnd: syncUnloadListener
   });
 }
 
@@ -357,21 +359,10 @@ function renderIssueFields(issue) {
   document.getElementById('archive-issue-btn').classList.toggle('hidden', !canArchBtn);
   document.getElementById('unarchive-issue-btn').classList.toggle('hidden', !canUnarchBtn);
 
-  // Read-Only UI Adjustments
-  const dateInputs = document.querySelectorAll('.custom-date-input');
-  dateInputs.forEach(el => {
-    el.style.pointerEvents = isArchived ? 'none' : '';
-    el.style.opacity = isArchived ? '0.7' : '';
-  });
+  setSidebarReadOnly(isArchived);
 
-  const dropdownTriggers = document.querySelectorAll('.custom-select-trigger');
-  dropdownTriggers.forEach(el => {
-    el.style.pointerEvents = isArchived ? 'none' : '';
-    el.style.opacity = isArchived ? '0.7' : '';
-  });
-
-  // Enable inline edit mode (handlers will check for archive status)
-  toggleInlineEditMode(true);
+  // Enable inline edit mode; an archived issue shows title and description as plain text
+  toggleInlineEditMode(true, isArchived);
 
   document.getElementById('save-issue-btn').classList.add('hidden');
   document.getElementById('cancel-btn').classList.add('hidden');
@@ -397,11 +388,7 @@ function setupNewModal() {
   document.getElementById('unarchive-issue-btn').classList.add('hidden');
 
   toggleInlineEditMode(false);
-
-  document.querySelectorAll('.custom-date-input, .custom-select-trigger').forEach(el => {
-    el.style.pointerEvents = '';
-    el.style.opacity = '';
-  });
+  setSidebarReadOnly(false);
 
   const activeNav = document.querySelector('.left-menu .menu-btn.active');
   if (activeNav && activeNav.id !== 'add-issue-btn') {
@@ -424,7 +411,14 @@ function resetMdPreview(previewEl) {
   });
 }
 
-function toggleInlineEditMode(enable) {
+function setAriaDisabled(el, disabled) {
+  if (disabled) el.setAttribute('aria-disabled', 'true');
+  else el.removeAttribute('aria-disabled');
+}
+
+// enable: edit modal, where title and description are shown read-only until clicked
+// (readOnly: never, for an archived issue, which is greyed out); otherwise the new-issue form.
+function toggleInlineEditMode(enable, readOnly = false) {
   const titleInput = document.getElementById('title');
   const descContainer = document.querySelector('.editor-container');
   const descEditor = document.getElementById('description-editor');
@@ -433,29 +427,28 @@ function toggleInlineEditMode(enable) {
 
   resetMdPreview(descPreview);
 
-  if (enable) {
-    titleInput.classList.add('inline-editable');
-    titleInput.readOnly = true;
-    descContainer.classList.add('inline-editable');
-    descEditor.classList.add('hidden');
-    descPreview.classList.remove('hidden');
-    descEditActions.classList.add('hidden');
-  } else {
-    titleInput.classList.remove('inline-editable');
-    titleInput.readOnly = false;
-    descContainer.classList.remove('inline-editable');
-    descEditor.classList.remove('hidden');
-    descPreview.classList.add('hidden');
-    descEditActions.classList.add('hidden');
+  for (const el of [titleInput, descContainer]) {
+    el.classList.toggle('inline-editable', enable && !readOnly);
+    el.classList.toggle('read-only-text', enable && readOnly);
+    setAriaDisabled(el, enable && readOnly);
   }
+  titleInput.readOnly = enable;
+  descEditor.classList.toggle('hidden', enable);
+  descPreview.classList.toggle('hidden', !enable);
+  descEditActions.classList.add('hidden');
+}
+
+// The dropdowns and dates of an archived issue can't be used. The project trigger is left
+// to setupProjectDropdown, which also disables it for missing permissions.
+function setSidebarReadOnly(readOnly) {
+  const modal = document.getElementById('issue-modal');
+  modal.querySelectorAll('.custom-select-trigger:not(#project-trigger)').forEach(el => { el.disabled = readOnly; });
+  modal.querySelectorAll('.custom-date-input').forEach(el => setAriaDisabled(el, readOnly));
 }
 
 export function closeModal() {
   document.getElementById('issue-modal').classList.add('hidden');
-  document.querySelectorAll('.custom-date-input, .custom-select-trigger').forEach(el => {
-    el.style.pointerEvents = '';
-    el.style.opacity = '';
-  });
+  leaveEditors();
   const addBtn = document.getElementById('add-issue-btn');
   if (addBtn.classList.contains('active')) {
     addBtn.classList.remove('active');
@@ -470,12 +463,13 @@ export function closeModal() {
   issueLoad = null;
   issueLoadSeq++;
   resetTaskForm();
+  syncUnloadListener();
   if (refreshAppCallback) refreshAppCallback();
 }
 
 /**
  * Helper function to save issue with conflict detection.
- * Returns true if save succeeded, false if conflict occurred.
+ * Returns the saved issue as the server returned it, or null if a conflict occurred.
  */
 async function saveIssueWithConflictCheck(issue, successMessage) {
   const result = await updateIssue(issue.project_id, issue, await etagForSave());
@@ -500,40 +494,50 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
       }
     }
     // If Cancel clicked, do nothing - keep modal open with current data
-    return false;
+    return null;
   }
 
   // Update stored ETag with new value
   currentEtag = result.etag;
   hasSavedDuringSession = true;
   if (successMessage) showNotification(successMessage);
-  if (rerenderViewsCallback) rerenderViewsCallback();
   void refreshHistory();
-  return true;
+  return result.issue;
 }
 
-// Saves of the open issue run one at a time. Each is built from the issue as the previous
+// Writes to the open issue run one at a time. Each is built from the issue as the previous
 // save left it and sent with that save's new ETag; sent in parallel, the second save would
 // carry the ETag the first one just replaced and fail with a false conflict.
 let issueSaveChain = Promise.resolve();
 
+// Runs write() after the writes queued before it.
+function enqueueIssueWrite(write) {
+  const run = issueSaveChain.then(write);
+  issueSaveChain = run.catch(() => {});
+  return run;
+}
+
 /**
  * Queues a save of the given fields of the current issue. getChanges(issue) returns them,
  * computed from the issue as left by earlier saves. On success the fields are applied to
- * state.currentIssue. Resolves false on a conflict or if the modal was closed meanwhile.
+ * state.currentIssue, then the server's copy of the issue (e.g. the cleaned-up title, the
+ * assignee object), except its tasks: an open task editor or drag holds the current task
+ * objects. Resolves false on a conflict or if the modal was closed meanwhile.
  */
 function saveIssueChanges(getChanges, successMessage) {
   const issueId = state.currentIssue?.id;
-  const run = issueSaveChain.then(async () => {
+  return enqueueIssueWrite(async () => {
     const issue = state.currentIssue;
     if (!issue || issue.id !== issueId) return false; // modal closed or another issue opened meanwhile
     const changes = getChanges(issue);
-    if (!(await saveIssueWithConflictCheck({ ...issue, ...changes }, successMessage))) return false;
-    Object.assign(issue, changes);
+    const saved = await saveIssueWithConflictCheck({ ...issue, ...changes }, successMessage);
+    if (!saved) return false;
+    Object.assign(issue, changes, { ...saved, tasks: issue.tasks });
+    // After applying the saved issue: the views copy it, and a card with the old updated_at
+    // would make a quick reopen look like a change by someone else (forced conflict).
+    rerenderViewsCallback?.();
     return true;
   });
-  issueSaveChain = run.catch(() => {});
-  return run;
 }
 
 function validateIssueForm(title, description) {
@@ -670,7 +674,9 @@ let _saveTitleFn = null;
 let _cancelTitleFn = null;
 let _saveDescFn = null;
 let _cancelDescFn = null;
+let _discardDescFn = null; // ✕ and Escape: cancel, after asking if the text was changed
 let _saveEditingTaskFn = null; // save() of the task currently in edit mode, awaited by handleDone()
+let _submitTaskFn = null; // adds the task typed into the new-task field
 
 // Callbacks passed to renderTasks() for the tasks of the given issue.
 function taskCallbacks(issue) {
@@ -684,12 +690,12 @@ function taskCallbacks(issue) {
 
 function onTaskEditStart(saveTask) {
   _saveEditingTaskFn = saveTask;
-  addUnloadListener();
+  syncUnloadListener();
 }
 
 function onTaskEditEnd() {
   _saveEditingTaskFn = null;
-  checkRemoveUnloadListener();
+  syncUnloadListener();
 }
 
 function setupInlineEditing() {
@@ -719,7 +725,7 @@ function setupInlineEditing() {
       titleInput.readOnly = false;
       titleInput.focus();
       titleCounter.show();
-      addUnloadListener();
+      syncUnloadListener();
     }
   });
 
@@ -740,7 +746,7 @@ function setupInlineEditing() {
     titleInput.classList.remove('inline-editing');
     titleInput.readOnly = true;
     titleCounter.hide();
-    checkRemoveUnloadListener();
+    syncUnloadListener();
   };
 
   // Returns false if the title could not be saved (input stays in edit mode with the text).
@@ -755,15 +761,10 @@ function setupInlineEditing() {
         const saved = await saveIssueChanges(() => ({ title: newTitle }), 'Title updated');
         if (!saved) return false; // Conflict occurred - stay in edit mode
 
-        // Fetch fresh copy to ensure frontend model exactly matches backend 
-        // sanitization (e.g. stripped HTML tags / null bytes in Title).
-        const { issue: freshIssue } = await fetchIssueById(state.currentIssue.project_id, state.currentIssue.id);
-        if (freshIssue) {
-          state.currentIssue.title = freshIssue.title;
-          if (titleInput.value !== freshIssue.title) {
-            titleInput.value = freshIssue.title;
-            showNotification('Unsupported HTML tags are not rendered for security.', 'error');
-          }
+        // The saved title is the server's, cleaned of e.g. HTML tags and null bytes.
+        titleInput.value = state.currentIssue.title;
+        if (newTitle !== state.currentIssue.title) {
+          showNotification('Unsupported HTML tags are not rendered for security.', 'error');
         }
       } catch (err) {
         showNotification(err.message, 'error');
@@ -774,14 +775,14 @@ function setupInlineEditing() {
     titleInput.classList.remove('inline-editing');
     titleInput.readOnly = true;
     titleCounter.hide();
-    checkRemoveUnloadListener();
+    syncUnloadListener();
     return true;
   };
 
   // Enter and blur can both trigger a save (e.g. when the re-login dialog takes focus while
   // the first save waits); they share the in-flight save instead of sending a second,
   // stale-ETag request that would fail with a conflict.
-  const saveTitle = singleFlight(doSaveTitle);
+  const saveTitle = guardSubmit(doSaveTitle, { field: titleInput.closest('.title-input-container') });
 
   titleInput.addEventListener('blur', async (e) => {
     if (!titleInput.classList.contains('inline-editing')) {
@@ -819,7 +820,7 @@ function setupInlineEditing() {
       requestAnimationFrame(() => {
         document.querySelector('.modal-body')?.scrollTo({ top: 0 });
       });
-      addUnloadListener();
+      syncUnloadListener();
     }
   });
 
@@ -837,7 +838,7 @@ function setupInlineEditing() {
     descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
     resetMdPreview(descPreview);
-    checkRemoveUnloadListener();
+    syncUnloadListener();
   };
 
   // Returns false if the description could not be saved (editor stays open with the text).
@@ -863,18 +864,23 @@ function setupInlineEditing() {
     descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
     resetMdPreview(descPreview);
-    checkRemoveUnloadListener();
+    syncUnloadListener();
     return true;
   };
 
-  // ✓ and the modal's Done handler share the in-flight save instead of sending it twice.
-  const saveDesc = guardSubmit(doSaveDesc, { button: descSaveBtn, input: descEditor });
+  // ✓, Cmd/Ctrl+Enter and the modal's Done handler share the in-flight save instead of
+  // sending it twice.
+  const saveDesc = guardSubmit(doSaveDesc, { field: descContainer });
+  const discardDesc = async () => {
+    if (await confirmDiscard(descEditor.value !== originalDesc)) cancelDesc();
+  };
 
   _saveDescFn = saveDesc;
   _cancelDescFn = cancelDesc;
+  _discardDescFn = discardDesc;
 
-  descCancelBtn.addEventListener('mousedown', (e) => { e.preventDefault(); cancelDesc(); });
-  descSaveBtn.addEventListener('mousedown', (e) => { e.preventDefault(); void saveDesc(); });
+  descCancelBtn.addEventListener('click', discardDesc);
+  descSaveBtn.addEventListener('click', saveDesc);
 }
 
 async function handleDone() {
@@ -889,41 +895,47 @@ async function handleDone() {
 
   // Description: keep explicit prompt behavior; a failed save keeps the modal open
   if (document.querySelector('.editor-container').classList.contains('inline-editing')) {
-    const descDone = await processFieldOnDone(
-      descEditor.value,
-      originalDesc,
-      'Description',
-      _saveDescFn,
-      _cancelDescFn
-    );
+    const descDone = await processFieldOnDone(descEditor.value !== originalDesc, 'Save description?', _saveDescFn, _cancelDescFn);
     if (!descDone) return;
   }
 
   // Tasks: auto-save the task currently in edit mode; a failed save keeps the modal open
-  if (_saveEditingTaskFn && document.querySelector('.task-item.editing')) {
-    const taskSaved = await _saveEditingTaskFn();
-    if (!taskSaved) return;
-  }
+  if (_saveEditingTaskFn && !(await _saveEditingTaskFn())) return;
 
-  const showUpdatedNotification = state.currentIssue && hasSavedDuringSession;
+  // New task and comments: never added or dropped without asking
+  if (!(await processFieldOnDone(hasNewTaskText(), 'Add task?', _submitTaskFn, resetTaskForm, 'Add'))) return;
+  const comment = getOpenCommentDraft();
+  if (comment && !(await processFieldOnDone(comment.changed, 'Save comment?', comment.save, comment.discard))) return;
+
+  const showUpdatedNotification = state.currentIssue && hasSavedDuringSession && !errorToastShown();
   closeModal();
   if (showUpdatedNotification) {
     showNotification('Issue updated');
   }
 }
 
-// Returns false if the user chose to save but the save failed, so the modal must stay open.
-async function processFieldOnDone(currentValue, originalValue, fieldName, saveFn, cancelFn) {
-  if (currentValue === originalValue) {
-    cancelFn();
-    return true;
-  }
+// True while an error toast is on screen, e.g. the warning that HTML was removed from the
+// saved title. "Issue updated" on Done would replace it before it could be read.
+function errorToastShown() {
+  const toast = document.getElementById('notification-toast');
+  return !!toast && toast.classList.contains('error') && !toast.classList.contains('hidden');
+}
 
-  if (await showConfirm('Unsaved Changes', `Save ${fieldName}?`, 'Save', 'Discard', 'primary')) {
+// Unchanged text is discarded silently, changed text after asking the question.
+// Returns false if the user chose to save but the save failed, so the modal must stay open.
+async function processFieldOnDone(changed, question, saveFn, cancelFn, saveText = 'Save') {
+  if (changed && await showConfirm('Unsaved Changes', question, saveText, 'Discard', 'primary')) {
     return saveFn();
   }
   cancelFn();
   return true;
+}
+
+// Leaves every inline editor without saving, e.g. when the modal closes after archiving.
+function leaveEditors() {
+  if (document.getElementById('title').classList.contains('inline-editing')) _cancelTitleFn();
+  if (document.querySelector('.editor-container').classList.contains('inline-editing')) _cancelDescFn();
+  closeCommentEditors();
 }
 
 export function preventNavigation(e) {
@@ -931,25 +943,25 @@ export function preventNavigation(e) {
   e.returnValue = '';
 }
 
-function addUnloadListener() {
-  window.addEventListener('beforeunload', preventNavigation);
-}
-
-function removeUnloadListener() {
-  window.removeEventListener('beforeunload', preventNavigation);
-}
-
-// True while the title, description or a task is in inline edit mode.
+// True while the title, description or a task is in inline edit mode, i.e. a re-render of
+// the issue fields would overwrite the user's input.
 function isEditing() {
   const titleEditing = document.getElementById('title').classList.contains('inline-editing');
   const descEditing = document.querySelector('.editor-container').classList.contains('inline-editing');
-  const taskEditing = document.querySelector('.task-item.editing') !== null;
-  return titleEditing || descEditing || taskEditing;
+  return titleEditing || descEditing || _saveEditingTaskFn !== null;
 }
 
-function checkRemoveUnloadListener() {
-  if (!isEditing()) {
-    removeUnloadListener();
+function hasNewTaskText() {
+  return document.getElementById('new-task-title').value.trim() !== '';
+}
+
+// The browser asks before leaving the page only while an editor holds unsaved text. The
+// listener is not kept permanently, because it keeps some browsers from caching the page.
+function syncUnloadListener() {
+  if (isEditing() || hasNewTaskText() || getOpenCommentDraft()) {
+    window.addEventListener('beforeunload', preventNavigation);
+  } else {
+    window.removeEventListener('beforeunload', preventNavigation);
   }
 }
 
@@ -967,11 +979,12 @@ function setDeadlineInput(issue) {
   updateDateInputStyle(deadlineInput);
 }
 
-// Saves the given fields of the current issue. On success they are applied to
-// state.currentIssue; on conflict or error the sidebar is reset to the saved values.
-async function saveSidebarField(changes, successMsg) {
+// Saves the given fields of the current issue, with the field of the changed control
+// busy until its save is done. On success they are applied to state.currentIssue; on
+// conflict or error the sidebar is reset to the saved values.
+async function saveSidebarField(changes, successMsg, control) {
   try {
-    if (await saveIssueChanges(() => changes, successMsg)) return true;
+    if (await markBusy(sidebarFieldOf(control), () => saveIssueChanges(() => changes, successMsg))) return true;
   } catch (err) {
     showNotification(err.message, 'error');
   }
@@ -979,10 +992,15 @@ async function saveSidebarField(changes, successMsg) {
   return false;
 }
 
+// A sidebar field: the label and the control, dimmed together while saving.
+function sidebarFieldOf(control) {
+  return control.closest('.form-group');
+}
+
 async function handleDeadlineChange(rawValue) {
   if (!state.currentIssue) return;
   const dateVal = rawValue ? new Date(rawValue + 'T12:00:00') : null;
-  if (!(await saveSidebarField({ deadline: dateVal }, null))) return;
+  if (!(await saveSidebarField({ deadline: dateVal }, null, document.getElementById('deadline')))) return;
   const dlStatus = getDeadlineStatus({ deadline: dateVal, release: state.currentIssue.release });
   document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
   const lateTaskCount = refreshTaskDeadlineStyles();
@@ -1004,11 +1022,11 @@ function setupSidebarImmediateSave() {
   const assigneeSelect = document.getElementById('assignee-select');
 
   prioritySelect.addEventListener('change', async () => {
-    if (state.currentIssue) await saveSidebarField({ priority: prioritySelect.value }, 'Priority updated');
+    if (state.currentIssue) await saveSidebarField({ priority: prioritySelect.value }, 'Priority updated', prioritySelect);
   });
 
   statusSelect.addEventListener('change', async () => {
-    if (state.currentIssue) await saveSidebarField({ status: statusSelect.value }, 'Status updated');
+    if (state.currentIssue) await saveSidebarField({ status: statusSelect.value }, 'Status updated', statusSelect);
   });
 
   if (assigneeSelect) {
@@ -1016,11 +1034,7 @@ function setupSidebarImmediateSave() {
       if (state.currentIssue) {
         const val = assigneeSelect.value;
         const assigneeID = val ? Number.parseInt(val) : null;
-        if (await saveSidebarField({ assignee_id: assigneeID }, 'Assignee updated')) {
-          // Re-fetch issue to get the populated assignee object for UI
-          const { issue: freshIssue } = await fetchIssueById(state.currentIssue.project_id, state.currentIssue.id);
-          if (freshIssue) state.currentIssue.assignee = freshIssue.assignee;
-        }
+        await saveSidebarField({ assignee_id: assigneeID }, 'Assignee updated', assigneeSelect);
       }
     });
   }
@@ -1031,7 +1045,7 @@ function setupSidebarImmediateSave() {
       if (state.currentIssue) {
         const val = labelSelect.value;
         const labelVal = val ? { id: Number.parseInt(val) } : null;
-        await saveSidebarField({ label: labelVal }, 'Label updated');
+        await saveSidebarField({ label: labelVal }, 'Label updated', labelSelect);
       }
     });
   }
@@ -1043,7 +1057,7 @@ function setupSidebarImmediateSave() {
         const val = releaseSelect.value;
         const releaseId = val ? Number.parseInt(val) : null;
         const release = val ? state.releases.find(r => r.id === releaseId) ?? null : null;
-        if (await saveSidebarField({ release_id: releaseId, release }, 'Release updated')) {
+        if (await saveSidebarField({ release_id: releaseId, release }, 'Release updated', releaseSelect)) {
           const dlStatus = getDeadlineStatus(state.currentIssue);
           document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
           if (dlStatus.late) showNotification(`Release updated — deadline is ${dlStatus.reason}`, 'warning');
@@ -1059,41 +1073,49 @@ function setupSidebarImmediateSave() {
       const projectId = val ? Number.parseInt(val) : 1;
 
       if (state.currentIssue) {
-        let moveResult = null;
-        const confirmed = await promptAdminPasswordConfirmation(
-          'Move Issue to another Project',
-          'Do you really want to move this issue to another project?\nIts label, release, and status will be reset, since these fields are project-specific and cannot be preserved across projects.',
-          async (adminPassword) => {
-            moveResult = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId, adminPassword);
-          },
-          'Move Issue',
-          'primary'
-        );
-        if (!confirmed) {
-          projectSelect.value = state.currentIssue.project_id;
-          document.getElementById('project-text').textContent = state.currentIssue.project?.name ?? '';
-          return;
-        }
-        const { issue: updated, etag } = moveResult;
-        currentEtag = etag;
-        setCurrentIssue(updated);
-        localStorage.setItem('wuflow_selectedProjectId', String(projectId));
-        // The project-option click already loaded label/release/statusconfig for the new
-        // project. Just reset the displayed values that the server cleared on move.
-        document.getElementById('label-select').value = '';
-        document.getElementById('label-text').textContent = 'No Label';
-        document.getElementById('release-select').value = '';
-        document.getElementById('release-text').textContent = 'No Release';
-        document.getElementById('status').value = STATUS_OPEN;
-        document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
-        document.getElementById('status-options')?.classList.add('hidden');
-        setupEditModal(updated);
-        showNotification('Project changed', 'info');
+        // Queued like the field saves: a save still in flight would otherwise finish after
+        // the move and set currentEtag back to the ETag from before the move.
+        await enqueueIssueWrite(() => moveIssueToProject(projectId));
       } else {
         localStorage.setItem('wuflow_selectedProjectId', String(projectId));
       }
     });
   }
+}
+
+async function moveIssueToProject(projectId) {
+  if (!state.currentIssue) return;
+  const projectSelect = document.getElementById('project-select');
+  let moveResult = null;
+  const confirmed = await promptAdminPasswordConfirmation(
+    'Move Issue to another Project',
+    'Do you really want to move this issue to another project?\nIts label, release, and status will be reset, since these fields are project-specific and cannot be preserved across projects.',
+    async (adminPassword) => {
+      moveResult = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId, adminPassword);
+    },
+    'Move Issue',
+    'primary'
+  );
+  if (!confirmed) {
+    projectSelect.value = state.currentIssue.project_id;
+    document.getElementById('project-text').textContent = state.currentIssue.project?.name ?? '';
+    return;
+  }
+  const { issue: updated, etag } = moveResult;
+  currentEtag = etag;
+  setCurrentIssue(updated);
+  localStorage.setItem('wuflow_selectedProjectId', String(projectId));
+  // The project-option click already loaded label/release/statusconfig for the new
+  // project. Just reset the displayed values that the server cleared on move.
+  document.getElementById('label-select').value = '';
+  document.getElementById('label-text').textContent = 'No Label';
+  document.getElementById('release-select').value = '';
+  document.getElementById('release-text').textContent = 'No Release';
+  document.getElementById('status').value = STATUS_OPEN;
+  document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
+  document.getElementById('status-options')?.classList.add('hidden');
+  setupEditModal(updated);
+  showNotification('Project changed', 'info');
 }
 
 function needsLeadingNewline(value, pos) {
@@ -1174,8 +1196,19 @@ function setupEditorToolbar() {
   }
 
   editor.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) handleEnterKey(e);
-    if (e.key === 'Tab') handleTabKey(e);
+    // Saving and discarding only apply to the inline editor, not to the new-issue form.
+    const inlineEditing = document.querySelector('.editor-container').classList.contains('inline-editing');
+    if (inlineEditing && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      void _saveDescFn();
+    } else if (inlineEditing && e.key === 'Escape') {
+      e.preventDefault();
+      void _discardDescFn();
+    } else if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      handleEnterKey(e);
+    } else if (e.key === 'Tab') {
+      handleTabKey(e);
+    }
   });
 
   function insertMarkdown(before, after = '') {
@@ -1327,15 +1360,16 @@ function resetTaskForm() {
   }
 }
 
+// Returns true if the task was added.
 async function handleTaskSubmit() {
-  if (!state.currentIssue) return;
-  if (!userCan(state.currentUser, ACTION_CREATE_TASK)) return;
+  if (!state.currentIssue) return false;
+  if (!userCan(state.currentUser, ACTION_CREATE_TASK)) return false;
   const titleInput = document.getElementById('new-task-title');
   const deadlineInput = document.getElementById('new-task-deadline');
-  if (!titleInput.value.trim()) return;
+  if (!titleInput.value.trim()) return false;
   if (countCodepoints(titleInput.value) > MAX_TITLE_LENGTH) {
     showNotification(`Task title must not exceed ${MAX_TITLE_LENGTH} characters.`, 'error');
-    return;
+    return false;
   }
 
   const taskData = {
@@ -1352,12 +1386,15 @@ async function handleTaskSubmit() {
     state.currentIssue.tasks.push(newTask);
     renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, taskCallbacks(state.currentIssue));
     resetTaskForm();
+    syncUnloadListener();
     const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
     showNotification(taskDlStatus.late ? `Task created — ${taskDlStatus.reason}` : 'Task created', taskDlStatus.late ? 'warning' : 'success');
     if (rerenderViewsCallback) rerenderViewsCallback();
     void refreshHistory();
+    return true;
   } catch (err) {
     showNotification(err.message, 'error');
+    return false;
   }
 }
 
@@ -1694,16 +1731,20 @@ function createDateChip(dateStr) {
   return chip;
 }
 
+function plannedDatesField() {
+  return sidebarFieldOf(document.getElementById('planned-dates-container'));
+}
+
 async function addPlannedDate(dateStr) {
   // If editing existing issue
   if (state.currentIssue) {
     if (!(state.currentIssue.planned_dates || []).includes(dateStr)) {
       try {
         // The dates are computed when the save runs, so quick consecutive adds all persist.
-        const saved = await saveIssueChanges(issue => ({
+        const saved = await markBusy(plannedDatesField(), () => saveIssueChanges(issue => ({
           planned_dates: [...new Set([...(issue.planned_dates || []), dateStr])]
             .sort((a, b) => a.localeCompare(b)),
-        }), 'Date added');
+        }), 'Date added'));
         if (saved) renderPlannedDateChips(state.currentIssue);
       } catch (err) {
         showNotification(err.message, 'error');
@@ -1725,9 +1766,9 @@ async function removePlannedDate(dateStr) {
   if (state.currentIssue) {
     if (state.currentIssue.planned_dates) {
       try {
-        const saved = await saveIssueChanges(issue => ({
+        const saved = await markBusy(plannedDatesField(), () => saveIssueChanges(issue => ({
           planned_dates: (issue.planned_dates || []).filter(d => d !== dateStr),
-        }), 'Date removed');
+        }), 'Date removed'));
         if (saved) renderPlannedDateChips(state.currentIssue);
       } catch (err) {
         showNotification(err.message, 'error');

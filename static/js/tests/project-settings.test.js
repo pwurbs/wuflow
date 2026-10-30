@@ -110,9 +110,10 @@ describe('project-settings.js component', () => {
 
       const input = document.getElementById('ps-new-label-input');
       input.value = 'Bug';
+      const group = input.closest('.label-input-group');
       input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
-      expect(input.readOnly).toBe(true);
+      expect(group.getAttribute('aria-busy')).toBe('true');
       input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
 
@@ -120,7 +121,7 @@ describe('project-settings.js component', () => {
       await new Promise(process.nextTick);
 
       expect(api.createLabel).toHaveBeenCalledTimes(1);
-      expect(input.readOnly).toBe(false);
+      expect(group.hasAttribute('aria-busy')).toBe(false);
     });
 
     it('does nothing when label name is empty on Enter keypress', async () => {

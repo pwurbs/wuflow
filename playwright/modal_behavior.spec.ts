@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, openIssueByTitle, waitForToast } from './helpers/test-utils';
 
 test.describe('Issue Edit Modal Behavior', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -235,5 +235,157 @@ test.describe('Issue Edit Modal Behavior', () => {
     await page.unrouteAll({ behavior: 'wait' });
     await page.click('#done-btn');
     await expect(page.locator('#issue-modal')).toBeHidden();
+  });
+
+  // docs/frontend.md "Editing Fields"
+  test('a field being saved is greyed out with its normal border and ignores typing', async ({ page }) => {
+    const title = `Saving-Look-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    // Hold the PUT like a slow connection.
+    let release!: () => void;
+    const held = new Promise<void>(r => { release = r; });
+    await page.route(/\/api\/projects\/\d+\/issues\/\d+$/, async route => {
+      if (route.request().method() !== 'PUT') return route.continue();
+      await held;
+      await route.continue();
+    });
+
+    const description = page.locator('.editor-container');
+    await page.click('#description-preview');
+    await page.fill('#description-editor', 'Saved slowly');
+    await page.click('#desc-save-btn');
+
+    await expect(description).toHaveAttribute('aria-busy', 'true');
+    await expect(description).toHaveCSS('opacity', '0.5');
+    await expect(description).toHaveCSS('border-color', 'rgb(53, 67, 87)'); // --card-border, not the blue edit border
+    await page.keyboard.type('more');
+    await expect(page.locator('#description-editor')).toHaveValue('Saved slowly');
+
+    release();
+    await waitForToast(page, 'Description updated');
+    await expect(description).not.toHaveAttribute('aria-busy', 'true');
+    await expect(description).toHaveCSS('opacity', '1');
+
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
+  test('a title saved on blur also shows the normal border while saving', async ({ page }) => {
+    const title = `Blur-Saving-Look-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    let release!: () => void;
+    const held = new Promise<void>(r => { release = r; });
+    await page.route(/\/api\/projects\/\d+\/issues\/\d+$/, async route => {
+      if (route.request().method() !== 'PUT') return route.continue();
+      await held;
+      await route.continue();
+    });
+
+    await page.click('#title');
+    await page.fill('#title', `${title} renamed`);
+    await page.click('#modal-title'); // blur starts the save, the title is no longer focused
+    await expect(page.locator('.title-input-container')).toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator('#title')).toHaveCSS('border-color', 'rgb(53, 67, 87)');
+
+    release();
+    await waitForToast(page, 'Title updated');
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
+  test('Escape asks before discarding a changed description', async ({ page }) => {
+    const title = `Escape-Discard-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo', description: 'Original' });
+    await openIssueByTitle(page, title);
+    const description = page.locator('.editor-container');
+
+    await page.click('#description-preview');
+    await page.fill('#description-editor', 'Changed');
+    await page.press('#description-editor', 'Escape');
+    await expect(page.locator('#confirm-message')).toHaveText('Discard changes?');
+    await page.click('#confirm-cancel-btn'); // Keep editing
+    await expect(description).toHaveClass(/inline-editing/);
+    await expect(page.locator('#description-editor')).toHaveValue('Changed');
+
+    await page.press('#description-editor', 'Escape');
+    await page.click('#confirm-ok-btn'); // Discard
+    await expect(description).not.toHaveClass(/inline-editing/);
+    await expect(page.locator('#description-preview')).toHaveText('Original');
+  });
+
+  test('Done asks to save an open comment instead of dropping it', async ({ page }) => {
+    const title = `Done-Comment-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    await page.fill('#new-comment-body', 'Written before Done');
+    await page.click('#done-btn');
+    await expect(page.locator('#confirm-message')).toHaveText('Save comment?');
+    await page.click('#confirm-ok-btn');
+    await waitForToast(page, 'Comment added');
+    await expect(page.locator('#issue-modal')).toBeHidden();
+
+    await openIssueByTitle(page, title);
+    await expect(page.locator('.comment-item').filter({ hasText: 'Written before Done' })).toHaveCount(1);
+  });
+
+  test('reopening an issue right after saving it and editing at once causes no false conflict', async ({ page }) => {
+    const title = `Reopen-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+    await page.click('#title');
+    await page.fill('#title', `${title}-a`);
+    await page.press('#title', 'Enter');
+    await waitForToast(page, 'Title updated');
+
+    // Slow connection: the refreshed lists and the issue check arrive late, so the card is
+    // still the one from the in-modal save when the issue is opened again.
+    await page.route(/\/api\/projects\/\d+\/issues\/(active|\d+)$/, async route => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await new Promise(r => setTimeout(r, 1500));
+      await route.continue();
+    });
+    await page.click('#done-btn');
+    await openIssueByTitle(page, title); // matches the card before and after the list refresh
+    await page.click('#title');
+    await page.fill('#title', `${title}-b`);
+    await page.press('#title', 'Enter');
+
+    await waitForToast(page, 'Title updated');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
+  test('a sidebar field being saved is dimmed while the rest of the modal stays usable', async ({ page }) => {
+    const title = `Sidebar-Saving-${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+
+    let release!: () => void;
+    const held = new Promise<void>(r => { release = r; });
+    await page.route(/\/api\/projects\/\d+\/issues\/\d+$/, async route => {
+      if (route.request().method() !== 'PUT') return route.continue();
+      await held;
+      await route.continue();
+    });
+
+    await page.click('#priority-trigger');
+    await page.click('#priority-options .custom-option:has-text("High")');
+    const priorityField = page.locator('.form-group:has(#priority-trigger)');
+    await expect(priorityField).toHaveAttribute('aria-busy', 'true');
+    await expect(priorityField).toHaveCSS('opacity', '0.5');
+
+    // Other fields stay usable meanwhile
+    await expect(page.locator('.form-group:has(#status-trigger)')).toHaveCSS('opacity', '1');
+    await page.click('#status-trigger');
+    await expect(page.locator('#status-options')).toBeVisible();
+    await page.click('#status-trigger');
+
+    release();
+    await waitForToast(page, 'Priority updated');
+    await expect(priorityField).not.toHaveAttribute('aria-busy', 'true');
+    await page.unrouteAll({ behavior: 'wait' });
   });
 });

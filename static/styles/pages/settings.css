@@ -67,7 +67,7 @@
 }
 
 .settings-input:focus {
-    border-color: var(--primary-color);
+    border-color: var(--accent-blue);
     box-shadow: none;
     outline: none;
 }
@@ -106,6 +106,16 @@
     transform: translateY(-1px);
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .label-item {
+        transition: none;
+    }
+
+    .label-item:hover {
+        transform: none;
+    }
+}
+
 .label-name {
     /* Let text flow naturally */
     white-space: nowrap;
@@ -119,7 +129,7 @@
     position: absolute;
     right: 4px;
     /* Fix to right edge */
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--tint-dark);
     border: none;
     color: inherit;
     cursor: pointer;
@@ -138,7 +148,7 @@
 
 .delete-label-btn:hover {
     opacity: 1;
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: var(--tint-dark-hover);
 }
 
 #user-management-section {
@@ -176,7 +186,7 @@
 
 .sc-box--fixed {
     background-color: var(--input-bg);
-    opacity: 0.5;
+    opacity: var(--inactive-opacity);
     cursor: default;
 }
 
@@ -186,7 +196,7 @@
 }
 
 .sc-box--active {
-    border-color: var(--primary-color);
+    border-color: var(--accent-blue);
     opacity: 1;
 }
 
@@ -220,12 +230,11 @@
 }
 
 .sc-name-input:focus {
-    border-color: var(--primary-color);
+    border-color: var(--accent-blue);
     outline: none;
 }
 
 .sc-name-input:disabled {
-    opacity: 0.6;
     cursor: default;
 }
 
@@ -245,7 +254,7 @@
     font-size: var(--fs-2xs);
     font-weight: var(--fw-semibold);
     background-color: var(--danger-color);
-    color: #fff;
+    color: var(--text-on-fill);
     vertical-align: middle;
     cursor: help;
 }
@@ -369,15 +378,15 @@
 }
 
 .settings-entry-badge.admin {
-  background-color: #4c1d95;
-  color: #f5f3ff;
-  border: 1px solid #7c3aed;
+  background-color: var(--badge-admin-bg);
+  color: var(--badge-admin-text);
+  border: 1px solid var(--badge-admin-border);
 }
 
 .settings-entry-badge.sysadmin {
-  background-color: #0e4f6e;
-  color: #e0f2fe;
-  border: 1px solid #0284c7;
+  background-color: var(--badge-sysadmin-bg);
+  color: var(--badge-sysadmin-text);
+  border: 1px solid var(--badge-sysadmin-border);
 }
 
 .settings-entry-badge.user {
@@ -434,7 +443,7 @@
   width: 480px;
   max-width: 90%;
   padding: 0;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-modal);
 }
 
 .settings-modal-header {
@@ -498,7 +507,7 @@
 
 .btn.primary {
   background-color: var(--fill-blue);
-  color: white;
+  color: var(--text-on-fill);
   border: none;
   padding: 8px 20px;
   border-radius: 6px;
@@ -558,7 +567,7 @@
 }
 
 .form-error {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: var(--danger-tint);
   border: 1px solid var(--danger-color);
   color: var(--danger-text);
   padding: 10px 12px;

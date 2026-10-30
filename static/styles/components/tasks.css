@@ -40,7 +40,7 @@
 }
 
 .task-item.editing {
-  border-color: var(--primary-color);
+  border-color: var(--accent-blue);
   background-color: var(--input-bg-focus);
   /* Solid background for edit mode */
 }
@@ -181,7 +181,7 @@
 
 .delete-task-btn:hover {
   color: var(--danger-text);
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: var(--danger-tint);
 }
 
 .input-group #new-task-title:focus {

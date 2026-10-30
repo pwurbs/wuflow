@@ -15,7 +15,7 @@
   border: 1px solid var(--card-border);
   border-radius: var(--radius-panel);
   padding: 40px 32px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-modal);
 }
 
 .login-header {
@@ -56,7 +56,7 @@
 }
 
 .login-card .form-group input:focus {
-  border-color: var(--primary-color);
+  border-color: var(--accent-blue);
   background-color: var(--input-bg-focus);
   outline: none;
 }
@@ -76,7 +76,7 @@
   width: 100%;
   padding: 10px;
   background-color: var(--fill-blue);
-  color: white;
+  color: var(--text-on-fill);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -88,13 +88,14 @@
   background-color: var(--fill-blue-hover);
 }
 
+/* login.html does not load base/utilities.css with the shared inactive rule */
 .login-btn:disabled {
-  opacity: 0.6;
+  opacity: var(--inactive-opacity);
   cursor: not-allowed;
 }
 
 .login-error {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: var(--danger-tint);
   border: 1px solid var(--danger-color);
   color: var(--danger-text);
   padding: 10px 12px;

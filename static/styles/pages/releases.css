@@ -115,12 +115,12 @@
 
 #release-form input[type="text"][readonly],
 #release-form textarea[readonly] {
-    opacity: 0.7;
+    opacity: var(--inactive-opacity);
     cursor: default;
 }
 
 #release-form .custom-date-input:has(input[readonly]) {
-    opacity: 0.7;
+    opacity: var(--inactive-opacity);
     cursor: default;
     pointer-events: none;
 }
@@ -166,7 +166,7 @@
 
 .release-stats-nav-icon:hover {
     opacity: 1;
-    color: var(--primary-color);
+    color: var(--accent-blue);
 }
 
 .release-stats-nav-icon::after {
@@ -209,11 +209,11 @@
 }
 
 .seg-done {
-    background-color: var(--success-color, #4caf77);
+    background-color: var(--success-color);
 }
 
 .seg-inprogress {
-    background-color: var(--primary-color);
+    background-color: var(--accent-blue);
 }
 
 
@@ -315,6 +315,11 @@
 }
 
 .release-archive-label:has(input:disabled) {
-    opacity: 0.5;
+    opacity: var(--inactive-opacity);
     cursor: default;
+}
+
+/* The label is dimmed as a whole */
+.release-archive-label input:disabled {
+    opacity: 1;
 }

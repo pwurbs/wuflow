@@ -31,8 +31,8 @@
 }
 
 .activity-tab.active {
-  color: var(--primary-hover);
-  border-bottom-color: var(--primary-color);
+  color: var(--accent-blue-hover);
+  border-bottom-color: var(--accent-blue);
 }
 
 .activity-tab svg {
@@ -127,13 +127,13 @@
 }
 
 .comment-edit-btn:hover {
-  color: var(--primary-hover);
+  color: var(--accent-blue-hover);
   background-color: color-mix(in srgb, var(--accent-blue) 10%, transparent);
 }
 
 .comment-delete-btn:hover {
   color: var(--danger-text);
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: var(--danger-tint);
 }
 
 /* Override .md-preview's min-height (sized for the large issue-description
@@ -218,10 +218,10 @@
 }
 
 /* The textarea's own border was moved onto this container, so the usual
-   focus highlight (border-color: var(--primary-color), forms.css) has to be
+   focus highlight (border-color: var(--accent-blue), forms.css) has to be
    applied here via :focus-within instead of a plain textarea :focus rule. */
 .comment-editor-container:focus-within {
-  border-color: var(--primary-color);
+  border-color: var(--accent-blue);
 }
 
 .comment-editor-container #new-comment-body,
@@ -252,16 +252,6 @@
 
 #new-comment-body:focus {
   outline: none;
-}
-
-/* Dimmed while an existing comment is being edited — only one editor may be
-   open at a time (see enterCommentEdit). readOnly (set there) blocks typing,
-   and pointer-events blocks the click that would otherwise open the form.
-   Derived from the field's own state, like releases.css does for its readonly
-   inputs, so there's no second class to keep in sync. */
-#new-comment-editor:has(#new-comment-body[readonly]) {
-  opacity: 0.6;
-  pointer-events: none;
 }
 
 /* --- History timeline --- */
@@ -305,7 +295,7 @@
   border-radius: 50%;
   background: var(--column-bg);
   border: 1px solid var(--card-border);
-  color: var(--primary-color);
+  color: var(--accent-blue);
 }
 
 .history-content {

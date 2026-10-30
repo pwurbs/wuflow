@@ -28,7 +28,7 @@
 
 .planning-date {
   font-weight: var(--fw-medium);
-  color: var(--primary-color);
+  color: var(--accent-blue);
 }
 
 .planning-day-content {
@@ -70,7 +70,7 @@
 
 .planning-item-deadline {
   font-size: var(--fs-xs);
-  color: var(--primary-color);
+  color: var(--accent-blue);
   white-space: nowrap;
   padding: 2px 6px;
   background-color: color-mix(in srgb, var(--accent-blue) 10%, transparent);
@@ -80,7 +80,7 @@
 
 .planning-item-deadline.overdue {
   color: var(--danger-text);
-  background-color: rgba(239, 68, 68, 0.15);
+  background-color: var(--danger-tint);
 }
 
 .planning-item-remove {
@@ -100,7 +100,7 @@
 
 .planning-item-remove:hover {
   opacity: 1;
-  background-color: rgba(255, 0, 0, 0.1);
+  background-color: var(--danger-tint);
 }
 
 .planning-item:hover {
@@ -144,13 +144,13 @@
 .planning-section-title {
   font-weight: var(--fw-medium);
   font-size: var(--fs-md);
-  color: var(--primary-color);
+  color: var(--accent-blue);
 }
 
 .planning-section-subheader {
   display: flex;
   align-items: center;
-  color: var(--primary-color);
+  color: var(--accent-blue);
   font-size: var(--fs-sm);
 }
 
@@ -167,10 +167,10 @@
 }
 
 .planning-item.unscheduled {
-  background-color: rgba(239, 68, 68, 0.05);
+  background-color: var(--danger-tint-subtle);
   border-color: var(--card-border);
 }
 
 .planning-item.unscheduled:hover {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: var(--danger-tint);
 }

@@ -3,7 +3,7 @@
 .user-badge {
   border-radius: 50%;
   background-color: var(--fill-blue);
-  color: white;
+  color: var(--text-on-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -21,7 +21,7 @@
 .column-header .count,
 .sidebar-header .count,
 .backlog-header .count {
-  background-color: var(--count-bg);
+  background-color: var(--hover-bg);
   color: var(--text-color);
   border-radius: 999px;
   min-width: 24px;

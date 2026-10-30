@@ -413,7 +413,7 @@ function buildReleaseRow(rel, isOpen) {
   const inProgPct = total > 0 ? Math.round((inProgress / total) * 100) : 0;
 
   const triggerHtml = isOpen && userCan(state.currentUser, ACTION_TRIGGER_RELEASE)
-    ? `<button class="btn primary btn--sm release-trigger-btn" data-id="${rel.id}">Release</button>`
+    ? `<button class="btn primary release-trigger-btn" data-id="${rel.id}">Release</button>`
     : '';
   // Closed releases' issues are mostly archived and won't show on the board, so the
   // board-navigation link would just be confusing there.

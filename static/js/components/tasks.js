@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, singleFlight } from '../utils.js';
+import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, guardSubmit } from '../utils.js';
 import { MAX_TITLE_LENGTH } from '../validation-config.js';
 import { updateTask, deleteTask } from '../api.js'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.js';
@@ -48,10 +48,9 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
     if (callbacks.readOnly) {
       checkbox.disabled = true;
       li.draggable = false;
-      li.querySelector('.task-drag-handle').style.opacity = '0.3';
-      li.querySelector('.task-drag-handle').style.cursor = 'default';
+      li.querySelector('.task-drag-handle').classList.add('hidden');
       li.querySelector('.delete-task-btn').classList.add('hidden');
-      li.querySelector('.task-deadline-container').style.pointerEvents = 'none';
+      li.querySelector('.task-deadline-container').setAttribute('aria-disabled', 'true');
     } else {
       checkbox.addEventListener('change', async () => {
         if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { checkbox.checked = !checkbox.checked; return; }
@@ -160,7 +159,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
 
       // Blur (e.g. when clicking Done) and the modal's Done handler may both trigger a
       // save; they share the in-flight one so Done sees its real outcome.
-      const saveTask = singleFlight(doSaveTask);
+      const saveTask = guardSubmit(doSaveTask, { field: li });
 
       titleInput.addEventListener('click', () => {
         if (!li.classList.contains('editing')) enterEditMode();

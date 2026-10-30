@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { setupModal, openModal, closeModal, preventNavigation, renderReleaseOptions } from '../components/modal.js';
 import * as api from '../api.js';
 import { state, setCurrentIssue } from '../state.js';
@@ -75,9 +75,11 @@ vi.mock('../utils.js', async (importOriginal) => {
     // Real implementation — the list auto-continue tests assert on its actual behavior.
     continueListOnEnter: actual.continueListOnEnter,
     toDateInputValue: actual.toDateInputValue,
-    singleFlight: actual.singleFlight,
     guardSubmit: actual.guardSubmit,
-    onGuardedSubmit: actual.onGuardedSubmit
+    markBusy: actual.markBusy,
+    onGuardedSubmit: actual.onGuardedSubmit,
+    // Discards without asking; tests that need the question override it.
+    confirmDiscard: vi.fn(async () => true)
   };
 });
 
@@ -101,6 +103,7 @@ vi.mock('../components/activity.js', async (importOriginal) => {
     ...actual,
     loadActivity: vi.fn(actual.loadActivity),
     refreshHistory: vi.fn(actual.refreshHistory),
+    getOpenCommentDraft: vi.fn(actual.getOpenCommentDraft),
   };
 });
 
@@ -131,6 +134,8 @@ function setScrollMetrics(el, { scrollHeight, clientHeight, scrollTop }) {
   Object.defineProperty(el, 'scrollTop', { value: scrollTop, configurable: true });
 }
 
+const rerenderViews = vi.fn();
+
 describe('Modal Component', () => {
   beforeEach(() => {
     // Setup DOM
@@ -140,30 +145,36 @@ describe('Modal Component', () => {
           <h2 id="modal-title"></h2>
           <form id="issue-form">
             <input id="issue-id" type="hidden">
-            <input id="title" type="text" value="">
+            <div class="title-input-container">
+              <input id="title" type="text" value="">
+            </div>
             <div class="editor-container">
               <div class="md-editor-panes">
                 <textarea id="description-editor"></textarea>
                 <div id="description-preview" class="hidden"></div>
               </div>
               <div id="description-edit-actions" class="hidden">
-                <button id="desc-cancel-btn"></button>
-                <button id="desc-save-btn"></button>
+                <button id="desc-cancel-btn" type="button"></button>
+                <button id="desc-save-btn" type="button"></button>
               </div>
             </div>
-            <div id="planned-dates-container"></div>
+            <div class="form-group"><div id="planned-dates-container"></div></div>
             <input id="deadline" type="date" class="custom-date-input">
 
             <!-- Custom Dropdowns -->
-            <div id="status-dropdown">
-              <div id="status-trigger" class="custom-select-trigger"><span id="status-text"></span></div>
-              <div id="status-options" class="custom-select-options hidden"></div>
-              <input type="hidden" id="status">
+            <div class="form-group">
+              <div id="status-dropdown">
+                <div id="status-trigger" class="custom-select-trigger"><span id="status-text"></span></div>
+                <div id="status-options" class="custom-select-options hidden"></div>
+                <input type="hidden" id="status">
+              </div>
             </div>
-            <div id="priority-dropdown">
-              <div id="priority-trigger" class="custom-select-trigger"><span id="priority-text"></span></div>
-              <div id="priority-options" class="custom-select-options hidden"></div>
-              <input type="hidden" id="priority">
+            <div class="form-group">
+              <div id="priority-dropdown">
+                <div id="priority-trigger" class="custom-select-trigger"><span id="priority-text"></span></div>
+                <div id="priority-options" class="custom-select-options hidden"></div>
+                <input type="hidden" id="priority">
+              </div>
             </div>
             <div id="label-dropdown">
               <div id="label-trigger" class="custom-select-trigger"><span id="label-text"></span></div>
@@ -189,9 +200,11 @@ describe('Modal Component', () => {
             <div class="modal-main-scroll">
               <div id="tasks-section">
                 <div id="task-form-container">
-                  <input id="new-task-title" type="text">
-                  <input id="new-task-deadline" type="date">
-                  <button id="add-task-btn" type="button"></button>
+                  <div class="input-group">
+                    <input id="new-task-title" type="text">
+                    <input id="new-task-deadline" type="date">
+                    <button id="add-task-btn" type="button"></button>
+                  </div>
                 </div>
                 <ul id="task-list"></ul>
               </div>
@@ -251,7 +264,7 @@ describe('Modal Component', () => {
     vi.spyOn(console, "error").mockImplementation(() => { });
 
     // Initialize module
-    setupModal(vi.fn());
+    setupModal(vi.fn(), rerenderViews);
   });
   it('should open modal for new issue', async () => {
     openModal(null);
@@ -322,24 +335,23 @@ describe('Modal Component', () => {
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true); // Should close
   });
 
-  it('creates a new issue only once while the first submit is in flight, with Save greyed out', async () => {
+  it('creates a new issue only once while the first submit is in flight, with the form greyed out', async () => {
     openModal(null);
     document.getElementById('title').value = 'New Title';
     let resolveCreate;
     api.createIssue.mockReturnValue(new Promise(r => { resolveCreate = r; }));
 
     const form = document.getElementById('issue-form');
-    const saveBtn = document.getElementById('save-issue-btn');
     form.dispatchEvent(new Event('submit'));
-    expect(saveBtn.disabled).toBe(true);
-    // A second submit (e.g. Enter) bypasses the disabled button and must still not create again.
+    expect(form.getAttribute('aria-busy')).toBe('true');
+    // A second submit (e.g. Enter) must not create again.
     form.dispatchEvent(new Event('submit'));
 
     resolveCreate({ id: 99, title: 'New Title' });
     await new Promise(process.nextTick);
 
     expect(api.createIssue).toHaveBeenCalledTimes(1);
-    expect(saveBtn.disabled).toBe(false);
+    expect(form.hasAttribute('aria-busy')).toBe(false);
   });
 
   it('should update existing issue on status change (inline save)', async () => {
@@ -384,7 +396,7 @@ describe('Modal Component', () => {
     expect(api.fetchHistory.mock.calls.length).toBeGreaterThan(historyCallsBeforeAdd);
   });
 
-  it('creates a task only once while the first submit is in flight, with + Add greyed out', async () => {
+  it('creates a task only once while the first submit is in flight, with the task form greyed out', async () => {
     const issue = { id: 1, project_id: 7, title: 'Task Parent', tasks: [] };
     await openModalWithMock(issue);
     let resolveCreate;
@@ -392,19 +404,18 @@ describe('Modal Component', () => {
 
     const titleInput = document.getElementById('new-task-title');
     const addBtn = document.getElementById('add-task-btn');
+    const group = addBtn.closest('.input-group');
     titleInput.value = 'Subtask 1';
     addBtn.click();
-    expect(addBtn.disabled).toBe(true);
-    expect(titleInput.readOnly).toBe(true);
-    // Enter bypasses the disabled button and must still not create again.
+    expect(group.getAttribute('aria-busy')).toBe('true');
+    // Enter must not create again.
     titleInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', cancelable: true }));
 
     resolveCreate({ id: 101, title: 'Subtask 1', done: false });
     await new Promise(process.nextTick);
 
     expect(api.createTask).toHaveBeenCalledTimes(1);
-    expect(addBtn.disabled).toBe(false);
-    expect(titleInput.readOnly).toBe(false);
+    expect(group.hasAttribute('aria-busy')).toBe(false);
   });
 
   it('should delete issue after confirmation', async () => {
@@ -841,13 +852,16 @@ describe('Modal Component', () => {
       // Task Form Hidden
       expect(taskForm.classList.contains('hidden')).toBe(true);
 
-      // Date Inputs Pointer Events
-      const dateInputs = document.querySelectorAll('.custom-date-input');
-      expect(dateInputs[0].style.pointerEvents).toBe('none');
+      // Title and description are greyed out and never get the edit look
+      expect(titleInput.classList.contains('read-only-text')).toBe(true);
+      expect(titleInput.classList.contains('inline-editable')).toBe(false);
+      expect(titleInput.getAttribute('aria-disabled')).toBe('true');
+      expect(descContainer.classList.contains('read-only-text')).toBe(true);
+      expect(descContainer.getAttribute('aria-disabled')).toBe('true');
 
-      // Dropdown Triggers Disabled
-      const triggers = document.querySelectorAll('.custom-select-trigger');
-      expect(triggers[0].style.pointerEvents).toBe('none');
+      // Dates and dropdowns are inactive
+      expect(document.getElementById('deadline').getAttribute('aria-disabled')).toBe('true');
+      document.querySelectorAll('.custom-select-trigger').forEach(trigger => expect(trigger.disabled).toBe(true));
     });
 
     it('should setup new modal with correct button visibility', () => {
@@ -1381,6 +1395,48 @@ describe('Modal Component', () => {
       expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
         title: 'Changed'
       }), expect.any(String));
+    });
+
+    describe('Done toast', () => {
+      let toast;
+      beforeEach(() => {
+        toast = document.createElement('div');
+        toast.id = 'notification-toast';
+        toast.className = 'notification-toast hidden';
+        document.body.appendChild(toast);
+        utils.showNotification.mockImplementation((message, type = 'success') => {
+          toast.textContent = message;
+          toast.className = 'notification-toast ' + type;
+        });
+      });
+      afterEach(() => {
+        toast.remove();
+        utils.showNotification.mockImplementation(() => {});
+      });
+
+      async function saveTitleWithDone(typed, saved) {
+        await openModalWithMock({ id: 1, title: 'Old' });
+        await flush();
+        api.updateIssue.mockResolvedValueOnce({ issue: { id: 1, title: saved }, etag: '"e2"', conflict: false });
+        const title = document.getElementById('title');
+        title.click();
+        title.value = typed;
+        document.getElementById('done-btn').click();
+        await flush();
+      }
+
+      it('keeps the warning that HTML was removed from the title instead of showing "Issue updated"', async () => {
+        await saveTitleWithDone('Clean<b>', 'Clean');
+
+        expect(toast.textContent).toBe('Unsupported HTML tags are not rendered for security.');
+        expect(utils.showNotification).not.toHaveBeenCalledWith('Issue updated');
+      });
+
+      it('shows "Issue updated" after a save without a warning', async () => {
+        await saveTitleWithDone('Clean', 'Clean');
+
+        expect(toast.textContent).toBe('Issue updated');
+      });
     });
 
     it('should prompt save on done button click with description changes - save path', async () => {
@@ -1998,7 +2054,9 @@ describe('Modal Component', () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
       await openModalWithMock({ id: 1, title: 'T' });
 
+      // The callbacks look at the actual editor state: open while onEditStart runs, closed after.
       const { onEditStart, onEditEnd } = activity.loadActivity.mock.lastCall[1];
+      activity.getOpenCommentDraft.mockReturnValueOnce({ changed: false, save: vi.fn(), discard: vi.fn() });
       onEditStart();
       expect(addSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
       onEditEnd();
@@ -2389,18 +2447,17 @@ describe('Modal Component', () => {
       const saveBtn = document.getElementById('desc-save-btn');
       document.getElementById('description-preview').click();
       descEditor.value = 'Changed';
-      saveBtn.dispatchEvent(new MouseEvent('mousedown'));
-      expect(saveBtn.disabled).toBe(true);
-      expect(descEditor.readOnly).toBe(true);
-      saveBtn.dispatchEvent(new MouseEvent('mousedown'));
+      const descContainer = document.querySelector('.editor-container');
+      saveBtn.click();
+      expect(descContainer.getAttribute('aria-busy')).toBe('true');
+      saveBtn.click();
 
       resolveUpdate({ issue: {}, etag: '"e2"', conflict: false });
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
 
       expect(api.updateIssue).toHaveBeenCalledTimes(1);
-      expect(saveBtn.disabled).toBe(false);
-      expect(descEditor.readOnly).toBe(false);
+      expect(descContainer.hasAttribute('aria-busy')).toBe(false);
     });
 
     it('should handle cancel description edit', async () => {
@@ -2415,8 +2472,10 @@ describe('Modal Component', () => {
       descEditor.value = 'Changed';
 
       const cancelBtn = document.getElementById('desc-cancel-btn');
-      cancelBtn.dispatchEvent(new MouseEvent('mousedown'));
+      cancelBtn.click();
+      await new Promise(process.nextTick); // ✕ asks before discarding changed text
 
+      expect(utils.confirmDiscard).toHaveBeenCalledWith(true);
       expect(descEditor.value).toBe('Original');
       expect(descContainer.classList.contains('inline-editing')).toBe(false);
     });
@@ -2434,6 +2493,318 @@ describe('Modal Component', () => {
 
       expect(openSpy).toHaveBeenCalled();
       openSpy.mockRestore();
+    });
+  });
+
+  // docs/frontend.md "Editing Fields"
+  describe('Field behaviour', () => {
+    const key = (el, k, opts = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
+    const modalHidden = () => document.getElementById('issue-modal').classList.contains('hidden');
+    const descContainer = () => document.querySelector('.editor-container');
+
+    it('saves the description with Cmd/Ctrl+Enter', async () => {
+      await openModalWithMock({ id: 1, description: 'Old' });
+      document.getElementById('description-preview').click();
+      const editor = document.getElementById('description-editor');
+      editor.value = 'New';
+      key(editor, 'Enter', { metaKey: true });
+      await flush();
+
+      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ description: 'New' }), expect.any(String));
+      expect(descContainer().classList.contains('inline-editing')).toBe(false);
+    });
+
+    it('cancels the description with Escape, asking only when the text was changed', async () => {
+      await openModalWithMock({ id: 1, description: 'Old' });
+      const editor = document.getElementById('description-editor');
+
+      document.getElementById('description-preview').click();
+      key(editor, 'Escape');
+      await flush();
+      expect(utils.confirmDiscard).toHaveBeenLastCalledWith(false);
+      expect(descContainer().classList.contains('inline-editing')).toBe(false);
+
+      document.getElementById('description-preview').click();
+      editor.value = 'Typed';
+      utils.confirmDiscard.mockResolvedValueOnce(false); // Keep editing
+      key(editor, 'Escape');
+      await flush();
+      expect(utils.confirmDiscard).toHaveBeenLastCalledWith(true);
+      expect(descContainer().classList.contains('inline-editing')).toBe(true);
+      expect(editor.value).toBe('Typed');
+    });
+
+    it('marks the title busy while it saves and ignores Escape meanwhile', async () => {
+      await openModalWithMock({ id: 1, title: 'Old' });
+      let answerSave;
+      api.updateIssue.mockReturnValueOnce(new Promise(r => { answerSave = r; }));
+      const title = document.getElementById('title');
+      const field = title.closest('.title-input-container');
+
+      title.click();
+      title.value = 'New';
+      key(title, 'Enter');
+      expect(field.getAttribute('aria-busy')).toBe('true');
+      key(title, 'Escape');
+      expect(title.value).toBe('New');
+
+      answerSave({ issue: { id: 1, title: 'New' }, etag: '"e2"', conflict: false });
+      await flush();
+      expect(field.hasAttribute('aria-busy')).toBe(false);
+      expect(title.classList.contains('inline-editing')).toBe(false);
+      expect(title.readOnly).toBe(true);
+    });
+
+    it('takes the cleaned-up title from the save response, without fetching the issue again and keeping the tasks', async () => {
+      await openModalWithMock({ id: 1, title: 'Old', tasks: [{ id: 5, title: 'Task' }] });
+      await flush();
+      const tasksBefore = state.currentIssue.tasks;
+      api.fetchIssueById.mockClear();
+      api.updateIssue.mockResolvedValueOnce({ issue: { id: 1, title: 'Clean', tasks: [] }, etag: '"e2"', conflict: false });
+
+      const title = document.getElementById('title');
+      title.click();
+      title.value = 'Clean<b>';
+      key(title, 'Enter');
+      await flush();
+
+      expect(api.fetchIssueById).not.toHaveBeenCalled();
+      expect(title.value).toBe('Clean');
+      expect(state.currentIssue.title).toBe('Clean');
+      expect(state.currentIssue.tasks).toBe(tasksBefore);
+      expect(utils.showNotification).toHaveBeenCalledWith('Unsupported HTML tags are not rendered for security.', 'error');
+    });
+
+    it('re-renders the views only after the saved issue is applied, so a card never keeps the old updated_at', async () => {
+      await openModalWithMock({ id: 1, title: 'Old', updated_at: 't1' });
+      await flush();
+      let seen = null;
+      rerenderViews.mockImplementation(() => { seen = { ...state.currentIssue }; });
+      api.updateIssue.mockResolvedValueOnce({ issue: { id: 1, title: 'New', updated_at: 't2' }, etag: '"e2"', conflict: false });
+
+      const title = document.getElementById('title');
+      title.click();
+      title.value = 'New';
+      key(title, 'Enter');
+      await flush();
+
+      expect(rerenderViews).toHaveBeenCalledTimes(1);
+      expect(seen).toMatchObject({ title: 'New', updated_at: 't2' });
+    });
+
+    it('dims only the changed sidebar field until its save is done, also across a second change', async () => {
+      await openModalWithMock({ id: 1, title: 'T', priority: 'Normal', status: 'Todo' });
+      await flush();
+      const answers = [];
+      api.updateIssue.mockImplementation(() => new Promise(r => answers.push(r)));
+      const priority = document.getElementById('priority');
+      const priorityField = priority.closest('.form-group');
+      const statusField = document.getElementById('status').closest('.form-group');
+
+      priority.value = 'High';
+      priority.dispatchEvent(new Event('change'));
+      priority.value = 'Low';
+      priority.dispatchEvent(new Event('change'));
+      await flush();
+      expect(priorityField.getAttribute('aria-busy')).toBe('true');
+      expect(statusField.hasAttribute('aria-busy')).toBe(false);
+
+      answers.shift()({ issue: {}, etag: '"e2"', conflict: false });
+      await flush();
+      expect(priorityField.getAttribute('aria-busy')).toBe('true'); // the second change is still saving
+
+      answers.shift()({ issue: {}, etag: '"e3"', conflict: false });
+      await flush();
+      expect(priorityField.hasAttribute('aria-busy')).toBe(false);
+      expect(state.currentIssue.priority).toBe('Low');
+    });
+
+    it('frees the sidebar field after a failed save', async () => {
+      await openModalWithMock({ id: 1, title: 'T', status: 'Todo' });
+      await flush();
+      api.updateIssue.mockRejectedValueOnce(new Error('Connection to the server failed'));
+      const status = document.getElementById('status');
+      status.value = 'Done';
+      status.dispatchEvent(new Event('change'));
+      await flush();
+      expect(status.closest('.form-group').hasAttribute('aria-busy')).toBe(false);
+      expect(status.value).toBe('Todo');
+    });
+
+    it('dims the planned dates while a date is saved', async () => {
+      await openModalWithMock({ id: 1, title: 'T', planned_dates: [] });
+      await flush();
+      let answer;
+      api.updateIssue.mockReturnValueOnce(new Promise(r => { answer = r; }));
+      const field = document.getElementById('planned-dates-container').closest('.form-group');
+
+      const picker = document.getElementById('planned-date-picker');
+      picker.value = '2025-05-20';
+      picker.dispatchEvent(new Event('change'));
+      await flush();
+      expect(field.getAttribute('aria-busy')).toBe('true');
+
+      answer({ issue: {}, etag: '"e2"', conflict: false });
+      await flush();
+      expect(field.hasAttribute('aria-busy')).toBe(false);
+    });
+
+    it('takes the assignee object from the save response without fetching the issue again', async () => {
+      await openModalWithMock({ id: 1, title: 'T', assignee_id: null });
+      await flush();
+      api.fetchIssueById.mockClear();
+      const assignee = { id: 1, first_name: 'Test', last_name: 'User' };
+      api.updateIssue.mockResolvedValueOnce({ issue: { id: 1, assignee_id: 1, assignee }, etag: '"e2"', conflict: false });
+
+      const select = document.getElementById('assignee-select');
+      select.value = '1';
+      select.dispatchEvent(new Event('change'));
+      await flush();
+
+      expect(api.fetchIssueById).not.toHaveBeenCalled();
+      expect(state.currentIssue.assignee).toEqual(assignee);
+    });
+
+    it('asks "Add task?" on Done when the new-task field has text, and adds it', async () => {
+      await openModalWithMock({ id: 1, project_id: 7, title: 'T', tasks: [] });
+      api.createTask.mockResolvedValueOnce({ id: 9, title: 'Typed', done: false });
+      document.getElementById('new-task-title').value = 'Typed';
+      utils.showConfirm.mockResolvedValueOnce(true);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showConfirm).toHaveBeenCalledWith('Unsaved Changes', 'Add task?', 'Add', 'Discard', 'primary');
+      expect(api.createTask).toHaveBeenCalledTimes(1);
+      expect(modalHidden()).toBe(true);
+    });
+
+    it('drops the new-task text on Done when the user discards it', async () => {
+      await openModalWithMock({ id: 1, project_id: 7, title: 'T', tasks: [] });
+      document.getElementById('new-task-title').value = 'Typed';
+      utils.showConfirm.mockResolvedValueOnce(false);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(api.createTask).not.toHaveBeenCalled();
+      expect(document.getElementById('new-task-title').value).toBe('');
+      expect(modalHidden()).toBe(true);
+    });
+
+    it('asks "Save comment?" on Done while a comment is open, and keeps the modal open if its save fails', async () => {
+      await openModalWithMock({ id: 1, title: 'T' });
+      const draft = { changed: true, save: vi.fn().mockResolvedValue(false), discard: vi.fn() };
+      activity.getOpenCommentDraft.mockReturnValueOnce(draft);
+      utils.showConfirm.mockResolvedValueOnce(true);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showConfirm).toHaveBeenCalledWith('Unsaved Changes', 'Save comment?', 'Save', 'Discard', 'primary');
+      expect(draft.save).toHaveBeenCalled();
+      expect(draft.discard).not.toHaveBeenCalled();
+      expect(modalHidden()).toBe(false);
+    });
+
+    it('discards an unchanged comment on Done without asking', async () => {
+      await openModalWithMock({ id: 1, title: 'T' });
+      const draft = { changed: false, save: vi.fn(), discard: vi.fn() };
+      activity.getOpenCommentDraft.mockReturnValueOnce(draft);
+
+      document.getElementById('done-btn').click();
+      await flush();
+
+      expect(utils.showConfirm).not.toHaveBeenCalled();
+      expect(draft.discard).toHaveBeenCalled();
+      expect(modalHidden()).toBe(true);
+    });
+
+    it('keeps the leave-page warning after a title edit ends while a comment is still open', async () => {
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      await openModalWithMock({ id: 1, title: 'T' });
+      activity.getOpenCommentDraft.mockReturnValue({ changed: true, save: vi.fn(), discard: vi.fn() });
+      try {
+        const title = document.getElementById('title');
+        title.click();
+        removeSpy.mockClear();
+        key(title, 'Escape');
+        expect(removeSpy).not.toHaveBeenCalledWith('beforeunload', preventNavigation);
+      } finally {
+        activity.getOpenCommentDraft.mockReset();
+      }
+    });
+
+    it('keeps the leave-page warning while the new-task field has text', async () => {
+      const addSpy = vi.spyOn(globalThis, 'addEventListener');
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      await openModalWithMock({ id: 1, title: 'T', tasks: [] });
+      const input = document.getElementById('new-task-title');
+
+      input.value = 'Typed';
+      input.dispatchEvent(new Event('input'));
+      expect(addSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
+
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
+    });
+
+    it('ends the description edit mode and the leave-page warning when the modal closes, e.g. after archiving', async () => {
+      const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
+      await openModalWithMock({ id: 1, description: 'Old' });
+      document.getElementById('description-preview').click();
+      document.getElementById('description-editor').value = 'Typed';
+      removeSpy.mockClear();
+
+      closeModal();
+      expect(descContainer().classList.contains('inline-editing')).toBe(false);
+      expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
+
+      await openModalWithMock({ id: 2, description: 'Other' });
+      expect(descContainer().classList.contains('inline-editable')).toBe(true);
+      expect(document.getElementById('description-editor').value).toBe('Other');
+    });
+
+    it('re-enables the dates and dropdowns when the next issue is not archived', async () => {
+      await openModalWithMock({ id: 1, title: 'A', status: 'Archive' });
+      closeModal();
+      await openModalWithMock({ id: 2, title: 'B', status: 'Done' });
+
+      expect(document.getElementById('deadline').hasAttribute('aria-disabled')).toBe(false);
+      document.querySelectorAll('.custom-select-trigger').forEach(trigger => expect(trigger.disabled).toBe(false));
+      expect(document.getElementById('title').classList.contains('read-only-text')).toBe(false);
+      expect(document.getElementById('title').hasAttribute('aria-disabled')).toBe(false);
+      expect(document.querySelector('.editor-container').hasAttribute('aria-disabled')).toBe(false);
+    });
+
+    it('moves the issue only after a queued title save, so the next save carries the ETag from the move', async () => {
+      await openModalWithMock({ id: 1, project_id: 1, title: 'Old', priority: 'Normal' });
+      await flush();
+      let answerSave;
+      api.updateIssue.mockReturnValueOnce(new Promise(r => { answerSave = r; }));
+      api.moveIssue.mockResolvedValueOnce({ issue: { id: 1, project_id: 2, title: 'New', priority: 'Normal' }, etag: '"moved"' });
+
+      const title = document.getElementById('title');
+      title.click();
+      title.value = 'New';
+      key(title, 'Enter');
+      const projectSelect = document.getElementById('project-select');
+      projectSelect.value = '2';
+      projectSelect.dispatchEvent(new Event('change'));
+      await flush();
+      expect(utils.promptAdminPasswordConfirmation).not.toHaveBeenCalled();
+
+      answerSave({ issue: { id: 1, project_id: 1, title: 'New' }, etag: '"before-move"', conflict: false });
+      await flush();
+      expect(api.moveIssue).toHaveBeenCalledTimes(1);
+
+      api.updateIssue.mockClear();
+      const prioritySelect = document.getElementById('priority');
+      prioritySelect.value = 'High';
+      prioritySelect.dispatchEvent(new Event('change'));
+      await flush();
+      expect(api.updateIssue).toHaveBeenLastCalledWith(2, expect.objectContaining({ priority: 'High' }), '"moved"');
     });
   });
 
@@ -2836,8 +3207,8 @@ describe('release-select change handler', () => {
                 <div id="description-preview" class="hidden"></div>
               </div>
               <div id="description-edit-actions" class="hidden">
-                <button id="desc-cancel-btn"></button>
-                <button id="desc-save-btn"></button>
+                <button id="desc-cancel-btn" type="button"></button>
+                <button id="desc-save-btn" type="button"></button>
               </div>
             </div>
             <div id="planned-dates-container"></div>

@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.js';
-import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit } from '../utils.js';
+import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { getStatusLabel } from '../status-config.js';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.js';
@@ -20,7 +20,9 @@ const ctx = {
   // triggers a refreshComments() re-render that discards any other comment's
   // in-progress (unsaved) edit. The new-comment form counts as an edit too.
   /** @type {null | 'new' | number} */
-  activeEditor: null
+  activeEditor: null,
+  // The open editor's { changed(), save(), discard() }, null while none is open.
+  draft: null
 };
 
 // Monotonic sequence guard against out-of-order async responses. loadActivity,
@@ -50,6 +52,7 @@ const els = () => ({
 // Counter of the new-comment textarea. Kept at module scope because it's driven
 // manually by open/closeNewCommentForm rather than by focus/blur.
 let newCommentCounter = null;
+let submitNewCommentOnce = null;
 
 // setupActivity wires the listeners (tab switching + new-comment form). Call
 // once at app start, like setupModal.
@@ -58,11 +61,19 @@ export function setupActivity() {
   if (!e.section) return;
   e.tabComments?.addEventListener('click', () => switchTab('comments'));
   e.tabHistory?.addEventListener('click', () => switchTab('history'));
+  // Links in a comment open in a new tab, like those in the description, instead of
+  // replacing the app in this one.
+  e.commentList?.addEventListener('click', (ev) => {
+    const anchor = ev.target.closest('.comment-body a');
+    if (!anchor) return;
+    ev.preventDefault();
+    globalThis.open(anchor.href, '_blank', 'noopener,noreferrer');
+  });
   // ✓ and Ctrl/Cmd+Enter share the in-flight submit instead of posting the same
   // comment twice while the first request is still running.
-  const submitNewCommentOnce = guardSubmit(submitNewComment, { button: e.addBtn, input: e.input });
+  submitNewCommentOnce = guardSubmit(submitNewComment, { field: e.editor });
   e.addBtn?.addEventListener('click', submitNewCommentOnce);
-  e.cancelBtn?.addEventListener('click', () => closeNewCommentForm({ clear: true }));
+  e.cancelBtn?.addEventListener('click', discardNewComment);
   if (e.input) {
     // manual: true — the counter is tied to the form's edit mode (like the
     // inline comment editor's), not to focus.
@@ -79,21 +90,41 @@ export function setupActivity() {
     e.input.addEventListener('input', () => {
       if (ctx.activeEditor === 'new') ensureNewCommentVisible(e.editor);
     });
-    e.input.addEventListener('keydown', (ev) => {
-      // Ctrl/Cmd+Enter submits; plain Enter on a list line continues the list.
-      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); void submitNewCommentOnce(); return; }
-      if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) continueListOnEnter(e.input, ev);
-    });
+    e.input.addEventListener('keydown', (ev) => handleCommentKeydown(ev, e.input, submitNewCommentOnce, discardNewComment));
   }
 }
 
 // The new-comment form starts collapsed (just the textarea) and only shows its
 // ✓/✕ bar once the user actually starts writing — same as the issue
 // description, which shows its action bar only in edit mode.
+// Shared by the new-comment form and the comment editor: Ctrl/Cmd+Enter saves,
+// Escape works like ✕, plain Enter on a list line continues the list.
+function handleCommentKeydown(ev, textarea, save, discard) {
+  if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+    ev.preventDefault();
+    void save();
+  } else if (ev.key === 'Escape') {
+    ev.preventDefault();
+    void discard();
+  } else if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
+    continueListOnEnter(textarea, ev);
+  }
+}
+
+function hasNewCommentText() {
+  return (els().input?.value || '').trim() !== '';
+}
+
+async function discardNewComment() {
+  if (ctx.activeEditor !== 'new') return;
+  if (await confirmDiscard(hasNewCommentText())) closeNewCommentForm({ clear: true });
+}
+
 function openNewCommentForm() {
   if (ctx.activeEditor !== null) return;
   const e = els();
   ctx.activeEditor = 'new';
+  ctx.draft = { changed: hasNewCommentText, save: submitNewCommentOnce, discard: () => closeNewCommentForm({ clear: true }) };
   e.actions?.classList.remove('hidden');
   newCommentCounter?.show();
   // No active row: every existing comment's Edit/Delete is hidden while the
@@ -133,6 +164,7 @@ function closeNewCommentForm({ clear = false } = {}) {
   if (clear && e.input) e.input.value = ''; // the counter recomputes on its next show()
   if (ctx.activeEditor !== 'new') return;
   ctx.activeEditor = null;
+  ctx.draft = null;
   lastEditorHeight = null; // reopening must scroll again
   e.actions?.classList.add('hidden');
   newCommentCounter?.hide();
@@ -141,11 +173,26 @@ function closeNewCommentForm({ clear = false } = {}) {
 }
 
 // Mirrors setOtherCommentsActionsHidden for the other side of the guard: while
-// an existing comment is being edited, the new-comment form can't be typed
-// into, and CSS dims it via :has([readonly]).
+// an existing comment is being edited, the new-comment form is inactive and
+// can't be typed into.
 function setNewCommentFormBlocked(blocked) {
-  const input = els().input;
+  const { editor, input } = els();
   if (input) input.readOnly = blocked;
+  if (blocked) editor?.setAttribute('aria-disabled', 'true');
+  else editor?.removeAttribute('aria-disabled');
+}
+
+// The open comment editor's draft for the modal's Done handler: { changed, save,
+// discard }, save resolving true once saved. null while no comment editor is open.
+export function getOpenCommentDraft() {
+  if (!ctx.draft) return null;
+  return { changed: ctx.draft.changed(), save: ctx.draft.save, discard: ctx.draft.discard };
+}
+
+// Leaves the open comment editor without saving, e.g. when the modal closes.
+export function closeCommentEditors() {
+  ctx.draft?.discard();
+  closeNewCommentForm({ clear: true }); // also drops text left in the collapsed form
 }
 
 // loadActivity fetches history + comments for an issue and renders the area.
@@ -158,10 +205,8 @@ export async function loadActivity(issue, callbacks = {}) {
   ctx.activeTab = 'comments';
   ctx.history = [];
   ctx.comments = [];
-  if (ctx.activeEditor !== 'new') ctx.activeEditor = null;
   // Drop any draft (and its guard state) left over from a previously opened issue.
-  closeNewCommentForm({ clear: true });
-  setNewCommentFormBlocked(false);
+  closeCommentEditors();
 
   const e = els();
   if (!e.section) return;
@@ -267,6 +312,7 @@ function renderComments(container) {
     const li = document.createElement('li');
     li.className = 'comment-item';
     li.dataset.id = comment.id;
+    if (ctx.readOnly) li.setAttribute('aria-disabled', 'true'); // archived issue
 
     const canModify = (cu && comment.user_id === cu.id) || isCommentModerator(cu);
 
@@ -372,7 +418,6 @@ function enterCommentEdit(comment, li, container) {
   const body = li.querySelector('.comment-body');
   if (!body) return;
   ctx.activeEditor = comment.id;
-  ctx.callbacks.onEditStart?.();
   setOtherCommentsActionsHidden(container, li);
   setNewCommentFormBlocked(true);
 
@@ -394,13 +439,9 @@ function enterCommentEdit(comment, li, container) {
   // content, matching a single-line comment instead of always showing 2.
   textarea.rows = 1;
   textarea.value = comment.body || '';
-  textarea.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) continueListOnEnter(textarea, ev);
-  });
   wrapper.appendChild(textarea);
 
-  // Reuses the description editor's ✓/✕ inline-edit-btn styling (editor.css) —
-  // Enter can't submit here since it's needed for list auto-continue.
+  // Reuses the description editor's ✓/✕ inline-edit-btn styling (editor.css).
   const barActions = document.createElement('div');
   barActions.className = 'comment-edit-actions';
   const cancel = document.createElement('button');
@@ -427,23 +468,38 @@ function enterCommentEdit(comment, li, container) {
 
   const finish = () => {
     ctx.activeEditor = null;
+    ctx.draft = null;
     setOtherCommentsActionsHidden(container, li);
     setNewCommentFormBlocked(false);
     ctx.callbacks.onEditEnd?.();
   };
-  cancel.addEventListener('click', () => { finish(); renderAll(); });
-  save.addEventListener('click', guardSubmit(async () => {
+  const cancelEdit = () => { finish(); renderAll(); };
+  const changed = () => textarea.value !== (comment.body || '');
+  const discardEdit = async () => {
+    if (await confirmDiscard(changed())) cancelEdit();
+  };
+  // ✓, Ctrl/Cmd+Enter and the modal's Done handler share the in-flight save.
+  // Resolves true once saved.
+  const saveEdit = guardSubmit(async () => {
     const newBody = textarea.value.trim();
-    if (!newBody) { showNotification('Comment must not be empty', 'error'); return; }
+    if (!newBody) { showNotification('Comment must not be empty', 'error'); return false; }
     try {
       await updateComment(ctx.issue.project_id, ctx.issue.id, comment.id, newBody);
       finish();
       await refreshComments();
       showNotification('Comment updated');
+      return true;
     } catch (err) {
       showNotification(err.message, 'error');
+      return false;
     }
-  }, { button: save, input: textarea }));
+  }, { field: editorContainer });
+
+  ctx.draft = { changed, save: saveEdit, discard: cancelEdit };
+  ctx.callbacks.onEditStart?.();
+  textarea.addEventListener('keydown', (ev) => handleCommentKeydown(ev, textarea, saveEdit, discardEdit));
+  cancel.addEventListener('click', discardEdit);
+  save.addEventListener('click', saveEdit);
 }
 
 async function removeComment(comment) {
@@ -457,17 +513,20 @@ async function removeComment(comment) {
   }
 }
 
+// Resolves true once the comment is added.
 async function submitNewComment() {
   const e = els();
   const bodyText = (e.input?.value || '').trim();
-  if (!bodyText) { showNotification('Comment must not be empty', 'error'); return; }
+  if (!bodyText) { showNotification('Comment must not be empty', 'error'); return false; }
   try {
     await createComment(ctx.issue.project_id, ctx.issue.id, bodyText);
     closeNewCommentForm({ clear: true });
     await refreshComments();
     showNotification('Comment added');
+    return true;
   } catch (err) {
     showNotification(err.message, 'error');
+    return false;
   }
 }
 

@@ -373,23 +373,22 @@ describe('releases', () => {
       );
     });
 
-    it('creates a release only once when submitted again while the first save is in flight, with Save greyed out', async () => {
+    it('creates a release only once when submitted again while the first save is in flight, with the form greyed out', async () => {
       let resolveCreate;
       api.createRelease.mockReturnValue(new Promise(r => { resolveCreate = r; }));
       await setupReleasesView(vi.fn());
       document.getElementById('release-modal-name').value = 'v1.0';
       const form = document.getElementById('release-form');
-      const saveBtn = document.getElementById('release-modal-save');
 
       form.dispatchEvent(new Event('submit'));
-      expect(saveBtn.disabled).toBe(true);
+      expect(form.getAttribute('aria-busy')).toBe('true');
       form.dispatchEvent(new Event('submit'));
 
       resolveCreate({ id: 99, name: 'v1.0' });
       await new Promise(process.nextTick);
 
       expect(api.createRelease).toHaveBeenCalledTimes(1);
-      expect(saveBtn.disabled).toBe(false);
+      expect(form.hasAttribute('aria-busy')).toBe(false);
     });
 
     it('calls createRelease and refreshes the release list on successful new release submit', async () => {
