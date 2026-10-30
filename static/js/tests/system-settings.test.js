@@ -22,6 +22,7 @@ vi.mock('../api.js', () => ({
   fetchUsers: vi.fn(),
   createUser: vi.fn(),
   updateUser: vi.fn(),
+  deleteUser: vi.fn(),
   fetchProjects: vi.fn(),
   createProject: vi.fn(),
   updateProject: vi.fn(),
@@ -114,7 +115,7 @@ describe('system-settings.js component', () => {
           <div id="user-active-options" class="hidden"></div>
           <input type="checkbox" id="user-active">
           <div id="user-modal-error" class="hidden"></div>
-          <button type="button" id="user-modal-cancel"></button>
+          <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
           <button type="submit" id="user-modal-save"></button>
         </form>
       </div>
@@ -522,7 +523,7 @@ describe('Additional Coverage', () => {
             <div id="user-active-options" class="hidden"></div>
             <input type="checkbox" id="user-active">
             <div id="user-modal-error" class="hidden"></div>
-            <button type="button" id="user-modal-cancel"></button>
+            <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
             <button type="submit" id="user-modal-save"></button>
           </form>
         </div>
@@ -659,7 +660,7 @@ const USER_MODAL = `
       <div id="user-active-options" class="hidden"></div>
       <input type="checkbox" id="user-active">
       <div id="user-modal-error" class="hidden"></div>
-      <button type="button" id="user-modal-cancel"></button>
+      <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
       <button type="submit" id="user-modal-save"></button>
     </form>
   </div>
@@ -1040,7 +1041,7 @@ const PROJECT_DOM = `
       <div id="user-active-options" class="hidden"></div>
       <input type="checkbox" id="user-active">
       <div id="user-modal-error" class="hidden"></div>
-      <button type="button" id="user-modal-cancel"></button>
+      <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
       <button type="submit" id="user-modal-save"></button>
     </form>
   </div>
@@ -1370,5 +1371,105 @@ describe('Project Management', () => {
 
       expect(document.getElementById('add-project-btn').style.display).toBe('none');
     });
+  });
+});
+
+describe('User deletion', () => {
+  const target = { id: 7, email: 'peter@test.com', first_name: 'Peter', last_name: 'Pan', role: 'user', active: true };
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="system-settings-view">
+        <div id="user-management-section">
+          <button id="add-user-btn"></button>
+          <div id="users-list"></div>
+        </div>
+      </div>
+      ${USER_MODAL}
+      ${ADMIN_CONFIRM_MODAL}
+    `;
+    vi.clearAllMocks();
+    permissions.userCan.mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.currentUser = { id: 99, role: 'sysadmin' };
+    setupSystemSettingsView();
+  });
+
+  async function openEditModalFor(user) {
+    api.fetchUsers.mockResolvedValue([user]);
+    await renderSystemSettingsView();
+    document.querySelector('.settings-entry').click();
+  }
+
+  const deleteBtn = () => document.getElementById('user-modal-delete');
+
+  it('shows the delete button when editing another user', async () => {
+    await openEditModalFor(target);
+    expect(deleteBtn().classList.contains('hidden')).toBe(false);
+  });
+
+  it('hides the delete button when editing your own account', async () => {
+    await openEditModalFor({ ...target, id: 99 });
+    expect(deleteBtn().classList.contains('hidden')).toBe(true);
+  });
+
+  it('hides the delete button without the delete permission', async () => {
+    permissions.userCan.mockImplementation((_, action) => action !== permissions.ACTION_DELETE_USER);
+    await openEditModalFor(target);
+    expect(deleteBtn().classList.contains('hidden')).toBe(true);
+  });
+
+  it('hides the delete button when creating a user', async () => {
+    await openEditModalFor(target);
+    document.getElementById('user-modal-cancel').click();
+    document.getElementById('add-user-btn').click();
+    expect(deleteBtn().classList.contains('hidden')).toBe(true);
+  });
+
+  it('warns about the unassignment in the password dialog and deletes on confirm', async () => {
+    api.deleteUser.mockResolvedValue();
+    await openEditModalFor(target);
+
+    deleteBtn().click();
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('admin-confirm-title').textContent).toBe('Delete User');
+    const message = document.getElementById('admin-confirm-message').textContent;
+    expect(message).toContain('Do you really want to delete Peter Pan?');
+    expect(message).toContain('Issues assigned to them become unassigned (noted in each issue\'s history)');
+    expect(message).toContain('releases they own lose their owner');
+    expect(api.deleteUser).not.toHaveBeenCalled();
+
+    document.getElementById('admin-confirm-password').value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(api.deleteUser).toHaveBeenCalledWith(7, 'AdminPass123!');
+    expect(utils.showNotification).toHaveBeenCalledWith('User deleted', 'success');
+    expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(true);
+    expect(api.fetchUsers).toHaveBeenCalledTimes(2); // list reloaded after the delete
+  });
+
+  it('does not delete when the password dialog is cancelled', async () => {
+    await openEditModalFor(target);
+    deleteBtn().click();
+    document.getElementById('admin-confirm-cancel-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(api.deleteUser).not.toHaveBeenCalled();
+    expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
+  });
+
+  it('shows a rejected delete inline in the dialog', async () => {
+    api.deleteUser.mockRejectedValue(new Error('Cannot deactivate, demote or delete the last active system administrator'));
+    await openEditModalFor(target);
+    deleteBtn().click();
+    document.getElementById('admin-confirm-password').value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('admin-confirm-error').textContent).toBe('Cannot deactivate, demote or delete the last active system administrator');
+    expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
   });
 });

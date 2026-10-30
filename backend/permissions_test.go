@@ -30,6 +30,7 @@ func TestCan(t *testing.T) {
 		{RoleSysAdmin, ActionGetUser, true},
 		{RoleSysAdmin, ActionCreateUser, true},
 		{RoleSysAdmin, ActionUpdateUser, true},
+		{RoleSysAdmin, ActionDeleteUser, true},
 		{RoleSysAdmin, ActionListProjects, true},
 		{RoleSysAdmin, ActionCreateProject, true},
 		{RoleSysAdmin, ActionUpdateProject, true},
@@ -57,6 +58,7 @@ func TestCan(t *testing.T) {
 		// Admin is denied sysadmin-only actions
 		{RoleAdmin, ActionCreateUser, false},
 		{RoleAdmin, ActionUpdateUser, false},
+		{RoleAdmin, ActionDeleteUser, false},
 		{RoleAdmin, ActionCreateProject, false},
 		{RoleAdmin, ActionUpdateProject, false},
 		{RoleAdmin, ActionDeleteProject, false},
@@ -82,6 +84,7 @@ func TestCan(t *testing.T) {
 		{RoleUser, ActionDeleteLabel, false},
 		{RoleUser, ActionCreateUser, false},
 		{RoleUser, ActionUpdateUser, false},
+		{RoleUser, ActionDeleteUser, false},
 		{RoleUser, ActionCreateProject, false},
 		{RoleUser, ActionUpdateProject, false},
 		{RoleUser, ActionDeleteProject, false},

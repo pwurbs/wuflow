@@ -366,6 +366,7 @@ func TestDBErrors(t *testing.T) {
 		{"UpdateUser", func() error {
 			return UpdateUser(context.Background(), &User{ID: 1, Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser})
 		}},
+		{"DeleteUser", func() error { _, err := DeleteUser(context.Background(), 1, 1, "N"); return err }},
 		{"CountUsers", func() error { _, err := CountUsers(context.Background()); return err }},
 		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(context.Background()); return err }},
 		{"CreateSession", func() error {

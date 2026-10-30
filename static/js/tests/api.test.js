@@ -20,6 +20,7 @@ import {
   fetchUsers,
   createUser,
   updateUser,
+  deleteUser,
   fetchStatusConfig,
   updateStatusConfig,
   deleteLabel,
@@ -567,6 +568,21 @@ describe('api', () => {
     it('throws on failure', async () => {
       fetch.mockResolvedValue(makeResponse(403, 'No permission'));
       await expect(deleteProject(1, 'AdminPass123!')).rejects.toThrow('No permission');
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('sends DELETE to the user with admin_password body and resolves on success', async () => {
+      fetch.mockResolvedValue(makeResponse(200, ''));
+      await expect(deleteUser(7, 'AdminPass123!')).resolves.not.toThrow();
+      expect(fetch.mock.calls[0][0]).toBe('/api/users/7');
+      expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+      expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ admin_password: 'AdminPass123!' });
+    });
+
+    it('throws the server message on failure', async () => {
+      fetch.mockResolvedValue(makeResponse(400, 'You cannot delete your own account'));
+      await expect(deleteUser(7, 'AdminPass123!')).rejects.toThrow('You cannot delete your own account');
     });
   });
 

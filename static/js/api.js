@@ -449,6 +449,18 @@ export async function updateUser(id, user) {
   return await res.json();
 }
 
+export async function deleteUser(id, adminPassword) {
+  const res = await authFetch(`${API_URL}/users/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_password: adminPassword })
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'Failed to delete user');
+  }
+}
+
 // --- Auth API functions ---
 
 /**

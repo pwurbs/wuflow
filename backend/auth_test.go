@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -1483,13 +1484,361 @@ func TestHandleUserPutLastSysAdminProtection(t *testing.T) {
 }
 
 func TestHandleUserMethodNotAllowed(t *testing.T) {
-	req := httptest.NewRequest("DELETE", apiUsers1, nil)
+	req := httptest.NewRequest("PATCH", apiUsers1, nil)
 	rr := httptest.NewRecorder()
 	testAPI.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusMethodNotAllowed)
 	}
+}
+
+// --- Delete User ---
+
+const deleteUserName = "Peter Pan"
+
+// seedDeleteUserFixture creates an acting sysadmin and a target user who is
+// referenced everywhere a user can be: assignee (active and archived issue),
+// creator, updater, release owner, comment author, history actor and session.
+func seedDeleteUserFixture(t *testing.T) (actor, target *User, active, archived *Issue, release *Release) {
+	t.Helper()
+	ctx := context.Background()
+	hash, _ := HashPassword(testPassword)
+	actor = &User{Email: testEmail, FirstName: "Anna", LastName: "Admin", PasswordHash: hash, Role: RoleSysAdmin, Active: true}
+	target = &User{Email: testUserEmail, FirstName: "Peter", LastName: "Pan", PasswordHash: hash, Role: RoleUser, Active: true}
+	for _, u := range []*User{actor, target} {
+		if err := CreateUser(ctx, u); err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+	}
+
+	active = &Issue{Title: "Active", Status: StatusOpen, ProjectID: 1, CreatorID: target.ID, AssigneeID: &target.ID, UpdaterID: &target.ID}
+	archived = &Issue{Title: "Archived", Status: StatusArchive, ProjectID: 1, CreatorID: target.ID, AssigneeID: &target.ID}
+	for _, i := range []*Issue{active, archived} {
+		if err := CreateIssue(ctx, i); err != nil {
+			t.Fatalf("CreateIssue: %v", err)
+		}
+	}
+
+	release = &Release{ProjectID: 1, Name: "R1", Status: ReleaseStatusOpen, OwnerID: &target.ID}
+	if err := CreateRelease(ctx, release); err != nil {
+		t.Fatalf("CreateRelease: %v", err)
+	}
+	if err := CreateComment(ctx, &Comment{IssueID: active.ID, UserID: &target.ID, Body: "hello"}); err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if err := CreateHistoryEntry(ctx, &HistoryEntry{IssueID: active.ID, UserID: &target.ID, Event: EventCreated}); err != nil {
+		t.Fatalf("CreateHistoryEntry: %v", err)
+	}
+	if err := CreateSession(ctx, &Session{UserID: target.ID, SessionToken: "tok", TokenHash: "hash", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	return actor, target, active, archived, release
+}
+
+func countRows(t *testing.T, query string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := DB.QueryRow(query, args...).Scan(&n); err != nil {
+		t.Fatalf("count query %q: %v", query, err)
+	}
+	return n
+}
+
+func TestDeleteUserCleansUpReferences(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+	actor, target, active, archived, release := seedDeleteUserFixture(t)
+	before, _ := GetIssueByID(ctx, active.ID)
+
+	unassigned, err := DeleteUser(ctx, target.ID, actor.ID, deleteUserName)
+	if err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+	if unassigned != 2 {
+		t.Errorf("expected 2 unassigned issues (active and archived), got %d", unassigned)
+	}
+	if u, _ := GetUserByID(ctx, target.ID); u != nil {
+		t.Error("expected user to be deleted")
+	}
+
+	for _, id := range []int{active.ID, archived.ID} {
+		assertUnassignedByActor(t, id, actor.ID)
+	}
+
+	after, _ := GetIssueByID(ctx, active.ID)
+	if !after.UpdatedAt.After(before.UpdatedAt) {
+		t.Errorf("expected updated_at to advance (ETag change), before=%v after=%v", before.UpdatedAt, after.UpdatedAt)
+	}
+	assertOtherReferencesCleared(t, target.ID, active.ID, release.ID)
+}
+
+// assertUnassignedByActor checks that the issue still loads, lost its assignee and
+// creator, and that the latest history entry records the unassignment by actorID.
+func assertUnassignedByActor(t *testing.T, issueID, actorID int) {
+	t.Helper()
+	ctx := context.Background()
+	issue, err := GetIssueByID(ctx, issueID)
+	if err != nil || issue == nil {
+		t.Fatalf("issue %d no longer loads: %v", issueID, err)
+	}
+	if issue.AssigneeID != nil || issue.CreatorID != 0 {
+		t.Errorf("issue %d: expected assignee and creator cleared, got assignee=%v creator=%d", issueID, issue.AssigneeID, issue.CreatorID)
+	}
+	if issue.UpdaterID == nil || *issue.UpdaterID != actorID {
+		t.Errorf("issue %d: expected updated_by = actor %d, got %v", issueID, actorID, issue.UpdaterID)
+	}
+
+	history, _ := GetHistoryByIssueID(ctx, issueID)
+	last := history[len(history)-1]
+	if last.Event != EventUpdated || last.Data.Field != "assignee" || last.Data.From != "Peter Pan (user deleted)" || last.Data.To != "" {
+		t.Errorf("issue %d: unexpected unassign history entry %+v", issueID, last)
+	}
+	if last.UserID == nil || *last.UserID != actorID {
+		t.Errorf("issue %d: expected history author = actor %d, got %v", issueID, actorID, last.UserID)
+	}
+}
+
+// assertOtherReferencesCleared checks the references the schema clears on its own.
+func assertOtherReferencesCleared(t *testing.T, userID, issueID, releaseID int) {
+	t.Helper()
+	ctx := context.Background()
+	history, _ := GetHistoryByIssueID(ctx, issueID)
+	if history[0].UserID != nil || history[0].User != nil {
+		t.Errorf("expected the user's own history entry to lose its author, got %+v", history[0])
+	}
+	comments, err := GetCommentsByIssueID(ctx, issueID)
+	if err != nil || len(comments) != 1 || comments[0].UserID != nil {
+		t.Errorf("expected comment kept without author, got %+v (err %v)", comments, err)
+	}
+	if r, _ := GetReleaseByID(ctx, releaseID); r == nil || r.OwnerID != nil {
+		t.Errorf("expected release kept without owner, got %+v", r)
+	}
+	if n := countRows(t, "SELECT COUNT(*) FROM sessions WHERE user_id = ?", userID); n != 0 {
+		t.Errorf("expected sessions removed, %d left", n)
+	}
+}
+
+func TestDeleteUserNotFound(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	if _, err := DeleteUser(context.Background(), 999, 0, deleteUserName); !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+// deleteUserRequest sends DELETE /api/users/{id} as the given actor.
+func deleteUserRequest(targetID int, actor *User, role UserRole, password string) *httptest.ResponseRecorder {
+	var body *bytes.Buffer
+	if password != "" {
+		b, _ := json.Marshal(map[string]string{"admin_password": password})
+		body = bytes.NewBuffer(b)
+	} else {
+		body = &bytes.Buffer{}
+	}
+	req := httptest.NewRequest("DELETE", apiUsersBase+strconv.Itoa(targetID), body)
+	ctx := context.WithValue(req.Context(), contextKeyRole, role)
+	ctx = context.WithValue(ctx, contextKeyEmail, actor.Email)
+	ctx = context.WithValue(ctx, contextKeyUserID, actor.ID)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req.WithContext(ctx))
+	return rr
+}
+
+func TestHandleDeleteUserSuccess(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	actor, target, active, _, _ := seedDeleteUserFixture(t)
+
+	rr := deleteUserRequest(target.ID, actor, RoleSysAdmin, testPassword)
+	if rr.Code != http.StatusOK {
+		t.Fatalf(wrongStatusCode+"\nbody: %s", rr.Code, http.StatusOK, rr.Body.String())
+	}
+	if u, _ := GetUserByID(context.Background(), target.ID); u != nil {
+		t.Error("expected user to be deleted")
+	}
+	history, _ := GetHistoryByIssueID(context.Background(), active.ID)
+	if last := history[len(history)-1]; last.Data.From != "Peter Pan (user deleted)" {
+		t.Errorf("expected unassign history entry with the target's name, got %+v", last.Data)
+	}
+}
+
+func TestHandleDeleteUserRejected(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+	actor, target, _, _, _ := seedDeleteUserFixture(t)
+	hash, _ := HashPassword(testPassword)
+	admin := &User{Email: testEmailThree, FirstName: "Ad", LastName: "Min", PasswordHash: hash, Role: RoleAdmin, Active: true}
+	if err := CreateUser(ctx, admin); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		targetID int
+		actor    *User
+		role     UserRole
+		password string
+		want     int
+	}{
+		{"missing password", target.ID, actor, RoleSysAdmin, "", http.StatusBadRequest},
+		{"wrong password", target.ID, actor, RoleSysAdmin, "WrongPassword123!", http.StatusBadRequest},
+		{"self-deletion", actor.ID, actor, RoleSysAdmin, testPassword, http.StatusBadRequest},
+		{"not found", 999, actor, RoleSysAdmin, testPassword, http.StatusNotFound},
+		// Bypass attempt: an Admin calls the endpoint directly, with a correct password.
+		{"admin role forbidden", target.ID, admin, RoleAdmin, testPassword, http.StatusForbidden},
+		{"user role forbidden", actor.ID, target, RoleUser, testPassword, http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rr := deleteUserRequest(tt.targetID, tt.actor, tt.role, tt.password)
+			if rr.Code != tt.want {
+				t.Errorf(wrongStatusCode+"\nbody: %s", rr.Code, tt.want, rr.Body.String())
+			}
+		})
+	}
+	for _, u := range []*User{actor, target} {
+		if got, _ := GetUserByID(ctx, u.ID); got == nil {
+			t.Errorf("user %d must not be deleted by a rejected request", u.ID)
+		}
+	}
+}
+
+// The actor's role comes from the access token, which can be up to 15 min old:
+// an actor demoted meanwhile must not delete the last active sysadmin.
+func TestHandleDeleteUserLastSysAdminProtection(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+	hash, _ := HashPassword(testPassword)
+	sysadmin := &User{Email: testEmail, FirstName: "Only", LastName: "Sysadmin", PasswordHash: hash, Role: RoleSysAdmin, Active: true}
+	demoted := &User{Email: testUserEmail, FirstName: "Former", LastName: "Sysadmin", PasswordHash: hash, Role: RoleUser, Active: true}
+	for _, u := range []*User{sysadmin, demoted} {
+		if err := CreateUser(ctx, u); err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+	}
+
+	rr := deleteUserRequest(sysadmin.ID, demoted, RoleSysAdmin, testPassword)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf(wrongStatusCode+"\nbody: %s", rr.Code, http.StatusBadRequest, rr.Body.String())
+	}
+	if got, _ := GetUserByID(ctx, sysadmin.ID); got == nil {
+		t.Error("the last active sysadmin must not be deleted")
+	}
+}
+
+// Each case breaks one statement of the DeleteUser transaction. Whatever fails,
+// the whole transaction must roll back: the user stays and keeps its issues.
+func TestDeleteUserTransactionFailures(t *testing.T) {
+	tests := []struct {
+		name         string
+		setup        func(targetID int) string
+		issuesExists bool // whether the issues table is still there to check the rollback
+	}{
+		{"count", func(int) string { return "DROP TABLE issues" }, false},
+		{"history", func(int) string { return "DROP TABLE issue_history" }, true},
+		{"unassign", func(int) string {
+			return "CREATE TRIGGER fail_update BEFORE UPDATE ON issues BEGIN SELECT RAISE(ABORT, 'boom'); END"
+		}, true},
+		{"delete", func(int) string {
+			return "CREATE TRIGGER fail_delete BEFORE DELETE ON users BEGIN SELECT RAISE(ABORT, 'boom'); END"
+		}, true},
+		// A deferred foreign key is only checked at commit, which then fails.
+		{"commit", func(targetID int) string {
+			return fmt.Sprintf("CREATE TABLE refs (uid INTEGER REFERENCES users(id) DEFERRABLE INITIALLY DEFERRED); INSERT INTO refs VALUES (%d)", targetID)
+		}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTestDB()
+			defer teardownTestDB()
+			actor, target, _, _, _ := seedDeleteUserFixture(t)
+			if _, err := DB.Exec(tt.setup(target.ID)); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err := DeleteUser(context.Background(), target.ID, actor.ID, deleteUserName)
+			if err == nil || errors.Is(err, ErrUserNotFound) {
+				t.Fatalf("expected a database error, got %v", err)
+			}
+			if got, _ := GetUserByID(context.Background(), target.ID); got == nil {
+				t.Error("user must stay when the transaction fails")
+			}
+			if !tt.issuesExists {
+				return
+			}
+			if n := countRows(t, "SELECT COUNT(*) FROM issues WHERE assignee_id = ?", target.ID); n != 2 {
+				t.Errorf("expected both issues to stay assigned after rollback, got %d", n)
+			}
+		})
+	}
+}
+
+// The target row can fail to load although the admin's own row loads fine.
+func TestHandleDeleteUserLoadError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	actor, target, _, _, _ := seedDeleteUserFixture(t)
+	if _, err := DB.Exec("UPDATE users SET active = 'garbage' WHERE id = ?", target.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	rr := deleteUserRequest(target.ID, actor, RoleSysAdmin, testPassword)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+}
+
+// Another admin deleted the user between the lookup and the delete: simulated by
+// a trigger that silently skips the row, so the delete affects no row.
+func TestHandleDeleteUserVanishedDuringDelete(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	actor, target, _, _, _ := seedDeleteUserFixture(t)
+	if _, err := DB.Exec("CREATE TRIGGER skip_delete BEFORE DELETE ON users BEGIN SELECT RAISE(IGNORE); END"); err != nil {
+		t.Fatal(err)
+	}
+
+	rr := deleteUserRequest(target.ID, actor, RoleSysAdmin, testPassword)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleDeleteUserGenericDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	actor, target, _, _, _ := seedDeleteUserFixture(t)
+
+	// Drop the history table so the DeleteUser transaction fails with a generic error.
+	// The password check and the user lookup still work because they only read users.
+	if _, err := DB.Exec("DROP TABLE issue_history"); err != nil {
+		t.Fatal(err)
+	}
+
+	rr := deleteUserRequest(target.ID, actor, RoleSysAdmin, testPassword)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+	if got, _ := GetUserByID(context.Background(), target.ID); got == nil {
+		t.Error("user must stay when the delete transaction fails")
+	}
+}
+
+func TestHandleDeleteUserEncodeError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	actor, target, _, _, _ := seedDeleteUserFixture(t)
+
+	body, _ := json.Marshal(map[string]string{"admin_password": testPassword})
+	req := httptest.NewRequest("DELETE", apiUsersBase+strconv.Itoa(target.ID), bytes.NewBuffer(body))
+	ctx := context.WithValue(req.Context(), contextKeyEmail, actor.Email)
+	ctx = context.WithValue(ctx, contextKeyUserID, actor.ID)
+	handleDeleteUser(&failWriter{ResponseWriter: httptest.NewRecorder()}, req.WithContext(ctx), target.ID)
 }
 
 // --- Password Validation ---

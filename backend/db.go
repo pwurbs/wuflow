@@ -1354,6 +1354,60 @@ func UpdateUser(ctx context.Context, u *User) error {
 	return checkRowsAffected(res, "UpdateUser", ErrUserNotFound)
 }
 
+// DeleteUser removes a user in one transaction. Issues assigned to the user are
+// unassigned first, each with an EventUpdated history entry authored by actorID
+// (assignee changed from "<userName> (user deleted)", the same JSON shape as a
+// ChangeData) and a new updated_at so open editors get a conflict. All other user
+// references are cleared by the schema (ON DELETE SET NULL / CASCADE).
+// Returns the number of unassigned issues.
+func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, error) {
+	tx, err := DB.BeginTx(ctx, nil)
+	if err != nil {
+		LogError(dbErrPrefix+"DeleteUser BeginTx", "error", err)
+		return 0, err
+	}
+	// Undoes all writes if the function returns before Commit.
+	defer func() { _ = tx.Rollback() }()
+
+	var unassigned int64
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM issues WHERE assignee_id = ?", id).Scan(&unassigned); err != nil {
+		LogError(dbErrPrefix+"DeleteUser count", "error", err)
+		return 0, err
+	}
+
+	actor := nullableUserID(&actorID)
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO issue_history(issue_id, user_id, event, data) SELECT id, ?, ?, json_object('field', 'assignee', 'from', ?) FROM issues WHERE assignee_id = ?",
+		actor, EventUpdated, userName+" (user deleted)", id,
+	); err != nil {
+		LogError(dbErrPrefix+"DeleteUser history", "error", err)
+		return 0, err
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE issues SET assignee_id = NULL, updated_by = ?, updated_at = ? WHERE assignee_id = ?",
+		actor, time.Now().UTC(), id,
+	); err != nil {
+		LogError(dbErrPrefix+"DeleteUser unassign", "error", err)
+		return 0, err
+	}
+
+	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
+	if err != nil {
+		LogError(dbErrPrefix+"DeleteUser", "error", err)
+		return 0, err
+	}
+	if err := checkRowsAffected(res, "DeleteUser", ErrUserNotFound); err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		LogError(dbErrPrefix+"DeleteUser Commit", "error", err)
+		return 0, err
+	}
+	return unassigned, nil
+}
+
 // CountUsers returns the total number of users in the database.
 func CountUsers(ctx context.Context) (int, error) {
 	var count int

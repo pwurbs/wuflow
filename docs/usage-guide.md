@@ -244,11 +244,12 @@ Projects can be managed here:
 - **Delete** a project by clicking "Delete". Deletion is only possible if no issues are currently assigned to that project. The default project cannot be deleted.
 
 ### Users
-Users can be created, adapted or deactivated here. 
+Users can be created, adapted, deactivated or deleted here. 
 - When you **create a new user**, enter the properties, assign a role, set an initial password and click "Save". Then the user can log in using Email and password and should then be requested to set an own password. 
 - To **adapt an existing user**, click on the user in the list, adapt what you want, and click "Save". Here, a sysadmin can re-define a new password for a user, when e.g. a user has forgotten their password.
 - Changing a user's password, email, active state or promoting their role asks you to confirm with your own password. The affected user is then signed out of all sessions within max 15 minutes.
-- To **deactivate a user**, click on the user in the list and click "Deactivate". This is useful when a user is no longer active in the team or organization. Deactivated users can't log in and are not visible in the user list to be assigned for issues. Deletion of users is currently not supported.
+- To **deactivate a user**, click on the user in the list and click "Deactivate". This is useful when a user is no longer active in the team or organization. Deactivated users can't log in and are not visible in the user list to be assigned for issues.
+- To **delete a user**, click on the user in the list, click "Delete" and confirm with your own password. Issues assigned to them become unassigned, which each issue's history shows. Releases they own lose their owner, and their comments show "Unknown user". This cannot be undone. You can't delete your own account. If the user may still be logged in, deactivate them first, so they are signed out before the deletion.
 
 ## User Roles
 When a new user is created a role is assigned. Three roles are available, ordered from least to most privileged:
@@ -275,6 +276,6 @@ It is a conscious decision, that every user can see all issues and tasks to supp
 | View a single release | ✓ | ✓ | ✓ |
 | Create / edit / delete releases | — | ✓ | ✓ |
 | Publish / reopen a release | — | ✓ | ✓ |
-| Create / edit / deactivate users | — | — | ✓ |
+| Create / edit / deactivate / delete users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |
 | Access System Settings view | — | — | ✓ |

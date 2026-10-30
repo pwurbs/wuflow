@@ -32,7 +32,7 @@ Three roles are available, ordered from least to most privileged:
 | View a single release | ✓ | ✓ | ✓ |
 | Create / edit / delete releases | — | ✓ | ✓ |
 | Publish / reopen a release | — | ✓ | ✓ |
-| Create / edit / deactivate users | — | — | ✓ |
+| Create / edit / deactivate / delete users | — | — | ✓ |
 | Create / update / delete projects | — | — | ✓ |
 | Access System Settings view | — | — | ✓ |
 
@@ -228,8 +228,9 @@ The key should be a long, random string (32+ characters recommended).
 
 ## User Lifecycle
 
-- Sysadmins can create, edit, activate, and deactivate users via the System Settings view.
+- Sysadmins can create, edit, activate, deactivate, and delete users via the System Settings view.
 - **Inactive users** cannot log in.
+- **Deleting a user** is final. Their assigned issues become unassigned, and each issue's history records this as "Assignee: Changed <name> (user deleted) → none" by the deleting sysadmin. Releases they own lose their owner, and their comments and history entries show "Unknown user". Sysadmins can't delete their own account or the last active sysadmin. A deleted user who is still logged in keeps working until their access token expires (max 15 minutes), and their writes fail during that time. To avoid this, deactivate the user first and delete them later.
 - **Sensitive action confirmation**: To prevent a stolen session from being weaponised, certain sysadmin actions require the requesting sysadmin to confirm their **own current password** (`admin_password`).
 - **Session Revocation**: Certain actions trigger immediate revocation of **all** sessions of the affected user (Family Revocation).
 
@@ -241,6 +242,7 @@ The key should be a long, random string (32+ characters recommended).
 | Demoting a user's role | – | ✓ |
 | Deactivating a user | ✓ | ✓ |
 | Reactivating a user | ✓ | – |
+| Deleting a user | ✓ | ✓ |
 | Changing a user's email (the login identifier) | ✓ | ✓ |
 | Detecting **Token Reuse** (suspected theft) | – | ✓ |
 

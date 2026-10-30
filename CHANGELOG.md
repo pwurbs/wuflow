@@ -7,6 +7,7 @@
 - Fixed: the issue dialog now opens at the top instead of where the previous issue was scrolled
 - Frontend refactoring for a consistent look and behavior of all fields: one saving look, the same keys and questions in every editor, one inactive look (also for archived issues) and one set of color variables
 - Fixed: false "Conflict Detected" messages after a quick reopen or a project move, the description staying in edit mode for the next issue, and the leave-page warning missing unsaved comments and new tasks
+- Sysadmins can now delete users. Their issues become unassigned, and each issue's history shows this
 
 
 # 1.4.4

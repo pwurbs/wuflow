@@ -279,8 +279,9 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 	// --- Users ----------------------------------------------------------------
 	hf("GET", "/api/users", withRole(ActionListUsers, handleListUsers), authAPI)
 	hf("POST", "/api/users", withRole(ActionCreateUser, handleCreateUser), authAPI)
-	hf("GET", "/api/users/{id}", withResource(ActionGetUser, handleGetUser), authAPI)
+	hf("GET", "/api/users/{id}", withResource(ActionGetUser, handleGetUser), authAPI) //NOSONAR, ignore double string warning
 	hf("PUT", "/api/users/{id}", withResource(ActionUpdateUser, handleUpdateUser), authAPI)
+	hf("DELETE", "/api/users/{id}", withResource(ActionDeleteUser, handleDeleteUser), authAPI)
 
 	// --- Projects -------------------------------------------------------------
 	hf("GET", "/api/projects", withRole(ActionListProjects, handleListProjects), authAPI)

@@ -22,6 +22,7 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/users` | POST | `handleCreateUser` | Sysadmin | Create new user |
 | `/users/:id` | GET | `handleGetUser` | Required | Get user details |
 | `/users/:id` | PUT | `handleUpdateUser` | Sysadmin | Update user |
+| `/users/:id` | DELETE | `handleDeleteUser` | Sysadmin | Delete user |
 | `/projects/:pId/issues/active` | GET | `handleProjectActiveIssues` | Required | Get active issues for a project (Todo, Pending, Working, Done) |
 | `/projects/:pId/issues/open` | GET | `handleProjectOpenIssues` | Required | Get open (backlog) issues for a project |
 | `/projects/:pId/issues/archived` | GET | `handleProjectArchivedIssues` | Required | Get archived issues for a project |
@@ -189,6 +190,29 @@ Updates an existing user (Sysadmin only).
   - `403 Forbidden` - Not a sysadmin
   - `404 Not Found` - User doesn't exist
   - `409 Conflict` - Email already in use
+
+### Delete User
+Deletes a user (Sysadmin only).
+- **DELETE** `/users/:id`
+- **Path parameters**: `id` (user)
+- **Body**:
+  ```json
+  {
+    "admin_password": "YourOwnPassword123!"
+  }
+  ```
+- **Notes**:
+  - `admin_password` is always required — the requesting sysadmin must confirm their own current password to authorise the deletion
+  - Cannot delete your own account or the last active sysadmin
+  - Issues assigned to the user become unassigned; each gets a history entry `assignee` from `"<name> (user deleted)"`, authored by the requesting sysadmin
+  - Releases owned by the user lose their owner; comments and history entries written by the user keep their content without an author
+  - All sessions of the user are removed; already-issued access tokens stay valid until they expire (max 15 minutes)
+- **Response**: `200 OK` with confirmation message
+- **Errors**:
+  - `400 Bad Request` - Own account, last active sysadmin, or `admin_password` missing/incorrect
+  - `401 Unauthorized` - Not authenticated
+  - `403 Forbidden` - Not a sysadmin
+  - `404 Not Found` - User doesn't exist
 
 ## Issues
 

@@ -23,6 +23,7 @@ const (
 	errMsgTasksArchivedReadOnly = "Tasks of archived issues are read-only"
 	errMsgInternalServerError   = "Internal server error"
 	errMsgUserNotFound          = "User not found"
+	errMsgCannotDeleteSelf      = "You cannot delete your own account"
 	errMsgInvalidLabel          = "Invalid label ID"
 	errMsgInvalidAssignee       = "Invalid or inactive assignee"
 	headerContentType           = "Content-Type"
@@ -1687,6 +1688,59 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 	}
 }
 
+func handleDeleteUser(w http.ResponseWriter, r *http.Request, id int) {
+	userEmail := GetEmailFromContext(r.Context())
+	actorID := GetUserIDFromContext(r.Context())
+
+	if id == actorID {
+		LogWarn("DeleteUser: self-deletion blocked", "target_id", id, "admin_email", userEmail)
+		http.Error(w, errMsgCannotDeleteSelf, http.StatusBadRequest)
+		return
+	}
+
+	if !requireAdminPassword(w, r, userEmail, "DeleteUser", "target_id", id) {
+		return
+	}
+
+	target, err := GetUserByID(r.Context(), id)
+	if err != nil {
+		LogError("DeleteUser: database error", "error", err, "admin_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	if target == nil {
+		LogWarn("DeleteUser: not found", "target_id", id, "admin_email", userEmail)
+		http.Error(w, errMsgUserNotFound, http.StatusNotFound)
+		return
+	}
+
+	if err := checkLastSysAdminProtection(r.Context(), target, "", false); err != nil {
+		if !errors.Is(err, errAdminCheckDB) {
+			LogWarn("DeleteUser: last admin protection triggered", "target_id", id, "admin_email", userEmail)
+		}
+		writeUserUpdateError(w, err)
+		return
+	}
+
+	unassigned, err := DeleteUser(r.Context(), id, actorID, assigneeName(&Issue{Assignee: target}))
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			LogWarn("DeleteUser: not found", "target_id", id, "admin_email", userEmail)
+			http.Error(w, errMsgUserNotFound, http.StatusNotFound)
+			return
+		}
+		LogError("DeleteUser failed", "target_id", id, "error", err, "admin_email", userEmail)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	LogInfo("User deleted", "target_id", id, "email", target.Email, "unassigned_issues", unassigned, "admin_email", userEmail)
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "User deleted"}); err != nil {
+		LogError("handleDeleteUser: failed to encode response", "target_id", id, "error", err, "admin_email", userEmail)
+	}
+}
+
 // validateAndPrepareUserUpdate mutates `existing` in place with values from `req`,
 // enforces the last-sysadmin-protection rule, validates the resulting user,
 // and verifies the admin password when the change is privilege-elevating or
@@ -1742,8 +1796,9 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	return revokeSessions, nil
 }
 
-// checkLastSysAdminProtection rejects an update that would leave the system
-// with zero active sysadmins (deactivating or demoting the last one). Returns
+// checkLastSysAdminProtection rejects an update or deletion that would leave the
+// system with zero active sysadmins (deactivating, demoting or deleting the last
+// one; a deletion passes newRole "" and newActive false). Returns
 // errAdminCheckDB on a DB failure so the caller can return 500 instead of 400.
 func checkLastSysAdminProtection(ctx context.Context, existing *User, newRole UserRole, newActive bool) error {
 	if existing.Role == RoleSysAdmin && existing.Active {
@@ -1755,7 +1810,7 @@ func checkLastSysAdminProtection(ctx context.Context, existing *User, newRole Us
 			}
 			if sysAdminCount <= 1 {
 				//nolint:staticcheck // ST1005: capitalised on purpose — returned verbatim to the client (handleUpdateUser -> http.Error) and shown in the UI
-				return errors.New("Cannot deactivate or demote the last active system administrator")
+				return errors.New("Cannot deactivate, demote or delete the last active system administrator")
 			}
 		}
 	}

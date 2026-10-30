@@ -1,9 +1,9 @@
-import { fetchUsers, createUser, updateUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
+import { fetchUsers, createUser, updateUser, deleteUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
 import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state, setUsers, setProjects } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
-import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER } from '../permissions.js';
+import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER, ACTION_DELETE_USER } from '../permissions.js';
 import { updateProjectSelectorOptions } from './toolbar.js';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
@@ -270,6 +270,8 @@ function setupUserModal(refreshCallback) {
 
   if (form) onGuardedSubmit(form, () => handleUserSubmit(refreshCallback));
 
+  document.getElementById('user-modal-delete')?.addEventListener('click', () => handleDeleteUser(refreshCallback));
+
   // Setup custom dropdowns
   setupUserDropdown('user-role-trigger', 'user-role-options', 'user-role', 'user-role-text');
 
@@ -291,6 +293,11 @@ function openUserModal(user) {
   const roleInput = document.getElementById('user-role');
   const roleText = document.getElementById('user-role-text');
   const userForm = document.getElementById('user-form');
+  const deleteBtn = document.getElementById('user-modal-delete');
+
+  // Editing an existing user other than yourself (the backend blocks self-deletion)
+  const canDelete = !!user && user.id !== state.currentUser?.id && userCan(state.currentUser, ACTION_DELETE_USER);
+  deleteBtn.classList.toggle('hidden', !canDelete);
 
   // Clear error
   errorDisplay.textContent = '';
@@ -392,6 +399,27 @@ async function handleUserSubmit(refreshCallback) {
   } catch (err) {
     showUserError(errorDisplay, err.message);
   }
+}
+
+async function handleDeleteUser(refreshCallback) {
+  if (!editingUserId || editingUserId === state.currentUser?.id) return;
+  if (!userCan(state.currentUser, ACTION_DELETE_USER)) return;
+
+  const userId = editingUserId;
+  const name = `${document.getElementById('user-first-name').value} ${document.getElementById('user-last-name').value}`.trim();
+  const confirmed = await promptAdminPasswordConfirmation(
+    'Delete User',
+    `Do you really want to delete ${name}?\nIssues assigned to them become unassigned (noted in each issue's history), releases they own lose their owner, and their comments and history entries show "Unknown user". This signs them out (<15min) and cannot be undone.`,
+    async (adminPassword) => {
+      await deleteUser(userId, adminPassword);
+    },
+    'Delete'
+  );
+  if (!confirmed) return;
+
+  showNotification('User deleted', 'success');
+  closeUserModal();
+  void renderSystemSettingsView(refreshCallback);
 }
 
 // Returns the confirmation dialog copy for the update, or null if it needs no confirmation.

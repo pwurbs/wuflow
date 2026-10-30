@@ -1420,6 +1420,7 @@ func TestHandlersDBErrors(t *testing.T) {
 		{"HandleDeleteProject", "DELETE", apiProjectsBase + "2", "", nil},
 		{"HandleListUsers", "GET", apiUsers, "", nil},
 		{"HandleGetUser", "GET", apiUsers1, "", nil},
+		{"HandleDeleteUser", "DELETE", apiUsersBase + "2", `{"admin_password":"x"}`, nil},
 	}
 
 	for _, tt := range tests {
@@ -2442,10 +2443,12 @@ func TestHandlersForbidden(t *testing.T) {
 		{"DeleteLabel/user", "DELETE", apiLabels1, RoleUser, nil},
 		{"CreateUser/user", "POST", apiUsers, RoleUser, nil},
 		{"UpdateUser/user", "PUT", apiUsers1, RoleUser, nil},
+		{"DeleteUser/user", "DELETE", apiUsers1, RoleUser, nil},
 
 		// Sysadmin-only actions: RoleAdmin must also be denied
 		{"CreateUser/admin", "POST", apiUsers, RoleAdmin, nil},
 		{"UpdateUser/admin", "PUT", apiUsers1, RoleAdmin, nil},
+		{"DeleteUser/admin", "DELETE", apiUsers1, RoleAdmin, nil},
 
 		// All role-gated actions: no role must be denied
 		{"ListIssues/noRole", "GET", apiProjects1IssuesActive, "", nil},
@@ -2466,6 +2469,7 @@ func TestHandlersForbidden(t *testing.T) {
 		{"CreateUser/noRole", "POST", apiUsers, "", nil},
 		{"GetUser/noRole", "GET", apiUsers1, "", nil},
 		{"UpdateUser/noRole", "PUT", apiUsers1, "", nil},
+		{"DeleteUser/noRole", "DELETE", apiUsers1, "", nil},
 
 		// Sysadmin-only project mutations: RoleUser must be denied
 		{"CreateProject/user", "POST", apiProjects, RoleUser, nil},

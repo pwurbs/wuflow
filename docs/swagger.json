@@ -1010,6 +1010,41 @@
             "description": "Conflict - email already in use"
           }
         }
+      },
+      "delete": {
+        "summary": "Delete user",
+        "description": "Requires sysadmin role. Issues assigned to the user become unassigned, each with an assignee history entry authored by the requesting sysadmin. Releases owned by the user lose their owner; comments and history entries of the user lose their author.",
+        "x-required-role": "sysadmin",
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User deleted"
+          },
+          "400": {
+            "description": "Bad Request - own account, last active sysadmin, or admin_password missing/incorrect"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not a sysadmin"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
       }
     },
     "/projects/{pId}/issues/active": {

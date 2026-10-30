@@ -35,6 +35,7 @@ export const ACTION_LIST_USERS      = 'user:list';
 export const ACTION_GET_USER        = 'user:get';
 export const ACTION_CREATE_USER     = 'user:create';
 export const ACTION_UPDATE_USER     = 'user:update';
+export const ACTION_DELETE_USER     = 'user:delete';
 export const ACTION_LIST_PROJECTS   = 'project:list';
 export const ACTION_CREATE_PROJECT  = 'project:create';
 export const ACTION_UPDATE_PROJECT  = 'project:update';
@@ -84,6 +85,7 @@ const rolePermissions = {
     [ACTION_GET_USER]:        [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     [ACTION_CREATE_USER]:     [ROLE_SYSADMIN],
     [ACTION_UPDATE_USER]:     [ROLE_SYSADMIN],
+    [ACTION_DELETE_USER]:     [ROLE_SYSADMIN],
     // Projects
     [ACTION_LIST_PROJECTS]:   [ROLE_SYSADMIN, ROLE_ADMIN, ROLE_USER],
     [ACTION_CREATE_PROJECT]:  [ROLE_SYSADMIN],

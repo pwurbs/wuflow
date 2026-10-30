@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures';
 import crypto from 'node:crypto';
+import { navigateTo, openIssueByTitle } from './helpers/test-utils';
 
 // Helper to generate random pass
 function generatePassword() {
@@ -631,6 +632,45 @@ test.describe('User Management', () => {
     await expect(page).not.toHaveURL(/\/login/);
     expect(updateRequests).toHaveLength(0);
     await page.click('#password-cancel-btn');
+  });
+
+  test('Sysadmin can delete a user, whose issues become unassigned with a history entry', async ({ page, workerServer }) => {
+    const email = `delete_${Date.now()}@example.com`;
+    const createResp = await page.request.post('/api/users', {
+      data: { email, first_name: 'Peter', last_name: 'Pan', password: generatePassword(), role: 'user', active: true },
+    });
+    expect(createResp.status()).toBe(201);
+    const user = await createResp.json();
+    const title = `Assigned to deleted user ${Date.now()}`;
+    const issueResp = await page.request.post('/api/projects/1/issues', {
+      data: { title, status: 'Todo', priority: 'Normal', assignee_id: user.id },
+    });
+    expect(issueResp.status()).toBe(201);
+
+    // The own account offers no delete button
+    await page.reload();
+    await navigateTo(page, 'system-settings');
+    await page.locator(`.settings-entry:has-text("${adminEmail}")`).click();
+    await expect(page.locator('#user-modal-delete')).toBeHidden();
+    await page.click('#user-modal-cancel');
+
+    const userRow = page.locator(`.settings-entry:has-text("${email}")`);
+    await userRow.click();
+    await page.click('#user-modal-delete');
+    await expect(page.locator('#admin-confirm-title')).toHaveText('Delete User');
+    await expect(page.locator('#admin-confirm-message')).toContainText('Issues assigned to them become unassigned');
+    await page.fill('#admin-confirm-password', workerServer.adminPassword);
+    await page.click('#admin-confirm-ok-btn');
+    await expect(page.locator('#user-modal-overlay')).toBeHidden();
+    await expect(userRow).toHaveCount(0);
+
+    await navigateTo(page, 'board');
+    await openIssueByTitle(page, title);
+    await expect(page.locator('#assignee-text')).toContainText('Unassigned');
+    await page.click('#tab-history');
+    const last = page.locator('.history-item').last();
+    await expect(last.locator('.history-text')).toHaveText('Assignee: Changed Peter Pan (user deleted) → none');
+    await expect(last.locator('.history-author')).not.toHaveText('Unknown user');
   });
 
 });

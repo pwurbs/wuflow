@@ -41,6 +41,7 @@ const (
 	ActionGetUser    Action = "user:get"
 	ActionCreateUser Action = "user:create"
 	ActionUpdateUser Action = "user:update"
+	ActionDeleteUser Action = "user:delete"
 
 	// Project actions
 	ActionListProjects  Action = "project:list"
@@ -111,6 +112,7 @@ var rolePermissions = map[Action][]UserRole{
 	ActionGetUser:    {RoleSysAdmin, RoleAdmin, RoleUser},
 	ActionCreateUser: {RoleSysAdmin},
 	ActionUpdateUser: {RoleSysAdmin},
+	ActionDeleteUser: {RoleSysAdmin},
 
 	// Projects
 	ActionListProjects:  {RoleSysAdmin, RoleAdmin, RoleUser},

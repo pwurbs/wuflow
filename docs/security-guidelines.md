@@ -68,7 +68,7 @@ The security rules wuFlow's code follows and the risks the project has deliberat
   generic error and equal timing for wrong password, unknown and inactive users. → [User Management](user-management.md)
 - Code gets the client IP (rate limits, logs) only via `GetClientIP`, which trusts the
   client-IP header only from trusted proxies (see [I1](#i1--private-networks-are-trusted-proxies-by-default)).
-- Password, role and email changes and deactivation revoke the user's sessions; sensitive admin
+- Password, role and email changes, deactivation and deletion revoke the user's sessions; sensitive admin
   actions require the admin's own password. → [User Management](user-management.md)
 
 ### Dependencies and deployment
@@ -139,8 +139,9 @@ The security rules wuFlow's code follows and the risks the project has deliberat
 ### I6 — Access tokens stay valid up to 15 minutes after revocation
 
 - **Risk**: The JWT is checked without a database lookup. After logout or a change that revokes
-  sessions (deactivation, role, password or email change), an already-issued access token keeps
-  working — with its old role — until it expires.
+  sessions (deactivation, deletion, role, password or email change), an already-issued access token keeps
+  working — with its old role — until it expires. For a deleted user, writes fail during that time
+  (the user no longer exists for the foreign keys), reads still work.
 - **Why accepted**: Inherent trade-off of stateless JWTs; the window is bounded by the 15-minute TTL.
 - **Mitigation**: Short TTL; the next refresh fails because the sessions are revoked.
 - **Revisit if**: the access-token TTL is raised, or a change must take effect immediately (e.g.
