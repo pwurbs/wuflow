@@ -77,6 +77,8 @@ vi.mock('../utils.js', async (importOriginal) => {
     toDateInputValue: actual.toDateInputValue,
     guardSubmit: actual.guardSubmit,
     markBusy: actual.markBusy,
+    setAriaDisabled: actual.setAriaDisabled,
+    isErrorToastShown: actual.isErrorToastShown,
     onGuardedSubmit: actual.onGuardedSubmit,
     // Discards without asking; tests that need the question override it.
     confirmDiscard: vi.fn(async () => true)
@@ -2056,7 +2058,7 @@ describe('Modal Component', () => {
 
       // The callbacks look at the actual editor state: open while onEditStart runs, closed after.
       const { onEditStart, onEditEnd } = activity.loadActivity.mock.lastCall[1];
-      activity.getOpenCommentDraft.mockReturnValueOnce({ changed: false, save: vi.fn(), discard: vi.fn() });
+      activity.getOpenCommentDraft.mockReturnValueOnce({ changed: () => false, save: vi.fn(), discard: vi.fn() });
       onEditStart();
       expect(addSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
       onEditEnd();
@@ -2694,7 +2696,7 @@ describe('Modal Component', () => {
 
     it('asks "Save comment?" on Done while a comment is open, and keeps the modal open if its save fails', async () => {
       await openModalWithMock({ id: 1, title: 'T' });
-      const draft = { changed: true, save: vi.fn().mockResolvedValue(false), discard: vi.fn() };
+      const draft = { changed: () => true, save: vi.fn().mockResolvedValue(false), discard: vi.fn() };
       activity.getOpenCommentDraft.mockReturnValueOnce(draft);
       utils.showConfirm.mockResolvedValueOnce(true);
 
@@ -2709,7 +2711,7 @@ describe('Modal Component', () => {
 
     it('discards an unchanged comment on Done without asking', async () => {
       await openModalWithMock({ id: 1, title: 'T' });
-      const draft = { changed: false, save: vi.fn(), discard: vi.fn() };
+      const draft = { changed: () => false, save: vi.fn(), discard: vi.fn() };
       activity.getOpenCommentDraft.mockReturnValueOnce(draft);
 
       document.getElementById('done-btn').click();

@@ -8,6 +8,7 @@ import {
   getDeadlineStatus, getTaskDeadlineStatus,
   promptAdminPasswordConfirmation,
   guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
+  isErrorToastShown, setAriaDisabled,
 } from '../utils.js';
 
 describe('getDeadlineStatus', () => {
@@ -328,6 +329,16 @@ describe('showNotification', () => {
     expect(toast.classList.contains('hidden')).toBe(true);
   });
 
+  it('reports an error toast only while it is shown', () => {
+    expect(isErrorToastShown()).toBe(false);
+    showNotification('Saved');
+    expect(isErrorToastShown()).toBe(false);
+    showNotification('Failed', 'error');
+    expect(isErrorToastShown()).toBe(true);
+    vi.advanceTimersByTime(5000);
+    expect(isErrorToastShown()).toBe(false);
+  });
+
   it('should not hide before 5000ms', () => {
     showNotification('Test');
     vi.advanceTimersByTime(4999);
@@ -580,6 +591,16 @@ describe('guardSubmit', () => {
     resolveSave();
     await running;
     expect(input.readOnly).toBe(false);
+  });
+});
+
+describe('setAriaDisabled', () => {
+  it('sets aria-disabled="true" and removes it again', () => {
+    const el = document.createElement('div');
+    setAriaDisabled(el, true);
+    expect(el.getAttribute('aria-disabled')).toBe('true');
+    setAriaDisabled(el, false);
+    expect(el.hasAttribute('aria-disabled')).toBe(false);
   });
 });
 

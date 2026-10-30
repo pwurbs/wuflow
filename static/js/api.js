@@ -455,10 +455,7 @@ export async function deleteUser(id, adminPassword) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ admin_password: adminPassword })
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || 'Failed to delete user');
-  }
+  if (!res.ok) throw new Error(await res.text() || 'Failed to delete user');
 }
 
 // --- Auth API functions ---

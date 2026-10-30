@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy } from '../utils.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
@@ -409,11 +409,6 @@ function resetMdPreview(previewEl) {
     b.disabled = false;
     b.classList.remove('disabled');
   });
-}
-
-function setAriaDisabled(el, disabled) {
-  if (disabled) el.setAttribute('aria-disabled', 'true');
-  else el.removeAttribute('aria-disabled');
 }
 
 // enable: edit modal, where title and description are shown read-only until clicked
@@ -884,17 +879,16 @@ function setupInlineEditing() {
 }
 
 async function handleDone() {
-  const titleInput = document.getElementById('title');
   const descEditor = document.getElementById('description-editor');
 
   // Let queued field saves finish first, so closing the modal does not drop them.
   await issueSaveChain;
 
   // Title: auto-save (or revert if empty); a failed save keeps the modal open
-  if (titleInput.classList.contains('inline-editing') && !(await _saveTitleFn())) return;
+  if (isTitleEditing() && !(await _saveTitleFn())) return;
 
   // Description: keep explicit prompt behavior; a failed save keeps the modal open
-  if (document.querySelector('.editor-container').classList.contains('inline-editing')) {
+  if (isDescEditing()) {
     const descDone = await processFieldOnDone(descEditor.value !== originalDesc, 'Save description?', _saveDescFn, _cancelDescFn);
     if (!descDone) return;
   }
@@ -905,20 +899,15 @@ async function handleDone() {
   // New task and comments: never added or dropped without asking
   if (!(await processFieldOnDone(hasNewTaskText(), 'Add task?', _submitTaskFn, resetTaskForm, 'Add'))) return;
   const comment = getOpenCommentDraft();
-  if (comment && !(await processFieldOnDone(comment.changed, 'Save comment?', comment.save, comment.discard))) return;
+  if (comment && !(await processFieldOnDone(comment.changed(), 'Save comment?', comment.save, comment.discard))) return;
 
-  const showUpdatedNotification = state.currentIssue && hasSavedDuringSession && !errorToastShown();
+  // An error toast, e.g. the warning that HTML was removed from the saved title, would be
+  // replaced by "Issue updated" before it could be read.
+  const showUpdatedNotification = state.currentIssue && hasSavedDuringSession && !isErrorToastShown();
   closeModal();
   if (showUpdatedNotification) {
     showNotification('Issue updated');
   }
-}
-
-// True while an error toast is on screen, e.g. the warning that HTML was removed from the
-// saved title. "Issue updated" on Done would replace it before it could be read.
-function errorToastShown() {
-  const toast = document.getElementById('notification-toast');
-  return !!toast && toast.classList.contains('error') && !toast.classList.contains('hidden');
 }
 
 // Unchanged text is discarded silently, changed text after asking the question.
@@ -933,8 +922,8 @@ async function processFieldOnDone(changed, question, saveFn, cancelFn, saveText 
 
 // Leaves every inline editor without saving, e.g. when the modal closes after archiving.
 function leaveEditors() {
-  if (document.getElementById('title').classList.contains('inline-editing')) _cancelTitleFn();
-  if (document.querySelector('.editor-container').classList.contains('inline-editing')) _cancelDescFn();
+  if (isTitleEditing()) _cancelTitleFn();
+  if (isDescEditing()) _cancelDescFn();
   closeCommentEditors();
 }
 
@@ -946,9 +935,15 @@ export function preventNavigation(e) {
 // True while the title, description or a task is in inline edit mode, i.e. a re-render of
 // the issue fields would overwrite the user's input.
 function isEditing() {
-  const titleEditing = document.getElementById('title').classList.contains('inline-editing');
-  const descEditing = document.querySelector('.editor-container').classList.contains('inline-editing');
-  return titleEditing || descEditing || _saveEditingTaskFn !== null;
+  return isTitleEditing() || isDescEditing() || _saveEditingTaskFn !== null;
+}
+
+function isTitleEditing() {
+  return document.getElementById('title').classList.contains('inline-editing');
+}
+
+function isDescEditing() {
+  return document.querySelector('.editor-container').classList.contains('inline-editing');
 }
 
 function hasNewTaskText() {
@@ -1197,7 +1192,7 @@ function setupEditorToolbar() {
 
   editor.addEventListener('keydown', (e) => {
     // Saving and discarding only apply to the inline editor, not to the new-issue form.
-    const inlineEditing = document.querySelector('.editor-container').classList.contains('inline-editing');
+    const inlineEditing = isDescEditing();
     if (inlineEditing && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       void _saveDescFn();

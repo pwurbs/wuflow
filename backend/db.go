@@ -1369,12 +1369,6 @@ func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, e
 	// Undoes all writes if the function returns before Commit.
 	defer func() { _ = tx.Rollback() }()
 
-	var unassigned int64
-	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM issues WHERE assignee_id = ?", id).Scan(&unassigned); err != nil {
-		LogError(dbErrPrefix+"DeleteUser count", "error", err)
-		return 0, err
-	}
-
 	actor := nullableUserID(&actorID)
 	if _, err := tx.ExecContext(ctx,
 		"INSERT INTO issue_history(issue_id, user_id, event, data) SELECT id, ?, ?, json_object('field', 'assignee', 'from', ?) FROM issues WHERE assignee_id = ?",
@@ -1384,10 +1378,16 @@ func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, e
 		return 0, err
 	}
 
-	if _, err := tx.ExecContext(ctx,
+	unassign, err := tx.ExecContext(ctx,
 		"UPDATE issues SET assignee_id = NULL, updated_by = ?, updated_at = ? WHERE assignee_id = ?",
 		actor, time.Now().UTC(), id,
-	); err != nil {
+	)
+	if err != nil {
+		LogError(dbErrPrefix+"DeleteUser unassign", "error", err)
+		return 0, err
+	}
+	unassigned, err := unassign.RowsAffected()
+	if err != nil {
 		LogError(dbErrPrefix+"DeleteUser unassign", "error", err)
 		return 0, err
 	}

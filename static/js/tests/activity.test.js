@@ -31,6 +31,7 @@ vi.mock('../utils.js', async (importOriginal) => {
     // Real implementation — the list auto-continue tests assert on its actual behavior.
     continueListOnEnter: actual.continueListOnEnter,
     guardSubmit: actual.guardSubmit,
+    setAriaDisabled: actual.setAriaDisabled,
     // Discards without asking; tests that need the question override it.
     confirmDiscard: vi.fn(async () => true)
   };
@@ -819,10 +820,10 @@ describe('Activity Component', () => {
 
       const input = document.getElementById('new-comment-body');
       input.focus();
-      expect(getOpenCommentDraft().changed).toBe(false);
-      input.value = 'draft';
       const draft = getOpenCommentDraft();
-      expect(draft.changed).toBe(true);
+      expect(draft.changed()).toBe(false);
+      input.value = 'draft';
+      expect(draft.changed()).toBe(true);
 
       expect(await draft.save()).toBe(true);
       expect(api.createComment).toHaveBeenCalledWith(7, 1, 'draft');
@@ -837,7 +838,7 @@ describe('Activity Component', () => {
       document.querySelector('.comment-edit-input').value = 'changed';
 
       const draft = getOpenCommentDraft();
-      expect(draft.changed).toBe(true);
+      expect(draft.changed()).toBe(true);
       expect(await draft.save()).toBe(false);
       expect(getOpenCommentDraft()).not.toBeNull();
     });

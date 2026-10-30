@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.js';
-import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard } from '../utils.js';
+import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { getStatusLabel } from '../status-config.js';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.js';
@@ -178,15 +178,13 @@ function closeNewCommentForm({ clear = false } = {}) {
 function setNewCommentFormBlocked(blocked) {
   const { editor, input } = els();
   if (input) input.readOnly = blocked;
-  if (blocked) editor?.setAttribute('aria-disabled', 'true');
-  else editor?.removeAttribute('aria-disabled');
+  if (editor) setAriaDisabled(editor, blocked);
 }
 
 // The open comment editor's draft for the modal's Done handler: { changed, save,
 // discard }, save resolving true once saved. null while no comment editor is open.
 export function getOpenCommentDraft() {
-  if (!ctx.draft) return null;
-  return { changed: ctx.draft.changed(), save: ctx.draft.save, discard: ctx.draft.discard };
+  return ctx.draft;
 }
 
 // Leaves the open comment editor without saving, e.g. when the modal closes.

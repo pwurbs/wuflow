@@ -26,7 +26,8 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
 - Go tests: `go test ./backend/...`
 - Go lint + SAST + vuln: `./scripts/go_checks.sh` (runs all, exit 1 if any failed)
 - JS unit tests: `cd static/js && npm test`
-- E2E: `cd playwright && npm test` (builds the frontend, starts its own servers on 8090–8094)
+- E2E: `cd playwright && npm test` (builds the frontend, starts its own servers on 8090–8094).
+  The sandbox blocks local port binding: run it with `dangerouslyDisableSandbox` and say so in chat first.
 - `go run`/`go build` need `cd static/js && npm run build` first (go:embed); tests and lint don't.
 - The "Run locally" VS Code task builds the frontend itself and logs to `local-databases/wuflow-test.log` (JSON slog) — read it
   instead of asking for logs.

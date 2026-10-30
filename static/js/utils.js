@@ -65,6 +65,11 @@ export function showNotification(message, type = 'success') {
   }
 }
 
+// True while an error toast is on screen.
+export function isErrorToastShown() {
+  const toast = document.getElementById('notification-toast');
+  return !!toast && toast.classList.contains('error') && !toast.classList.contains('hidden');
+}
 
 // Cancels the confirm dialog that is currently open, if any (see showConfirm).
 let cancelPendingConfirm = null;
@@ -255,6 +260,12 @@ export function toDateInputValue(date) {
 export function singleFlight(fn) {
   let inFlight = null;
   return () => (inFlight ??= fn().finally(() => { inFlight = null; }));
+}
+
+// aria-disabled greys an element out and blocks clicks (base/utilities.css).
+export function setAriaDisabled(el, disabled) {
+  if (disabled) el.setAttribute('aria-disabled', 'true');
+  else el.removeAttribute('aria-disabled');
 }
 
 function blockWhileBusy(e) {
