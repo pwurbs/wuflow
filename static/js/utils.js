@@ -268,8 +268,9 @@ export function setAriaDisabled(el, disabled) {
   else el.removeAttribute('aria-disabled');
 }
 
+// Blocks keyup too: a focused button fires its Space click on keyup.
 function blockWhileBusy(e) {
-  if (e.type === 'keydown' && e.key === 'Tab') return;
+  if (e.key === 'Tab') return;
   e.preventDefault();
   e.stopPropagation();
 }
@@ -290,6 +291,7 @@ export async function markBusy(field, fn) {
     field.setAttribute('aria-busy', 'true');
     field.addEventListener('beforeinput', blockWhileBusy, true);
     field.addEventListener('keydown', blockWhileBusy, true);
+    field.addEventListener('keyup', blockWhileBusy, true);
   }
   try {
     return await fn();
@@ -300,6 +302,7 @@ export async function markBusy(field, fn) {
       field.removeAttribute('aria-busy');
       field.removeEventListener('beforeinput', blockWhileBusy, true);
       field.removeEventListener('keydown', blockWhileBusy, true);
+      field.removeEventListener('keyup', blockWhileBusy, true);
     }
   }
 }

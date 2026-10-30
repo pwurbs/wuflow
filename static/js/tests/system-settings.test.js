@@ -1426,6 +1426,17 @@ describe('User deletion', () => {
     expect(deleteBtn().classList.contains('hidden')).toBe(true);
   });
 
+  it('names the loaded user in the dialog, not unsaved edits to the name fields', async () => {
+    await openEditModalFor(target);
+    document.getElementById('user-first-name').value = 'Captain';
+    document.getElementById('user-last-name').value = 'Hook';
+
+    deleteBtn().click();
+    const message = document.getElementById('admin-confirm-message').textContent;
+    expect(message).toContain('Do you really want to delete Peter Pan?');
+    expect(message).not.toContain('Hook');
+  });
+
   it('warns about the unassignment in the password dialog and deletes on confirm', async () => {
     api.deleteUser.mockResolvedValue();
     await openEditModalFor(target);

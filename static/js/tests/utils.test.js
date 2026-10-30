@@ -621,6 +621,25 @@ describe('markBusy', () => {
     expect(field.hasAttribute('aria-busy')).toBe(false);
   });
 
+  it('ignores key releases except Tab while busy, so Space cannot click a button', async () => {
+    const field = document.createElement('div');
+    let finish;
+    const save = markBusy(field, () => new Promise(r => { finish = r; }));
+
+    const space = new KeyboardEvent('keyup', { key: ' ', cancelable: true });
+    const tab = new KeyboardEvent('keyup', { key: 'Tab', cancelable: true });
+    field.dispatchEvent(space);
+    field.dispatchEvent(tab);
+    expect(space.defaultPrevented).toBe(true);
+    expect(tab.defaultPrevented).toBe(false);
+
+    finish();
+    await save;
+    const after = new KeyboardEvent('keyup', { key: ' ', cancelable: true });
+    field.dispatchEvent(after);
+    expect(after.defaultPrevented).toBe(false);
+  });
+
   it('runs the save without a field and frees the field after a failure', async () => {
     expect(await markBusy(null, async () => 'saved')).toBe('saved');
     const field = document.createElement('div');

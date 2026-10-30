@@ -32,6 +32,9 @@ var ErrLabelNotFound = errors.New("label not found")
 // ErrUserNotFound is returned when a user is not found.
 var ErrUserNotFound = errors.New("user not found")
 
+// ErrLastSysAdmin is returned when a write would leave no active sysadmin.
+var ErrLastSysAdmin = errors.New("last active sysadmin")
+
 // ErrSessionNotFound is returned when a session is not found.
 var ErrSessionNotFound = errors.New("session not found")
 
@@ -1336,12 +1339,36 @@ func UpdateUserLastLogin(ctx context.Context, userID int) error {
 	return err
 }
 
-// UpdateUser updates an existing user in the database.
+// lastActiveSysAdminCond matches a users row that is the last active sysadmin. It is
+// part of the WHERE clause of every write that can take sysadmin rights away, so the
+// check and the write are one atomic statement. Parameters: RoleSysAdmin twice.
+const lastActiveSysAdminCond = "(role = ? AND active = 1 AND (SELECT COUNT(*) FROM users WHERE role = ? AND active = 1) <= 1)"
+
+// userWriteErr explains a guarded user write that changed no row: the user is gone
+// (ErrUserNotFound) or is the last active sysadmin (ErrLastSysAdmin).
+func userWriteErr(res sql.Result, caller string, userExists func() (bool, error)) error {
+	err := checkRowsAffected(res, caller, ErrUserNotFound)
+	if !errors.Is(err, ErrUserNotFound) {
+		return err
+	}
+	exists, err := userExists()
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrLastSysAdmin
+	}
+	return ErrUserNotFound
+}
+
+// UpdateUser updates an existing user in the database. Returns ErrLastSysAdmin if
+// the update would demote or deactivate the last active sysadmin.
 func UpdateUser(ctx context.Context, u *User) error {
 	u.UpdatedAt = time.Now().UTC()
+	removesSysAdmin := u.Role != RoleSysAdmin || !u.Active
 	res, err := DB.ExecContext(ctx,
-		"UPDATE users SET email = ?, first_name = ?, last_name = ?, password_hash = ?, role = ?, active = ?, updated_at = ? WHERE id = ?",
-		u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt, u.ID,
+		"UPDATE users SET email = ?, first_name = ?, last_name = ?, password_hash = ?, role = ?, active = ?, updated_at = ? WHERE id = ? AND NOT (? AND "+lastActiveSysAdminCond+")",
+		u.Email, u.FirstName, u.LastName, u.PasswordHash, u.Role, u.Active, u.UpdatedAt, u.ID, removesSysAdmin, RoleSysAdmin, RoleSysAdmin,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
@@ -1351,7 +1378,7 @@ func UpdateUser(ctx context.Context, u *User) error {
 		return err
 	}
 
-	return checkRowsAffected(res, "UpdateUser", ErrUserNotFound)
+	return userWriteErr(res, "UpdateUser", func() (bool, error) { return UserExists(ctx, u.ID) })
 }
 
 // DeleteUser removes a user in one transaction. Issues assigned to the user are
@@ -1359,7 +1386,8 @@ func UpdateUser(ctx context.Context, u *User) error {
 // (assignee changed from "<userName> (user deleted)", the same JSON shape as a
 // ChangeData) and a new updated_at so open editors get a conflict. All other user
 // references are cleared by the schema (ON DELETE SET NULL / CASCADE).
-// Returns the number of unassigned issues.
+// Returns the number of unassigned issues, or ErrLastSysAdmin for the last active
+// sysadmin.
 func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, error) {
 	tx, err := DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -1392,12 +1420,20 @@ func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, e
 		return 0, err
 	}
 
-	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
+	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ? AND NOT "+lastActiveSysAdminCond, id, RoleSysAdmin, RoleSysAdmin)
 	if err != nil {
 		LogError(dbErrPrefix+"DeleteUser", "error", err)
 		return 0, err
 	}
-	if err := checkRowsAffected(res, "DeleteUser", ErrUserNotFound); err != nil {
+	userExists := func() (bool, error) {
+		var count int
+		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE id = ?", id).Scan(&count); err != nil {
+			LogError(dbErrPrefix+"DeleteUser existence check", "error", err)
+			return false, err
+		}
+		return count > 0, nil
+	}
+	if err := userWriteErr(res, "DeleteUser", userExists); err != nil {
 		return 0, err
 	}
 
@@ -1414,17 +1450,6 @@ func CountUsers(ctx context.Context) (int, error) {
 	err := DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
 		LogError("Database Error: CountUsers", "error", err)
-		return 0, err
-	}
-	return count, nil
-}
-
-// CountActiveSysAdmins returns the number of active users with sysadmin role.
-func CountActiveSysAdmins(ctx context.Context) (int, error) {
-	var count int
-	err := DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE role = ? AND active = 1", RoleSysAdmin).Scan(&count)
-	if err != nil {
-		LogError("Database Error: CountActiveSysAdmins", "error", err)
 		return 0, err
 	}
 	return count, nil

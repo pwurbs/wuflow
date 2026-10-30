@@ -242,7 +242,7 @@ async function renderProjectList(refreshCallback) {
 // --- User Management ---
 
 let editingUserId = null;
-// Role, active flag and email of the user being edited, as loaded (null when creating).
+// Role, active flag, email and name of the user being edited, as loaded (null when creating).
 let editingUserOriginal = null;
 
 const ROLE_RANK = { user: 0, admin: 1, sysadmin: 2 };
@@ -305,7 +305,7 @@ function openUserModal(user) {
 
   if (user) {
     editingUserId = user.id;
-    editingUserOriginal = { role: user.role, active: user.active, email: user.email };
+    editingUserOriginal = { role: user.role, active: user.active, email: user.email, first_name: user.first_name, last_name: user.last_name };
     modalTitle.textContent = 'Edit User';
     emailInput.value = user.email;
     firstNameInput.value = user.first_name;
@@ -406,7 +406,7 @@ async function handleDeleteUser(refreshCallback) {
   if (!userCan(state.currentUser, ACTION_DELETE_USER)) return;
 
   const userId = editingUserId;
-  const name = `${document.getElementById('user-first-name').value} ${document.getElementById('user-last-name').value}`.trim();
+  const name = `${editingUserOriginal.first_name} ${editingUserOriginal.last_name}`.trim();
   const confirmed = await promptAdminPasswordConfirmation(
     'Delete User',
     `Do you really want to delete ${name}?\nIssues assigned to them become unassigned (noted in each issue's history), releases they own lose their owner, and their comments and history entries show "Unknown user". This signs them out (<15min) and cannot be undone.`,

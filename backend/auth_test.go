@@ -1104,21 +1104,6 @@ func TestCountUsers(t *testing.T) {
 	}
 }
 
-func TestCountActiveSysAdmins(t *testing.T) {
-	setupTestDB()
-	defer teardownTestDB()
-
-	hash, _ := HashPassword(testPassword)
-	CreateUser(context.Background(), &User{Email: "sysadmin1@test.com", FirstName: "A", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: true})
-	CreateUser(context.Background(), &User{Email: "sysadmin2@test.com", FirstName: "B", LastName: "U", PasswordHash: hash, Role: RoleSysAdmin, Active: false})
-	CreateUser(context.Background(), &User{Email: testUserEmail, FirstName: "C", LastName: "U", PasswordHash: hash, Role: RoleUser, Active: true})
-
-	count, _ := CountActiveSysAdmins(context.Background())
-	if count != 1 {
-		t.Errorf("expected 1 active sysadmin, got %d", count)
-	}
-}
-
 func TestGetUserByEmailNotFound(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
@@ -1165,7 +1150,6 @@ func TestUserDBErrors(t *testing.T) {
 		{"GetUserByID", func() error { _, err := GetUserByID(context.Background(), 1); return err }},
 		{"GetAllUsers", func() error { _, err := GetAllUsers(context.Background()); return err }},
 		{"CountUsers", func() error { _, err := CountUsers(context.Background()); return err }},
-		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(context.Background()); return err }},
 	}
 
 	for _, tt := range tests {
@@ -1481,6 +1465,12 @@ func TestHandleUserPutLastSysAdminProtection(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, rr.Code, http.StatusBadRequest)
 	}
+	if body := strings.TrimSpace(rr.Body.String()); body != errMsgLastSysAdmin {
+		t.Errorf("expected message %q, got %q", errMsgLastSysAdmin, body)
+	}
+	if got, _ := GetUserByID(context.Background(), 1); got.Role != RoleSysAdmin {
+		t.Errorf("the last sysadmin must keep its role, got %q", got.Role)
+	}
 }
 
 func TestHandleUserMethodNotAllowed(t *testing.T) {
@@ -1629,6 +1619,120 @@ func TestDeleteUserNotFound(t *testing.T) {
 	}
 }
 
+// seedSysAdmins creates the given number of active sysadmins plus one inactive one.
+func seedSysAdmins(t *testing.T, active int) (admins []*User, inactive *User) {
+	t.Helper()
+	hash, _ := HashPassword(testPassword)
+	for i := range active {
+		u := &User{Email: fmt.Sprintf("sysadmin%d@test.com", i), FirstName: "S", LastName: "A", PasswordHash: hash, Role: RoleSysAdmin, Active: true}
+		if err := CreateUser(context.Background(), u); err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		admins = append(admins, u)
+	}
+	inactive = &User{Email: "inactive-sysadmin@test.com", FirstName: "I", LastName: "A", PasswordHash: hash, Role: RoleSysAdmin, Active: false}
+	if err := CreateUser(context.Background(), inactive); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	return admins, inactive
+}
+
+// The last-sysadmin rule is part of the write statements, so it holds for every
+// caller of DeleteUser and UpdateUser, whatever the handler checked before.
+func TestDeleteUserLastSysAdmin(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+	admins, inactive := seedSysAdmins(t, 1)
+	issue := &Issue{Title: "Mine", Status: StatusOpen, ProjectID: 1, CreatorID: admins[0].ID, AssigneeID: &admins[0].ID}
+	if err := CreateIssue(ctx, issue); err != nil {
+		t.Fatalf("CreateIssue: %v", err)
+	}
+
+	if _, err := DeleteUser(ctx, admins[0].ID, 0, deleteUserName); !errors.Is(err, ErrLastSysAdmin) {
+		t.Fatalf("expected ErrLastSysAdmin, got %v", err)
+	}
+	if u, _ := GetUserByID(ctx, admins[0].ID); u == nil {
+		t.Error("the last active sysadmin must still exist")
+	}
+	if got, _ := GetIssueByID(ctx, issue.ID); got == nil || got.Assignee == nil {
+		t.Error("the rollback must leave the issue assigned")
+	}
+	if n := countRows(t, "SELECT COUNT(*) FROM issue_history WHERE issue_id = ?", issue.ID); n != 0 {
+		t.Errorf("the rollback must leave no unassign history, got %d entries", n)
+	}
+
+	// An inactive sysadmin is not protected.
+	if _, err := DeleteUser(ctx, inactive.ID, 0, deleteUserName); err != nil {
+		t.Errorf("deleting an inactive sysadmin: %v", err)
+	}
+}
+
+func TestDeleteUserOneOfTwoSysAdmins(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	admins, _ := seedSysAdmins(t, 2)
+
+	if _, err := DeleteUser(context.Background(), admins[0].ID, 0, deleteUserName); err != nil {
+		t.Fatalf("deleting one of two active sysadmins: %v", err)
+	}
+	if _, err := DeleteUser(context.Background(), admins[1].ID, 0, deleteUserName); !errors.Is(err, ErrLastSysAdmin) {
+		t.Errorf("deleting the remaining sysadmin: expected ErrLastSysAdmin, got %v", err)
+	}
+}
+
+func TestUpdateUserLastSysAdmin(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+	admins, _ := seedSysAdmins(t, 1)
+	last := *admins[0]
+
+	demote := last
+	demote.Role = RoleAdmin
+	deactivate := last
+	deactivate.Active = false
+	for name, u := range map[string]User{"demote": demote, "deactivate": deactivate} {
+		if err := UpdateUser(ctx, &u); !errors.Is(err, ErrLastSysAdmin) {
+			t.Errorf("%s: expected ErrLastSysAdmin, got %v", name, err)
+		}
+	}
+	if got, _ := GetUserByID(ctx, last.ID); got.Role != RoleSysAdmin || !got.Active {
+		t.Errorf("the last sysadmin must be unchanged, got role %q active %v", got.Role, got.Active)
+	}
+
+	// Changes that keep sysadmin rights are allowed.
+	rename := last
+	rename.FirstName = "Renamed"
+	if err := UpdateUser(ctx, &rename); err != nil {
+		t.Errorf("renaming the last sysadmin: %v", err)
+	}
+
+	missing := last
+	missing.ID = 999
+	missing.Role = RoleUser
+	if err := UpdateUser(ctx, &missing); !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("unknown user: expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestUpdateUserOneOfTwoSysAdmins(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	admins, _ := seedSysAdmins(t, 2)
+
+	first := *admins[0]
+	first.Role = RoleUser
+	if err := UpdateUser(context.Background(), &first); err != nil {
+		t.Fatalf("demoting one of two active sysadmins: %v", err)
+	}
+	second := *admins[1]
+	second.Active = false
+	if err := UpdateUser(context.Background(), &second); !errors.Is(err, ErrLastSysAdmin) {
+		t.Errorf("deactivating the remaining sysadmin: expected ErrLastSysAdmin, got %v", err)
+	}
+}
+
 // deleteUserRequest sends DELETE /api/users/{id} as the given actor.
 func deleteUserRequest(targetID int, actor *User, role UserRole, password string) *httptest.ResponseRecorder {
 	var body *bytes.Buffer
@@ -1754,27 +1858,34 @@ func TestDeleteUserTransactionFailures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setupTestDB()
-			defer teardownTestDB()
-			actor, target, _, _, _ := seedDeleteUserFixture(t)
-			if _, err := DB.Exec(tt.setup(target.ID)); err != nil {
-				t.Fatal(err)
-			}
-
-			_, err := DeleteUser(context.Background(), target.ID, actor.ID, deleteUserName)
-			if err == nil || errors.Is(err, ErrUserNotFound) {
-				t.Fatalf("expected a database error, got %v", err)
-			}
-			if got, _ := GetUserByID(context.Background(), target.ID); got == nil {
-				t.Error("user must stay when the transaction fails")
-			}
-			if !tt.issuesExists {
-				return
-			}
-			if n := countRows(t, "SELECT COUNT(*) FROM issues WHERE assignee_id = ?", target.ID); n != 2 {
-				t.Errorf("expected both issues to stay assigned after rollback, got %d", n)
-			}
+			checkDeleteUserRollsBack(t, tt.setup, tt.issuesExists)
 		})
+	}
+}
+
+// checkDeleteUserRollsBack breaks DeleteUser with the SQL from setup and checks that
+// it fails with a database error and leaves the user and its issues untouched.
+func checkDeleteUserRollsBack(t *testing.T, setup func(targetID int) string, issuesExists bool) {
+	t.Helper()
+	setupTestDB()
+	defer teardownTestDB()
+	actor, target, _, _, _ := seedDeleteUserFixture(t)
+	if _, err := DB.Exec(setup(target.ID)); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := DeleteUser(context.Background(), target.ID, actor.ID, deleteUserName)
+	if err == nil || errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected a database error, got %v", err)
+	}
+	if got, _ := GetUserByID(context.Background(), target.ID); got == nil {
+		t.Error("user must stay when the transaction fails")
+	}
+	if !issuesExists {
+		return
+	}
+	if n := countRows(t, "SELECT COUNT(*) FROM issues WHERE assignee_id = ?", target.ID); n != 2 {
+		t.Errorf("expected both issues to stay assigned after rollback, got %d", n)
 	}
 }
 
@@ -1794,12 +1905,13 @@ func TestHandleDeleteUserLoadError(t *testing.T) {
 }
 
 // Another admin deleted the user between the lookup and the delete: simulated by
-// a trigger that silently skips the row, so the delete affects no row.
+// a trigger that removes the row itself and skips the outer delete, so the delete
+// affects no row and the user is gone.
 func TestHandleDeleteUserVanishedDuringDelete(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 	actor, target, _, _, _ := seedDeleteUserFixture(t)
-	if _, err := DB.Exec("CREATE TRIGGER skip_delete BEFORE DELETE ON users BEGIN SELECT RAISE(IGNORE); END"); err != nil {
+	if _, err := DB.Exec("CREATE TRIGGER vanish BEFORE DELETE ON users BEGIN DELETE FROM users WHERE id = OLD.id; SELECT RAISE(IGNORE); END"); err != nil {
 		t.Fatal(err)
 	}
 

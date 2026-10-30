@@ -45,10 +45,11 @@ const (
 	errMsgDuplicateReleaseName  = "Release name already exists in this project"
 	errMsgUnauthorized          = "Unauthorized"
 	errMsgAdminPasswordRequired = "admin password confirmation required"
+	errMsgLastSysAdmin          = "Cannot deactivate, demote or delete the last active system administrator"
 )
 
-// errAdminCheckDB is a sentinel returned by checkLastSysAdminProtection when the
-// sysadmin-count query fails. It lets callers distinguish a server-side DB error
+// errAdminCheckDB is a sentinel returned by verifyAdminPassword when the admin's
+// account can't be loaded. It lets callers distinguish a server-side DB error
 // (→ 500) from a business-logic validation error (→ 400) without leaking the
 // internal error detail to the client.
 var errAdminCheckDB = errors.New("internal admin count check failed")
@@ -1665,6 +1666,11 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 			http.Error(w, "Email already exists", http.StatusConflict)
 			return
 		}
+		if errors.Is(err, ErrLastSysAdmin) {
+			LogWarn("UpdateUser: last admin protection triggered", "target_id", id, "admin_email", userEmail)
+			http.Error(w, errMsgLastSysAdmin, http.StatusBadRequest)
+			return
+		}
 		LogError("UpdateUser: database error", "error", err, "admin_email", userEmail)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
@@ -1714,19 +1720,16 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	if err := checkLastSysAdminProtection(r.Context(), target, "", false); err != nil {
-		if !errors.Is(err, errAdminCheckDB) {
-			LogWarn("DeleteUser: last admin protection triggered", "target_id", id, "admin_email", userEmail)
-		}
-		writeUserUpdateError(w, err)
-		return
-	}
-
 	unassigned, err := DeleteUser(r.Context(), id, actorID, assigneeName(&Issue{Assignee: target}))
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			LogWarn("DeleteUser: not found", "target_id", id, "admin_email", userEmail)
 			http.Error(w, errMsgUserNotFound, http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrLastSysAdmin) {
+			LogWarn("DeleteUser: last admin protection triggered", "target_id", id, "admin_email", userEmail)
+			http.Error(w, errMsgLastSysAdmin, http.StatusBadRequest)
 			return
 		}
 		LogError("DeleteUser failed", "target_id", id, "error", err, "admin_email", userEmail)
@@ -1742,7 +1745,7 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request, id int) {
 }
 
 // validateAndPrepareUserUpdate mutates `existing` in place with values from `req`,
-// enforces the last-sysadmin-protection rule, validates the resulting user,
+// validates the resulting user,
 // and verifies the admin password when the change is privilege-elevating or
 // affects the login (password change, role promotion, active toggle, or email
 // change). Returns whether the caller should revoke all of the target user's
@@ -1753,13 +1756,6 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	existing.Email = strings.TrimSpace(req.Email)
 	existing.FirstName = strings.TrimSpace(req.FirstName)
 	existing.LastName = strings.TrimSpace(req.LastName)
-
-	if err := checkLastSysAdminProtection(ctx, existing, req.Role, req.Active); err != nil {
-		if !errors.Is(err, errAdminCheckDB) {
-			LogWarn("UpdateUser: last admin protection triggered", "error", err, "admin_email", userEmail)
-		}
-		return false, err
-	}
 
 	originalRole := existing.Role
 	originalActive := existing.Active
@@ -1794,27 +1790,6 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	}
 
 	return revokeSessions, nil
-}
-
-// checkLastSysAdminProtection rejects an update or deletion that would leave the
-// system with zero active sysadmins (deactivating, demoting or deleting the last
-// one; a deletion passes newRole "" and newActive false). Returns
-// errAdminCheckDB on a DB failure so the caller can return 500 instead of 400.
-func checkLastSysAdminProtection(ctx context.Context, existing *User, newRole UserRole, newActive bool) error {
-	if existing.Role == RoleSysAdmin && existing.Active {
-		if newRole != RoleSysAdmin || !newActive {
-			sysAdminCount, err := CountActiveSysAdmins(ctx)
-			if err != nil {
-				LogError("checkLastSysAdminProtection: failed to count active sysadmins", "error", err)
-				return errAdminCheckDB
-			}
-			if sysAdminCount <= 1 {
-				//nolint:staticcheck // ST1005: capitalised on purpose — returned verbatim to the client (handleUpdateUser -> http.Error) and shown in the UI
-				return errors.New("Cannot deactivate, demote or delete the last active system administrator")
-			}
-		}
-	}
-	return nil
 }
 
 // updateUserPassword hashes newPassword and assigns it to user.PasswordHash.

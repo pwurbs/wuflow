@@ -368,7 +368,6 @@ func TestDBErrors(t *testing.T) {
 		}},
 		{"DeleteUser", func() error { _, err := DeleteUser(context.Background(), 1, 1, "N"); return err }},
 		{"CountUsers", func() error { _, err := CountUsers(context.Background()); return err }},
-		{"CountActiveSysAdmins", func() error { _, err := CountActiveSysAdmins(context.Background()); return err }},
 		{"CreateSession", func() error {
 			return CreateSession(context.Background(), &Session{UserID: 1, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour)})
 		}},
