@@ -112,7 +112,8 @@ minor_older() {
 # latest_github_release <owner/repo> — tag of the latest GitHub release without
 # a leading "v", or empty if the API can't be reached.
 latest_github_release() {
-    curl -s "https://api.github.com/repos/$1/releases/latest" | grep -m1 '"tag_name"' \
+    local repo="$1"
+    curl -s "https://api.github.com/repos/$repo/releases/latest" | grep -m1 '"tag_name"' \
         | sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/'
     return 0
 }

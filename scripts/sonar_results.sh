@@ -114,19 +114,19 @@ print_rows() {
 }
 
 print_issues() {
-    local rows
+    local branch="$1" rows
     rows="$(fetch_all issues/search '.issues[] | [.rule, .severity, .type,
             "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv' \
-        -d componentKeys="$PROJECT" -d organization="$ORG" --data-urlencode "branch=$1" -d resolved=false)"
+        -d componentKeys="$PROJECT" -d organization="$ORG" --data-urlencode "branch=$branch" -d resolved=false)"
     print_rows "Open issues" $'RULE\tSEVERITY\tTYPE\tFILE:LINE\tMESSAGE' "$rows"
     return 0
 }
 
 print_hotspots() {
-    local rows
+    local branch="$1" rows
     rows="$(fetch_all hotspots/search '.hotspots[] | [.ruleKey, .vulnerabilityProbability,
             "\(.component | sub("^[^:]*:"; "")):\(.line // "-")", .message] | @tsv' \
-        -d projectKey="$PROJECT" --data-urlencode "branch=$1" -d status=TO_REVIEW)"
+        -d projectKey="$PROJECT" --data-urlencode "branch=$branch" -d status=TO_REVIEW)"
     print_rows "Security hotspots to review" $'RULE\tPROBABILITY\tFILE:LINE\tMESSAGE' "$rows"
     return 0
 }

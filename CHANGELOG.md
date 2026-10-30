@@ -9,7 +9,6 @@
 - Fixed: false "Conflict Detected" messages after a quick reopen or a project move, the description staying in edit mode for the next issue, and the leave-page warning missing unsaved comments and new tasks
 - Sysadmins can now delete users. Their issues become unassigned, and each issue's history shows this
 
-
 # 1.4.4
 
 - Added Claude Code setup: CLAUDE.md with project instructions, shared permissions in .claude/settings.json and a doc-sync subagent

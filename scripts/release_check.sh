@@ -9,7 +9,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-REMOTE="github"
+REMOTE="origin"
 # Files the release itself changes. Uncommitted changes to only these files
 # come from an earlier, unfinished prepare run and don't block it.
 RELEASE_FILES='^(VERSION|CHANGELOG\.md|README\.md|home-assistant-addon/(CHANGELOG\.md|config\.yaml)|chart/(Chart\.yaml|CHANGELOG\.md|README\.md)|docs/.*)$'
@@ -96,8 +96,9 @@ check_publish() {
 # The version copies new_version.sh writes must all equal VERSION; the
 # changelog sections are written by prepare, so pre versions don't need them.
 check_copy() {
-    if [[ "$2" != "$VERSION" ]]; then
-        problem "$1 is '$2', VERSION is '$VERSION'; run ./scripts/new_version.sh $VERSION."
+    local name="$1" found="$2"
+    if [[ "$found" != "$VERSION" ]]; then
+        problem "$name is '$found', VERSION is '$VERSION'; run ./scripts/new_version.sh $VERSION."
     fi
     return 0
 }

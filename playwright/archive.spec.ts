@@ -1,5 +1,12 @@
 import { test, expect } from './fixtures';
+import type { Page } from '@playwright/test';
 import { createIssue, navigateTo, selectStatus } from './helpers/test-utils';
+
+async function clickAt(page: Page, selector: string) {
+  const box = await page.locator(selector).boundingBox();
+  if (!box) throw new Error(`${selector} has no bounding box`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
 
 test.describe('Archive View', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -265,14 +272,15 @@ test.describe('Archive View', () => {
 
     // 2. Title not inline-editable (click doesn't change class to inline-editing), greyed out
     //    with its frame
-    await page.locator('#title').click({ force: true });
+    // aria-disabled fields are not "actionable" for locator.click, so click like a user would
+    await clickAt(page, '#title');
     await expect(page.locator('#title')).not.toHaveClass(/inline-editing/);
     await expect(page.locator('#title-edit-actions')).toBeHidden();
     await expect(page.locator('#title')).toHaveCSS('opacity', '0.5');
     await expect(page.locator('#title')).toHaveCSS('border-color', 'rgb(53, 67, 87)');
 
     // 3. Description not inline-editable, greyed out with its frame
-    await page.locator('#description-preview').click({ force: true });
+    await clickAt(page, '#description-preview');
     await expect(page.locator('.editor-container')).not.toHaveClass(/inline-editing/);
     await expect(page.locator('.editor-container')).toHaveCSS('opacity', '0.5');
     await expect(page.locator('.editor-container')).toHaveCSS('border-color', 'rgb(53, 67, 87)');
