@@ -1,4 +1,16 @@
 
+# 1.4.5
+
+- Docs: Redesign of Readme and doc files
+- Changed the look of the app: softer colors, rounder corners, the Figtree and Gabarito fonts and plain icons instead of emoji on cards, dates and tasks
+- Added a "scroll to top" button to the issue dialog
+- Fixed: the issue dialog now opens at the top instead of where the previous issue was scrolled
+- Frontend refactoring for a consistent look and behavior of all fields: one saving look, the same keys and questions in every editor, one inactive look (also for archived issues) and one set of color variables
+- Fixed: false "Conflict Detected" messages after a quick reopen or a project move, the description staying in edit mode for the next issue, and the leave-page warning missing unsaved comments and new tasks
+- Sysadmins can now delete users. Their issues become unassigned, and each issue's history shows this
+- Bumped marked to 18.1.2
+- Bumped the Docker base images to Node 24.22.2 and Alpine 3.24.3
+
 # 1.4.4
 
 - Added Claude Code setup: CLAUDE.md with project instructions, shared permissions in .claude/settings.json and a doc-sync subagent

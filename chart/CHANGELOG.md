@@ -1,4 +1,7 @@
 
+# 1.4.5
+- Bumped app version to 1.4.5
+
 # 1.4.4
 - Added optional value `wuflow.trustedProxies` (default empty = wuFlow's default: loopback and private ranges)
 - Fixed the issue that a client IP can be forged by clients, now it uses the client IP header only from trusted proxies

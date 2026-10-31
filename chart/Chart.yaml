@@ -2,8 +2,8 @@ apiVersion: v2
 name: wuflow
 description: "wuFlow is a lean, security-first, self-hosted issue tracker: Kanban board, backlog, releases and a daily planner in one place."
 type: application
-version: 1.4.5-pre3
-appVersion: "1.4.5-pre3"
+version: 1.4.5
+appVersion: "1.4.5"
 icon: https://raw.githubusercontent.com/pwurbs/wuflow/main/static/logo.png
 home: https://wuflow.dev
 sources:
@@ -25,15 +25,11 @@ annotations:
   artifacthub.io/category: skip-prediction
   artifacthub.io/changes: |
     - kind: changed
-      description: wuFlow 1.4.4
+      description: wuFlow 1.4.5
       links:
         - name: Release notes
-          url: https://github.com/pwurbs/wuflow/releases/tag/v1.4.4
-    - kind: security
-      description: The client IP header (wuflow.remoteIpHeader) is used only from trusted proxies; entries forged by clients are ignored
-    - kind: added
-      description: Optional value wuflow.trustedProxies (default empty = wuFlow's default, loopback and private ranges)
-  artifacthub.io/containsSecurityUpdates: "true"
+          url: https://github.com/pwurbs/wuflow/releases/tag/v1.4.5
+  artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/links: |
     - name: Website
       url: https://wuflow.dev
@@ -43,7 +39,7 @@ annotations:
       url: https://github.com/pwurbs/wuflow/issues
   artifacthub.io/images: |
     - name: wuflow
-      image: ghcr.io/pwurbs/wuflow:1.4.5-pre3
+      image: ghcr.io/pwurbs/wuflow:1.4.5
   artifacthub.io/screenshots: |
     - title: Board
       url: https://raw.githubusercontent.com/pwurbs/wuflow/main/docs/screenshots/board.png
