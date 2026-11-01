@@ -66,7 +66,7 @@ The scheme is borrowed from the way how Jira handles issues, but simplified. The
 ### Creating Issues
 Click the **New Issue** button (plus sign) in the main menu to create a new issue. Each issue contains:
 - **Title**: A short summary of the task.
-- **Description**: A rich Markdown editor where you can write detailed specifications, embed links, or use formatting. It also supports live preview.
+- **Description**: A rich Markdown editor where you can write detailed specifications, embed links, or use formatting. It also supports live preview. HTML tags are not allowed: a new issue with text like `<name>` cannot be saved ("Description contains unsupported HTML tags."), and when editing an existing issue the tag is saved but not shown. To write such text, put it in backticks (`` `<name>` ``) or in a code block.
 
 The length of the title (100 chars) and description text (5000 chars) is limited. There is a counter showing the remaining characters in the bottom right corner of the text fields.
 Some more fields can be set here, but are optional and can be adapted at any time later, when editing an issue. 

@@ -45,6 +45,17 @@ Through our `PURIFY_CONFIG` via DOMPurify, only a strict subset of HTML elements
 | GFM Tables (`\| … \|`) | `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` | **Allowed** (Attribute `align` allowed for column alignment; marked emits `align="left\|center\|right"`) |
 | Horizontal Rule (`---`) | `<hr>`               | **Allowed**         |
 
+### Behaviour on disallowed tags
+
+Any tag outside the allowlist is treated the same, whether it is `<script>` or a harmless placeholder such as `<name>`: the check cannot tell them apart. Inside inline code or a fenced code block the text is escaped, so it is never seen as a tag.
+
+| Where | What happens |
+|-------|--------------|
+| Creating an issue (Save) | Blocked with "Description contains unsupported HTML tags." (frontend only, `handleIssueSubmit` in `modal.js`). The backend accepts the text unchanged. |
+| Editing a description inline | Saved as typed, then a notification "Unsupported HTML tags are not rendered for security." |
+| Preview button | The tag is removed from the preview, with the same notification. |
+| Viewing an issue, comments | The tag is removed from the output without a message. |
+
 ---
 
 ## Testing Scenarios
