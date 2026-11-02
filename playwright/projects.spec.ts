@@ -3,6 +3,7 @@ import {
   navigateTo,
   createIssue,
   createProjectViaAPI,
+  deleteProjectViaAPI,
   createIssueViaAPI,
   createReleaseViaAPI,
   createLabelViaAPI,
@@ -180,15 +181,7 @@ test.describe('Project Management', () => {
     await expect(page.locator('#project-modal-error')).toBeVisible();
     await expect(page.locator('#project-modal-error')).not.toBeEmpty();
 
-    await page.click('#project-modal-cancel');
-
-    // Cleanup
-    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
-    await projectRow.click();
-    await page.click('#project-modal-delete');
-    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
-    await page.fill('#admin-confirm-password', workerServer.adminPassword);
-    await page.click('#admin-confirm-ok-btn');
+    await deleteProjectViaAPI(page.request, name, workerServer.adminPassword);
   });
 });
 
@@ -232,14 +225,7 @@ test.describe('Project Selector', () => {
     await page.click('#project-selector-btn');
     await expect(page.locator('#project-selector-options')).toContainText(name);
 
-    // Cleanup
-    await navigateTo(page, 'system-settings');
-    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
-    await projectRow.click();
-    await page.click('#project-modal-delete');
-    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
-    await page.fill('#admin-confirm-password', workerServer.adminPassword);
-    await page.click('#admin-confirm-ok-btn');
+    await deleteProjectViaAPI(page.request, name, workerServer.adminPassword);
   });
 
   test('Selecting a project updates the selector label', async ({ page, workerServer }) => {
@@ -257,14 +243,7 @@ test.describe('Project Selector', () => {
     await page.locator(`#project-selector-options .custom-option:has-text("${name}")`).click();
     await expect(page.locator('#project-selector-text')).toHaveText(name);
 
-    // Cleanup
-    await navigateTo(page, 'system-settings');
-    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${name}")`);
-    await projectRow.click();
-    await page.click('#project-modal-delete');
-    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
-    await page.fill('#admin-confirm-password', workerServer.adminPassword);
-    await page.click('#admin-confirm-ok-btn');
+    await deleteProjectViaAPI(page.request, name, workerServer.adminPassword);
   });
 });
 
@@ -319,14 +298,7 @@ test.describe('Issues with Projects', () => {
     await expect(page.locator('.board')).toBeVisible();
     await expect(page.locator(`.card:has-text("${defaultIssueTitle}")`)).toHaveCount(0);
 
-    // Cleanup — delete the new project (switch back to default first)
-    await navigateTo(page, 'system-settings');
-    const projectRow = page.locator(`#projects-list .settings-entry:has-text("${projectName}")`);
-    await projectRow.click();
-    await page.click('#project-modal-delete');
-    await expect(page.locator('#admin-confirm-modal')).toBeVisible();
-    await page.fill('#admin-confirm-password', workerServer.adminPassword);
-    await page.click('#admin-confirm-ok-btn');
+    await deleteProjectViaAPI(page.request, projectName, workerServer.adminPassword);
   });
 });
 

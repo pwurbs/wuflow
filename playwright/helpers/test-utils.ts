@@ -228,6 +228,15 @@ export async function createProjectViaAPI(request: APIRequestContext, name: stri
   return body.id;
 }
 
+/** Deletes the project with the given name via API, as cleanup for a project created in the UI. */
+export async function deleteProjectViaAPI(request: APIRequestContext, name: string, adminPassword: string): Promise<void> {
+  const projects: { id: number; name: string }[] = await (await request.get('/api/projects')).json();
+  const project = projects.find(p => p.name === name);
+  if (!project) throw new Error(`Project ${name} not found`);
+  const res = await request.delete(`/api/projects/${project.id}`, { data: { admin_password: adminPassword } });
+  expect(res.status()).toBe(200);
+}
+
 /** Creates an issue inside the given project via API; returns its id. */
 export async function createIssueViaAPI(
   request: APIRequestContext,

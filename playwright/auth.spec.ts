@@ -305,10 +305,12 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-email', adminEmail);
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
-    await page.request.put(`/api/users/${createdUser.id}`, {
+    await expect(page.locator('#nav-system-settings')).toBeVisible();
+    const deactivateResp = await page.request.put(`/api/users/${createdUser.id}`, {
       headers: { 'Content-Type': 'application/json' },
-      data: { ...createdUser, active: false }
+      data: { ...createdUser, active: false, admin_password: adminPassword }
     });
+    expect(deactivateResp.status()).toBe(200);
   });
 
   test('Login timing equalization: Unknown email returns 401, not a server error', async ({ request }) => {

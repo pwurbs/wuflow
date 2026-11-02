@@ -3,8 +3,6 @@ import { type FullConfig } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const WORKER_COUNT = 5;
-
 async function globalTeardown(config: FullConfig) {
   console.log('Global Teardown: Opening test report...');
 
@@ -18,7 +16,7 @@ async function globalTeardown(config: FullConfig) {
   const baseDataDir = path.join(config.rootDir, 'test-data');
   const allProblems: string[] = [];
 
-  for (let i = 0; i < WORKER_COUNT; i++) {
+  for (let i = 0; i < config.workers; i++) {
     const logPath = path.join(baseDataDir, `worker-${i}`, 'backend.log');
     if (!fs.existsSync(logPath)) continue;
 

@@ -12,7 +12,6 @@ import path from 'node:path';
 import { killProcessesOnPort } from './helpers/server-utils';
 
 const BASE_PORT = 8090;
-const WORKER_COUNT = 5;
 
 function globalSetup(config: FullConfig) {
   // Build the frontend once before the workers start their servers with
@@ -31,13 +30,11 @@ function globalSetup(config: FullConfig) {
   const cwd = config.rootDir;
   const baseDataDir = path.join(cwd, 'test-data');
 
-  for (let i = 0; i < WORKER_COUNT; i++) {
-    const port = BASE_PORT + i;
-    try { killProcessesOnPort(port); } catch { /* ignore */ }
-
-    const workerDir = path.join(baseDataDir, `worker-${i}`);
-    fs.rmSync(workerDir, { recursive: true, force: true });
+  for (let i = 0; i < config.workers; i++) {
+    try { killProcessesOnPort(BASE_PORT + i); } catch { /* ignore */ }
   }
+  // The whole directory, so data of workers removed by lowering `workers` doesn't linger.
+  fs.rmSync(baseDataDir, { recursive: true, force: true });
 
   console.log('Global Setup: Done.');
 }

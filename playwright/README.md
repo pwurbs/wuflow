@@ -51,6 +51,9 @@ To enable cross-browser testing, uncomment Firefox/WebKit in `playwright.config.
 ### Waiting for Asynchronous Data
 Locator assertions (`expect(locator)…`) retry until they pass, but `page.request` calls run at once. Before reading a field that an asynchronous fetch fills in, wait for it explicitly, e.g. `await expect(page.locator('#issue-id')).toHaveValue(/\d+/)` before using the issue id of an open modal in an API call. Otherwise the request goes out with an empty id. Keep this in mind when replacing a DOM assertion with an API check: the locator waited implicitly, the request doesn't.
 
+### Ending a Test
+A test ends with an assertion, not with an action. At the end of a test Playwright closes the browser context and aborts every request still running, so an action nobody checks may never reach the server. Do cleanup via the API (e.g. `deleteProjectViaAPI` in `helpers/test-utils.ts`) and assert the response status.
+
 ### Test Suites
 
 The three issue-related suites are split by *what* is under test, not by which screen it happens on:
