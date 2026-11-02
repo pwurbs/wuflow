@@ -6,8 +6,9 @@ disable-model-invocation: true
 ---
 
 SonarCloud project `wuflow-oss`, organization `pwurbs-oss` (sonar-project.properties). The project
-is public: reading the API needs no token. Only the upload in step 2 uses `SONAR_TOKEN`, which the
-scanner reads from the environment. Never print it or put it on a command line.
+is public: reading the API needs no token. Only the upload in step 2 uses the token: `sonar_scan.sh`
+takes `SONAR_TOKEN` or reads it from the macOS keychain, which asks the user for the keychain
+password. Never read, print or put the token on a command line yourself.
 
 Mode: `$ARGUMENTS` = `fetch` → skip steps 1–2 (the user already ran the "Sonar" VS Code task);
 otherwise run all steps.

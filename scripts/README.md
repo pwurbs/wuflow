@@ -121,7 +121,7 @@ Uploads a SonarCloud analysis of the current branch, used by the "Sonar" VS Code
 ```bash
 ./scripts/sonar_scan.sh
 ```
-The script expects `sonar-scanner` in your PATH and a SonarCloud token exported as `SONAR_TOKEN`. It needs the coverage and gosec reports from the "Go Test", "JS Test" and "Go Checks" tasks; the VS Code task runs them first, and the script stops if a report is missing.
+The script expects `sonar-scanner` in your PATH and a SonarCloud token, either exported as `SONAR_TOKEN` or stored in the macOS keychain. Create the keychain item with `security add-generic-password -a "$USER" -s wuflow-sonar-token -T "" -w` (prompts for the token): with `-T ""` no application is trusted, so every read asks for the keychain password, also when Claude Code runs the scan. It needs the coverage and gosec reports from the "Go Test", "JS Test" and "Go Checks" tasks; the VS Code task runs them first, and the script stops if a report is missing.
 
 ### `sonar_results.sh`
 Prints the SonarCloud results for the current branch and for `main`: which commit was analysed (with a warning if it is not HEAD), the quality gate, open issues, security hotspots to review and the names of the rules found. The "Sonar" VS Code task runs it after `sonar_scan.sh`, also when the scan or the quality gate failed. Feature branches list the issues that `main`'s last analysis doesn't have, so `main` shows the existing ones; these are mostly in changed code, but a newer SonarCloud analyzer can also add findings in unchanged code.

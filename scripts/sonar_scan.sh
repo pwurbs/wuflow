@@ -9,9 +9,14 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # The scanner reads the token from SONAR_TOKEN itself; passing it as
-# -Dsonar.token would show it in the process list.
+# -Dsonar.token would show it in the process list. Without SONAR_TOKEN, the
+# token comes from the macOS keychain.
+if [[ -z "${SONAR_TOKEN:-}" ]] && command -v security >/dev/null 2>&1; then
+    SONAR_TOKEN=$(security find-generic-password -a "$USER" -s wuflow-sonar-token -w 2>/dev/null || true)
+    export SONAR_TOKEN
+fi
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
-    echo "SONAR_TOKEN is not set." >&2
+    echo "SONAR_TOKEN is not set and the keychain item 'wuflow-sonar-token' could not be read (missing or access denied)." >&2
     exit 1
 fi
 
