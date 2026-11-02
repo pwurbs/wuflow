@@ -164,7 +164,7 @@ export function getListUpdates(listId: string, targetStatus: IssueStatus) {
 
   const cards = [...listElement.querySelectorAll<HTMLElement>('.card')];
   cards.forEach((card, index) => {
-    const id = Number.parseInt(card.dataset.id);
+    const id = Number(card.dataset.id);
     const issue = state.issues.find(i => i.id === id);
     if (issue) {
       const statusChanged = issue.status !== targetStatus;
@@ -207,7 +207,7 @@ export function setupSectionDrop(sectionId: string, targetStatus: IssueStatus, o
     if (section.offsetParent === null) return;
     if (!getDraggedCard()?.classList.contains('card')) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     if (list && showDragHighlight) list.classList.add('drag-over');
   });
 
@@ -230,7 +230,7 @@ export function setupSectionDrop(sectionId: string, targetStatus: IssueStatus, o
     const draggedCard = getDraggedCard();
     if (!draggedCard?.classList.contains('card')) return;
 
-    const issueId = Number.parseInt(draggedCard.dataset.id);
+    const issueId = Number(draggedCard.dataset.id);
     const issue = state.issues.find(i => i.id === issueId);
     if (!issue || issue.status === targetStatus) return;
 
@@ -301,10 +301,10 @@ export function setupListDrag(listId: string, targetStatus: IssueStatus, options
     const draggedCard = getDraggedCard();
     if (!draggedCard) return;
 
-    const issueId = Number.parseInt(draggedCard.dataset.id);
+    const issueId = Number(draggedCard.dataset.id);
     const issue = state.issues.find(i => i.id === issueId);
 
-    if (onValidate && !(await onValidate(issue, targetStatus))) {
+    if (!issue || (onValidate && !(await onValidate(issue, targetStatus)))) {
       rerenderOrRefresh();
       return;
     }

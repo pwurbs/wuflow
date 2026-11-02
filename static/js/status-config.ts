@@ -28,9 +28,12 @@ export const STATUS_SLOTS = [
 export interface StatusOption { value: IssueStatus; label: string }
 export interface BoardColumn { statusKey: IssueStatus; displayName: string }
 
-export function getDefaultStatusConfig(): StatusConfig {
+// The column names of a StatusConfig. The default is used until a project's config is loaded,
+// so it belongs to no project.
+export type StatusNames = Omit<StatusConfig, 'project_id'>;
+
+export function getDefaultStatusConfig(): StatusNames {
     return {
-        project_id:   null,
         stage1_name: 'Pending',
         stage2_name: 'Working',
         stage3_name: '',
@@ -38,7 +41,7 @@ export function getDefaultStatusConfig(): StatusConfig {
     };
 }
 
-export function getActiveStatusConfig(): StatusConfig {
+export function getActiveStatusConfig(): StatusNames {
     return state.statusConfig ?? getDefaultStatusConfig();
 }
 

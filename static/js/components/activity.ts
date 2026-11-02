@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.ts';
-import { byId, escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled } from '../utils.ts';
+import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled } from '../utils.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { getStatusLabel } from '../status-config.ts';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.ts';
@@ -54,27 +54,35 @@ const ctx: ActivityContext = {
 // refreshHistory() from a field save was still in flight), the stale result is
 // discarded instead of clobbering the fresher render.
 let requestSeq = 0;
+// Comments can only be written once loadActivity has set the issue.
+function shownIssue() {
+  if (!ctx.issue) throw new Error('No issue loaded');
+  return ctx.issue;
+}
+
 function nextSeq() { return ++requestSeq; }
 function isStale(seq: number) { return seq !== requestSeq; }
 
-const els = () => ({
-  section: document.getElementById('activity-section'),
-  tabComments: document.getElementById('tab-comments'),
-  tabHistory: document.getElementById('tab-history'),
-  commentList: document.getElementById('comment-list'),
-  historyList: document.getElementById('history-list'),
-  form: document.getElementById('comment-form-container'),
-  editor: document.getElementById('new-comment-editor'),
-  input: byId('new-comment-body', HTMLTextAreaElement),
-  actions: document.getElementById('new-comment-actions'),
-  addBtn: document.getElementById('add-comment-btn'),
-  cancelBtn: document.getElementById('cancel-comment-btn')
-});
+const els = () => {
+  const input = document.getElementById('new-comment-body');
+  return {
+    section: document.getElementById('activity-section'),
+    tabComments: document.getElementById('tab-comments'),
+    tabHistory: document.getElementById('tab-history'),
+    commentList: document.getElementById('comment-list'),
+    historyList: document.getElementById('history-list'),
+    form: document.getElementById('comment-form-container'),
+    editor: document.getElementById('new-comment-editor'),
+    input: input instanceof HTMLTextAreaElement ? input : null,
+    actions: document.getElementById('new-comment-actions'),
+    addBtn: document.getElementById('add-comment-btn'),
+    cancelBtn: document.getElementById('cancel-comment-btn')
+  };
+};
 
 // Counter of the new-comment textarea. Kept at module scope because it's driven
 // manually by open/closeNewCommentForm rather than by focus/blur.
 let newCommentCounter: ReturnType<typeof initCharCounter> | null = null;
-let submitNewCommentOnce: (() => Promise<boolean>) | null = null;
 
 // setupActivity wires the listeners (tab switching + new-comment form). Call
 // once at app start, like setupModal.
@@ -93,26 +101,27 @@ export function setupActivity() {
   });
   // ✓ and Ctrl/Cmd+Enter share the in-flight submit instead of posting the same
   // comment twice while the first request is still running.
-  submitNewCommentOnce = guardSubmit(submitNewComment, { field: e.editor });
+  const submitNewCommentOnce = guardSubmit(submitNewComment, { field: e.editor });
   e.addBtn?.addEventListener('click', submitNewCommentOnce);
   e.cancelBtn?.addEventListener('click', discardNewComment);
-  if (e.input) {
+  const input = e.input;
+  if (input) {
     // manual: true — the counter is tied to the form's edit mode (like the
     // inline comment editor's), not to focus.
-    newCommentCounter = initCharCounter(e.input, MAX_COMMENT_LENGTH, { manual: true });
+    newCommentCounter = initCharCounter(input, MAX_COMMENT_LENGTH, { manual: true });
     // Focus rather than click, so tabbing into the field opens the form too.
-    e.input.addEventListener('focus', openNewCommentForm);
+    input.addEventListener('focus', () => openNewCommentForm(submitNewCommentOnce));
     // An empty field means nothing was written yet — collapse again instead of
     // holding the single-editor guard for a form the user only passed through.
-    e.input.addEventListener('blur', () => {
-      if (!e.input.value.trim()) closeNewCommentForm();
+    input.addEventListener('blur', () => {
+      if (!input.value.trim()) closeNewCommentForm();
     });
     // The textarea grows with its content, which can push the action bar out
     // of sight on a long comment.
-    e.input.addEventListener('input', () => {
+    input.addEventListener('input', () => {
       if (ctx.activeEditor === 'new') ensureNewCommentVisible(e.editor);
     });
-    e.input.addEventListener('keydown', (ev) => handleCommentKeydown(ev, e.input, submitNewCommentOnce, discardNewComment));
+    input.addEventListener('keydown', (ev) => handleCommentKeydown(ev, input, submitNewCommentOnce, discardNewComment));
   }
 }
 
@@ -142,11 +151,11 @@ async function discardNewComment() {
   if (await confirmDiscard(hasNewCommentText())) closeNewCommentForm({ clear: true });
 }
 
-function openNewCommentForm() {
+function openNewCommentForm(save: () => Promise<boolean>) {
   if (ctx.activeEditor !== null) return;
   const e = els();
   ctx.activeEditor = 'new';
-  ctx.draft = { changed: hasNewCommentText, save: submitNewCommentOnce, discard: () => closeNewCommentForm({ clear: true }) };
+  ctx.draft = { changed: hasNewCommentText, save, discard: () => closeNewCommentForm({ clear: true }) };
   e.actions?.classList.remove('hidden');
   newCommentCounter?.show();
   // No active row: every existing comment's Edit/Delete is hidden while the
@@ -504,7 +513,8 @@ function enterCommentEdit(comment: Comment, li: HTMLElement, container: HTMLElem
     const newBody = textarea.value.trim();
     if (!newBody) { showNotification('Comment must not be empty', 'error'); return false; }
     try {
-      await updateComment(ctx.issue.project_id, ctx.issue.id, comment.id, newBody);
+      const issue = shownIssue();
+      await updateComment(issue.project_id, issue.id, comment.id, newBody);
       finish();
       await refreshComments();
       showNotification('Comment updated');
@@ -525,7 +535,8 @@ function enterCommentEdit(comment: Comment, li: HTMLElement, container: HTMLElem
 async function removeComment(comment: Comment) {
   if (!await showConfirm('Delete Comment', 'Delete this comment?', 'Delete')) return;
   try {
-    await deleteComment(ctx.issue.project_id, ctx.issue.id, comment.id);
+    const issue = shownIssue();
+    await deleteComment(issue.project_id, issue.id, comment.id);
     await refreshComments();
     showNotification('Comment deleted');
   } catch (err) {
@@ -539,7 +550,8 @@ async function submitNewComment() {
   const bodyText = (e.input?.value || '').trim();
   if (!bodyText) { showNotification('Comment must not be empty', 'error'); return false; }
   try {
-    await createComment(ctx.issue.project_id, ctx.issue.id, bodyText);
+    const issue = shownIssue();
+    await createComment(issue.project_id, issue.id, bodyText);
     closeNewCommentForm({ clear: true });
     await refreshComments();
     showNotification('Comment added');
@@ -593,7 +605,7 @@ function updatedSentence(d: HistoryEntry['data']) {
   switch (d.field) {
     case 'title': return 'Title: Changed';
     case 'description': return 'Description: Changed';
-    case 'status': return fromTo('Status', 'Changed', getStatusLabel(d.from), getStatusLabel(d.to));
+    case 'status': return fromTo('Status', 'Changed', d.from && getStatusLabel(d.from), d.to && getStatusLabel(d.to));
     case 'priority': return fromTo('Priority', 'Changed', d.from, d.to);
     case 'deadline': return fromTo('Deadline', 'Changed', d.from, d.to);
     case 'assignee': return fromTo('Assignee', 'Changed', d.from, d.to);

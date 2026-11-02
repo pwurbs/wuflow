@@ -1,13 +1,13 @@
 import { state } from '../state.ts';
-import { byId } from '../utils.ts';
+import { byId, bySelector } from '../utils.ts';
 import { getStatusOptions, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { fetchLabelsByProject, fetchReleases, fetchStatusConfig } from '../api.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import type { Label, Project, Release, User } from '../models.ts';
 
 export function setupCustomDropdown(wrapperId: string, triggerId: string, optionsId: string) {
-  const trigger = document.getElementById(triggerId);
-  const options = document.getElementById(optionsId);
+  const trigger = byId(triggerId);
+  const options = byId(optionsId);
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -19,7 +19,7 @@ export function setupCustomDropdown(wrapperId: string, triggerId: string, option
     // Close others
     ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
       if (id !== wrapperId) {
-        const otherOptions = document.getElementById(id).querySelector<HTMLElement>('.custom-select-options');
+        const otherOptions = bySelector(byId(id), '.custom-select-options');
         otherOptions.classList.add('hidden');
         otherOptions.style.maxHeight = '';
       }
@@ -43,7 +43,7 @@ export function setupCustomDropdown(wrapperId: string, triggerId: string, option
 }
 
 export function renderStatusOptions() {
-  const optionsContainer = document.getElementById('status-options');
+  const optionsContainer = byId('status-options');
   optionsContainer.innerHTML = '';
 
   getStatusOptions().forEach(({ value, label }) => {
@@ -58,7 +58,7 @@ export function renderStatusOptions() {
 }
 
 export function renderPriorityOptions() {
-  const optionsContainer = document.getElementById('priority-options');
+  const optionsContainer = byId('priority-options');
   optionsContainer.innerHTML = '';
   PRIORITY_OPTIONS.forEach(({ text, value }) => {
     const div = document.createElement('div');
@@ -72,7 +72,7 @@ export function renderPriorityOptions() {
 }
 
 export function renderLabelOptions(labels: Label[]) {
-  const optionsContainer = document.getElementById('label-options');
+  const optionsContainer = byId('label-options');
   optionsContainer.innerHTML = '';
 
   // No Label Option
@@ -120,16 +120,14 @@ export function renderReleaseOptions(releases: Release[], currentReleaseId: numb
   });
 
   const releaseInput = byId('release-select', HTMLInputElement);
-  const releaseText = document.getElementById('release-text');
-  if (releaseInput && releaseText) {
-    if (currentReleaseId) {
-      const found = (releases || []).find(r => r.id === currentReleaseId);
-      releaseInput.value = String(currentReleaseId);
-      releaseText.textContent = found ? found.name : 'No Release';
-    } else {
-      releaseInput.value = '';
-      releaseText.textContent = 'No Release';
-    }
+  const releaseText = byId('release-text');
+  if (currentReleaseId) {
+    const found = (releases || []).find(r => r.id === currentReleaseId);
+    releaseInput.value = String(currentReleaseId);
+    releaseText.textContent = found ? found.name : 'No Release';
+  } else {
+    releaseInput.value = '';
+    releaseText.textContent = 'No Release';
   }
 }
 
@@ -147,7 +145,7 @@ export function renderProjectOptions(projects: Project[]) {
       fetchLabelsByProject(project.id).then(labels => {
         renderLabelOptions(labels);
         byId('label-select', HTMLInputElement).value = '';
-        document.getElementById('label-text').textContent = 'No Label';
+        byId('label-text').textContent = 'No Label';
       }).catch(err => console.error('Failed to reload labels for project', err));
       fetchReleases(project.id).then(releases => {
         state.releases = releases;
@@ -156,10 +154,8 @@ export function renderProjectOptions(projects: Project[]) {
       fetchStatusConfig(project.id).then(cfg => {
         state.statusConfig = cfg;
         renderStatusOptions();
-        const statusInput = byId('status', HTMLInputElement);
-        const statusText = document.getElementById('status-text');
-        if (statusInput) statusInput.value = STATUS_OPEN;
-        if (statusText) statusText.textContent = 'Open';
+        byId('status', HTMLInputElement).value = STATUS_OPEN;
+        byId('status-text').textContent = 'Open';
         document.getElementById('status-options')?.classList.add('hidden');
       }).catch(err => console.error('Failed to reload status config for project', err));
     });
@@ -168,7 +164,7 @@ export function renderProjectOptions(projects: Project[]) {
 }
 
 export function renderAssigneeOptions(users: User[]) {
-  const optionsContainer = document.getElementById('assignee-options');
+  const optionsContainer = byId('assignee-options');
   optionsContainer.innerHTML = '';
 
   // Unassigned Option
@@ -181,12 +177,13 @@ export function renderAssigneeOptions(users: User[]) {
   optionsContainer.appendChild(unassignedDiv);
 
   // "Assign to me" Option
-  if (state.currentUser) {
+  const me = state.currentUser;
+  if (me) {
     const meDiv = document.createElement('div');
     meDiv.className = 'custom-option';
     meDiv.textContent = 'Assign to me';
     meDiv.addEventListener('click', () => {
-      selectOption('assignee-select', 'assignee-text', 'assignee-options', state.currentUser.id, `${state.currentUser.first_name} ${state.currentUser.last_name}`);
+      selectOption('assignee-select', 'assignee-text', 'assignee-options', me.id, `${me.first_name} ${me.last_name}`);
     });
     optionsContainer.appendChild(meDiv);
   }
@@ -205,8 +202,8 @@ export function renderAssigneeOptions(users: User[]) {
 
 function selectOption(inputId: string, textId: string, optionsId: string, value: string | number, text: string) {
   const input = byId(inputId, HTMLInputElement);
-  const textSpan = document.getElementById(textId);
-  const options = document.getElementById(optionsId);
+  const textSpan = byId(textId);
+  const options = byId(optionsId);
 
   if (input.value != value) {
     input.value = String(value);

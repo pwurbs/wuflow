@@ -49,13 +49,15 @@ export function filterIssues(issues: Issue[], filter: Partial<Filter>, currentUs
   }
 
   // Release filter
-  if (filter.releaseId !== null && filter.releaseId !== undefined) {
-    result = result.filter(issue => matchesRelease(issue, filter.releaseId));
+  const releaseId = filter.releaseId;
+  if (releaseId !== null && releaseId !== undefined) {
+    result = result.filter(issue => matchesRelease(issue, releaseId));
   }
 
   // Backlog lane multi-release filter (OR logic)
-  if (filter.releaseFilterIds?.length) {
-    result = result.filter(issue => matchesReleaseIds(issue, filter.releaseFilterIds));
+  const releaseFilterIds = filter.releaseFilterIds;
+  if (releaseFilterIds?.length) {
+    result = result.filter(issue => matchesReleaseIds(issue, releaseFilterIds));
   }
 
   // Search filter (matches id, title or description)

@@ -2,7 +2,7 @@ import { fetchUsers, createUser, updateUser, deleteUser, fetchProjects, createPr
 import { byId, showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.ts';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.ts';
 import { state, setUsers, setProjects } from '../state.ts';
-import { ROLE_DISPLAY_NAMES } from '../domain-constants.ts';
+import { ROLE_DISPLAY_NAMES, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import type { UserWrite } from '../api.ts';
 import type { Role } from '../permissions.ts';
 import type { Project, User } from '../models.ts';
@@ -42,13 +42,13 @@ let editingProjectId: number | null = null;
 function setupProjectModal() {
   const addProjectBtn = document.getElementById('add-project-btn');
   const cancelBtn = document.getElementById('project-modal-cancel');
-  const form = byId('project-form', HTMLFormElement);
+  const form = document.getElementById('project-form');
   const projectDeleteBtn = document.getElementById('project-modal-delete');
 
-  const nameInput = byId('project-name', HTMLInputElement);
-  const descInput = byId('project-description', HTMLTextAreaElement);
-  if (nameInput) initCharCounter(nameInput, MAX_PROJECT_NAME_LEN);
-  if (descInput) initCharCounter(descInput, MAX_PROJECT_DESC_LEN);
+  const nameInput = document.getElementById('project-name');
+  const descInput = document.getElementById('project-description');
+  if (nameInput instanceof HTMLInputElement) initCharCounter(nameInput, MAX_PROJECT_NAME_LEN);
+  if (descInput instanceof HTMLTextAreaElement) initCharCounter(descInput, MAX_PROJECT_DESC_LEN);
 
   if (addProjectBtn) {
     addProjectBtn.addEventListener('click', () => openProjectModal(null));
@@ -56,19 +56,19 @@ function setupProjectModal() {
   if (cancelBtn) {
     cancelBtn.addEventListener('click', closeProjectModal);
   }
-  if (form) onGuardedSubmit(form, () => handleProjectSubmit());
+  if (form instanceof HTMLFormElement) onGuardedSubmit(form, () => handleProjectSubmit());
   if (projectDeleteBtn) {
     projectDeleteBtn.addEventListener('click', () => handleDeleteProject());
   }
 }
 
 function openProjectModal(project: Project | null) {
-  const overlay = document.getElementById('project-modal-overlay');
-  const title = document.getElementById('project-modal-title');
+  const overlay = byId('project-modal-overlay');
+  const title = byId('project-modal-title');
   const nameInput = byId('project-name', HTMLInputElement);
   const descInput = byId('project-description', HTMLTextAreaElement);
-  const errorDisplay = document.getElementById('project-modal-error');
-  const deleteBtn = document.getElementById('project-modal-delete');
+  const errorDisplay = byId('project-modal-error');
+  const deleteBtn = byId('project-modal-delete');
 
   errorDisplay.textContent = '';
   errorDisplay.classList.add('hidden');
@@ -100,7 +100,7 @@ function openProjectModal(project: Project | null) {
 }
 
 function closeProjectModal() {
-  const overlay = document.getElementById('project-modal-overlay');
+  const overlay = byId('project-modal-overlay');
   overlay.classList.add('hidden');
   editingProjectId = null;
 }
@@ -108,7 +108,7 @@ function closeProjectModal() {
 async function handleProjectSubmit() {
   const nameInput = byId('project-name', HTMLInputElement);
   const descInput = byId('project-description', HTMLTextAreaElement);
-  const errorDisplay = document.getElementById('project-modal-error');
+  const errorDisplay = byId('project-modal-error');
 
   const name = nameInput.value.trim();
   const description = descInput.value.trim();
@@ -152,14 +152,15 @@ function showProjectError(el: HTMLElement, message: string) {
 }
 
 async function handleDeleteProject() {
-  if (!editingProjectId || editingProjectId === 1) return;
+  const projectId = editingProjectId;
+  if (!projectId || projectId === DEFAULT_PROJECT_ID) return;
   if (!userCan(state.currentUser, ACTION_DELETE_PROJECT)) return;
 
-  const errorDisplay = document.getElementById('project-modal-error');
+  const errorDisplay = byId('project-modal-error');
   const [active, archived, open] = await Promise.all([
-    fetchActiveIssuesByProject(editingProjectId),
-    fetchArchivedIssuesByProject(editingProjectId),
-    fetchOpenIssuesByProject(editingProjectId),
+    fetchActiveIssuesByProject(projectId),
+    fetchArchivedIssuesByProject(projectId),
+    fetchOpenIssuesByProject(projectId),
   ]);
   const issueCount = active.length + archived.length + open.length;
   if (issueCount > 0) {
@@ -172,7 +173,7 @@ async function handleDeleteProject() {
     'Delete Project',
     `Do you really want to delete the project "${projectName}"?\nThis action cannot be undone.`,
     async (adminPassword) => {
-      await deleteProject(editingProjectId, adminPassword);
+      await deleteProject(projectId, adminPassword);
     },
     'Delete'
   );
@@ -215,7 +216,7 @@ async function renderProjectList() {
       const row = document.createElement('div');
       row.className = 'settings-entry';
 
-      const isDefault = project.id === 1;
+      const isDefault = project.id === DEFAULT_PROJECT_ID;
       const desc = project.description ? escapeHtml(project.description) : '<em>No description</em>';
 
       row.innerHTML = `
@@ -257,7 +258,7 @@ function isRolePromotion(fromRole: Role, toRole: Role) {
 function setupUserModal() {
   const addUserBtn = document.getElementById('add-user-btn');
   const cancelBtn = document.getElementById('user-modal-cancel');
-  const form = byId('user-form', HTMLFormElement);
+  const form = document.getElementById('user-form');
 
   if (addUserBtn) {
     if (userCan(state.currentUser, ACTION_CREATE_USER)) {
@@ -272,7 +273,7 @@ function setupUserModal() {
     cancelBtn.addEventListener('click', closeUserModal);
   }
 
-  if (form) onGuardedSubmit(form, () => handleUserSubmit());
+  if (form instanceof HTMLFormElement) onGuardedSubmit(form, () => handleUserSubmit());
 
   document.getElementById('user-modal-delete')?.addEventListener('click', () => handleDeleteUser());
 
@@ -285,19 +286,19 @@ function setupUserModal() {
 }
 
 function openUserModal(user: User | null) {
-  const overlay = document.getElementById('user-modal-overlay');
-  const modalTitle = document.getElementById('user-modal-title');
+  const overlay = byId('user-modal-overlay');
+  const modalTitle = byId('user-modal-title');
   const emailInput = byId('user-email', HTMLInputElement);
   const firstNameInput = byId('user-first-name', HTMLInputElement);
   const lastNameInput = byId('user-last-name', HTMLInputElement);
   const passwordInput = byId('user-password', HTMLInputElement);
-  const passwordHint = document.getElementById('user-password-hint');
-  const errorDisplay = document.getElementById('user-modal-error');
+  const passwordHint = byId('user-password-hint');
+  const errorDisplay = byId('user-modal-error');
   const activeInput = byId('user-active', HTMLInputElement);
   const roleInput = byId('user-role', HTMLInputElement);
-  const roleText = document.getElementById('user-role-text');
+  const roleText = byId('user-role-text');
   const userForm = byId('user-form', HTMLFormElement);
-  const deleteBtn = document.getElementById('user-modal-delete');
+  const deleteBtn = byId('user-modal-delete');
 
   // Editing an existing user other than yourself (the backend blocks self-deletion)
   const canDelete = !!user && user.id !== state.currentUser?.id && userCan(state.currentUser, ACTION_DELETE_USER);
@@ -355,7 +356,7 @@ function openUserModal(user: User | null) {
 }
 
 function closeUserModal() {
-  const overlay = document.getElementById('user-modal-overlay');
+  const overlay = byId('user-modal-overlay');
   overlay.classList.add('hidden');
   editingUserId = null;
   editingUserOriginal = null;
@@ -368,7 +369,7 @@ async function handleUserSubmit() {
   const passwordInput = byId('user-password', HTMLInputElement);
   const roleInput = byId('user-role', HTMLInputElement);
   const activeInput = byId('user-active', HTMLInputElement);
-  const errorDisplay = document.getElementById('user-modal-error');
+  const errorDisplay = byId('user-modal-error');
 
   const userData: UserWrite = {
     email: emailInput.value.trim(),
@@ -388,12 +389,14 @@ async function handleUserSubmit() {
   }
 
   try {
-    const isEditing = !!editingUserId;
+    const userId = editingUserId;
+    const original = editingUserOriginal;
+    const isEditing = !!userId && !!original;
     const action = isEditing ? ACTION_UPDATE_USER : ACTION_CREATE_USER;
     if (!userCan(state.currentUser, action)) return;
 
     if (isEditing) {
-      if (!await applyUserUpdate(userData)) return;
+      if (!await applyUserUpdate(userId, original, userData)) return;
     } else {
       await createUser(userData);
     }
@@ -407,11 +410,12 @@ async function handleUserSubmit() {
 }
 
 async function handleDeleteUser() {
-  if (!editingUserId || editingUserId === state.currentUser?.id) return;
+  const userId = editingUserId;
+  const original = editingUserOriginal;
+  if (!userId || !original || userId === state.currentUser?.id) return;
   if (!userCan(state.currentUser, ACTION_DELETE_USER)) return;
 
-  const userId = editingUserId;
-  const name = `${editingUserOriginal.first_name} ${editingUserOriginal.last_name}`.trim();
+  const name = `${original.first_name} ${original.last_name}`.trim();
   const confirmed = await promptAdminPasswordConfirmation(
     'Delete User',
     `Do you really want to delete ${name}?\nIssues assigned to them become unassigned (noted in each issue's history), releases they own lose their owner, and their comments and history entries show "Unknown user". This signs them out (<15min) and cannot be undone.`,
@@ -483,8 +487,7 @@ function getUserUpdateConfirmationCopy(userData: UserWrite, original: EditedUser
   };
 }
 
-async function applyUserUpdate(userData: UserWrite) {
-  const original = editingUserOriginal;
+async function applyUserUpdate(userId: number, original: EditedUser, userData: UserWrite) {
   const confirmation = getUserUpdateConfirmationCopy(userData, original);
   if (confirmation) {
     const { title, message } = confirmation;
@@ -492,15 +495,15 @@ async function applyUserUpdate(userData: UserWrite) {
       title,
       message,
       async (adminPassword) => {
-        await updateUser(editingUserId, { ...userData, admin_password: adminPassword });
+        await updateUser(userId, { ...userData, admin_password: adminPassword });
       },
       'Confirm'
     );
     if (!confirmed) return false;
   } else {
-    await updateUser(editingUserId, userData);
+    await updateUser(userId, userData);
   }
-  const isSelf = editingUserId === state.currentUser?.id;
+  const isSelf = userId === state.currentUser?.id;
   if (isSelf && (userData.password || userData.role !== state.currentUser?.role || userData.email !== original.email)) {
     void logout();
     return false;
@@ -511,12 +514,12 @@ async function applyUserUpdate(userData: UserWrite) {
 function validateUserInput(userData: UserWrite, errorDisplay: HTMLElement) {
   if (!userData.email || !EMAIL_REGEX.test(userData.email)) {
     showUserError(errorDisplay, 'A valid email address is required.');
-    byId('user-email', HTMLInputElement)?.focus();
+    byId('user-email', HTMLInputElement).focus();
     return false;
   }
   if (userData.email.length > MAX_EMAIL_LENGTH) {
     showUserError(errorDisplay, `Email must not exceed ${MAX_EMAIL_LENGTH} characters.`);
-    byId('user-email', HTMLInputElement)?.focus();
+    byId('user-email', HTMLInputElement).focus();
     return false;
   }
   if (!userData.first_name || !userData.last_name) {
@@ -672,9 +675,9 @@ async function renderUserList() {
 function setupUserDropdown(triggerId: string, optionsId: string, inputId: string, textId: string) {
   const trigger = document.getElementById(triggerId);
   const options = document.getElementById(optionsId);
-  const input = byId(inputId, HTMLInputElement);
+  const input = document.getElementById(inputId);
   const text = document.getElementById(textId);
-  if (!trigger || !options || !input || !text) return;
+  if (!trigger || !options || !(input instanceof HTMLInputElement) || !text) return;
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -690,7 +693,7 @@ function setupUserDropdown(triggerId: string, optionsId: string, inputId: string
   options.addEventListener('click', (e) => {
     const option = e.target instanceof Element ? e.target.closest('.custom-option') : null;
     if (!(option instanceof HTMLElement)) return;
-    const value = option.dataset.value;
+    const value = option.dataset.value ?? '';
     input.value = value;
     text.textContent = option.textContent;
     // Update selected state

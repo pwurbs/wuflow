@@ -11,26 +11,26 @@ import { setupReleasesView, renderReleasesView, renderReleaseOwnerOptions } from
 import { setupModal, openModal } from './components/modal.ts';
 import { setupSession } from './session.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from './issue-lists.ts';
-import { byId, debounce } from './utils.ts';
+import { byId, bySelector, debounce } from './utils.ts';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.ts';
 
 // DOM Elements
-const navBoard = document.getElementById('nav-board');
-const navArchive = document.getElementById('nav-archive');
-const navBacklog = document.getElementById('nav-backlog');
-const navSystemSettings = document.getElementById('nav-system-settings');
-const navProjectSettings = document.getElementById('nav-project-settings');
-const navReleases = document.getElementById('nav-releases');
-const boardView = document.querySelector('.board');
-const archiveView = document.getElementById('archive-view');
-const backlogView = document.getElementById('backlog-view');
-const releasesView = document.getElementById('releases-view');
-const systemSettingsView = document.getElementById('system-settings-view');
-const projectSettingsView = document.getElementById('project-settings-view');
-const sidebar = document.querySelector('.sidebar');
-const filterContainer = document.getElementById('filter-container');
-const projectSelectorContainer = document.getElementById('project-selector-container');
-const toolbar = document.querySelector('.toolbar');
+const navBoard = byId('nav-board');
+const navArchive = byId('nav-archive');
+const navBacklog = byId('nav-backlog');
+const navSystemSettings = byId('nav-system-settings');
+const navProjectSettings = byId('nav-project-settings');
+const navReleases = byId('nav-releases');
+const boardView = bySelector(document, '.board');
+const archiveView = byId('archive-view');
+const backlogView = byId('backlog-view');
+const releasesView = byId('releases-view');
+const systemSettingsView = byId('system-settings-view');
+const projectSettingsView = byId('project-settings-view');
+const sidebar = bySelector(document, '.sidebar');
+const filterContainer = byId('filter-container');
+const projectSelectorContainer = byId('project-selector-container');
+const toolbar = bySelector(document, '.toolbar');
 const searchInput = byId('search-input', HTMLInputElement);
 const releaseSearchInput = byId('release-search-input', HTMLInputElement);
 
@@ -107,8 +107,8 @@ function getVisibleViews() {
     return {
         backlog: !backlogView.classList.contains('hidden'),
         archive: !archiveView.classList.contains('hidden'),
-        projectSettings: !!(projectSettingsView && !projectSettingsView.classList.contains('hidden')),
-        releases: !!(releasesView && !releasesView.classList.contains('hidden')),
+        projectSettings: !projectSettingsView.classList.contains('hidden'),
+        releases: !releasesView.classList.contains('hidden'),
     };
 }
 
@@ -206,8 +206,9 @@ function rerenderActiveView() {
 // before the board/planning panel behind the modal re-render.
 function rerenderAfterIssueChange() {
     if (state.currentIssue) {
-        const idx = state.issues.findIndex(i => i.id === state.currentIssue.id);
-        if (idx !== -1) state.issues[idx] = { ...state.issues[idx], ...state.currentIssue };
+        const current = state.currentIssue;
+        const idx = state.issues.findIndex(i => i.id === current.id);
+        if (idx !== -1) state.issues[idx] = { ...state.issues[idx], ...current };
     }
     renderBoard();
     renderPlanningPanel();
@@ -223,23 +224,19 @@ function setupEventListeners() {
     navReleases.addEventListener('click', () => switchView('releases'));
 
     // New Issue Btn
-    document.getElementById('add-issue-btn').addEventListener('click', () => openModal(null));
+    byId('add-issue-btn').addEventListener('click', () => openModal(null));
 
     // Issue search
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(() => {
-            setFilterSearch(searchInput.value);
-            rerenderActiveView();
-        }, 300));
-    }
+    searchInput.addEventListener('input', debounce(() => {
+        setFilterSearch(searchInput.value);
+        rerenderActiveView();
+    }, 300));
 
     // Release search
-    if (releaseSearchInput) {
-        releaseSearchInput.addEventListener('input', debounce(() => {
-            setFilterReleaseSearch(releaseSearchInput.value);
-            void renderReleasesView();
-        }, 300));
-    }
+    releaseSearchInput.addEventListener('input', debounce(() => {
+        setFilterReleaseSearch(releaseSearchInput.value);
+        void renderReleasesView();
+    }, 300));
 
     // Custom Events
     document.addEventListener('nav-to-release', (e) => {
@@ -270,13 +267,13 @@ function switchView(view: keyof typeof VIEW_CONFIG) {
     const cfg = VIEW_CONFIG[view];
     if (!cfg) return;
 
-    Object.values(VIEW_CONFIG).forEach(c => { c.el?.classList.add('hidden'); c.nav?.classList.remove('active'); });
+    Object.values(VIEW_CONFIG).forEach(c => { c.el.classList.add('hidden'); c.nav.classList.remove('active'); });
 
     cfg.el.classList.remove('hidden');
     cfg.nav.classList.add('active');
     sidebar.classList.toggle('hidden', cfg.hideSidebar);
     filterContainer.classList.toggle('hidden', cfg.hideFilter);
-    projectSelectorContainer?.classList.toggle('hidden', cfg.hideProjectSelector);
+    projectSelectorContainer.classList.toggle('hidden', cfg.hideProjectSelector);
     toolbar.classList.toggle('toolbar--system-settings', cfg.systemSettings);
 
     const isReleases = view === 'releases';
@@ -288,7 +285,7 @@ function switchView(view: keyof typeof VIEW_CONFIG) {
     if (!isReleases) {
         setFilterReleaseOwner(null);
         setFilterReleaseSearch('');
-        if (releaseSearchInput) releaseSearchInput.value = '';
+        releaseSearchInput.value = '';
     }
 
     cfg.onEnter();

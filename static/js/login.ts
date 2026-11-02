@@ -2,11 +2,11 @@
 // Submits credentials to POST /api/auth/login, redirects to / on success.
 
 document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('login-form');
   // Casts instead of byId: importing utils.ts would add it and state.ts to the login bundle.
+  const form = document.getElementById('login-form') as HTMLFormElement;
   const emailInput = document.getElementById('login-email') as HTMLInputElement;
   const passwordInput = document.getElementById('login-password') as HTMLInputElement;
-  const errorDisplay = document.getElementById('login-error');
+  const errorDisplay = document.getElementById('login-error') as HTMLElement;
   const submitBtn = document.getElementById('login-btn') as HTMLButtonElement;
 
   form.addEventListener('submit', async (e) => {

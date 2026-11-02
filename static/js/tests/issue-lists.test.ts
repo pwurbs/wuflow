@@ -40,6 +40,16 @@ describe('issue-lists', () => {
       expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledWith(7);
     });
 
+    it('fetches nothing without a selected project and leaves no issues', async () => {
+      state.selectedProjectId = null;
+      state.issues = [makeIssue({ id: 99, status: 'Todo' })];
+      await loadIssues(['open', 'archived']);
+      expect(api.fetchActiveIssuesByProject).not.toHaveBeenCalled();
+      expect(api.fetchOpenIssuesByProject).not.toHaveBeenCalled();
+      expect(api.fetchArchivedIssuesByProject).not.toHaveBeenCalled();
+      expect(state.issues).toEqual([]);
+    });
+
     it('replaces state.issues with the active issues plus the requested lists', async () => {
       state.issues = [makeIssue({ id: 99, status: 'Todo' })];
       await loadIssues(['open']);

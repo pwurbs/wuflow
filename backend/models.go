@@ -142,6 +142,9 @@ type Project struct {
 	Description string `json:"description"`
 }
 
+// DefaultProjectID is the ID of the default project: seeded by InitDB and never deleted.
+const DefaultProjectID = 1
+
 // ReleaseStatus represents the status of a release.
 type ReleaseStatus string
 

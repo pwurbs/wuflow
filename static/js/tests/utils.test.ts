@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  byId, escapeHtml, debounce, getUserInitials,
+  byId, bySelector, escapeHtml, debounce, getUserInitials,
   countCodepoints, countUtf8Bytes, canArchive,
   showNotification, showConfirm,
   updateDateInputStyle, initCharCounter,
@@ -87,12 +87,40 @@ describe('byId', () => {
     expect(byId('field', HTMLElement)).toBe(document.getElementById('field'));
   });
 
-  it('returns null when there is no element with the id', () => {
-    expect(byId('missing', HTMLInputElement)).toBeNull();
+  it('returns any element when no type is given', () => {
+    expect(byId('box')).toBe(document.getElementById('box'));
+  });
+
+  it('throws when there is no element with the id', () => {
+    expect(() => byId('missing', HTMLInputElement)).toThrow(new TypeError('#missing is missing'));
   });
 
   it('throws when the element has another type', () => {
     expect(() => byId('box', HTMLInputElement)).toThrow(new TypeError('#box is a HTMLDivElement, expected HTMLInputElement'));
+  });
+});
+
+describe('bySelector', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div class="row"><input class="field"></div><div class="other"><input class="field"></div>';
+  });
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('returns the first match inside the given root, typed as Type', () => {
+    const root = bySelector(document, '.other');
+    const el = bySelector(root, '.field', HTMLInputElement);
+    expect(el).toBe(document.querySelector('.other .field'));
+  });
+
+  it('throws when nothing in the root matches', () => {
+    const root = bySelector(document, '.row');
+    expect(() => bySelector(root, '.other')).toThrow(new TypeError('.other is missing'));
+  });
+
+  it('throws when the match has another type', () => {
+    expect(() => bySelector(document, '.row', HTMLInputElement)).toThrow(new TypeError('.row is a HTMLDivElement, expected HTMLInputElement'));
   });
 });
 

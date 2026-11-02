@@ -18,8 +18,10 @@ export function formatDateTime(dateStr: string) {
 // What a deadline check reads: an issue, or the issue's deadline from the form before it is saved.
 type DeadlineSource = { deadline: Date | string | null; release: Issue['release'] };
 
-// Returns { late: false } or { late: true, reason: string } for an issue deadline.
-export function getDeadlineStatus(issue: DeadlineSource) {
+type DeadlineStatus = { late: false } | { late: true; reason: string };
+
+// For an issue deadline.
+export function getDeadlineStatus(issue: DeadlineSource): DeadlineStatus {
   if (!issue?.deadline) return { late: false };
   const today = startOfDay(new Date());
   const deadline = startOfDay(issue.deadline);
@@ -30,8 +32,8 @@ export function getDeadlineStatus(issue: DeadlineSource) {
   return { late: false };
 }
 
-// Returns { late: false } or { late: true, reason: string } for a task deadline given its parent issue.
-export function getTaskDeadlineStatus(taskDeadline: Date | string | null, issue: DeadlineSource) {
+// For a task deadline given its parent issue.
+export function getTaskDeadlineStatus(taskDeadline: Date | string | null, issue: DeadlineSource | null): DeadlineStatus {
   if (!taskDeadline) return { late: false };
   const today = startOfDay(new Date());
   const d = startOfDay(taskDeadline);
@@ -44,14 +46,27 @@ export function getTaskDeadlineStatus(taskDeadline: Date | string | null, issue:
   return { late: false };
 }
 
-// Returns the element with this id typed as Type, or null if there is none. An element of
-// another type throws, so a wrong id or a changed element fails loudly instead of yielding
-// undefined properties. Plain document.getElementById is enough where HTMLElement suffices.
-export function byId<T extends HTMLElement>(id: string, Type: new () => T): T | null {
-  const el = document.getElementById(id);
-  if (el === null) return null;
+// Returns the element with this id typed as Type (default HTMLElement). A missing element or one
+// of another type throws, so a wrong id or a changed page fails loudly at the lookup instead of
+// later as a null or undefined property. For elements that may be absent, use
+// document.getElementById and handle null.
+export function byId(id: string): HTMLElement;
+export function byId<T extends HTMLElement>(id: string, Type: new () => T): T;
+export function byId(id: string, Type: new () => HTMLElement = HTMLElement): HTMLElement {
+  const el: Element | null = document.getElementById(id);
+  if (el === null) throw new TypeError(`#${id} is missing`);
   if (el instanceof Type) return el;
   throw new TypeError(`#${id} is a ${el.constructor.name}, expected ${Type.name}`);
+}
+
+// Same as byId for the first element in root matching selector.
+export function bySelector(root: ParentNode, selector: string): HTMLElement;
+export function bySelector<T extends HTMLElement>(root: ParentNode, selector: string, Type: new () => T): T;
+export function bySelector(root: ParentNode, selector: string, Type: new () => HTMLElement = HTMLElement): HTMLElement {
+  const el = root.querySelector(selector);
+  if (el === null) throw new TypeError(`${selector} is missing`);
+  if (el instanceof Type) return el;
+  throw new TypeError(`${selector} is a ${el.constructor.name}, expected ${Type.name}`);
 }
 
 export function escapeHtml(text: string) {
@@ -88,16 +103,17 @@ export function isErrorToastShown() {
 // Cancels the confirm dialog that is currently open, if any (see showConfirm).
 let cancelPendingConfirm: (() => void) | null = null;
 
-export function showConfirm(title: string, message: string, okText = 'OK', cancelText = 'Cancel', okType = 'danger') {
+// cancelText null shows no Cancel button.
+export function showConfirm(title: string, message: string, okText = 'OK', cancelText: string | null = 'Cancel', okType = 'danger') {
   // All confirms share one dialog. A new one replaces the question of a still-open one,
   // whose caller then gets false (Cancel): otherwise one click would answer both.
   cancelPendingConfirm?.();
 
-  const confirmModal = document.getElementById('confirm-modal');
-  const confirmTitle = document.getElementById('confirm-title');
-  const confirmMessage = document.getElementById('confirm-message');
-  const confirmOkBtn = document.getElementById('confirm-ok-btn');
-  const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+  const confirmModal = byId('confirm-modal');
+  const confirmTitle = byId('confirm-title');
+  const confirmMessage = byId('confirm-message');
+  const confirmOkBtn = byId('confirm-ok-btn');
+  const confirmCancelBtn = byId('confirm-cancel-btn');
 
   return new Promise<boolean>((resolve) => {
     confirmTitle.textContent = title;
@@ -160,13 +176,13 @@ export async function confirmDiscard(changed: boolean) {
 // false if the user cancels.
 export function promptAdminPasswordConfirmation(title: string, message: string, onConfirm: (password: string) => unknown, okText = 'Confirm', okType = 'danger') {
   return new Promise<boolean>((resolve) => {
-    const modal = document.getElementById('admin-confirm-modal');
-    const titleEl = document.getElementById('admin-confirm-title');
-    const messageEl = document.getElementById('admin-confirm-message');
+    const modal = byId('admin-confirm-modal');
+    const titleEl = byId('admin-confirm-title');
+    const messageEl = byId('admin-confirm-message');
     const input = byId('admin-confirm-password', HTMLInputElement);
-    const errorDiv = document.getElementById('admin-confirm-error');
-    const okBtn = document.getElementById('admin-confirm-ok-btn');
-    const cancelBtn = document.getElementById('admin-confirm-cancel-btn');
+    const errorDiv = byId('admin-confirm-error');
+    const okBtn = byId('admin-confirm-ok-btn');
+    const cancelBtn = byId('admin-confirm-cancel-btn');
 
     titleEl.textContent = title;
     messageEl.textContent = message;
@@ -175,8 +191,8 @@ export function promptAdminPasswordConfirmation(title: string, message: string, 
     okBtn.classList.add(okType);
 
     input.value = '';
-    const usernameField = byId('admin-confirm-username', HTMLInputElement);
-    if (usernameField && state.currentUser) {
+    const usernameField = document.getElementById('admin-confirm-username');
+    if (usernameField instanceof HTMLInputElement && state.currentUser) {
       usernameField.value = state.currentUser.email || '';
     }
     errorDiv.textContent = '';
@@ -310,7 +326,7 @@ export async function markBusy<T>(field: Element | null, fn: () => T | Promise<T
   try {
     return await fn();
   } finally {
-    const left = busySaves.get(field) - 1;
+    const left = (busySaves.get(field) ?? 1) - 1;
     busySaves.set(field, left);
     if (left === 0) {
       field.removeAttribute('aria-busy');
@@ -376,10 +392,11 @@ export function continueListOnEnter(textarea: HTMLTextAreaElement, e: Event) {
 
   const bulletMatch = currentLine.match(/^(\s*)([-*+]) (.*)$/);
   const numberedMatch = currentLine.match(/^(\s*)(\d+)\. (.*)$/);
-  if (!bulletMatch && !numberedMatch) return false;
+  const match = bulletMatch ?? numberedMatch;
+  if (!match) return false;
 
   e.preventDefault();
-  const [, indent, marker, content] = bulletMatch ?? numberedMatch;
+  const [, indent, marker, content] = match;
   const isBullet = !!bulletMatch;
 
   if (content === '') {
@@ -404,7 +421,7 @@ export function initCharCounter(el: HTMLInputElement | HTMLTextAreaElement, maxL
   if (options.className) counter.classList.add(options.className);
 
   const insertAfterEl = options.insertAfter || el;
-  insertAfterEl.parentNode.insertBefore(counter, insertAfterEl.nextSibling);
+  insertAfterEl.after(counter);
 
   function getCount() {
     return countCodepoints(el.value);
@@ -414,7 +431,7 @@ export function initCharCounter(el: HTMLInputElement | HTMLTextAreaElement, maxL
     // Enforce codepoint limit by truncating excess characters
     const codepoints = [...el.value];
     if (codepoints.length > maxLength) {
-      const pos = el.selectionStart;
+      const pos = el.selectionStart ?? 0;
       el.value = codepoints.slice(0, maxLength).join('');
       // Restore cursor position (clamped to new length)
       el.selectionStart = el.selectionEnd = Math.min(pos, el.value.length);
@@ -447,7 +464,7 @@ export function initCharCounter(el: HTMLInputElement | HTMLTextAreaElement, maxL
   return { show, hide };
 }
 
-export function canArchive(issue: Issue) {
+export function canArchive(issue: Issue): { allowed: true; reason?: undefined } | { allowed: false; reason: string } {
   if (!issue) return { allowed: false, reason: 'No issue provided' };
 
   if (issue.tasks?.some(t => !t.done)) {
@@ -461,7 +478,7 @@ export function canArchive(issue: Issue) {
   return { allowed: true };
 }
 
-export function getUserInitials(user: UserRef) {
+export function getUserInitials(user: UserRef | null | undefined) {
   if (!user) return '??';
 
   if (user.first_name && user.last_name) {

@@ -1,9 +1,9 @@
 import { state, setCurrentIssue } from '../state.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.ts';
-import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown } from '../utils.ts';
+import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, bySelector } from '../utils.ts';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.ts';
-import { PRIORITY_NORMAL } from '../domain-constants.ts';
+import { PRIORITY_NORMAL, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import type { Priority } from '../domain-constants.ts';
 import type { IssueStatus } from '../status-config.ts';
 import type { IssueWrite } from '../api.ts';
@@ -37,14 +37,14 @@ export function setupModal(refreshApp: RefreshApp, rerenderViews: RerenderView) 
   // Global checking of state is tricky if we don't have reference to 'currentIssue' variable in app.ts
   // We use state.currentIssue.
 
-  document.getElementById('cancel-btn').addEventListener('click', closeModal);
-  document.getElementById('done-btn').addEventListener('click', handleDone);
+  byId('cancel-btn').addEventListener('click', closeModal);
+  byId('done-btn').addEventListener('click', handleDone);
   onGuardedSubmit(form, handleIssueSubmit);
 
 
-  document.getElementById('delete-issue-btn').addEventListener('click', handleDeleteIssue);
-  document.getElementById('archive-issue-btn').addEventListener('click', handleArchiveIssue);
-  document.getElementById('unarchive-issue-btn').addEventListener('click', handleUnarchiveIssue);
+  byId('delete-issue-btn').addEventListener('click', handleDeleteIssue);
+  byId('archive-issue-btn').addEventListener('click', handleArchiveIssue);
+  byId('unarchive-issue-btn').addEventListener('click', handleUnarchiveIssue);
 
   setupInlineEditing();
   setupEditorToolbar({
@@ -63,7 +63,7 @@ export function setupModal(refreshApp: RefreshApp, rerenderViews: RerenderView) 
   // Task Form
   // + Add and Enter share the in-flight submit instead of creating the task twice
   // while the first request is still running.
-  const addTaskBtn = document.getElementById('add-task-btn');
+  const addTaskBtn = byId('add-task-btn');
   const newTaskTitle = byId('new-task-title', HTMLInputElement);
   _submitTaskFn = guardSubmit(handleTaskSubmit, { field: addTaskBtn.closest('.input-group') });
   addTaskBtn.addEventListener('click', _submitTaskFn);
@@ -76,7 +76,7 @@ export function setupModal(refreshApp: RefreshApp, rerenderViews: RerenderView) 
   newTaskTitle.addEventListener('input', syncUnloadListener);
 
   // Task Drag Reordering Logic
-  const taskList = document.getElementById('task-list');
+  const taskList = byId('task-list');
   taskList.addEventListener('dragover', (e) => {
     e.preventDefault();
     const draggedTask = getDraggedTask();
@@ -122,7 +122,7 @@ export function setupModal(refreshApp: RefreshApp, rerenderViews: RerenderView) 
     ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown', 'project-dropdown', 'release-dropdown'].forEach(id => {
       const container = document.getElementById(id);
       if (container && !(e.target instanceof Node && container.contains(e.target))) {
-        const opts = container.querySelector<HTMLElement>('.custom-select-options');
+        const opts = bySelector(container, '.custom-select-options');
         opts.classList.add('hidden');
         opts.style.maxHeight = '';
       }
@@ -155,7 +155,7 @@ function setupScrollCue() {
 }
 
 export async function openModal(issue: Issue | null = null) {
-  const modal = document.getElementById('issue-modal');
+  const modal = byId('issue-modal');
   modal.classList.remove('hidden');
   // The modal element is reused: start every issue at the top, not where the last one was left
   const scrollEl = document.querySelector('.modal-main-scroll');
@@ -234,12 +234,11 @@ async function etagForSave() {
 
 function setupProjectDropdown(issue: Issue | null) {
   const projectInput = byId('project-select', HTMLInputElement);
-  const projectText = document.getElementById('project-text');
+  const projectText = byId('project-text');
   const projectTrigger = byId('project-trigger', HTMLButtonElement);
-  if (!projectInput || !projectText) return;
 
   const storedProjectId = issue ? null : localStorage.getItem('wuflow_selectedProjectId');
-  projectInput.value = String(issue?.project_id ?? (storedProjectId ? Number.parseInt(storedProjectId) : 1));
+  projectInput.value = String(issue?.project_id ?? (storedProjectId ? Number.parseInt(storedProjectId) : DEFAULT_PROJECT_ID));
   projectText.textContent = issue?.project?.name ?? 'default';
 
   const applyProjects = (projects: Project[]) => {
@@ -254,11 +253,9 @@ function setupProjectDropdown(issue: Issue | null) {
     fetchProjects().then(applyProjects).catch(err => console.error('Failed to load projects', err));
   }
 
-  if (projectTrigger) {
-    const restricted = !!issue && !userCan(state.currentUser, ACTION_MOVE_ISSUE);
-    projectTrigger.disabled = restricted || issue?.status === STATUS_ARCHIVE;
-    projectTrigger.title = restricted ? 'Insufficient permissions to move this issue' : '';
-  }
+  const restricted = !!issue && !userCan(state.currentUser, ACTION_MOVE_ISSUE);
+  projectTrigger.disabled = restricted || issue?.status === STATUS_ARCHIVE;
+  projectTrigger.title = restricted ? 'Insufficient permissions to move this issue' : '';
 }
 
 function renderModalDropdowns(issue: Issue | null) {
@@ -266,26 +263,27 @@ function renderModalDropdowns(issue: Issue | null) {
   const statusInput = byId('status', HTMLInputElement);
   const currentStatus = issue?.status ?? STATUS_OPEN;
   statusInput.value = currentStatus;
-  document.getElementById('status-text').textContent = getStatusLabel(currentStatus);
+  byId('status-text').textContent = getStatusLabel(currentStatus);
   renderStatusOptions();
 
   // Priority Dropdown
   const priorityInput = byId('priority', HTMLInputElement);
   priorityInput.value = issue?.priority ?? PRIORITY_NORMAL;
-  document.getElementById('priority-text').textContent = issue?.priority ?? PRIORITY_NORMAL;
+  byId('priority-text').textContent = issue?.priority ?? PRIORITY_NORMAL;
   renderPriorityOptions();
 
   // Label Dropdown
   const labelInput = byId('label-select', HTMLInputElement);
-  const labelText = document.getElementById('label-text');
+  const labelText = byId('label-text');
   labelInput.value = String(issue?.label?.id ?? '');
   labelText.textContent = issue?.label?.name ?? 'No Label';
 
-  const labelProjectId = issue?.project_id ?? (state.selectedProjectId ?? 1);
+  const labelProjectId = issue?.project_id ?? (state.selectedProjectId ?? DEFAULT_PROJECT_ID);
   const applyLabels = (labels: Label[]) => {
     renderLabelOptions(labels);
-    if (issue?.label) {
-      const found = labels.find(l => l.id === issue.label.id);
+    const label = issue?.label;
+    if (label) {
+      const found = labels.find(l => l.id === label.id);
       if (found) labelText.textContent = found.name;
     }
   };
@@ -299,7 +297,7 @@ function renderModalDropdowns(issue: Issue | null) {
 
   // Assignee Dropdown
   const assigneeInput = byId('assignee-select', HTMLInputElement);
-  const assigneeText = document.getElementById('assignee-text');
+  const assigneeText = byId('assignee-text');
   assigneeInput.value = String(issue?.assignee_id ?? '');
   assigneeText.textContent = issue?.assignee ? (issue.assignee.first_name + ' ' + issue.assignee.last_name) : 'Unassigned';
 
@@ -320,13 +318,9 @@ function renderModalDropdowns(issue: Issue | null) {
   setupProjectDropdown(issue);
 
   // Release Dropdown
-  const releaseInput = byId('release-select', HTMLInputElement);
-  const releaseText = document.getElementById('release-text');
-  if (releaseInput && releaseText) {
-    releaseInput.value = String(issue?.release_id ?? '');
-    releaseText.textContent = issue?.release?.name ?? 'No Release';
-    renderReleaseOptions(state.releases, issue?.release_id ?? null);
-  }
+  byId('release-select', HTMLInputElement).value = String(issue?.release_id ?? '');
+  byId('release-text').textContent = issue?.release?.name ?? 'No Release';
+  renderReleaseOptions(state.releases, issue?.release_id ?? null);
 }
 
 function setupEditModal(issue: Issue) {
@@ -343,11 +337,11 @@ function setupEditModal(issue: Issue) {
 // revalidation can refresh the fields without refetching history/comments.
 function renderIssueFields(issue: Issue) {
   const isArchived = issue.status === STATUS_ARCHIVE;
-  document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Issue Details #${issue.id}`;
+  byId('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Issue Details #${issue.id}`;
   byId('issue-id', HTMLInputElement).value = String(issue.id);
   byId('title', HTMLInputElement).value = issue.title;
   byId('description-editor', HTMLTextAreaElement).value = issue.description || '';
-  document.getElementById('description-preview').innerHTML = renderMarkdown(issue.description || '');
+  byId('description-preview').innerHTML = renderMarkdown(issue.description || '');
   // We do NOT show the toast on initial load to avoid spamming the user when opening an issue with old bad data,
   // we only show the error on active edit actions (Save / Preview).
 
@@ -357,34 +351,34 @@ function renderIssueFields(issue: Issue) {
   setDeadlineInput(issue);
   document.getElementById('deadline-display')?.classList.toggle('overdue', getDeadlineStatus(issue).late);
 
-  document.getElementById('tasks-section').classList.remove('hidden');
-  document.getElementById('task-form-container').classList.toggle('hidden', isArchived);
+  byId('tasks-section').classList.remove('hidden');
+  byId('task-form-container').classList.toggle('hidden', isArchived);
 
-  renderTasks(issue.tasks || [], document.getElementById('task-list'), issue, { readOnly: isArchived, ...taskCallbacks(issue) });
+  renderTasks(issue.tasks || [], byId('task-list'), issue, { readOnly: isArchived, ...taskCallbacks(issue) });
 
   const user = state.currentUser;
   const canDelete = !isArchived && userCan(user, ACTION_DELETE_ISSUE);
   const canArchBtn = !isArchived && userCan(user, ACTION_ARCHIVE_ISSUE);
   const canUnarchBtn = isArchived && userCan(user, ACTION_UNARCHIVE_ISSUE);
-  document.getElementById('delete-issue-btn').classList.toggle('hidden', !canDelete);
-  document.getElementById('archive-issue-btn').classList.toggle('hidden', !canArchBtn);
-  document.getElementById('unarchive-issue-btn').classList.toggle('hidden', !canUnarchBtn);
+  byId('delete-issue-btn').classList.toggle('hidden', !canDelete);
+  byId('archive-issue-btn').classList.toggle('hidden', !canArchBtn);
+  byId('unarchive-issue-btn').classList.toggle('hidden', !canUnarchBtn);
 
   setSidebarReadOnly(isArchived);
 
   // Enable inline edit mode; an archived issue shows title and description as plain text
   toggleInlineEditMode(true, isArchived);
 
-  document.getElementById('save-issue-btn').classList.add('hidden');
-  document.getElementById('cancel-btn').classList.add('hidden');
-  document.getElementById('done-btn').classList.remove('hidden');
+  byId('save-issue-btn').classList.add('hidden');
+  byId('cancel-btn').classList.add('hidden');
+  byId('done-btn').classList.remove('hidden');
 }
 
 function setupNewModal() {
-  document.getElementById('modal-title').textContent = 'New Issue';
+  byId('modal-title').textContent = 'New Issue';
   byId('issue-form', HTMLFormElement).reset();
   byId('description-editor', HTMLTextAreaElement).value = '';
-  document.getElementById('description-preview').innerHTML = '';
+  byId('description-preview').innerHTML = '';
   byId('issue-id', HTMLInputElement).value = '';
 
   renderPlannedDateChips(null, savePlannedDates);
@@ -392,11 +386,11 @@ function setupNewModal() {
   updateDateInputStyle(byId('deadline', HTMLInputElement));
   document.getElementById('deadline-display')?.classList.remove('overdue');
 
-  document.getElementById('tasks-section').classList.add('hidden');
+  byId('tasks-section').classList.add('hidden');
   document.getElementById('activity-section')?.classList.add('hidden');
-  document.getElementById('delete-issue-btn').classList.add('hidden');
-  document.getElementById('archive-issue-btn').classList.add('hidden');
-  document.getElementById('unarchive-issue-btn').classList.add('hidden');
+  byId('delete-issue-btn').classList.add('hidden');
+  byId('archive-issue-btn').classList.add('hidden');
+  byId('unarchive-issue-btn').classList.add('hidden');
 
   toggleInlineEditMode(false);
   setSidebarReadOnly(false);
@@ -406,10 +400,10 @@ function setupNewModal() {
     previousActiveNavBtn = activeNav;
     activeNav.classList.remove('active');
   }
-  document.getElementById('add-issue-btn').classList.add('active');
-  document.getElementById('save-issue-btn').classList.remove('hidden');
-  document.getElementById('cancel-btn').classList.remove('hidden');
-  document.getElementById('done-btn').classList.add('hidden');
+  byId('add-issue-btn').classList.add('active');
+  byId('save-issue-btn').classList.remove('hidden');
+  byId('cancel-btn').classList.remove('hidden');
+  byId('done-btn').classList.add('hidden');
 
 }
 
@@ -426,10 +420,10 @@ function resetMdPreview(previewEl: HTMLElement) {
 // (readOnly: never, for an archived issue, which is greyed out); otherwise the new-issue form.
 function toggleInlineEditMode(enable: boolean, readOnly = false) {
   const titleInput = byId('title', HTMLInputElement);
-  const descContainer = document.querySelector('.editor-container');
+  const descContainer = bySelector(document, '.editor-container');
   const descEditor = byId('description-editor', HTMLTextAreaElement);
-  const descPreview = document.getElementById('description-preview');
-  const descEditActions = document.getElementById('description-edit-actions');
+  const descPreview = byId('description-preview');
+  const descEditActions = byId('description-edit-actions');
 
   resetMdPreview(descPreview);
 
@@ -447,15 +441,15 @@ function toggleInlineEditMode(enable: boolean, readOnly = false) {
 // The dropdowns and dates of an archived issue can't be used. The project trigger is left
 // to setupProjectDropdown, which also disables it for missing permissions.
 function setSidebarReadOnly(readOnly: boolean) {
-  const modal = document.getElementById('issue-modal');
+  const modal = byId('issue-modal');
   modal.querySelectorAll<HTMLButtonElement>('.custom-select-trigger:not(#project-trigger)').forEach(el => { el.disabled = readOnly; });
   modal.querySelectorAll('.custom-date-input').forEach(el => setAriaDisabled(el, readOnly));
 }
 
 export function closeModal() {
-  document.getElementById('issue-modal').classList.add('hidden');
+  byId('issue-modal').classList.add('hidden');
   leaveEditors();
-  const addBtn = document.getElementById('add-issue-btn');
+  const addBtn = byId('add-issue-btn');
   if (addBtn.classList.contains('active')) {
     addBtn.classList.remove('active');
     if (previousActiveNavBtn) {
@@ -572,8 +566,8 @@ function getIssueDataFromForm(): IssueWrite & { project_id: number } {
   const description = byId('description-editor', HTMLTextAreaElement).value || '';
   const assigneeIdVal = byId('assignee-select', HTMLInputElement).value;
   const labelId = byId('label-select', HTMLInputElement).value;
-  const projectIdVal = byId('project-select', HTMLInputElement)?.value;
-  const releaseIdVal = byId('release-select', HTMLInputElement)?.value;
+  const projectIdVal = byId('project-select', HTMLInputElement).value;
+  const releaseIdVal = byId('release-select', HTMLInputElement).value;
 
   return {
     title,
@@ -617,13 +611,14 @@ async function handleIssueSubmit() {
 }
 
 async function handleDeleteIssue() {
-  if (!state.currentIssue) return;
+  const issue = state.currentIssue;
+  if (!issue) return;
   if (!userCan(state.currentUser, ACTION_DELETE_ISSUE)) return;
   const confirmed = await promptAdminPasswordConfirmation(
     'Delete Issue',
-    `Do you really want to delete "${state.currentIssue.title}"?\nThis permanently deletes the issue along with all of its tasks, comments, and activity history. This cannot be undone.`,
+    `Do you really want to delete "${issue.title}"?\nThis permanently deletes the issue along with all of its tasks, comments, and activity history. This cannot be undone.`,
     async (adminPassword) => {
-      await deleteIssue(state.currentIssue.project_id, state.currentIssue.id, adminPassword);
+      await deleteIssue(issue.project_id, issue.id, adminPassword);
     },
     'Delete'
   );
@@ -680,13 +675,23 @@ async function handleUnarchiveIssue() {
 // Inline Editing
 let originalTitle = '';
 let originalDesc = '';
-let _saveTitleFn: (() => Promise<boolean>) | null = null;
-let _cancelTitleFn: (() => void) | null = null;
-let _saveDescFn: (() => Promise<boolean>) | null = null;
-let _cancelDescFn: (() => void) | null = null;
-let _discardDescFn: (() => Promise<void>) | null = null; // ✕ and Escape: cancel, after asking if the text was changed
+// Set by setupModal(); nothing calls them before that.
+function notSetUp(): never {
+  throw new Error('setupModal() has not run');
+}
+let _saveTitleFn: () => Promise<boolean> = notSetUp;
+let _cancelTitleFn: () => void = notSetUp;
+let _saveDescFn: () => Promise<boolean> = notSetUp;
+let _cancelDescFn: () => void = notSetUp;
+let _discardDescFn: () => Promise<void> = notSetUp; // ✕ and Escape: cancel, after asking if the text was changed
 let _saveEditingTaskFn: (() => unknown) | null = null; // save() of the task currently in edit mode, awaited by handleDone()
-let _submitTaskFn: (() => Promise<boolean>) | null = null; // adds the task typed into the new-task field
+let _submitTaskFn: () => Promise<boolean> = notSetUp; // adds the task typed into the new-task field
+
+// The issue open in the modal, for code that only runs in the edit modal (not for a new issue).
+function openIssue() {
+  if (!state.currentIssue) throw new Error('No issue open');
+  return state.currentIssue;
+}
 
 // Callbacks passed to renderTasks() for the tasks of the given issue.
 function taskCallbacks(issue: Issue) {
@@ -713,10 +718,10 @@ function setupInlineEditing() {
   const titleCounter = initCharCounter(titleInput, MAX_TITLE_LENGTH, { manual: true });
 
   const descEditor = byId('description-editor', HTMLTextAreaElement);
-  const descContainer = document.querySelector('.editor-container');
-  const descEditActions = document.getElementById('description-edit-actions');
-  const descCancelBtn = document.getElementById('desc-cancel-btn');
-  const descSaveBtn = document.getElementById('desc-save-btn');
+  const descContainer = bySelector(document, '.editor-container');
+  const descEditActions = byId('description-edit-actions');
+  const descCancelBtn = byId('desc-cancel-btn');
+  const descSaveBtn = byId('desc-save-btn');
 
   // Title
   titleInput.addEventListener('focus', () => {
@@ -766,14 +771,15 @@ function setupInlineEditing() {
       cancelTitle(); // Revert to original if empty
       return true;
     }
-    if (newTitle !== state.currentIssue.title) {
+    if (newTitle !== openIssue().title) {
       try {
         const saved = await saveIssueChanges(() => ({ title: newTitle }), 'Title updated');
         if (!saved) return false; // Conflict occurred - stay in edit mode
 
         // The saved title is the server's, cleaned of e.g. HTML tags and null bytes.
-        titleInput.value = state.currentIssue.title;
-        if (newTitle !== state.currentIssue.title) {
+        const savedTitle = openIssue().title;
+        titleInput.value = savedTitle;
+        if (newTitle !== savedTitle) {
           showNotification('Unsupported HTML tags are not rendered for security.', 'error');
         }
       } catch (err) {
@@ -807,7 +813,7 @@ function setupInlineEditing() {
   _cancelTitleFn = cancelTitle;
 
   // Description — click on preview to enter edit mode
-  const descPreview = document.getElementById('description-preview');
+  const descPreview = byId('description-preview');
 
   descPreview.addEventListener('click', (e) => {
     const anchor = e.target instanceof Element ? e.target.closest('a') : null;
@@ -854,7 +860,7 @@ function setupInlineEditing() {
   // Returns false if the description could not be saved (editor stays open with the text).
   const doSaveDesc = async () => {
     const newDesc = descEditor.value;
-    if (newDesc !== state.currentIssue.description) {
+    if (newDesc !== openIssue().description) {
       try {
         const saved = await saveIssueChanges(() => ({ description: newDesc }), 'Description updated');
         if (!saved) return false;
@@ -958,7 +964,7 @@ function isTitleEditing() {
 }
 
 function isDescEditing() {
-  return document.querySelector('.editor-container').classList.contains('inline-editing');
+  return bySelector(document, '.editor-container').classList.contains('inline-editing');
 }
 
 function hasNewTaskText() {
@@ -1008,7 +1014,7 @@ function sidebarFieldOf(control: Element) {
 }
 
 function plannedDatesField() {
-  return sidebarFieldOf(document.getElementById('planned-dates-container'));
+  return sidebarFieldOf(byId('planned-dates-container'));
 }
 
 // Saves the planned dates of the current issue, with their field busy until the save is done.
@@ -1050,89 +1056,82 @@ function setupSidebarImmediateSave() {
     if (state.currentIssue) await saveSidebarField({ status: statusSelect.value as IssueStatus }, 'Status updated', statusSelect);
   });
 
-  if (assigneeSelect) {
-    assigneeSelect.addEventListener('change', async () => {
-      if (state.currentIssue) {
-        const val = assigneeSelect.value;
-        const assigneeID = val ? Number.parseInt(val) : null;
-        await saveSidebarField({ assignee_id: assigneeID }, 'Assignee updated', assigneeSelect);
-      }
-    });
-  }
+  assigneeSelect.addEventListener('change', async () => {
+    if (state.currentIssue) {
+      const val = assigneeSelect.value;
+      const assigneeID = val ? Number.parseInt(val) : null;
+      await saveSidebarField({ assignee_id: assigneeID }, 'Assignee updated', assigneeSelect);
+    }
+  });
 
   deadlineInput.addEventListener('change', () => handleDeadlineChange(deadlineInput.value));
-  if (labelSelect) {
-    labelSelect.addEventListener('change', async () => {
-      if (state.currentIssue) {
-        const val = labelSelect.value;
-        const labelVal = val ? { id: Number.parseInt(val) } : null;
-        await saveSidebarField({ label: labelVal }, 'Label updated', labelSelect);
-      }
-    });
-  }
+  labelSelect.addEventListener('change', async () => {
+    if (state.currentIssue) {
+      const val = labelSelect.value;
+      const labelVal = val ? { id: Number.parseInt(val) } : null;
+      await saveSidebarField({ label: labelVal }, 'Label updated', labelSelect);
+    }
+  });
 
   const releaseSelect = byId('release-select', HTMLInputElement);
-  if (releaseSelect) {
-    releaseSelect.addEventListener('change', async () => {
-      if (state.currentIssue) {
-        const val = releaseSelect.value;
-        const releaseId = val ? Number.parseInt(val) : null;
-        if (await saveSidebarField({ release_id: releaseId }, 'Release updated', releaseSelect)) {
-          const dlStatus = getDeadlineStatus(state.currentIssue);
-          document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
-          if (dlStatus.late) showNotification(`Release updated — deadline is ${dlStatus.reason}`, 'warning');
-        }
+  releaseSelect.addEventListener('change', async () => {
+    if (state.currentIssue) {
+      const val = releaseSelect.value;
+      const releaseId = val ? Number.parseInt(val) : null;
+      if (await saveSidebarField({ release_id: releaseId }, 'Release updated', releaseSelect)) {
+        const dlStatus = getDeadlineStatus(state.currentIssue);
+        document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
+        if (dlStatus.late) showNotification(`Release updated — deadline is ${dlStatus.reason}`, 'warning');
       }
-    });
-  }
+    }
+  });
 
   const projectSelect = byId('project-select', HTMLInputElement);
-  if (projectSelect) {
-    projectSelect.addEventListener('change', async () => {
-      const val = projectSelect.value;
-      const projectId = val ? Number.parseInt(val) : 1;
+  projectSelect.addEventListener('change', async () => {
+    const val = projectSelect.value;
+    const projectId = val ? Number.parseInt(val) : DEFAULT_PROJECT_ID;
 
-      if (state.currentIssue) {
-        // Queued like the field saves: a save still in flight would otherwise finish after
-        // the move and set currentEtag back to the ETag from before the move.
-        await enqueueIssueWrite(() => moveIssueToProject(projectId));
-      } else {
-        localStorage.setItem('wuflow_selectedProjectId', String(projectId));
-      }
-    });
-  }
+    if (state.currentIssue) {
+      // Queued like the field saves: a save still in flight would otherwise finish after
+      // the move and set currentEtag back to the ETag from before the move.
+      await enqueueIssueWrite(() => moveIssueToProject(projectId));
+    } else {
+      localStorage.setItem('wuflow_selectedProjectId', String(projectId));
+    }
+  });
 }
 
 async function moveIssueToProject(projectId: number) {
-  if (!state.currentIssue) return;
+  const issue = state.currentIssue;
+  if (!issue) return;
   const projectSelect = byId('project-select', HTMLInputElement);
-  let moveResult: Awaited<ReturnType<typeof moveIssue>> | null = null;
+  const result: { moved?: Awaited<ReturnType<typeof moveIssue>> } = {};
   const confirmed = await promptAdminPasswordConfirmation(
     'Move Issue to another Project',
     'Do you really want to move this issue to another project?\nIts label, release, and status will be reset, since these fields are project-specific and cannot be preserved across projects.',
     async (adminPassword) => {
-      moveResult = await moveIssue(state.currentIssue.project_id, state.currentIssue.id, projectId, adminPassword);
+      result.moved = await moveIssue(issue.project_id, issue.id, projectId, adminPassword);
     },
     'Move Issue',
     'primary'
   );
-  if (!confirmed) {
-    projectSelect.value = String(state.currentIssue.project_id);
-    document.getElementById('project-text').textContent = state.currentIssue.project?.name ?? '';
+  if (!confirmed || !result.moved) {
+    projectSelect.value = String(issue.project_id);
+    byId('project-text').textContent = issue.project?.name ?? '';
     return;
   }
-  const { issue: updated, etag } = moveResult;
+  const { issue: updated, etag } = result.moved;
   currentEtag = etag;
   setCurrentIssue(updated);
   localStorage.setItem('wuflow_selectedProjectId', String(projectId));
   // The project-option click already loaded label/release/statusconfig for the new
   // project. Just reset the displayed values that the server cleared on move.
   byId('label-select', HTMLInputElement).value = '';
-  document.getElementById('label-text').textContent = 'No Label';
+  byId('label-text').textContent = 'No Label';
   byId('release-select', HTMLInputElement).value = '';
-  document.getElementById('release-text').textContent = 'No Release';
+  byId('release-text').textContent = 'No Release';
   byId('status', HTMLInputElement).value = STATUS_OPEN;
-  document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
+  byId('status-text').textContent = getStatusLabel(STATUS_OPEN);
   document.getElementById('status-options')?.classList.add('hidden');
   setupEditModal(updated);
   showNotification('Project changed', 'info');
@@ -1156,13 +1155,10 @@ function refreshTaskDeadlineStyles() {
 }
 
 function resetTaskForm() {
-  const title = byId('new-task-title', HTMLInputElement);
+  byId('new-task-title', HTMLInputElement).value = '';
   const deadline = byId('new-task-deadline', HTMLInputElement);
-  if (title) title.value = '';
-  if (deadline) {
-    deadline.value = '';
-    updateDateInputStyle(deadline);
-  }
+  deadline.value = '';
+  updateDateInputStyle(deadline);
 }
 
 // Returns true if the task was added.
@@ -1189,7 +1185,7 @@ async function handleTaskSubmit() {
     const newTask = await createTask(state.currentIssue.project_id, state.currentIssue.id, taskData);
     if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
     state.currentIssue.tasks.push(newTask);
-    renderTasks(state.currentIssue.tasks, document.getElementById('task-list'), state.currentIssue, taskCallbacks(state.currentIssue));
+    renderTasks(state.currentIssue.tasks, byId('task-list'), state.currentIssue, taskCallbacks(state.currentIssue));
     resetTaskForm();
     syncUnloadListener();
     const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
@@ -1204,13 +1200,14 @@ async function handleTaskSubmit() {
 }
 
 async function saveTaskOrder(issue: Issue) {
-  if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
+  const tasks = issue.tasks;
+  if (!tasks || !userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
   const taskItems = [...document.querySelectorAll<HTMLElement>('#task-list .task-item')];
   const positions: PositionUpdate[] = [];
   const previous: { task: Task; position: number }[] = [];
   taskItems.forEach((item, index) => {
-    const id = Number.parseInt(item.dataset.id);
-    const task = issue.tasks.find(t => t.id === id);
+    const id = Number(item.dataset.id);
+    const task = tasks.find(t => t.id === id);
     if (task && task.position !== index) {
       previous.push({ task, position: task.position });
       task.position = index;
@@ -1221,13 +1218,13 @@ async function saveTaskOrder(issue: Issue) {
   if (positions.length > 0) {
     try {
       await updateTaskPositions(issue.project_id, issue.id, positions);
-      issue.tasks.sort((a, b) => a.position - b.position);
+      tasks.sort((a, b) => a.position - b.position);
     } catch (err) {
       showNotification(err.message, 'error');
       // The server saved none of the positions (all-or-nothing), so put the tasks back
       // in their old order; otherwise the unsaved order would look saved.
       previous.forEach(({ task, position }) => { task.position = position; });
-      renderTasks(issue.tasks, document.getElementById('task-list'), issue, taskCallbacks(issue));
+      renderTasks(tasks, byId('task-list'), issue, taskCallbacks(issue));
     }
   }
 }

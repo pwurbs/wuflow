@@ -1,13 +1,13 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { sortReleasesByDate } from '../list-utils.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit } from '../utils.ts';
+import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
 import type { Issue, Release, User } from '../models.ts';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE, IN_PROGRESS_STATUSES } from '../status-config.ts';
-import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
+import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import { updateReleaseFilterOptions } from './toolbar.ts';
 
 let editingReleaseId: number | null = null;
@@ -33,22 +33,23 @@ export async function setupReleasesView() {
   setupOwnerDropdown();
 
   const cancelBtn = document.getElementById('release-modal-cancel');
-  const form = byId('release-form', HTMLFormElement);
-  const nameInput = byId('release-modal-name', HTMLInputElement);
-  const descInput = byId('release-modal-desc', HTMLTextAreaElement);
+  const form = document.getElementById('release-form');
+  const nameInput = document.getElementById('release-modal-name');
+  const descInput = document.getElementById('release-modal-desc');
 
-  if (nameInput) initCharCounter(nameInput, MAX_RELEASE_NAME_LEN);
-  if (descInput) initCharCounter(descInput, MAX_RELEASE_DESC_LEN);
+  if (nameInput instanceof HTMLInputElement) initCharCounter(nameInput, MAX_RELEASE_NAME_LEN);
+  if (descInput instanceof HTMLTextAreaElement) initCharCounter(descInput, MAX_RELEASE_DESC_LEN);
 
   ['release-modal-start', 'release-modal-date'].forEach(id => {
-    const input = byId(id, HTMLInputElement);
-    input?.addEventListener('change', () => {
+    const input = document.getElementById(id);
+    if (!(input instanceof HTMLInputElement)) return;
+    input.addEventListener('change', () => {
       updateDateInputStyle(input);
     });
   });
 
   cancelBtn?.addEventListener('click', closeReleaseModal);
-  if (form) onGuardedSubmit(form, handleReleaseSubmit);
+  if (form instanceof HTMLFormElement) onGuardedSubmit(form, handleReleaseSubmit);
 
   const deleteBtn = document.getElementById('release-modal-delete');
   if (deleteBtn && userCan(state.currentUser, ACTION_DELETE_RELEASE)) {
@@ -86,9 +87,9 @@ export async function setupReleasesView() {
 
 function setupOwnerDropdown() {
   const wrapper = document.getElementById('release-owner-dropdown');
-  const trigger = byId('release-owner-trigger', HTMLButtonElement);
+  const trigger = document.getElementById('release-owner-trigger');
   const options = document.getElementById('release-owner-options');
-  if (!trigger || !options) return;
+  if (!(trigger instanceof HTMLButtonElement) || !options) return;
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -114,13 +115,14 @@ export function renderReleaseOwnerOptions(users: User[]) {
   noOwnerDiv.addEventListener('click', () => selectReleaseOwner('', 'No Owner'));
   container.appendChild(noOwnerDiv);
 
-  if (state.currentUser) {
+  const me = state.currentUser;
+  if (me) {
     const meDiv = document.createElement('div');
     meDiv.className = 'custom-option';
     meDiv.textContent = 'Assign to me';
     meDiv.addEventListener('click', () => selectReleaseOwner(
-      String(state.currentUser.id),
-      `${state.currentUser.first_name} ${state.currentUser.last_name}`
+      String(me.id),
+      `${me.first_name} ${me.last_name}`
     ));
     container.appendChild(meDiv);
   }
@@ -135,12 +137,9 @@ export function renderReleaseOwnerOptions(users: User[]) {
 }
 
 function selectReleaseOwner(value: string, text: string) {
-  const input = byId('release-owner-input', HTMLInputElement);
-  const display = document.getElementById('release-owner-text');
-  const options = document.getElementById('release-owner-options');
-  if (input) input.value = value;
-  if (display) display.textContent = text;
-  options?.classList.add('hidden');
+  byId('release-owner-input', HTMLInputElement).value = value;
+  byId('release-owner-text').textContent = text;
+  byId('release-owner-options').classList.add('hidden');
 }
 
 export async function renderReleasesView() {
@@ -164,7 +163,7 @@ export async function renderReleasesView() {
   });
   const openReleases = sortReleasesByDate(releases.filter(r => r.status === RELEASE_STATUS_OPEN));
   const closedReleases = releases.filter(r => r.status === RELEASE_STATUS_CLOSED)
-    .sort((a, b) => new Date(b.closed_at).getTime() - new Date(a.closed_at).getTime());
+    .sort((a, b) => new Date(b.closed_at ?? 0).getTime() - new Date(a.closed_at ?? 0).getTime());
 
   const totalOpen = state.releases.filter(r => r.status === RELEASE_STATUS_OPEN).length;
   const totalClosed = state.releases.filter(r => r.status === RELEASE_STATUS_CLOSED).length;
@@ -194,8 +193,8 @@ function groupReleasesByMonth(releases: Release[]) {
 function appendReleaseRow(rel: Release, isOpenSection: boolean, list: Element) {
   const row = buildReleaseRow(rel, isOpenSection);
   if (userCan(state.currentUser, ACTION_UPDATE_RELEASE)) {
-    row.querySelector('.release-card-left').classList.add('release-card-left--clickable');
-    row.querySelector('.release-card-left').addEventListener('click', () => openReleaseModal(rel));
+    bySelector(row, '.release-card-left').classList.add('release-card-left--clickable');
+    bySelector(row, '.release-card-left').addEventListener('click', () => openReleaseModal(rel));
   }
   row.querySelector('.release-trigger-btn')?.addEventListener('click', () => handleTriggerReleaseDialog(rel));
   list.appendChild(row);
@@ -224,7 +223,7 @@ function buildReleasesSection(title: string, releases: Release[], isOpenSection:
 
   section.querySelector('.release-add-btn')?.addEventListener('click', () => openReleaseModal(null));
 
-  const list = section.querySelector('.backlog-list');
+  const list = bySelector(section, '.backlog-list');
 
   if (releases.length === 0) {
     list.innerHTML = '<p class="releases-empty">No releases.</p>';
@@ -287,28 +286,25 @@ function applyModalDateFields(release: Release | null, isClosed: boolean) {
 }
 
 function openReleaseModal(release: Release | null) {
-  const overlay = document.getElementById('release-modal-overlay');
-  const errorDisplay = document.getElementById('release-modal-error');
+  const overlay = byId('release-modal-overlay');
+  const errorDisplay = byId('release-modal-error');
   const form = byId('release-form', HTMLFormElement);
-  if (!overlay) return;
 
   editingReleaseId = release ? release.id : null;
   const isClosed = release?.status === RELEASE_STATUS_CLOSED;
 
-  const title = document.getElementById('release-modal-title');
-  if (title) title.textContent = release ? 'Release Details' : 'New Release';
+  byId('release-modal-title').textContent = release ? 'Release Details' : 'New Release';
 
   applyModalButtons(release, isClosed);
 
-  form?.reset();
-  errorDisplay?.classList.add('hidden');
+  form.reset();
+  errorDisplay.classList.add('hidden');
   renderModalStats(release);
 
-  form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([data-permanent-readonly]), textarea')
+  form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([data-permanent-readonly]), textarea')
     .forEach(el => { el.readOnly = isClosed; });
 
-  const ownerTrigger = byId('release-owner-trigger', HTMLButtonElement);
-  if (ownerTrigger) ownerTrigger.disabled = isClosed;
+  byId('release-owner-trigger', HTMLButtonElement).disabled = isClosed;
 
   if (release) {
     byId('release-modal-name', HTMLInputElement).value = release.name;
@@ -324,7 +320,7 @@ function openReleaseModal(release: Release | null) {
   applyModalDateFields(release, isClosed);
 
   overlay.classList.remove('hidden');
-  if (!isClosed) byId('release-modal-name', HTMLInputElement)?.focus();
+  if (!isClosed) byId('release-modal-name', HTMLInputElement).focus();
 }
 
 function closeReleaseModal() {
@@ -336,10 +332,10 @@ async function handleReleaseSubmit() {
   const rel = editingReleaseId ? state.releases.find(r => r.id === editingReleaseId) : null;
   if (rel?.status === RELEASE_STATUS_CLOSED) { closeReleaseModal(); return; }
 
-  const name = byId('release-modal-name', HTMLInputElement)?.value.trim();
-  const desc = byId('release-modal-desc', HTMLTextAreaElement)?.value.trim() ?? '';
-  const startVal = byId('release-modal-start', HTMLInputElement)?.value;
-  const dateVal = byId('release-modal-date', HTMLInputElement)?.value;
+  const name = byId('release-modal-name', HTMLInputElement).value.trim();
+  const desc = byId('release-modal-desc', HTMLTextAreaElement).value.trim();
+  const startVal = byId('release-modal-start', HTMLInputElement).value;
+  const dateVal = byId('release-modal-date', HTMLInputElement).value;
   const errorDisplay = document.getElementById('release-modal-error');
 
   if (!name) { showNotification('Release name is required.', 'error'); return; }
@@ -349,14 +345,15 @@ async function handleReleaseSubmit() {
   }
 
   const toISO = (v: string) => v ? `${v}T00:00:00Z` : null;
-  const ownerVal = byId('release-owner-input', HTMLInputElement)?.value;
+  const ownerVal = byId('release-owner-input', HTMLInputElement).value;
   const owner_id = ownerVal ? Number.parseInt(ownerVal) : null;
   const payload = { name, description: desc, start_date: toISO(startVal), release_date: toISO(dateVal), owner_id };
   try {
-    const projectId = state.selectedProjectId ?? 1;
-    const isEdit = !!editingReleaseId;
-    if (isEdit) {
-      const updated = await updateRelease(projectId, editingReleaseId, payload);
+    const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
+    const releaseId = editingReleaseId;
+    const isEdit = !!releaseId;
+    if (releaseId) {
+      const updated = await updateRelease(projectId, releaseId, payload);
       mergeReleaseIntoState(updated);
     } else {
       // The create response isn't owner-hydrated, so re-fetch the release list instead.
@@ -524,13 +521,13 @@ async function handleTriggerReleaseDialog(rel: Release) {
 
     document.body.appendChild(overlay);
 
-    overlay.querySelector('#release-dialog-cancel').addEventListener('click', () => {
+    bySelector(overlay, '#release-dialog-cancel').addEventListener('click', () => {
       overlay.remove();
       resolve(false);
     });
 
-    overlay.querySelector('#release-dialog-confirm').addEventListener('click', async () => {
-      const archiveDone = overlay.querySelector<HTMLInputElement>('#release-archive-done').checked;
+    bySelector(overlay, '#release-dialog-confirm').addEventListener('click', async () => {
+      const archiveDone = bySelector(overlay, '#release-archive-done', HTMLInputElement).checked;
       overlay.remove();
       try {
         const updated = await triggerRelease(rel.project_id, rel.id, archiveDone);

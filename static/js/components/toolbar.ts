@@ -41,17 +41,14 @@ function updateFilterButtonState(btn: HTMLElement, defaultText: string, selected
 
 // ─── Label Filter ──────────────────────────────────────────────────────────────
 
-let labelFilterContainer: HTMLElement | null;
-let labelFilterBtn: HTMLElement | null;
-let labelFilterOptions: HTMLElement | null;
 let labelRefreshCallback: (() => unknown) | undefined;
 
 export function initLabelFilter(refreshApp: () => unknown) {
   labelRefreshCallback = refreshApp;
 
-  labelFilterContainer = document.getElementById('label-filter-wrapper');
-  labelFilterBtn = document.getElementById('label-filter-btn');
-  labelFilterOptions = document.getElementById('label-filter-options');
+  const labelFilterContainer = byId('label-filter-wrapper');
+  const labelFilterBtn = byId('label-filter-btn');
+  const labelFilterOptions = byId('label-filter-options');
 
   labelFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -59,13 +56,15 @@ export function initLabelFilter(refreshApp: () => unknown) {
   });
 
   document.addEventListener('click', (e) => {
-    if (labelFilterContainer && !(e.target instanceof Node && labelFilterContainer.contains(e.target))) {
+    if (!(e.target instanceof Node && labelFilterContainer.contains(e.target))) {
       labelFilterOptions.classList.add('hidden');
     }
   });
 }
 
 export function updateLabelFilterOptions(labels: Label[]) {
+  const labelFilterBtn = byId('label-filter-btn');
+  const labelFilterOptions = byId('label-filter-options');
   const currentVal = state.filter.labelId;
 
   labelFilterOptions.innerHTML = '';
@@ -95,7 +94,7 @@ function createLabelOption(text: string, value: Filter['labelId']) {
   div.textContent = text;
   div.addEventListener('click', () => {
     setFilterLabel(value || null);
-    labelFilterOptions.classList.add('hidden');
+    byId('label-filter-options').classList.add('hidden');
     if (labelRefreshCallback) labelRefreshCallback();
   });
   return div;
@@ -103,17 +102,14 @@ function createLabelOption(text: string, value: Filter['labelId']) {
 
 // ─── Priority Filter ───────────────────────────────────────────────────────────
 
-let priorityFilterContainer: HTMLElement | null;
-let priorityFilterBtn: HTMLElement | null;
-let priorityFilterOptions: HTMLElement | null;
 let priorityRefreshCallback: (() => unknown) | undefined;
 
 export function initPriorityFilter(refreshApp: () => unknown) {
   priorityRefreshCallback = refreshApp;
 
-  priorityFilterContainer = document.getElementById('priority-filter-wrapper');
-  priorityFilterBtn = document.getElementById('priority-filter-btn');
-  priorityFilterOptions = document.getElementById('priority-filter-options');
+  const priorityFilterContainer = byId('priority-filter-wrapper');
+  const priorityFilterBtn = byId('priority-filter-btn');
+  const priorityFilterOptions = byId('priority-filter-options');
 
   priorityFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -125,7 +121,7 @@ export function initPriorityFilter(refreshApp: () => unknown) {
   });
 
   document.addEventListener('click', (e) => {
-    if (priorityFilterContainer && !(e.target instanceof Node && priorityFilterContainer.contains(e.target))) {
+    if (!(e.target instanceof Node && priorityFilterContainer.contains(e.target))) {
       priorityFilterOptions.classList.add('hidden');
     }
   });
@@ -134,6 +130,8 @@ export function initPriorityFilter(refreshApp: () => unknown) {
 }
 
 export function updatePriorityFilterOptions() {
+  const priorityFilterBtn = byId('priority-filter-btn');
+  const priorityFilterOptions = byId('priority-filter-options');
   const currentVal = state.filter.priority;
 
   priorityFilterOptions.innerHTML = '';
@@ -158,7 +156,7 @@ function createPriorityOption(text: string, value: Priority) {
   div.textContent = text;
   div.addEventListener('click', () => {
     setFilterPriority(value);
-    priorityFilterOptions.classList.add('hidden');
+    byId('priority-filter-options').classList.add('hidden');
     updatePriorityFilterOptions();
     if (priorityRefreshCallback) priorityRefreshCallback();
   });
@@ -167,19 +165,14 @@ function createPriorityOption(text: string, value: Priority) {
 
 // ─── User Filter ───────────────────────────────────────────────────────────────
 
-let userFilterContainer: HTMLElement | null;
-let userFilterBtn: HTMLElement | null;
-let userFilterOptions: HTMLElement | null;
 let userRefreshCallback: (() => unknown) | undefined;
 
 export function initUserFilter(refreshApp: () => unknown) {
   userRefreshCallback = refreshApp;
 
-  userFilterContainer = document.getElementById('user-filter-wrapper');
-  userFilterBtn = document.getElementById('user-filter-btn');
-  userFilterOptions = document.getElementById('user-filter-options');
-
-  if (!userFilterBtn) return;
+  const userFilterContainer = byId('user-filter-wrapper');
+  const userFilterBtn = byId('user-filter-btn');
+  const userFilterOptions = byId('user-filter-options');
 
   userFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -187,7 +180,7 @@ export function initUserFilter(refreshApp: () => unknown) {
   });
 
   document.addEventListener('click', (e) => {
-    if (userFilterContainer && !(e.target instanceof Node && userFilterContainer.contains(e.target))) {
+    if (!(e.target instanceof Node && userFilterContainer.contains(e.target))) {
       userFilterOptions.classList.add('hidden');
     }
   });
@@ -201,7 +194,8 @@ function resolveFilterLabel(currentVal: UserFilter, users: User[], myLabel: stri
 }
 
 export function updateUserFilterOptions(users: User[], context: 'issues' | 'releases' = 'issues') {
-  if (!userFilterOptions) return;
+  const userFilterBtn = byId('user-filter-btn');
+  const userFilterOptions = byId('user-filter-options');
   const isReleases = context === 'releases';
   const currentVal = isReleases ? state.filter.releaseOwnerFilter : state.filter.assigneeId;
   const setFilter = isReleases ? setFilterReleaseOwner : setFilterAssignee;
@@ -237,7 +231,7 @@ function createUserOption(text: string, value: UserFilter, setFilter: (value: Us
   div.textContent = text;
   div.addEventListener('click', () => {
     setFilter(value);
-    userFilterOptions.classList.add('hidden');
+    byId('user-filter-options').classList.add('hidden');
     if (userRefreshCallback) userRefreshCallback();
   });
   return div;
@@ -245,19 +239,14 @@ function createUserOption(text: string, value: UserFilter, setFilter: (value: Us
 
 // ─── Release Filter ────────────────────────────────────────────────────────────
 
-let releaseFilterContainer: HTMLElement | null;
-let releaseFilterBtn: HTMLElement | null;
-let releaseFilterOptions: HTMLElement | null;
 let releaseRefreshCallback: (() => unknown) | undefined;
 
 export function initReleaseFilter(refreshApp: () => unknown) {
   releaseRefreshCallback = refreshApp;
 
-  releaseFilterContainer = document.getElementById('release-filter-wrapper');
-  releaseFilterBtn = document.getElementById('release-filter-btn');
-  releaseFilterOptions = document.getElementById('release-filter-options');
-
-  if (!releaseFilterBtn) return;
+  const releaseFilterContainer = byId('release-filter-wrapper');
+  const releaseFilterBtn = byId('release-filter-btn');
+  const releaseFilterOptions = byId('release-filter-options');
 
   releaseFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -265,14 +254,15 @@ export function initReleaseFilter(refreshApp: () => unknown) {
   });
 
   document.addEventListener('click', (e) => {
-    if (releaseFilterContainer && !(e.target instanceof Node && releaseFilterContainer.contains(e.target))) {
+    if (!(e.target instanceof Node && releaseFilterContainer.contains(e.target))) {
       releaseFilterOptions.classList.add('hidden');
     }
   });
 }
 
 export function updateReleaseFilterOptions(releases: Release[]) {
-  if (!releaseFilterOptions) return;
+  const releaseFilterBtn = byId('release-filter-btn');
+  const releaseFilterOptions = byId('release-filter-options');
   const currentVal = state.filter.releaseId;
 
   releaseFilterOptions.innerHTML = '';
@@ -302,7 +292,7 @@ function createReleaseOption(text: string, value: Filter['releaseId']) {
   div.textContent = text;
   div.addEventListener('click', () => {
     setFilterRelease(value);
-    releaseFilterOptions.classList.add('hidden');
+    byId('release-filter-options').classList.add('hidden');
     if (releaseRefreshCallback) releaseRefreshCallback();
   });
   return div;
@@ -393,7 +383,7 @@ function updateProjectButtonLabel(btn: HTMLElement, projectName: string) {
 
 export function setupUserMenu(user: User) {
   const userMenuBtn = document.getElementById('user-menu-btn');
-  const userMenuDropdown = document.getElementById('user-menu-dropdown');
+  const userMenuDropdown = byId('user-menu-dropdown');
   const userEmailSpan = document.getElementById('current-user-email');
   const logoutBtn = document.getElementById('user-menu-logout');
   const passwordBtn = document.getElementById('user-menu-password');
@@ -444,10 +434,10 @@ export function setupUserMenu(user: User) {
 
 function setupPasswordModal(user: User) {
   const modal = document.getElementById('password-modal');
-  const form = byId('password-form', HTMLFormElement);
+  const form = document.getElementById('password-form');
   const cancelBtn = document.getElementById('password-cancel-btn');
 
-  if (!modal || !form || !cancelBtn) return;
+  if (!modal || !(form instanceof HTMLFormElement) || !cancelBtn) return;
 
   cancelBtn.addEventListener('click', () => {
     modal.classList.add('hidden');
@@ -499,12 +489,12 @@ function openPasswordModal() {
       errorDisplay.classList.add('hidden');
     }
 
-    const usernameField = byId('password-form-username', HTMLInputElement);
-    if (usernameField && state.currentUser) {
+    const usernameField = document.getElementById('password-form-username');
+    if (usernameField instanceof HTMLInputElement && state.currentUser) {
       usernameField.value = state.currentUser.email || '';
     }
 
     modal.classList.remove('hidden');
-    document.getElementById('current-password').focus();
+    byId('current-password').focus();
   }
 }

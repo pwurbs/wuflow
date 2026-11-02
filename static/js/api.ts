@@ -94,7 +94,7 @@ function notifyConnection(ok: boolean) {
  */
 async function rawFetch(url: string, options: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = timeoutMs ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
   try {
     const res = await fetch(url, controller ? { ...options, signal: controller.signal } : options);
     if (GATEWAY_ERROR_STATUSES.has(res.status)) {

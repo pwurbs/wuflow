@@ -9,6 +9,7 @@
     "isolatedModules": true,
     "strict": false,
     "noImplicitAny": true,
+    "strictNullChecks": true,
     "noEmit": true,
     "skipLibCheck": true
   },

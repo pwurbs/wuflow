@@ -29,6 +29,12 @@ let activeLoad = Promise.resolve();
 // Promise of the current generation per list (in flight or loaded).
 let lists: Partial<Record<IssueListKind, Promise<void>>> = {};
 
+// Without a selected project (the user has none) there is nothing to fetch.
+function fetchForSelectedProject(fetcher: (projectId: number) => Promise<Issue[]>) {
+  const projectId = state.selectedProjectId;
+  return projectId === null ? Promise.resolve([]) : fetcher(projectId);
+}
+
 function mergeIntoIssues(issues: Issue[]) {
   const existingIds = new Set(state.issues.map(i => i.id));
   for (const issue of issues) {
@@ -44,7 +50,7 @@ export function loadIssues(kinds: IssueListKind[] = []) {
   generation++;
   lists = {};
   const gen = generation;
-  const load = fetchActiveIssuesByProject(state.selectedProjectId).then(issues => {
+  const load = fetchForSelectedProject(fetchActiveIssuesByProject).then(issues => {
     if (gen === generation) setIssues(issues);
   });
   // A failed load must not block later list merges: they then merge into the issues
@@ -63,7 +69,7 @@ export function ensureIssueLists(kinds: IssueListKind[]) {
   const base = activeLoad;
   return Promise.all(kinds.map(kind => {
     if (!lists[kind]) {
-      const load = LIST_FETCHERS[kind](state.selectedProjectId).then(async issues => {
+      const load = fetchForSelectedProject(LIST_FETCHERS[kind]).then(async issues => {
         // Merge only after the active issues are in place, or setIssues() would drop them.
         await base;
         if (gen === generation) mergeIntoIssues(issues);

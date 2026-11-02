@@ -3099,6 +3099,31 @@ func TestHandleProjectDeleteDefaultBlocked(t *testing.T) {
 	if status := rr.Code; status != http.StatusBadRequest {
 		t.Errorf(wrongStatusCode, status, http.StatusBadRequest)
 	}
+	if body := strings.TrimSpace(rr.Body.String()); body != errMsgDefaultProject {
+		t.Errorf("body = %q, want %q", body, errMsgDefaultProject)
+	}
+}
+
+// Only deleting the default project is blocked; renaming it is allowed.
+func TestHandleProjectUpdateDefaultAllowed(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	body, _ := json.Marshal(&Project{ID: DefaultProjectID, Name: "renamed"})
+	req, _ := http.NewRequest("PUT", apiProjects1, bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleSysAdmin))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyEmail, testAssigneeEmail))
+
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatalf(wrongStatusCode, status, http.StatusOK)
+	}
+	p, err := GetProjectByID(context.Background(), DefaultProjectID)
+	if err != nil || p.Name != "renamed" {
+		t.Errorf("default project = %+v, %v; want name renamed", p, err)
+	}
 }
 
 func TestHandleProjectDeleteWithIssuesBlocked(t *testing.T) {

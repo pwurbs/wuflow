@@ -10,11 +10,11 @@ import type { Issue } from '../models.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
 import { getDraggedCard } from '../drag.ts';
-import { escapeHtml } from '../utils.ts';
+import { escapeHtml, byId, bySelector } from '../utils.ts';
 
-let refreshAppCallback: RefreshApp | null = null;
-let openModalCallback: OpenModal | null = null;
-let rerenderActiveViewCallback: RerenderView | null = null;
+let refreshAppCallback: RefreshApp | undefined;
+let openModalCallback: OpenModal | undefined;
+let rerenderActiveViewCallback: RerenderView | undefined;
 
 function buildLaneCard(releaseId: number | null, name: string, count: number) {
   const isChecked = state.filter.releaseFilterIds.includes(releaseId);
@@ -45,7 +45,7 @@ function buildLaneCard(releaseId: number | null, name: string, count: number) {
     if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
     const draggedCard = getDraggedCard();
     if (!draggedCard) return;
-    const issueId = Number.parseInt(draggedCard.dataset.id, 10);
+    const issueId = Number(draggedCard.dataset.id);
     const issue = state.issues.find(i => i.id === issueId);
     if (!issue || issue.release_id === releaseId) return;
     const updated = { ...issue, release_id: releaseId };
@@ -77,7 +77,7 @@ function renderBacklogReleaseLanes() {
     </div>
     <div class="release-lanes-list"></div>
   `;
-  const list = container.querySelector('.release-lanes-list');
+  const list = bySelector(container, '.release-lanes-list');
 
   const countsByRelease = new Map<number | null, number>();
   state.issues.forEach(i => {
@@ -105,10 +105,10 @@ export async function renderBacklog(refreshApp?: RefreshApp, openModal?: OpenMod
   pruneReleaseFilterIds(validReleaseIds);
   renderBacklogReleaseLanes();
 
-  const backlogList = document.getElementById('backlog-list');
-  const moveToTodoList = document.getElementById('move-to-todo-list');
-  const backlogCount = document.getElementById('backlog-count');
-  const todoCount = document.getElementById('todo-count');
+  const backlogList = byId('backlog-list');
+  const moveToTodoList = byId('move-to-todo-list');
+  const backlogCount = byId('backlog-count');
+  const todoCount = byId('todo-count');
 
   // Clear
   backlogList.innerHTML = '';
@@ -128,8 +128,9 @@ export async function renderBacklog(refreshApp?: RefreshApp, openModal?: OpenMod
       onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),
       onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback)
     };
-    if (state.currentUser && issue.assignee_id !== state.currentUser.id) {
-      cb.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, rerenderActiveViewCallback);
+    const me = state.currentUser;
+    if (me && issue.assignee_id !== me.id) {
+      cb.onAssignToMe = () => handleAssignToMe(issue, me, rerenderActiveViewCallback);
     }
     return cb;
   }

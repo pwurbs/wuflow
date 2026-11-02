@@ -37,7 +37,7 @@ const (
 	errMsgLabelNotFound         = "Label not found"
 	errMsgProjectNotFound       = "Project not found"
 	errMsgInvalidProject        = "Invalid project ID"
-	errMsgDefaultProject        = "Cannot delete or rename the default project"
+	errMsgDefaultProject        = "Cannot delete the default project"
 	errMsgProjectHasIssues      = "Cannot delete project with assigned issues"
 	errMsgReleaseNotFound       = "Release not found"
 	errMsgInvalidRelease        = "Invalid release ID"
@@ -2171,7 +2171,7 @@ func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
 	userEmail := GetEmailFromContext(r.Context())
 
 	// Prevent deleting the default project
-	if id == 1 {
+	if id == DefaultProjectID {
 		LogWarn("Attempt to delete default project blocked", "id", id, "user_email", userEmail)
 		http.Error(w, errMsgDefaultProject, http.StatusBadRequest)
 		return

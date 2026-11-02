@@ -5,9 +5,10 @@ import * as utils from '../utils.ts';
 import { state } from '../state.ts'; // Imported from mock
 
 // Mock dependencies
-vi.mock('../utils.ts', () => ({
-  showNotification: vi.fn()
-}));
+vi.mock('../utils.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils.ts')>();
+  return { byId: actual.byId, bySelector: actual.bySelector, showNotification: vi.fn() };
+});
 import { makeIssue, makeTask } from './fixtures.ts';
 
 vi.mock('../state.ts', () => ({

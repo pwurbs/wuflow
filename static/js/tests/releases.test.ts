@@ -24,6 +24,7 @@ vi.mock('../components/toolbar.ts', () => ({
 
 vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
+  bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   toDateInputValue: (await importOriginal<typeof import('../utils.ts')>()).toDateInputValue,
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
   showNotification: vi.fn(),

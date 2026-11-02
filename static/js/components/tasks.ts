@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, guardSubmit } from '../utils.ts';
+import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, guardSubmit, bySelector } from '../utils.ts';
 import { MAX_TITLE_LENGTH } from '../validation-config.ts';
 import { updateTask, deleteTask } from '../api.ts'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.ts';
@@ -53,13 +53,13 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
         `;
 
     // Checkbox Logic
-    const checkbox = li.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    const checkbox = bySelector(li, 'input[type="checkbox"]', HTMLInputElement);
     if (callbacks.readOnly) {
       checkbox.disabled = true;
       li.draggable = false;
-      li.querySelector('.task-drag-handle').classList.add('hidden');
-      li.querySelector('.delete-task-btn').classList.add('hidden');
-      li.querySelector('.task-deadline-container').setAttribute('aria-disabled', 'true');
+      bySelector(li, '.task-drag-handle').classList.add('hidden');
+      bySelector(li, '.delete-task-btn').classList.add('hidden');
+      bySelector(li, '.task-deadline-container').setAttribute('aria-disabled', 'true');
     } else {
       checkbox.addEventListener('change', async () => {
         if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) { checkbox.checked = !checkbox.checked; return; }
@@ -77,17 +77,18 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
       });
 
       // Delete Logic
-      const deleteBtn = li.querySelector('.delete-task-btn');
+      const deleteBtn = bySelector(li, '.delete-task-btn');
       deleteBtn.addEventListener('click', async () => {
         if (!userCan(state.currentUser, ACTION_DELETE_TASK)) return;
         if (await showConfirm('Delete Task', `Delete "${task.title}"?`, 'Delete')) {
           try {
             await deleteTask(currentIssue.project_id, currentIssue.id, task.id);
             // Remove from local array to update UI immediately if needed
-            const index = currentIssue.tasks.findIndex(t => t.id === task.id);
-            if (index > -1) currentIssue.tasks.splice(index, 1);
+            const tasks = currentIssue.tasks ?? [];
+            const index = tasks.findIndex(t => t.id === task.id);
+            if (index > -1) tasks.splice(index, 1);
 
-            renderTasks(currentIssue.tasks, container, currentIssue, callbacks);
+            renderTasks(tasks, container, currentIssue, callbacks);
             showNotification('Task deleted');
             if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
           } catch (err) {
@@ -100,7 +101,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
       li.addEventListener('dragstart', (e) => {
         setDraggedTask(li);
         li.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
       });
       li.addEventListener('dragend', () => {
         li.classList.remove('dragging');
@@ -110,7 +111,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
     }
 
     // Edit Mode Logic
-    const titleInput = li.querySelector<HTMLInputElement>('.task-title-input');
+    const titleInput = bySelector(li, '.task-title-input', HTMLInputElement);
 
     if (!callbacks.readOnly) {
       let originalTitle = task.title;
@@ -184,8 +185,8 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
       });
 
       // Deadline Logic (Interactive)
-      const deadlineContainer = li.querySelector<HTMLElement>('.task-deadline-container');
-      const deadlineInput = li.querySelector<HTMLInputElement>('.task-deadline-input');
+      const deadlineContainer = bySelector(li, '.task-deadline-container');
+      const deadlineInput = bySelector(li, '.task-deadline-input', HTMLInputElement);
       deadlineContainer.addEventListener('click', () => deadlineInput.showPicker());
       deadlineInput.addEventListener('change', async () => {
         if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
@@ -193,7 +194,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
         task.deadline = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00').toISOString() : null;
         try {
           await updateTask(currentIssue.project_id, currentIssue.id, task);
-          const display = li.querySelector('.task-deadline-display');
+          const display = bySelector(li, '.task-deadline-display');
           display.innerHTML = taskDeadlineHTML(task.deadline);
           deadlineContainer.classList.toggle('no-deadline', !task.deadline);
           const updatedStatus = getTaskDeadlineStatus(task.deadline, currentIssue);

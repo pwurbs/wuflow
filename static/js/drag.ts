@@ -1,7 +1,7 @@
 // Shared drag state
 let draggedCard: HTMLElement | null = null;
 // Where the card sat before the drag, to put it back when it is dropped outside a list.
-let draggedCardOrigin: { parent: ParentNode; nextSibling: Element | null } | null = null;
+let draggedCardOrigin: { parent: ParentNode | null; nextSibling: Element | null } | null = null;
 let dragSuccess = false;
 
 export const getDraggedCard = () => draggedCard;

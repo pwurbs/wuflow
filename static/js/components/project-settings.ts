@@ -3,19 +3,19 @@ import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, count
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.ts';
 import { state, setStatusConfig, setLabels } from '../state.ts';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.ts';
-import { STATUS_SLOTS, getDefaultStatusConfig } from '../status-config.ts';
-import type { StatusConfig } from '../models.ts';
+import { STATUS_SLOTS, getDefaultStatusConfig, type StatusNames } from '../status-config.ts';
 import { updateLabelFilterOptions } from './toolbar.ts';
 import { renderBoard } from './board.ts';
+import { DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 
 let projectSettingsContainer: HTMLElement | null = null;
 
 export function setupProjectSettingsView() {
   projectSettingsContainer = document.getElementById('project-settings-view');
 
-  const addLabelInput = byId('ps-new-label-input', HTMLInputElement);
+  const addLabelInput = document.getElementById('ps-new-label-input');
 
-  if (addLabelInput) {
+  if (addLabelInput instanceof HTMLInputElement) {
     if (userCan(state.currentUser, ACTION_CREATE_LABEL)) {
       initCharCounter(addLabelInput, MAX_LABEL_NAME_LEN);
 
@@ -27,7 +27,7 @@ export function setupProjectSettingsView() {
           return;
         }
         try {
-          const projectId = state.selectedProjectId ?? 1;
+          const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
           const existingLabels = await fetchLabelsByProject(projectId);
           const usedColors = existingLabels.map(l => l.color);
           const color = getUnusedColor(usedColors);
@@ -73,7 +73,7 @@ export async function renderProjectSettingsView() {
   labelsList.innerHTML = '<div class="loader">Loading...</div>';
 
   try {
-    const projectId = state.selectedProjectId ?? 1;
+    const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
     const labels = await fetchLabelsByProject(projectId);
     // Keep the shared cache current so the issue modal sees label changes made here.
     if (projectId === state.selectedProjectId) setLabels(labels, projectId);
@@ -126,7 +126,7 @@ function renderStatusConfigSection() {
   if (!content) return;
 
   const canEdit = userCan(state.currentUser, ACTION_UPDATE_STATUS_CONFIG);
-  const projectId = state.selectedProjectId ?? 1;
+  const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
   const cfg = state.statusConfig ?? getDefaultStatusConfig();
 
   const disabledAttr = canEdit ? '' : 'disabled';
@@ -169,6 +169,7 @@ function renderStatusConfigSection() {
   content.querySelectorAll<HTMLInputElement>('.sc-name-input').forEach(input => {
     input.addEventListener('input', () => {
       const box = input.closest('.sc-box');
+      if (!box) return;
       const active = input.value !== '';
       box.classList.toggle('sc-box--active', active);
       box.classList.toggle('sc-box--inactive', !active);
@@ -179,14 +180,14 @@ function renderStatusConfigSection() {
   });
 
   if (canEdit) {
-    document.getElementById('ps-save-status-config-btn').addEventListener('click', () =>
+    byId('ps-save-status-config-btn').addEventListener('click', () =>
       handleSaveStatusConfig(projectId, cfg)
     );
   }
 }
 
-async function handleSaveStatusConfig(projectId: number, previousCfg: StatusConfig) {
-  const payload: Partial<Omit<StatusConfig, 'project_id'>> = {};
+async function handleSaveStatusConfig(projectId: number, previousCfg: StatusNames) {
+  const payload: Partial<StatusNames> = {};
   for (const slot of STATUS_SLOTS) {
     const input = document.querySelector<HTMLInputElement>(`#ps-status-config-content .sc-name-input[data-field="${slot.field}"]`);
     if (input) payload[slot.field] = input.value.trim();
@@ -218,7 +219,7 @@ async function handleSaveStatusConfig(projectId: number, previousCfg: StatusConf
         const count = state.issues.filter(i => i.status === slot.statusKey).length;
         return count > 0 ? { name: previousCfg[slot.field], count } : null;
       })
-      .filter(Boolean);
+      .filter(d => d !== null);
 
     if (affected.length > 0) {
       const details = affected

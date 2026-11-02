@@ -53,6 +53,7 @@ export function showCardContextMenu(x: number, y: number, items: ContextMenuItem
   const knownScrollTops = new WeakMap<EventTarget, number>();
   const onScroll = (e: Event) => {
     const target = e.target;
+    if (!target) return;
     // The document itself has no scrollTop.
     const top = target instanceof Element ? target.scrollTop : 0;
     if (!knownScrollTops.has(target)) {

@@ -108,8 +108,8 @@ func createTables(ctx context.Context) error {
 		return err
 	}
 
-	// Seed the default project (id=1)
-	if _, err := DB.ExecContext(ctx, `INSERT OR IGNORE INTO projects(id, name, description) VALUES(1, 'default', 'Default project')`); err != nil {
+	// Seed the default project
+	if _, err := DB.ExecContext(ctx, `INSERT OR IGNORE INTO projects(id, name, description) VALUES(?, 'default', 'Default project')`, DefaultProjectID); err != nil {
 		LogError("Failed to seed default project", "error", err)
 		return err
 	}

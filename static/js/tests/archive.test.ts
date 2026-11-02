@@ -56,7 +56,8 @@ vi.mock('../drag.ts', () => ({
   getDragAfterElement: vi.fn(),
 }));
 
-vi.mock('../utils.ts', () => ({
+vi.mock('../utils.ts', async (importOriginal) => ({
+  byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
   canArchive: vi.fn().mockReturnValue({ allowed: true }),
   showConfirm: vi.fn().mockResolvedValue(true),
   showNotification: vi.fn(),

@@ -51,7 +51,8 @@ vi.mock('../drag.ts', () => ({
 
 }));
 
-vi.mock('../utils.ts', () => ({
+vi.mock('../utils.ts', async (importOriginal) => ({
+  bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   showNotification: vi.fn()
 }));
 

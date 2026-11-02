@@ -11,6 +11,9 @@ export const PRIORITY_OPTIONS: readonly { text: string, value: Priority }[] = [
   { text: 'High',   value: PRIORITY_HIGH   },
 ];
 
+// Mirror of backend/models.go DefaultProjectID — keep in sync when changing.
+export const DEFAULT_PROJECT_ID = 1;
+
 // Mirror of backend/models.go ReleaseStatus constants — keep in sync when changing.
 export const RELEASE_STATUS_OPEN   = 'open' as const;
 export const RELEASE_STATUS_CLOSED = 'closed' as const;

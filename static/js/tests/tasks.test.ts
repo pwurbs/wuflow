@@ -15,6 +15,7 @@ vi.mock('../api.ts', () => ({
 vi.mock('../utils.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils.ts')>();
   return {
+    bySelector: actual.bySelector,
     toDateInputValue: actual.toDateInputValue,
     guardSubmit: actual.guardSubmit,
     showNotification: vi.fn(),

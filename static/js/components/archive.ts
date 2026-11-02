@@ -7,12 +7,12 @@ import { getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag } from 
 import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 import type { IssueStatus } from '../status-config.ts';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
-import { canArchive, showConfirm } from '../utils.ts';
+import { canArchive, showConfirm, byId } from '../utils.ts';
 import { userCan, ACTION_ARCHIVE_ISSUE } from '../permissions.ts';
 
-let refreshAppCallback: RefreshApp | null = null;
-let openModalCallback: OpenModal | null = null;
-let rerenderActiveViewCallback: RerenderView | null = null;
+let refreshAppCallback: RefreshApp | undefined;
+let openModalCallback: OpenModal | undefined;
+let rerenderActiveViewCallback: RerenderView | undefined;
 
 export async function renderArchive(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
@@ -22,10 +22,10 @@ export async function renderArchive(refreshApp?: RefreshApp, openModal?: OpenMod
   // Lazy-load archived issues if not already loaded
   await ensureIssueLists(VIEW_ISSUE_LISTS.archive);
 
-  const archiveList = document.getElementById('archive-list');
-  const doneList = document.getElementById('archive-done-list');
-  const archiveCount = document.getElementById('archive-count');
-  const doneCount = document.getElementById('done-count-archive');
+  const archiveList = byId('archive-list');
+  const doneList = byId('archive-done-list');
+  const archiveCount = byId('archive-count');
+  const doneCount = byId('done-count-archive');
 
   // Clear
   archiveList.innerHTML = '';

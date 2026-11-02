@@ -80,11 +80,11 @@ const closeDialogIfSessionValid = singleFlight(async () => {
 export function showReauthDialog() {
   if (pendingReauth) return pendingReauth.promise;
 
-  let resolve: () => void;
+  let resolve = () => {};
   const promise = new Promise<void>(res => { resolve = res; });
   pendingReauth = { promise, resolve };
 
-  const modal = document.getElementById('reauth-modal');
+  const modal = byId('reauth-modal');
   const emailInput = byId('reauth-email', HTMLInputElement);
   const passwordInput = byId('reauth-password', HTMLInputElement);
   emailInput.value = state.currentUser?.email ?? '';
@@ -121,7 +121,7 @@ async function submitReauth() {
 function finishReauth() {
   if (!pendingReauth) return;
   byId('reauth-password', HTMLInputElement).value = '';
-  document.getElementById('reauth-modal').classList.add('hidden');
+  byId('reauth-modal').classList.add('hidden');
   const { resolve } = pendingReauth;
   pendingReauth = null;
   lastProbeAt = Date.now();
@@ -129,7 +129,7 @@ function finishReauth() {
 }
 
 function setReauthError(message: string) {
-  const errorEl = document.getElementById('reauth-error');
+  const errorEl = byId('reauth-error');
   errorEl.textContent = message;
   errorEl.classList.toggle('hidden', !message);
 }

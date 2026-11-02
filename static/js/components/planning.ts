@@ -1,16 +1,16 @@
 import { state, isFilterActive } from '../state.ts';
 import { STATUS_DONE, STATUS_ARCHIVE } from '../status-config.ts';
 import { updateIssue } from '../api.ts';
-import { showNotification } from '../utils.ts';
+import { showNotification, byId, bySelector } from '../utils.ts';
 import { getDraggedCard, setDraggedCard } from '../drag.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues } from '../filters.ts';
 import type { Issue } from '../models.ts';
 import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 
-let refreshAppCallback: RefreshApp | null = null;
-let openModalCallback: OpenModal | null = null;
-let rerenderActiveViewCallback: RerenderView | null = null;
+let refreshAppCallback: RefreshApp | undefined;
+let openModalCallback: OpenModal | undefined;
+let rerenderActiveViewCallback: RerenderView | undefined;
 
 export function setupPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
@@ -47,8 +47,8 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
-  const planningList = document.getElementById('planning-list');
-  const planningCount = document.getElementById('planning-count');
+  const planningList = byId('planning-list');
+  const planningCount = byId('planning-count');
   planningList.innerHTML = '';
 
   let count = 0;
@@ -153,7 +153,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
         const container = document.getElementById(targetId);
         if (container) {
           // Pass distinct dateStr so we know WHICH instance this is
-          container.querySelector('.planning-day-content').appendChild(createPlanningItem(issue, dateStr));
+          bySelector(container, '.planning-day-content').appendChild(createPlanningItem(issue, dateStr));
           count++;
         }
       });
@@ -183,7 +183,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
 
 
   document.querySelectorAll('.planning-day').forEach(day => {
-    const content = day.querySelector('.planning-day-content');
+    const content = bySelector(day, '.planning-day-content');
     day.classList.toggle('empty', content.children.length === 0);
   });
 }
@@ -248,8 +248,8 @@ export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
     // Fallback? Or maybe we don't warn if date is unknown?
     // Current behavior was: check latest.
     // Let's keep existing logic ONLY if specificDateStr is not provided (e.g. board view?)
-    const sortedDates = [...issue.planned_dates].sort((a, b) => a.localeCompare(b));
-    const lastPlan = new Date(sortedDates.at(-1));
+    const [latestDate] = [...issue.planned_dates].sort((a, b) => b.localeCompare(a));
+    const lastPlan = new Date(latestDate);
     lastPlan.setHours(0, 0, 0, 0);
 
     if (lastPlan > d) {
@@ -340,7 +340,7 @@ function createPlanningItem(issue: Issue, dateStr: string) {
     setDraggedCard(div);
     // planning item acts as a card proxy for basic dragging but has different class
     div.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'copyMove'; // Allow either
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copyMove'; // Allow either
   });
   div.addEventListener('dragend', () => {
     div.classList.remove('dragging');
@@ -429,7 +429,7 @@ function createUnscheduledSection(issues: Issue[]) {
       isFarTermUnscheduledExpanded = !isFarTermUnscheduledExpanded;
       farContent.style.display = isFarTermUnscheduledExpanded ? 'flex' : 'none';
       const arrow = isFarTermUnscheduledExpanded ? '▼' : '▶';
-      farHeader.querySelector('.planning-section-subtitle').innerHTML = `${arrow} 10+ days away [${farTermIssues.length}]`;
+      bySelector(farHeader, '.planning-section-subtitle').innerHTML = `${arrow} 10+ days away [${farTermIssues.length}]`;
     });
 
     content.appendChild(farHeader);
@@ -475,7 +475,7 @@ function createUnscheduledItem(issue: Issue) {
   div.addEventListener('dragstart', (e) => {
     setDraggedCard(div);
     div.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
   });
   div.addEventListener('dragend', () => {
     div.classList.remove('dragging');
@@ -501,7 +501,7 @@ async function handlePlanningDrop(this: HTMLElement, e: DragEvent) {
   this.classList.remove('drag-over');
   const targetDateStr = this.dataset.date;
 
-  if (targetDateStr === 'past' || targetDateStr === 'future') return; // Cannot drop in past/future container generally
+  if (!targetDateStr || targetDateStr === 'past' || targetDateStr === 'future') return; // Cannot drop in past/future container generally
 
   const draggedCard = getDraggedCard();
 
@@ -517,7 +517,7 @@ async function handlePlanningDrop(this: HTMLElement, e: DragEvent) {
 }
 
 export async function processDroppedCard(draggedCard: HTMLElement, targetDateStr: string) {
-  const issueId = Number.parseInt(draggedCard.dataset.id);
+  const issueId = Number(draggedCard.dataset.id);
   const issue = state.issues.find(i => i.id === issueId);
   const sourceDateStr = draggedCard.dataset.dateInstance;
 

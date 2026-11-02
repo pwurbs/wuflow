@@ -30,7 +30,7 @@ describe('status-config', () => {
     describe('getDefaultStatusConfig', () => {
         it('should return default config with Pending and Working stages', () => {
             const cfg = getDefaultStatusConfig();
-            expect(cfg.project_id).toBeNull();
+            expect(cfg).not.toHaveProperty('project_id');
             expect(cfg.stage1_name).toBe('Pending');
             expect(cfg.stage2_name).toBe('Working');
             expect(cfg.stage3_name).toBe('');

@@ -11,8 +11,9 @@ export interface CardCallbacks {
   openModal?: (issue: Issue) => void;
   onDragStart?: (cardEl: HTMLElement) => void;
   onDragEnd?: (cardEl: HTMLElement) => void;
-  onMoveTop?: () => unknown;
-  onMoveBottom?: () => unknown;
+  // null: the card is already first/last.
+  onMoveTop?: (() => unknown) | null;
+  onMoveBottom?: (() => unknown) | null;
   onTogglePriority?: () => unknown;
   onAssignToMe?: () => unknown;
 }
@@ -53,7 +54,7 @@ export function createCardElement(issue: Issue, isBoard = false, callbacks: Card
       parent: this.parentNode,
       nextSibling: this.nextElementSibling
     });
-    e.dataTransfer.effectAllowed = 'move';
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
     setTimeout(() => {
       this.classList.add('dragging');
       document.body.classList.add('is-dragging');
@@ -152,7 +153,7 @@ function getBoardCardHTML(issue: Issue, openTasks: number) {
                         ${issue.tasks && openTasks > 0 ? `
                         <div class="board-task-tooltip">
                             <ul>
-                                ${issue.tasks.filter(t => !t.done).map(t => `
+                                ${(issue.tasks ?? []).filter(t => !t.done).map(t => `
                                     <li>
                                         <span class="tooltip-icon" aria-hidden="true"></span>
                                         <span class="tooltip-title">${escapeHtml(t.title)}</span>
@@ -177,7 +178,7 @@ function getBacklogCardHTML(issue: Issue, openTasks: number, totalTasks: number)
   const taskTooltipHTML = openTasks > 0 ? `
     <div class="board-task-tooltip">
         <ul>
-            ${issue.tasks.filter(t => !t.done).map(t => `
+            ${(issue.tasks ?? []).filter(t => !t.done).map(t => `
                 <li>
                     <span class="tooltip-icon" aria-hidden="true"></span>
                     <span class="tooltip-title">${escapeHtml(t.title)}</span>

@@ -14,7 +14,7 @@ export interface InlineEditor {
 
 export function setupEditorToolbar(inlineEditor: InlineEditor) {
   const editor = byId('description-editor', HTMLTextAreaElement);
-  const preview = document.getElementById('description-preview');
+  const preview = byId('description-preview');
 
   function handleEnterKey(e: KeyboardEvent) {
     continueListOnEnter(editor, e);
@@ -183,7 +183,7 @@ export function setupEditorToolbar(inlineEditor: InlineEditor) {
     btn.addEventListener('click', () => {
       if (btn.dataset.prefix) {
         insertMarkdown(btn.dataset.prefix, btn.dataset.suffix || '');
-      } else {
+      } else if (btn.dataset.md) {
         handleMarkdownCommand(btn.dataset.md);
       }
     });

@@ -6,20 +6,21 @@ import { filterIssues, sortByPosition } from '../filters.ts';
 import { getBoardColumns, STATUS_OPEN } from '../status-config.ts';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, applyOrderChange, saveIssueOrder, showSaveFailure } from '../list-utils.ts';
 import { renderPlanningPanel } from './planning.ts';
+import { bySelector } from '../utils.ts';
 import type { IssueStatus } from '../status-config.ts';
 import type { Issue } from '../models.ts';
 import type { OrderChange, OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 
-let refreshAppCallback: RefreshApp | null = null;
-let openModalCallback: OpenModal | null = null;
-let rerenderActiveViewCallback: RerenderView | null = null;
+let refreshAppCallback: RefreshApp | undefined;
+let openModalCallback: OpenModal | undefined;
+let rerenderActiveViewCallback: RerenderView | undefined;
 
 export function renderBoard(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
-  const boardColumns = document.querySelector('.board-columns');
+  const boardColumns = bySelector(document, '.board-columns');
   boardColumns.querySelectorAll('.column').forEach(c => c.remove());
 
   const columnDefs = getBoardColumns();
@@ -91,8 +92,9 @@ export function renderBoard(refreshApp?: RefreshApp, openModal?: OpenModal, rere
         onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInColumn, rerenderActiveViewCallback, refreshAppCallback),
         onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback)
       };
-      if (state.currentUser && issue.assignee_id !== state.currentUser.id) {
-        cardCallbacks.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, rerenderActiveViewCallback);
+      const me = state.currentUser;
+      if (me && issue.assignee_id !== me.id) {
+        cardCallbacks.onAssignToMe = () => handleAssignToMe(issue, me, rerenderActiveViewCallback);
       }
       const card = createCardElement(issue, true, cardCallbacks);
       columns[issue.status].appendChild(card);
@@ -104,7 +106,7 @@ export function renderBoard(refreshApp?: RefreshApp, openModal?: OpenModal, rere
   document.querySelectorAll<HTMLElement>('[data-status]').forEach(el => {
     const status = el.dataset.status;
     const countEl = el.querySelector('.count');
-    if (countEl && counts[status] !== undefined) {
+    if (status && countEl && counts[status] !== undefined) {
       countEl.textContent = filterActive
         ? `${counts[status]}/${totalCounts[status]}`
         : String(counts[status]);
@@ -182,7 +184,7 @@ function getBoardUpdates() {
     const status = col.dataset.status as IssueStatus;
     const cards = [...col.querySelectorAll<HTMLElement>('.column-content .card')];
     cards.forEach((card, index) => {
-      const id = Number.parseInt(card.dataset.id);
+      const id = Number(card.dataset.id);
       const issue = state.issues.find(i => i.id === id);
       if (issue && (issue.status !== status || issue.position !== index)) {
         changes.push(applyOrderChange(issue, status, index));

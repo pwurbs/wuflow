@@ -31,7 +31,7 @@ Each file in `static/js/` is an ES module. Paths relative to `static/js/`:
 - **`context-menu.ts`**: Context menu of the cards
 - **`permissions.ts`**: Mirror of the backend policy, used only to show or hide UI elements (the backend enforces authorization)
 - **`status-config.ts`**: Status constants and accessors for the configurable board columns
-- **`domain-constants.ts`**, **`validation-config.ts`**: Mirrors of backend constants (priorities, release statuses, roles, input limits); keep them in sync with the backend
+- **`domain-constants.ts`**, **`validation-config.ts`**: Mirrors of backend constants (priorities, release statuses, roles, default project ID, input limits); keep them in sync with the backend
 - **`markdown.ts`**: Markdown rendering with marked and DOMPurify (npm packages, bundled by Vite)
 - **`utils.ts`**: Helper functions (HTML escaping, notifications, confirm dialogs, character counters, etc.)
 - **`tests/`**: Vitest unit tests, one file per module
@@ -97,7 +97,7 @@ Vite removes the types when it builds and does not check them, so `npm run build
 | `tsconfig.test.json` | `tests/` | like the app, plus Node types |
 | `tsconfig.node.json` | `vite.config.ts`, `vitest.config.ts` | Node |
 
-`noImplicitAny` is on for the app and the tests, so every parameter needs a type. The other `strict` checks are off for now. Constants such as statuses and roles are declared `as const`, and their union types (`IssueStatus`, `Role`, `Priority`, …) are derived from them, so each value has one source.
+`noImplicitAny` is on for the app and the tests, so every parameter needs a type. `strictNullChecks` is on for the app (not yet for the tests), so a value that can be `null` or `undefined` must be checked before it is used. The other `strict` checks are off for now. Constants such as statuses and roles are declared `as const`, and their union types (`IssueStatus`, `Role`, `Priority`, …) are derived from them, so each value has one source.
 
 Where the types live:
 
@@ -105,7 +105,7 @@ Where the types live:
 - **Request bodies** (`IssueWrite`, `UserWrite`, …) in `api.ts`, next to the functions that send them.
 - **Client state and filters** (`State`, `Filter`) in `state.ts`.
 
-Elements are read with `byId(id, HTMLInputElement)` from `utils.ts` instead of a cast: it returns the element typed, `null` if there is none, and throws if the element has another type. The types are gone once the code is built, so this check is the one that still runs in the browser: a cast only silences the compiler, and a wrong id or a changed element would go unnoticed until a property is missing. Data from the server is not checked against its types at runtime. The backend validates everything it receives. Imports name the `.ts` file (`import { state } from './state.ts'`).
+Elements that are always on the page are read with `byId(id, HTMLInputElement)` or `bySelector(root, selector, HTMLInputElement)` from `utils.ts` (the type defaults to `HTMLElement`) instead of a cast or a null check: they return the element typed and throw if it is missing or has another type. The types are gone once the code is built, so this check is the one that still runs in the browser: a cast only silences the compiler, and a wrong id or a changed element would go unnoticed until a property is missing. An element that may be missing is read with `document.getElementById` and checked with `?.`, or with `instanceof` where a specific type is needed. Data from the server is not checked against its types at runtime. The backend validates everything it receives. Imports name the `.ts` file (`import { state } from './state.ts'`).
 
 ---
 

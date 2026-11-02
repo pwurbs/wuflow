@@ -1,5 +1,5 @@
 import { state } from '../state.ts';
-import { showNotification } from '../utils.ts';
+import { showNotification, byId } from '../utils.ts';
 import type { Issue } from '../models.ts';
 import type { IssueWrite } from '../api.ts';
 
@@ -13,7 +13,7 @@ export function getPlannedDatesFromDOM() {
   const chips = container.querySelectorAll<HTMLElement>('.date-chip');
   const dates: string[] = [];
   chips.forEach(chip => {
-    dates.push(chip.dataset.date);
+    if (chip.dataset.date) dates.push(chip.dataset.date);
   });
   return dates;
 }
@@ -134,7 +134,7 @@ async function removePlannedDate(dateStr: string, saveDates: SaveDates) {
     }
   } else {
     // New Issue mode
-    const container = document.getElementById('planned-dates-container');
+    const container = byId('planned-dates-container');
     const chip = container.querySelector(`.date-chip[data-date="${dateStr}"]`);
     if (chip) chip.remove();
   }
