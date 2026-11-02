@@ -24,6 +24,10 @@ echo -e "${BLUE}               Checking NPM Dependencies             ${NC}"
 echo -e "${BLUE}=====================================================${NC}"
 NPM_DIRS=("static/js" "playwright")
 
+# @types/node describes the Node API, so its major version stays at the Node major the
+# Dockerfile builds with, even when npm outdated offers a newer "Latest".
+NODE_MAJOR=$(grep -oE '^FROM .*node:[0-9]+' Dockerfile 2>/dev/null | grep -oE '[0-9]+$' | head -n 1)
+
 for dir in "${NPM_DIRS[@]}"; do
     if [[ -d "$dir" ]] && [[ -f "$dir/package.json" ]]; then
         echo -e "${BLUE}------------------------------------------------------${NC}"
@@ -42,7 +46,13 @@ for dir in "${NPM_DIRS[@]}"; do
             echo -e "${GREEN}All NPM packages in $dir are up to date.${NC}"
         else
             echo -e "${YELLOW}Note: Only packages with available updates are listed below.${NC}"
-            echo "$OUTPUT"
+            while IFS= read -r line; do
+                if [[ "$line" == "@types/node "* ]]; then
+                    echo -e "$line ${YELLOW}<- keep major ${NODE_MAJOR:-?} (Node in Dockerfile)${NC}"
+                else
+                    echo "$line"
+                fi
+            done <<< "$OUTPUT"
         fi
 
         echo -e "\n${YELLOW}--> npm audit${NC}"

@@ -8,6 +8,7 @@ import { state } from '../state.ts'; // Imported from mock
 vi.mock('../utils.ts', () => ({
   showNotification: vi.fn()
 }));
+import { makeIssue } from './fixtures.ts';
 
 vi.mock('../state.ts', () => ({
   state: {
@@ -184,8 +185,8 @@ describe('planning.ts', () => {
     it('renders unscheduled issues section with near and far term splitting', () => {
       // Mock date is 2023-10-10
       state.issues = [
-        { id: 1, title: 'Near Term', deadline: '2023-10-15', planned_dates: [], status: 'Todo' }, // +5 days
-        { id: 2, title: 'Far Term', deadline: '2023-10-25', planned_dates: [], status: 'Todo' }  // +15 days
+        makeIssue({ id: 1, title: 'Near Term', deadline: '2023-10-15', planned_dates: [], status: 'Todo' }), // +5 days
+        makeIssue({ id: 2, title: 'Far Term', deadline: '2023-10-25', planned_dates: [], status: 'Todo' })  // +15 days
       ];
 
       renderPlanningPanel();
@@ -209,7 +210,7 @@ describe('planning.ts', () => {
 
     it('toggles far term section visibility', () => {
       state.issues = [
-        { id: 2, title: 'Far Term', deadline: '2023-10-25', planned_dates: [], status: 'Todo' }
+        makeIssue({ id: 2, title: 'Far Term', deadline: '2023-10-25', planned_dates: [], status: 'Todo' })
       ];
 
       renderPlanningPanel();
@@ -228,8 +229,8 @@ describe('planning.ts', () => {
 
     it('renders planned issues in correct day slot', () => {
       state.issues = [
-        { id: 1, title: 'Planned Today', planned_dates: ['2023-10-10'], status: 'Todo' }, // Today
-        { id: 2, title: 'Planned Tomorrow', planned_dates: ['2023-10-11'], status: 'Todo' } // Tomorrow
+        makeIssue({ id: 1, title: 'Planned Today', planned_dates: ['2023-10-10'], status: 'Todo' }), // Today
+        makeIssue({ id: 2, title: 'Planned Tomorrow', planned_dates: ['2023-10-11'], status: 'Todo' }) // Tomorrow
       ];
 
       renderPlanningPanel();
@@ -250,7 +251,7 @@ describe('planning.ts', () => {
 
     it('renders Past Planning section for overdue planned issues', () => {
       state.issues = [
-        { id: 1, title: 'Old Plan', planned_dates: ['2023-10-01'], status: 'Todo' }
+        makeIssue({ id: 1, title: 'Old Plan', planned_dates: ['2023-10-01'], status: 'Todo' })
       ];
 
       renderPlanningPanel();
@@ -264,7 +265,7 @@ describe('planning.ts', () => {
 
     it('renders Future Planning section for distant future issues', () => {
       state.issues = [
-        { id: 1, title: 'Far Future', planned_dates: ['2023-12-01'], status: 'Todo' }
+        makeIssue({ id: 1, title: 'Far Future', planned_dates: ['2023-12-01'], status: 'Todo' })
       ];
 
       renderPlanningPanel();
@@ -283,7 +284,7 @@ describe('planning.ts', () => {
     });
 
     it('removes date when clicking remove button on planning item', async () => {
-      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' };
+      const issue = makeIssue({ id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' });
       state.issues = [issue];
 
       renderPlanningPanel();
@@ -303,7 +304,7 @@ describe('planning.ts', () => {
       const rerenderActiveView = vi.fn();
       setupPlanningPanel(vi.fn(), openModal, rerenderActiveView);
 
-      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' };
+      const issue = makeIssue({ id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' });
       state.issues = [issue];
 
       // Render with no args — must reuse the callbacks set via setupPlanningPanel.
@@ -321,8 +322,8 @@ describe('planning.ts', () => {
 
     it('filters issues based on state filter', () => {
       state.issues = [
-        { id: 1, title: 'Keep', planned_dates: ['2023-10-10'], status: 'Todo' },
-        { id: 2, title: 'Filtered', planned_dates: ['2023-10-10'], status: 'Todo' }
+        makeIssue({ id: 1, title: 'Keep', planned_dates: ['2023-10-10'], status: 'Todo' }),
+        makeIssue({ id: 2, title: 'Filtered', planned_dates: ['2023-10-10'], status: 'Todo' })
       ];
       state.filter.search = 'Keep';
 
@@ -340,7 +341,7 @@ describe('planning.ts', () => {
       state.filter.search = ''; // prevent leak from previous filter test
       const refreshApp = vi.fn();
       const rerenderActiveView = vi.fn();
-      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' };
+      const issue = makeIssue({ id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' });
       state.issues = [issue];
 
       renderPlanningPanel(refreshApp, vi.fn(), rerenderActiveView);
@@ -360,7 +361,7 @@ describe('planning.ts', () => {
 
     it('should show notification and call refreshApp when planning drop fails', async () => {
       const refreshApp = vi.fn();
-      const issue = { id: 1, title: 'Test', planned_dates: [], status: 'Todo' };
+      const issue = makeIssue({ id: 1, title: 'Test', planned_dates: [], status: 'Todo' });
       state.issues = [issue];
 
       const dragModule = await import('../drag.ts');
@@ -385,7 +386,7 @@ describe('planning.ts', () => {
 
   describe('processDroppedCard', () => {
     it('adds new date to planned_dates when dragging from unscheduled', async () => {
-      const issue = { id: 1, title: 'Test', planned_dates: [] };
+      const issue = makeIssue({ id: 1, title: 'Test', planned_dates: [] });
       state.issues = [issue];
 
       const draggedCard = document.createElement('div');
@@ -399,7 +400,7 @@ describe('planning.ts', () => {
     });
 
     it('moves instance when dragging between days', async () => {
-      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10', '2023-10-12'] };
+      const issue = makeIssue({ id: 1, title: 'Test', planned_dates: ['2023-10-10', '2023-10-12'] });
       state.issues = [issue];
 
       const draggedCard = document.createElement('div');
@@ -414,7 +415,7 @@ describe('planning.ts', () => {
     });
 
     it('ignores drop if date already exists', async () => {
-      const issue = { id: 1, title: 'Test', planned_dates: ['2023-10-10'] };
+      const issue = makeIssue({ id: 1, title: 'Test', planned_dates: ['2023-10-10'] });
       state.issues = [issue];
 
       const draggedCard = document.createElement('div');

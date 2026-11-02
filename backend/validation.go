@@ -9,8 +9,8 @@ import (
 	"unicode/utf8"
 )
 
-// Length limits — kept in sync with the frontend character counters in
-// modal.js / setup.js. All limits apply to plain-text codepoints.
+// Length limits — kept in sync with the frontend mirror static/js/validation-config.ts.
+// All limits apply to plain-text codepoints.
 const (
 	MaxTitleLength        = 100
 	MaxDescLength         = 5000

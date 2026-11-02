@@ -1,6 +1,6 @@
-# Unit Testing Frontend (JavaScript)
+# Unit Testing Frontend (TypeScript)
 
-This directory contains the vanilla JavaScript frontend code for the wuFlow application.
+This directory contains the TypeScript frontend without a framework of the wuFlow application.
 
 ## Testing
 
@@ -15,7 +15,7 @@ npm install
 
 ### Building the Frontend
 
-The Go binary embeds the Vite production build (`vite.config.js`, see [docs/frontend.md](../../docs/frontend.md#build)), not the source files. Build it before `go run` and after every change in `static/`:
+The Go binary embeds the Vite production build (`vite.config.ts`, see [docs/frontend.md](../../docs/frontend.md#build)), not the source files. Build it before `go run` and after every change in `static/`:
 ```bash
 npm run build
 ```
@@ -33,6 +33,11 @@ Run tests with coverage (generates LCOV report for SonarQube in `coverage/`):
 npm run test:coverage
 ```
 
+Check the types (see [docs/frontend.md](../../docs/frontend.md#type-checking)):
+```bash
+npm run typecheck
+```
+
 ### Project Structure
 
 The modules are described in [docs/frontend.md](../../docs/frontend.md#module-structure).
@@ -40,4 +45,5 @@ The modules are described in [docs/frontend.md](../../docs/frontend.md#module-st
 ### Testing Strategy
 
 - **Logic vs UI:** We test complex logic (filtering, sorting, state changes) in unit tests. UI interactions and flows are covered by Playwright E2E tests in the root `playwright/` directory.
-- **Pure Functions:** Complex logic is extracted into pure functions (e.g., in `filters.js`) to make testing easier and independent of browser state.
+- **Pure Functions:** Complex logic is extracted into pure functions (e.g., in `filters.ts`) to make testing easier and independent of browser state.
+- **Test Data:** Tests build API objects with the factories in `tests/fixtures.ts` (`makeIssue({ status: 'Done' })` etc.), which fill every other field with an empty value, so a test states only the fields it is about. A mocked save answers with `savedIssue(sent)`, the issue as the server returns it.

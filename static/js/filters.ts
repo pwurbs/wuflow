@@ -2,6 +2,9 @@
  * Filter logic extracted from board.ts and backlog.ts
  * Pure functions with no DOM dependencies for easy unit testing
  */
+import type { Issue } from './models.ts';
+import type { Filter } from './state.ts';
+import type { IssueStatus } from './status-config.ts';
 
 /**
  * Filter issues based on label, priority, assignee, and search criteria.
@@ -11,7 +14,7 @@
  * @param currentUserId - ID of the current user, required when filter.assigneeId === 'me'
  * @returns Filtered issues
  */
-export function filterIssues(issues, filter, currentUserId?: number | null) {
+export function filterIssues(issues: Issue[], filter: Partial<Filter>, currentUserId?: number | null): Issue[] {
   if (!issues || !Array.isArray(issues)) {
     return [];
   }
@@ -37,10 +40,10 @@ export function filterIssues(issues, filter, currentUserId?: number | null) {
     result = result.filter(issue => {
       if (filter.assigneeId === 'me') {
         return currentUserId != null && issue.assignee_id === currentUserId;
-      } else if (filter.assigneeId === '' || filter.assigneeId === 'unassigned') {
+      } else if (filter.assigneeId === 'unassigned') {
         return issue.assignee_id === null;
       } else {
-        return issue.assignee_id === Number.parseInt(filter.assigneeId);
+        return issue.assignee_id === filter.assigneeId;
       }
     });
   }
@@ -70,12 +73,12 @@ export function filterIssues(issues, filter, currentUserId?: number | null) {
   return result;
 }
 
-function matchesRelease(issue, releaseId) {
+function matchesRelease(issue: Issue, releaseId: Filter['releaseId']) {
   if (releaseId === '__no_release__') return !issue.release_id;
   return issue.release_id === releaseId;
 }
 
-function matchesReleaseIds(issue, releaseFilterIds) {
+function matchesReleaseIds(issue: Issue, releaseFilterIds: Filter['releaseFilterIds']) {
   return releaseFilterIds.includes(issue.release_id);
 }
 
@@ -85,7 +88,7 @@ function matchesReleaseIds(issue, releaseFilterIds) {
  * @param status - Status to filter by
  * @returns Issues matching the status
  */
-export function filterByStatus(issues, status: string) {
+export function filterByStatus(issues: Issue[], status: IssueStatus): Issue[] {
   if (!issues || !Array.isArray(issues)) {
     return [];
   }
@@ -97,7 +100,7 @@ export function filterByStatus(issues, status: string) {
  * @param issues - Array of issue objects
  * @returns Sorted issues (does not mutate original)
  */
-export function sortByPosition(issues) {
+export function sortByPosition(issues: Issue[]): Issue[] {
   if (!issues || !Array.isArray(issues)) {
     return [];
   }

@@ -3,6 +3,8 @@ import { byId, showNotification, getUserInitials, escapeHtml, initCharCounter, c
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.ts';
 import { state, setUsers, setProjects } from '../state.ts';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.ts';
+import type { UserWrite } from '../api.ts';
+import type { Role } from '../permissions.ts';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER, ACTION_DELETE_USER } from '../permissions.ts';
 import { updateProjectSelectorOptions } from './toolbar.ts';
 
@@ -11,23 +13,23 @@ const HINT_NEW_USER = 'Minimum 12 characters. No common passwords.';
 
 let systemSettingsViewContainer = null;
 
-export function setupSystemSettingsView(refreshCallback) {
+export function setupSystemSettingsView() {
   systemSettingsViewContainer = document.getElementById('system-settings-view');
 
   // User management
-  setupUserModal(refreshCallback);
+  setupUserModal();
 
   // Project management
-  setupProjectModal(refreshCallback);
+  setupProjectModal();
 }
 
-export async function renderSystemSettingsView(refreshCallback) {
+export async function renderSystemSettingsView() {
   if (!systemSettingsViewContainer) return;
 
   // Both lists are independent, so their requests go out in one parallel wave.
   const [projects] = await Promise.all([
-    renderProjectList(refreshCallback),
-    renderUserList(refreshCallback),
+    renderProjectList(),
+    renderUserList(),
   ]);
   return projects;
 }
@@ -36,7 +38,7 @@ export async function renderSystemSettingsView(refreshCallback) {
 
 let editingProjectId = null;
 
-function setupProjectModal(refreshCallback) {
+function setupProjectModal() {
   const addProjectBtn = document.getElementById('add-project-btn');
   const cancelBtn = document.getElementById('project-modal-cancel');
   const form = document.getElementById('project-form');
@@ -53,9 +55,9 @@ function setupProjectModal(refreshCallback) {
   if (cancelBtn) {
     cancelBtn.addEventListener('click', closeProjectModal);
   }
-  if (form) onGuardedSubmit(form, () => handleProjectSubmit(refreshCallback));
+  if (form) onGuardedSubmit(form, () => handleProjectSubmit());
   if (projectDeleteBtn) {
-    projectDeleteBtn.addEventListener('click', () => handleDeleteProject(refreshCallback));
+    projectDeleteBtn.addEventListener('click', () => handleDeleteProject());
   }
 }
 
@@ -102,7 +104,7 @@ function closeProjectModal() {
   editingProjectId = null;
 }
 
-async function handleProjectSubmit(refreshCallback) {
+async function handleProjectSubmit() {
   const nameInput = byId('project-name', HTMLInputElement);
   const descInput = byId('project-description', HTMLTextAreaElement);
   const errorDisplay = document.getElementById('project-modal-error');
@@ -134,7 +136,7 @@ async function handleProjectSubmit(refreshCallback) {
       showNotification('Project created', 'success');
     }
     closeProjectModal();
-    const projects = await renderSystemSettingsView(refreshCallback);
+    const projects = await renderSystemSettingsView();
     // Refreshes the project selector dropdown; its own fallback logic triggers a full
     // refresh only if the currently selected project was affected (e.g. deleted elsewhere).
     updateProjectSelectorOptions(projects ?? await fetchProjects());
@@ -148,7 +150,7 @@ function showProjectError(el, message) {
   el.classList.remove('hidden');
 }
 
-async function handleDeleteProject(refreshCallback) {
+async function handleDeleteProject() {
   if (!editingProjectId || editingProjectId === 1) return;
   if (!userCan(state.currentUser, ACTION_DELETE_PROJECT)) return;
 
@@ -177,13 +179,13 @@ async function handleDeleteProject(refreshCallback) {
 
   showNotification('Project deleted', 'success');
   closeProjectModal();
-  const projects = await renderSystemSettingsView(refreshCallback);
+  const projects = await renderSystemSettingsView();
   // Refreshes the project selector dropdown; its own fallback logic triggers a full
   // refresh if the deleted project was the currently selected one.
   updateProjectSelectorOptions(projects ?? await fetchProjects());
 }
 
-async function renderProjectList(refreshCallback) {
+async function renderProjectList() {
   const projectsList = document.getElementById('projects-list');
   const projectSection = document.getElementById('project-management-section');
   if (!projectsList || !projectSection) return;
@@ -250,7 +252,7 @@ function isRolePromotion(fromRole, toRole) {
   return (ROLE_RANK[toRole] ?? -1) > (ROLE_RANK[fromRole] ?? -1);
 }
 
-function setupUserModal(refreshCallback) {
+function setupUserModal() {
   const addUserBtn = document.getElementById('add-user-btn');
   const cancelBtn = document.getElementById('user-modal-cancel');
   const form = document.getElementById('user-form');
@@ -268,9 +270,9 @@ function setupUserModal(refreshCallback) {
     cancelBtn.addEventListener('click', closeUserModal);
   }
 
-  if (form) onGuardedSubmit(form, () => handleUserSubmit(refreshCallback));
+  if (form) onGuardedSubmit(form, () => handleUserSubmit());
 
-  document.getElementById('user-modal-delete')?.addEventListener('click', () => handleDeleteUser(refreshCallback));
+  document.getElementById('user-modal-delete')?.addEventListener('click', () => handleDeleteUser());
 
   // Setup custom dropdowns
   setupUserDropdown('user-role-trigger', 'user-role-options', 'user-role', 'user-role-text');
@@ -357,7 +359,7 @@ function closeUserModal() {
   editingUserOriginal = null;
 }
 
-async function handleUserSubmit(refreshCallback) {
+async function handleUserSubmit() {
   const emailInput = byId('user-email', HTMLInputElement);
   const firstNameInput = byId('user-first-name', HTMLInputElement);
   const lastNameInput = byId('user-last-name', HTMLInputElement);
@@ -366,11 +368,12 @@ async function handleUserSubmit(refreshCallback) {
   const activeInput = byId('user-active', HTMLInputElement);
   const errorDisplay = document.getElementById('user-modal-error');
 
-  const userData: { email: string, first_name: string, last_name: string, role: string, active: boolean, password?: string } = {
+  const userData: UserWrite = {
     email: emailInput.value.trim(),
     first_name: firstNameInput.value.trim(),
     last_name: lastNameInput.value.trim(),
-    role: roleInput.value,
+    // The hidden input only ever holds a value of the role dropdown.
+    role: roleInput.value as Role,
     active: activeInput.checked,
   };
 
@@ -395,13 +398,13 @@ async function handleUserSubmit(refreshCallback) {
 
     showNotification(isEditing ? 'User updated' : 'User created', 'success');
     closeUserModal();
-    void renderSystemSettingsView(refreshCallback);
+    void renderSystemSettingsView();
   } catch (err) {
     showUserError(errorDisplay, err.message);
   }
 }
 
-async function handleDeleteUser(refreshCallback) {
+async function handleDeleteUser() {
   if (!editingUserId || editingUserId === state.currentUser?.id) return;
   if (!userCan(state.currentUser, ACTION_DELETE_USER)) return;
 
@@ -419,7 +422,7 @@ async function handleDeleteUser(refreshCallback) {
 
   showNotification('User deleted', 'success');
   closeUserModal();
-  void renderSystemSettingsView(refreshCallback);
+  void renderSystemSettingsView();
 }
 
 // Returns the confirmation dialog copy for the update, or null if it needs no confirmation.
@@ -598,7 +601,7 @@ export function isBlacklistedPassword(pw) {
   return false;
 }
 
-async function renderUserList(refreshCallback) {
+async function renderUserList() {
   const usersList = document.getElementById('users-list');
   const userSection = document.getElementById('user-management-section');
   if (!usersList || !userSection) return;

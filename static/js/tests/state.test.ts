@@ -19,6 +19,7 @@ import {
   toggleBacklogReleaseFilter,
   pruneReleaseFilterIds,
 } from '../state.ts';
+import { makeIssue, makeLabel, makeProject, makeRelease, makeUser } from './fixtures.ts';
 
 describe('state', () => {
   // Reset state before each test
@@ -93,8 +94,8 @@ describe('state', () => {
   describe('setIssues', () => {
     it('should set issues array', () => {
       const issues = [
-        { id: 1, title: 'Issue 1' },
-        { id: 2, title: 'Issue 2' }
+        makeIssue({ id: 1, title: 'Issue 1' }),
+        makeIssue({ id: 2, title: 'Issue 2' })
       ];
       setIssues(issues);
       expect(state.issues).toEqual(issues);
@@ -104,7 +105,7 @@ describe('state', () => {
 
   describe('setCurrentIssue', () => {
     it('should set current issue', () => {
-      const issue = { id: 1, title: 'Test Issue' };
+      const issue = makeIssue({ id: 1, title: 'Test Issue' });
       setCurrentIssue(issue);
       expect(state.currentIssue).toEqual(issue);
     });
@@ -112,7 +113,7 @@ describe('state', () => {
 
   describe('setCurrentUser', () => {
     it('should set current user', () => {
-      const user = { id: 1, email: 'test@example.com' };
+      const user = makeUser({ id: 1, email: 'test@example.com' });
       setCurrentUser(user);
       expect(state.currentUser).toEqual(user);
     });
@@ -120,14 +121,14 @@ describe('state', () => {
 
   describe('setReleases', () => {
     it('should set releases array', () => {
-      const releases = [{ id: 1, name: 'v1.0' }, { id: 2, name: 'v2.0' }];
+      const releases = [makeRelease({ id: 1, name: 'v1.0' }), makeRelease({ id: 2, name: 'v2.0' })];
       setReleases(releases);
       expect(state.releases).toEqual(releases);
       expect(state.releases).toHaveLength(2);
     });
 
     it('should replace existing releases', () => {
-      setReleases([{ id: 1, name: 'v1.0' }]);
+      setReleases([makeRelease({ id: 1, name: 'v1.0' })]);
       setReleases([]);
       expect(state.releases).toEqual([]);
     });
@@ -135,7 +136,7 @@ describe('state', () => {
 
   describe('setLabels', () => {
     it('should set the labels together with the project they belong to', () => {
-      const labels = [{ id: 1, name: 'Bug' }];
+      const labels = [makeLabel({ id: 1, name: 'Bug' })];
       setLabels(labels, 7);
       expect(state.labels).toEqual(labels);
       expect(state.labelsProjectId).toBe(7);
@@ -144,7 +145,7 @@ describe('state', () => {
 
   describe('setUsers', () => {
     it('should set users array', () => {
-      const users = [{ id: 1, first_name: 'Ada' }];
+      const users = [makeUser({ id: 1, first_name: 'Ada' })];
       setUsers(users);
       expect(state.users).toEqual(users);
     });
@@ -152,7 +153,7 @@ describe('state', () => {
 
   describe('setProjects', () => {
     it('should set projects array', () => {
-      const projects = [{ id: 1, name: 'Default' }];
+      const projects = [makeProject({ id: 1, name: 'Default' })];
       setProjects(projects);
       expect(state.projects).toEqual(projects);
     });

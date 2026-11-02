@@ -4,6 +4,7 @@ import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX
 import { state, setStatusConfig, setLabels } from '../state.ts';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.ts';
 import { STATUS_SLOTS, getDefaultStatusConfig } from '../status-config.ts';
+import type { StatusConfig } from '../models.ts';
 import { updateLabelFilterOptions } from './toolbar.ts';
 import { renderBoard } from './board.ts';
 
@@ -185,11 +186,11 @@ function renderStatusConfigSection() {
 }
 
 async function handleSaveStatusConfig(projectId, previousCfg) {
-  const inputs = document.querySelectorAll<HTMLInputElement>('#ps-status-config-content .sc-name-input');
-  const payload: Record<string, string> = {};
-  inputs.forEach(input => {
-    payload[input.dataset.field] = input.value.trim();
-  });
+  const payload: Partial<Omit<StatusConfig, 'project_id'>> = {};
+  for (const slot of STATUS_SLOTS) {
+    const input = document.querySelector<HTMLInputElement>(`#ps-status-config-content .sc-name-input[data-field="${slot.field}"]`);
+    if (input) payload[slot.field] = input.value.trim();
+  }
 
   const invalidName = Object.values(payload).find(
     name => name !== '' && (!STATUS_NAME_REGEX.test(name) || name.length > MAX_STATUS_NAME_LEN)

@@ -304,25 +304,21 @@
           },
           "label": {
             "nullable": true,
-            "description": "Assigned label object; null if no label",
+            "description": "Assigned label with id, name and color only; null if no label",
             "allOf": [{"$ref": "#/components/schemas/Label"}]
           },
           "release": {
             "nullable": true,
-            "description": "Assigned release object; null if no release",
+            "description": "Assigned release with id, name, status and release_date only; null if no release",
             "allOf": [{"$ref": "#/components/schemas/Release"}]
           },
-          "creator": {
-            "nullable": true,
-            "allOf": [{"$ref": "#/components/schemas/User"}]
-          },
           "assignee": {
-            "nullable": true,
+            "description": "Embedded assignee with id, email, first_name and last_name only; omitted if no assignee",
             "allOf": [{"$ref": "#/components/schemas/User"}]
           },
-          "updater": {
-            "nullable": true,
-            "allOf": [{"$ref": "#/components/schemas/User"}]
+          "project": {
+            "description": "Embedded project of the issue",
+            "allOf": [{"$ref": "#/components/schemas/Project"}]
           },
           "tasks": {
             "type": "array",

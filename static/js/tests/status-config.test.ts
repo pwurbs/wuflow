@@ -8,6 +8,7 @@ import {
     getStatusLabel,
 } from '../status-config.ts';
 import { state } from '../state.ts';
+import { makeStatusConfig } from './fixtures.ts';
 
 describe('status-config', () => {
     beforeEach(() => {
@@ -60,7 +61,7 @@ describe('status-config', () => {
         });
 
         it('should include active stages from config', () => {
-            state.statusConfig = { stage1_name: 'In Progress', stage2_name: 'Review', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: 'In Progress', stage2_name: 'Review', stage3_name: '', stage4_name: '' });
             const cols = getBoardColumns();
             expect(cols).toEqual([
                 { statusKey: 'Todo',   displayName: 'Todo' },
@@ -71,25 +72,25 @@ describe('status-config', () => {
         });
 
         it('should exclude stages with empty names', () => {
-            state.statusConfig = { stage1_name: 'Active', stage2_name: '', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: 'Active', stage2_name: '', stage3_name: '', stage4_name: '' });
             const cols = getBoardColumns();
             expect(cols.map(c => c.statusKey)).toEqual(['Todo', 'Stage1', 'Done']);
         });
 
         it('should exclude stages with whitespace-only names', () => {
-            state.statusConfig = { stage1_name: '   ', stage2_name: 'Review', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: '   ', stage2_name: 'Review', stage3_name: '', stage4_name: '' });
             const cols = getBoardColumns();
             expect(cols.map(c => c.statusKey)).toEqual(['Todo', 'Stage2', 'Done']);
         });
 
         it('should trim stage display names', () => {
-            state.statusConfig = { stage1_name: '  Active  ', stage2_name: '', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: '  Active  ', stage2_name: '', stage3_name: '', stage4_name: '' });
             const cols = getBoardColumns();
             expect(cols.find(c => c.statusKey === 'Stage1').displayName).toBe('Active');
         });
 
         it('should return only anchors when all stages are empty', () => {
-            state.statusConfig = { stage1_name: '', stage2_name: '', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: '', stage2_name: '', stage3_name: '', stage4_name: '' });
             const cols = getBoardColumns();
             expect(cols).toEqual([
                 { statusKey: 'Todo', displayName: 'Todo' },
@@ -98,7 +99,7 @@ describe('status-config', () => {
         });
 
         it('should support all 4 stages active', () => {
-            state.statusConfig = { stage1_name: 'A', stage2_name: 'B', stage3_name: 'C', stage4_name: 'D' };
+            state.statusConfig = makeStatusConfig({ stage1_name: 'A', stage2_name: 'B', stage3_name: 'C', stage4_name: 'D' });
             const cols = getBoardColumns();
             expect(cols.map(c => c.statusKey)).toEqual(['Todo', 'Stage1', 'Stage2', 'Stage3', 'Stage4', 'Done']);
         });
@@ -106,13 +107,13 @@ describe('status-config', () => {
 
     describe('getStatusOptions', () => {
         it('should always include Open, Todo, Done, and Archive', () => {
-            state.statusConfig = { stage1_name: '', stage2_name: '', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: '', stage2_name: '', stage3_name: '', stage4_name: '' });
             const opts = getStatusOptions();
             expect(opts.map(o => o.value)).toEqual(['Open', 'Todo', 'Done', 'Archive']);
         });
 
         it('should include active stages between Todo and Done', () => {
-            state.statusConfig = { stage1_name: 'In Progress', stage2_name: '', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: 'In Progress', stage2_name: '', stage3_name: '', stage4_name: '' });
             const opts = getStatusOptions();
             expect(opts.map(o => o.value)).toEqual(['Open', 'Todo', 'Stage1', 'Done', 'Archive']);
             expect(opts.find(o => o.value === 'Stage1').label).toBe('In Progress');
@@ -124,7 +125,7 @@ describe('status-config', () => {
         });
 
         it('should trim stage labels', () => {
-            state.statusConfig = { stage1_name: '  Review  ', stage2_name: '', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: '  Review  ', stage2_name: '', stage3_name: '', stage4_name: '' });
             const opts = getStatusOptions();
             expect(opts.find(o => o.value === 'Stage1').label).toBe('Review');
         });
@@ -132,7 +133,7 @@ describe('status-config', () => {
 
     describe('getStatusLabel', () => {
         it('should return label for known status keys', () => {
-            state.statusConfig = { stage1_name: 'In Progress', stage2_name: '', stage3_name: '', stage4_name: '' };
+            state.statusConfig = makeStatusConfig({ stage1_name: 'In Progress', stage2_name: '', stage3_name: '', stage4_name: '' });
             expect(getStatusLabel('Open')).toBe('Open');
             expect(getStatusLabel('Todo')).toBe('Todo');
             expect(getStatusLabel('Stage1')).toBe('In Progress');

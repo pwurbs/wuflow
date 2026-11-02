@@ -1,4 +1,47 @@
 import { singleFlight } from './utils.ts';
+import type { Comment, HistoryEntry, Issue, Label, PositionUpdate, Project, Release, StatusConfig, Task, User } from './models.ts';
+import type { IssueStatus } from './status-config.ts';
+import type { Priority } from './domain-constants.ts';
+import type { Role } from './permissions.ts';
+
+// Request bodies (the *Request schemas in docs/swagger.json). A Date is sent as its ISO string.
+export interface IssueWrite {
+  title: string;
+  description: string;
+  status: IssueStatus;
+  priority: Priority;
+  position: number;
+  deadline: string | Date | null;
+  planned_dates: string[] | null;
+  assignee_id: number | null;
+  label: Pick<Label, 'id'> | null;
+  release_id: number | null;
+}
+
+export interface TaskWrite {
+  title: string;
+  done?: boolean;
+  deadline: string | Date | null;
+  position: number;
+}
+
+export interface UserWrite {
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: Role;
+  active: boolean;
+  password?: string;
+  admin_password?: string;
+}
+
+export interface ReleaseWrite {
+  name: string;
+  description: string;
+  start_date: string | null;
+  release_date: string | null;
+  owner_id: number | null;
+}
 
 const API_URL = '/api';
 
@@ -21,15 +64,15 @@ export class NetworkError extends Error {
   }
 }
 
-let sessionExpiredHandler = null;
-let connectionListener = null;
+let sessionExpiredHandler: (() => Promise<void>) | null = null;
+let connectionListener: ((ok: boolean) => void) | null = null;
 
 /**
  * Registers the handler called when the session can no longer be refreshed.
  * It must return a promise that resolves once the user is logged in again;
  * the failed request is then replayed. Without a handler the app redirects to /login.
  */
-export function setSessionExpiredHandler(handler) {
+export function setSessionExpiredHandler(handler: () => Promise<void>) {
   sessionExpiredHandler = handler;
 }
 
@@ -37,11 +80,11 @@ export function setSessionExpiredHandler(handler) {
  * Registers a listener called with true/false whenever a request reached / failed to
  * reach the server, so the UI can show or hide a connection banner.
  */
-export function setConnectionListener(listener) {
+export function setConnectionListener(listener: (ok: boolean) => void) {
   connectionListener = listener;
 }
 
-function notifyConnection(ok) {
+function notifyConnection(ok: boolean) {
   connectionListener?.(ok);
 }
 
@@ -49,7 +92,7 @@ function notifyConnection(ok) {
  * Plain fetch with timeout and network-error mapping, without any auth handling.
  * timeoutMs = 0 disables the timeout.
  */
-async function rawFetch(url, options: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+async function rawFetch(url: string, options: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = timeoutMs ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
@@ -75,7 +118,7 @@ async function rawFetch(url, options: RequestInit = {}, timeoutMs = REQUEST_TIME
  * Returns true when the original request can be replayed, false after a redirect.
  * Throws NetworkError if the refresh request itself could not reach the server.
  */
-async function renewSession() {
+async function renewSession(): Promise<boolean> {
   // No timeout: aborting a refresh the server already processed would leave the browser
   // with a rotated-away refresh token.
   const res = await rawFetch(`${API_URL}/auth/refresh`, {
@@ -102,7 +145,7 @@ const renewSessionOnce = singleFlight(renewSession);
  *   request once. The replay is safe because a 401 request was never executed.
  * All concurrent 401s share one renewal (Token Reuse Protection).
  */
-async function authFetch(url, options: RequestInit = {}) {
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const isRead = (options.method ?? 'GET').toUpperCase() === 'GET';
   let res;
   try {
@@ -133,7 +176,7 @@ async function authFetch(url, options: RequestInit = {}) {
  * Checks whether the current access cookie is valid, without refreshing or
  * re-authenticating. Used to detect a login made in another tab.
  */
-export async function hasValidSession() {
+export async function hasValidSession(): Promise<boolean> {
   try {
     const res = await rawFetch(`${API_URL}/auth/me`);
     return res.ok;
@@ -146,7 +189,7 @@ export async function hasValidSession() {
  * Logs in again with the given credentials (used by the re-login dialog).
  * Returns null on success, otherwise a user-facing error message.
  */
-export async function reauthenticate(email, password) {
+export async function reauthenticate(email: string, password: string): Promise<string | null> {
   try {
     const res = await rawFetch(`${API_URL}/auth/login`, {
       method: 'POST',
@@ -161,7 +204,7 @@ export async function reauthenticate(email, password) {
   }
 }
 
-export async function fetchActiveIssuesByProject(projectId) {
+export async function fetchActiveIssuesByProject(projectId: number): Promise<Issue[]> {
   try {
     const res = await authFetch(`${API_URL}/projects/${projectId}/issues/active`);
     const data = await res.json();
@@ -171,7 +214,7 @@ export async function fetchActiveIssuesByProject(projectId) {
   }
 }
 
-export async function fetchArchivedIssuesByProject(projectId) {
+export async function fetchArchivedIssuesByProject(projectId: number): Promise<Issue[]> {
   try {
     const res = await authFetch(`${API_URL}/projects/${projectId}/issues/archived`);
     const data = await res.json();
@@ -181,7 +224,7 @@ export async function fetchArchivedIssuesByProject(projectId) {
   }
 }
 
-export async function fetchOpenIssuesByProject(projectId) {
+export async function fetchOpenIssuesByProject(projectId: number): Promise<Issue[]> {
   try {
     const res = await authFetch(`${API_URL}/projects/${projectId}/issues/open`);
     const data = await res.json();
@@ -194,7 +237,7 @@ export async function fetchOpenIssuesByProject(projectId) {
 /**
  * Fetch a single issue by ID. Returns { issue, etag } or { issue: null } if not found.
  */
-export async function fetchIssueById(projectId, id) {
+export async function fetchIssueById(projectId: number, id: number): Promise<{ issue: Issue | null, etag: string | null }> {
   try {
     const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`);
     if (res.status === 404) {
@@ -211,7 +254,7 @@ export async function fetchIssueById(projectId, id) {
   }
 }
 
-export async function createIssue(projectId, issue) {
+export async function createIssue(projectId: number, issue: IssueWrite): Promise<Issue> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -225,8 +268,8 @@ export async function createIssue(projectId, issue) {
  * Update an issue. If etag is provided, uses If-Match header for conflict detection.
  * Returns { issue, etag, conflict } where conflict is true if 409 was returned.
  */
-export async function updateIssue(projectId, issue, etag = null) {
-  const headers = { 'Content-Type': 'application/json' };
+export async function updateIssue(projectId: number, issue: IssueWrite & { id: number }, etag: string | null = null): Promise<{ issue: Issue | null, etag: string | null, conflict: boolean }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (etag) {
     headers['If-Match'] = etag;
   }
@@ -252,11 +295,11 @@ export async function updateIssue(projectId, issue, etag = null) {
  * Save a reorder in one request. positions: [{ id, position }, ...].
  * Only positions change; the server applies all of them or none.
  */
-export async function updateIssuePositions(projectId, positions) {
+export async function updateIssuePositions(projectId: number, positions: PositionUpdate[]): Promise<void> {
   await putPositions(`${API_URL}/projects/${projectId}/issues/positions`, positions, 'Failed to save the new order');
 }
 
-async function putPositions(url, positions, errorMessage) {
+async function putPositions(url: string, positions: PositionUpdate[], errorMessage: string): Promise<void> {
   const res = await authFetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -265,7 +308,7 @@ async function putPositions(url, positions, errorMessage) {
   if (!res.ok) throw new Error(await res.text() || errorMessage);
 }
 
-export async function archiveIssue(projectId, id) {
+export async function archiveIssue(projectId: number, id: number): Promise<Issue> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}/archive`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -275,7 +318,7 @@ export async function archiveIssue(projectId, id) {
   return await res.json();
 }
 
-export async function unarchiveIssue(projectId, id) {
+export async function unarchiveIssue(projectId: number, id: number): Promise<Issue> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}/unarchive`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -285,7 +328,7 @@ export async function unarchiveIssue(projectId, id) {
   return await res.json();
 }
 
-export async function moveIssue(currentProjectId, issueId, newProjectId, adminPassword) {
+export async function moveIssue(currentProjectId: number, issueId: number, newProjectId: number, adminPassword: string): Promise<{ issue: Issue, etag: string | null }> {
   const res = await authFetch(`${API_URL}/projects/${currentProjectId}/issues/${issueId}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -297,7 +340,7 @@ export async function moveIssue(currentProjectId, issueId, newProjectId, adminPa
   return { issue, etag };
 }
 
-export async function createTask(projectId, issueId, task) {
+export async function createTask(projectId: number, issueId: number, task: TaskWrite): Promise<Task> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -307,7 +350,7 @@ export async function createTask(projectId, issueId, task) {
   return res.json();
 }
 
-export async function updateTask(projectId, issueId, task) {
+export async function updateTask(projectId: number, issueId: number, task: TaskWrite & { id: number }): Promise<Task> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/${task.id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -320,16 +363,16 @@ export async function updateTask(projectId, issueId, task) {
 /**
  * Save a task reorder in one request. positions: [{ id, position }, ...].
  */
-export async function updateTaskPositions(projectId, issueId, positions) {
+export async function updateTaskPositions(projectId: number, issueId: number, positions: PositionUpdate[]): Promise<void> {
   await putPositions(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/positions`, positions, 'Failed to save the task order');
 }
 
-export async function deleteTask(projectId, issueId, taskId) {
+export async function deleteTask(projectId: number, issueId: number, taskId: number): Promise<void> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/tasks/${taskId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete task');
 }
 
-export async function deleteIssue(projectId, id, adminPassword) {
+export async function deleteIssue(projectId: number, id: number, adminPassword: string): Promise<void> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -340,19 +383,19 @@ export async function deleteIssue(projectId, id, adminPassword) {
 
 // --- Issue activity: history (audit trail) + comments ---------------------
 
-export async function fetchHistory(projectId, issueId) {
+export async function fetchHistory(projectId: number, issueId: number): Promise<HistoryEntry[]> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/history`);
   if (!res.ok) throw new Error(await res.text() || 'Failed to fetch history');
   return res.json();
 }
 
-export async function fetchComments(projectId, issueId) {
+export async function fetchComments(projectId: number, issueId: number): Promise<Comment[]> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments`);
   if (!res.ok) throw new Error(await res.text() || 'Failed to fetch comments');
   return res.json();
 }
 
-export async function createComment(projectId, issueId, body) {
+export async function createComment(projectId: number, issueId: number, body: string): Promise<Comment> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -362,7 +405,7 @@ export async function createComment(projectId, issueId, body) {
   return res.json();
 }
 
-export async function updateComment(projectId, issueId, commentId, body) {
+export async function updateComment(projectId: number, issueId: number, commentId: number, body: string): Promise<Comment> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments/${commentId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -372,18 +415,18 @@ export async function updateComment(projectId, issueId, commentId, body) {
   return res.json();
 }
 
-export async function deleteComment(projectId, issueId, commentId) {
+export async function deleteComment(projectId: number, issueId: number, commentId: number): Promise<void> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${issueId}/comments/${commentId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text() || 'Failed to delete comment');
 }
 
-export async function fetchLabelsByProject(projectId) {
+export async function fetchLabelsByProject(projectId: number): Promise<Label[]> {
   const response = await authFetch(`${API_URL}/projects/${projectId}/labels`);
   if (!response.ok) throw new Error(await response.text() || 'Failed to fetch labels');
   return await response.json();
 }
 
-export async function createLabel(projectId, label) {
+export async function createLabel(projectId: number, label: Pick<Label, 'name' | 'color'>): Promise<Label> {
   const response = await authFetch(`${API_URL}/projects/${projectId}/labels`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -393,7 +436,7 @@ export async function createLabel(projectId, label) {
   return await response.json();
 }
 
-export async function deleteLabel(projectId, labelId, adminPassword) {
+export async function deleteLabel(projectId: number, labelId: number, adminPassword: string): Promise<void> {
   const response = await authFetch(`${API_URL}/projects/${projectId}/labels/${labelId}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -402,7 +445,7 @@ export async function deleteLabel(projectId, labelId, adminPassword) {
   if (!response.ok) throw new Error(await response.text() || 'Failed to delete label');
 }
 
-export async function fetchVersion() {
+export async function fetchVersion(): Promise<string> {
   try {
     const res = await authFetch(`${API_URL}/version`);
     const data = await res.json();
@@ -415,7 +458,7 @@ export async function fetchVersion() {
 
 // --- User Management API functions ---
 
-export async function fetchUsers() {
+export async function fetchUsers(): Promise<User[]> {
   const res = await authFetch(`${API_URL}/users`);
   if (!res.ok) {
     throw new Error('Failed to fetch users');
@@ -423,7 +466,7 @@ export async function fetchUsers() {
   return await res.json();
 }
 
-export async function createUser(user) {
+export async function createUser(user: UserWrite): Promise<User> {
   const res = await authFetch(`${API_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -436,7 +479,7 @@ export async function createUser(user) {
   return await res.json();
 }
 
-export async function updateUser(id, user) {
+export async function updateUser(id: number, user: UserWrite): Promise<User> {
   const res = await authFetch(`${API_URL}/users/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -449,7 +492,7 @@ export async function updateUser(id, user) {
   return await res.json();
 }
 
-export async function deleteUser(id, adminPassword) {
+export async function deleteUser(id: number, adminPassword: string): Promise<void> {
   const res = await authFetch(`${API_URL}/users/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -464,7 +507,7 @@ export async function deleteUser(id, adminPassword) {
  * Fetch the current authenticated user.
  * Returns the user object or null if not authenticated.
  */
-export async function fetchCurrentUser() {
+export async function fetchCurrentUser(): Promise<User | null> {
   try {
     const res = await authFetch(`${API_URL}/auth/me`);
     if (!res.ok) {
@@ -479,7 +522,7 @@ export async function fetchCurrentUser() {
 /**
  * Log out the current user by clearing auth cookies.
  */
-export async function logout() {
+export async function logout(): Promise<void> {
   try {
     await fetch(`${API_URL}/auth/logout`, {
       method: 'POST',
@@ -494,7 +537,7 @@ export async function logout() {
   }
 }
 
-export async function updateCurrentUser(data) {
+export async function updateCurrentUser(data: { password: string, current_password: string }): Promise<User> {
   const res = await authFetch(`${API_URL}/auth/me`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -509,7 +552,7 @@ export async function updateCurrentUser(data) {
 
 // --- Project API functions ---
 
-export async function fetchProjects() {
+export async function fetchProjects(): Promise<Project[]> {
   try {
     const res = await authFetch(`${API_URL}/projects`);
     const data = await res.json();
@@ -519,7 +562,7 @@ export async function fetchProjects() {
   }
 }
 
-export async function createProject(project) {
+export async function createProject(project: Omit<Project, 'id'>): Promise<Project> {
   const res = await authFetch(`${API_URL}/projects`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -532,7 +575,7 @@ export async function createProject(project) {
   return await res.json();
 }
 
-export async function updateProject(id, project) {
+export async function updateProject(id: number, project: Omit<Project, 'id'>): Promise<Project> {
   const res = await authFetch(`${API_URL}/projects/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -545,7 +588,7 @@ export async function updateProject(id, project) {
   return await res.json();
 }
 
-export async function deleteProject(id, adminPassword) {
+export async function deleteProject(id: number, adminPassword: string): Promise<void> {
   const res = await authFetch(`${API_URL}/projects/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -557,7 +600,7 @@ export async function deleteProject(id, adminPassword) {
   }
 }
 
-export async function fetchStatusConfig(projectId) {
+export async function fetchStatusConfig(projectId: number): Promise<StatusConfig> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/statusconfig`);
   if (!res.ok) {
     const text = await res.text();
@@ -566,7 +609,7 @@ export async function fetchStatusConfig(projectId) {
   return await res.json();
 }
 
-export async function updateStatusConfig(projectId, config) {
+export async function updateStatusConfig(projectId: number, config: Partial<Omit<StatusConfig, 'project_id'>>): Promise<StatusConfig> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/statusconfig`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -579,7 +622,7 @@ export async function updateStatusConfig(projectId, config) {
   return await res.json();
 }
 
-export async function fetchReleases(projectId) {
+export async function fetchReleases(projectId: number): Promise<Release[]> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/releases`);
   if (!res.ok) {
     const text = await res.text();
@@ -588,7 +631,7 @@ export async function fetchReleases(projectId) {
   return await res.json();
 }
 
-export async function createRelease(projectId, data) {
+export async function createRelease(projectId: number, data: ReleaseWrite): Promise<Release> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/releases`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -601,7 +644,7 @@ export async function createRelease(projectId, data) {
   return await res.json();
 }
 
-export async function updateRelease(projectId, id, data) {
+export async function updateRelease(projectId: number, id: number, data: ReleaseWrite): Promise<Release> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -614,7 +657,7 @@ export async function updateRelease(projectId, id, data) {
   return await res.json();
 }
 
-export async function deleteRelease(projectId, id, adminPassword) {
+export async function deleteRelease(projectId: number, id: number, adminPassword: string): Promise<void> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -626,7 +669,7 @@ export async function deleteRelease(projectId, id, adminPassword) {
   }
 }
 
-export async function reopenRelease(projectId, id) {
+export async function reopenRelease(projectId: number, id: number): Promise<Release> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}/reopen`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -639,7 +682,7 @@ export async function reopenRelease(projectId, id) {
   return await res.json();
 }
 
-export async function triggerRelease(projectId, id, archiveDone) {
+export async function triggerRelease(projectId: number, id: number, archiveDone: boolean): Promise<Release> {
   const res = await authFetch(`${API_URL}/projects/${projectId}/releases/${id}/release`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

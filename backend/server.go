@@ -380,7 +380,7 @@ func HandleStaticFiles(next http.Handler) http.HandlerFunc {
 }
 
 // staticRoot is the directory of the embedded filesystem that holds the Vite
-// build output (static/js/vite.config.js).
+// build output (static/js/vite.config.ts).
 const staticRoot = "static/dist/app"
 
 // indexFile is the page http.FileServer serves for a directory path such as "/".

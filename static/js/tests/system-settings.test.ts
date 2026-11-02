@@ -5,6 +5,7 @@ import * as api from '../api.ts';
 import * as utils from '../utils.ts';
 import * as permissions from '../permissions.ts';
 import { state } from '../state.ts';
+import { makeIssue, makeProject, makeUser } from './fixtures.ts';
 
 // Helper to generate random pass
 // Drawn again when the random part happens to contain a blacklisted word (e.g. "m0nd" in
@@ -140,29 +141,29 @@ describe('system-settings.ts component', () => {
 
   describe('User Management Rendering', () => {
     beforeEach(() => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
     });
     it('should hide user management section for non-sysadmins', async () => {
       // simulate userCan returning false for ACTION_LIST_USERS (non-sysadmin context)
-      state.currentUser = { role: 'user' };
+      state.currentUser = makeUser({ id: 100, role: 'user' });
       vi.mocked(permissions.userCan).mockImplementation((user, action) => {
         return !(action === permissions.ACTION_LIST_USERS && user.role !== 'sysadmin');
       });
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(true);
     });
 
     it('should show and render user list for sysadmins', async () => {
-      state.currentUser = { role: 'sysadmin' };
+      state.currentUser = makeUser({ id: 100, role: 'sysadmin' });
       vi.mocked(permissions.userCan).mockReturnValue(true);
       const users = [
-        { id: 1, email: 'sysadmin@test.com', first_name: 'Sys', last_name: 'Admin', role: 'sysadmin', active: true },
-        { id: 2, email: 'admin@test.com', first_name: 'Ad', last_name: 'Min', role: 'admin', active: true },
-        { id: 3, email: 'user@test.com', first_name: 'Us', last_name: 'Er', role: 'user', active: true }
+        makeUser({ id: 1, email: 'sysadmin@test.com', first_name: 'Sys', last_name: 'Admin', role: 'sysadmin', active: true }),
+        makeUser({ id: 2, email: 'admin@test.com', first_name: 'Ad', last_name: 'Min', role: 'admin', active: true }),
+        makeUser({ id: 3, email: 'user@test.com', first_name: 'Us', last_name: 'Er', role: 'user', active: true })
       ];
       vi.mocked(api.fetchUsers).mockResolvedValue(users);
 
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(false);
       const rows = document.querySelectorAll('.settings-entry');
@@ -175,9 +176,9 @@ describe('system-settings.ts component', () => {
     });
 
     it('should escape user initials to prevent XSS', async () => {
-      state.currentUser = { role: 'admin' };
+      state.currentUser = makeUser({ id: 100, role: 'admin' });
       const users = [
-        { id: 1, email: 'xss@test.com', first_name: '<', last_name: 'S', role: 'user', active: true }
+        makeUser({ id: 1, email: 'xss@test.com', first_name: '<', last_name: 'S', role: 'user', active: true })
       ];
       vi.mocked(api.fetchUsers).mockResolvedValue(users);
       vi.mocked(utils.getUserInitials).mockReturnValue('<S');
@@ -186,7 +187,7 @@ describe('system-settings.ts component', () => {
       // The original mock is escapeHtml: vi.fn((str) => str)
       // We want to verify it's called with the initials.
 
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       expect(utils.getUserInitials).toHaveBeenCalled();
       expect(utils.escapeHtml).toHaveBeenCalledWith('<S');
@@ -196,13 +197,13 @@ describe('system-settings.ts component', () => {
     });
 
     it('should render a formatted last login for a user who has logged in', async () => {
-      state.currentUser = { role: 'sysadmin' };
+      state.currentUser = makeUser({ id: 100, role: 'sysadmin' });
       const users = [
-        { id: 1, email: 'seen@test.com', first_name: 'Seen', last_name: 'User', role: 'user', active: true, last_login: '2026-07-02T17:27:00Z' }
+        makeUser({ id: 1, email: 'seen@test.com', first_name: 'Seen', last_name: 'User', role: 'user', active: true, last_login: '2026-07-02T17:27:00Z' })
       ];
       vi.mocked(api.fetchUsers).mockResolvedValue(users);
 
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       const row = document.querySelector('.settings-entry');
       expect(row.textContent).toContain('Last login:');
@@ -210,26 +211,26 @@ describe('system-settings.ts component', () => {
     });
 
     it('should render "Never" as the last login for a user who has not logged in', async () => {
-      state.currentUser = { role: 'sysadmin' };
+      state.currentUser = makeUser({ id: 100, role: 'sysadmin' });
       const users = [
-        { id: 1, email: 'unseen@test.com', first_name: 'Unseen', last_name: 'User', role: 'user', active: true, last_login: null }
+        makeUser({ id: 1, email: 'unseen@test.com', first_name: 'Unseen', last_name: 'User', role: 'user', active: true, last_login: null })
       ];
       vi.mocked(api.fetchUsers).mockResolvedValue(users);
 
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       const row = document.querySelector('.settings-entry');
       expect(row.textContent).toContain('Last login: Never');
     });
 
     it('should show a "User" badge for the base user role, matching admin/sysadmin badges', async () => {
-      state.currentUser = { role: 'sysadmin' };
+      state.currentUser = makeUser({ id: 100, role: 'sysadmin' });
       const users = [
-        { id: 1, email: 'plain@test.com', first_name: 'Plain', last_name: 'User', role: 'user', active: true }
+        makeUser({ id: 1, email: 'plain@test.com', first_name: 'Plain', last_name: 'User', role: 'user', active: true })
       ];
       vi.mocked(api.fetchUsers).mockResolvedValue(users);
 
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       const row = document.querySelector('.settings-entry');
       expect(row.innerHTML).toContain('settings-entry-badge user');
@@ -237,13 +238,13 @@ describe('system-settings.ts component', () => {
     });
 
     it('should render the role badge before the last-login column', async () => {
-      state.currentUser = { role: 'sysadmin' };
+      state.currentUser = makeUser({ id: 100, role: 'sysadmin' });
       const users = [
-        { id: 1, email: 'order@test.com', first_name: 'Order', last_name: 'Test', role: 'admin', active: true, last_login: null }
+        makeUser({ id: 1, email: 'order@test.com', first_name: 'Order', last_name: 'Test', role: 'admin', active: true, last_login: null })
       ];
       vi.mocked(api.fetchUsers).mockResolvedValue(users);
 
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       const row = document.querySelector('.settings-entry');
       const roleIndex = row.innerHTML.indexOf('settings-entry-badge admin');
@@ -255,7 +256,7 @@ describe('system-settings.ts component', () => {
 
   describe('User Modal', () => {
     it('should open modal for new user', () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
 
       expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
@@ -264,11 +265,11 @@ describe('system-settings.ts component', () => {
     });
 
     it('should open modal for editing user', async () => {
-      state.currentUser = { role: 'admin' };
-      const user = { id: 1, email: 'edit@test.com', first_name: 'E', last_name: 'D', role: 'user', active: true };
+      state.currentUser = makeUser({ id: 100, role: 'admin' });
+      const user = makeUser({ id: 1, email: 'edit@test.com', first_name: 'E', last_name: 'D', role: 'user', active: true });
       vi.mocked(api.fetchUsers).mockResolvedValue([user]);
 
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
 
@@ -279,7 +280,7 @@ describe('system-settings.ts component', () => {
     });
 
     it('should handle user form submission (create)', async () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
 
       byId('user-email', HTMLInputElement).value = 'new@test.com';
@@ -290,7 +291,7 @@ describe('system-settings.ts component', () => {
       byId('user-role', HTMLInputElement).value = 'user';
       byId('user-active', HTMLInputElement).checked = true;
 
-      vi.mocked(api.createUser).mockResolvedValue({ id: 3 });
+      vi.mocked(api.createUser).mockResolvedValue(makeUser({ id: 3 }));
 
       const form = document.getElementById('user-form');
       form.dispatchEvent(new Event('submit'));
@@ -305,7 +306,7 @@ describe('system-settings.ts component', () => {
     });
 
     it('creates a user only once when submitted again while the first save is in flight, with the form greyed out', async () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       byId('user-email', HTMLInputElement).value = 'new@test.com';
       byId('user-first-name', HTMLInputElement).value = 'New';
@@ -328,15 +329,15 @@ describe('system-settings.ts component', () => {
     });
 
     it('should handle user form submission (update)', async () => {
-      state.currentUser = { role: 'admin' };
-      const user = { id: 1, email: 'edit@test.com', role: 'user', active: true };
+      state.currentUser = makeUser({ id: 100, role: 'admin' });
+      const user = makeUser({ id: 1, email: 'edit@test.com', first_name: 'Edit', last_name: 'User', role: 'user', active: true });
       vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-      setupSystemSettingsView(vi.fn());
-      await renderSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
+      await renderSystemSettingsView();
       document.querySelector<HTMLElement>('.settings-entry').click();
 
       byId('user-first-name', HTMLInputElement).value = 'Updated';
-      vi.mocked(api.updateUser).mockResolvedValue({});
+      vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
 
       const form = document.getElementById('user-form');
       form.dispatchEvent(new Event('submit'));
@@ -349,7 +350,7 @@ describe('system-settings.ts component', () => {
     });
 
     it('should show error for missing password on new user', async () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       byId('user-email', HTMLInputElement).value = 'valid@email.com';
       byId('user-first-name', HTMLInputElement).value = 'Test';
@@ -364,7 +365,7 @@ describe('system-settings.ts component', () => {
     });
 
     it('should show error for invalid email format', async () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       byId('user-email', HTMLInputElement).value = 'invalid-email';
 
@@ -376,7 +377,7 @@ describe('system-settings.ts component', () => {
     });
 
     it('should show error for long names', async () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       byId('user-email', HTMLInputElement).value = 'valid@test.com';
       byId('user-first-name', HTMLInputElement).value = 'a'.repeat(51); // Max 50
@@ -389,7 +390,7 @@ describe('system-settings.ts component', () => {
     });
 
     it('should NOT close on overlay click', () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('add-user-btn').click();
       const overlay = document.getElementById('user-modal-overlay');
       overlay.click();
@@ -399,7 +400,7 @@ describe('system-settings.ts component', () => {
 
   describe('Dropdowns and Support', () => {
     it('should toggle dropdown and close others', () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       const trigger = document.getElementById('user-role-trigger');
       const options = document.getElementById('user-role-options');
       const otherOptions = document.getElementById('user-active-options');
@@ -414,7 +415,7 @@ describe('system-settings.ts component', () => {
     });
 
     it('should select option from dropdown', () => {
-      setupSystemSettingsView(vi.fn());
+      setupSystemSettingsView();
       document.getElementById('user-role-trigger').click();
       const adminOption = document.querySelector<HTMLElement>('.custom-option[data-value="admin"]');
       adminOption.click();
@@ -537,15 +538,15 @@ describe('Additional Coverage', () => {
           <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
         </div>
       `;
-      state.currentUser = { role: 'admin' };
-      setupSystemSettingsView(vi.fn());
-      await renderSystemSettingsView(vi.fn());
+      state.currentUser = makeUser({ id: 100, role: 'admin' });
+      setupSystemSettingsView();
+      await renderSystemSettingsView();
       document.getElementById('add-user-btn').click();
     });
 
     it('should handle user fetch failure', async () => {
       vi.mocked(api.fetchUsers).mockRejectedValue(new Error('Fetch failed'));
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
       expect(document.getElementById('users-list').innerHTML).toContain('Failed to load users');
     });
 
@@ -683,15 +684,15 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
     vi.mocked(permissions.userCan).mockReturnValue(true);
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    state.currentUser = { id: 99, role: 'sysadmin' };
-    setupSystemSettingsView(vi.fn());
+    state.currentUser = makeUser({ id: 99, role: 'sysadmin' });
+    setupSystemSettingsView();
   });
 
   it('shows modal and resolves with password when OK clicked', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-password', HTMLInputElement).value = generateRandomPassword();
@@ -699,7 +700,7 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
       const origUpdate = vi.mocked(api.updateUser).getMockImplementation();
       vi.mocked(api.updateUser).mockImplementation(async (...args) => {
         resolve();
-        return origUpdate ? origUpdate(...args) : {};
+        return origUpdate ? origUpdate(...args) : makeUser();
       });
     });
 
@@ -721,9 +722,9 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('shows error when OK clicked with empty password', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    await renderSystemSettingsView(vi.fn());
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-password', HTMLInputElement).value = generateRandomPassword();
@@ -740,10 +741,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('submits when Enter is pressed in the password input', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-password', HTMLInputElement).value = generateRandomPassword();
@@ -762,9 +763,9 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('resolves null and closes modal when Cancel clicked', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    await renderSystemSettingsView(vi.fn());
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-password', HTMLInputElement).value = generateRandomPassword();
@@ -781,9 +782,9 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('requires confirmation for role promotion', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    await renderSystemSettingsView(vi.fn());
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     // Promote user → admin (no password change)
@@ -797,10 +798,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('does not require confirmation for role demotion', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'admin', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'admin', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     // Demote admin → user (no password change)
@@ -813,10 +814,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('requires confirmation for deactivating a user', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     // Deactivate (no password/role change)
@@ -835,10 +836,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('requires confirmation for reactivating a user', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: false };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: false });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     // Reactivate (no password/role change)
@@ -857,10 +858,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('does not require confirmation when active status is unchanged', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     // No changes at all besides re-submitting the form
@@ -873,10 +874,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
 
   it('logs out when sysadmin changes their own password', async () => {
     const { logout } = await import('../api.ts');
-    const self = { id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true };
+    const self = makeUser({ id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([self]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-password', HTMLInputElement).value = generateRandomPassword();
@@ -891,10 +892,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('requires confirmation for changing a user email', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     // Change email only (no password/role/active change)
@@ -914,9 +915,9 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('lists every change in one confirmation when password and email change together', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    await renderSystemSettingsView(vi.fn());
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-email', HTMLInputElement).value = 'new@test.com';
@@ -932,9 +933,9 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('requires confirmation when only the email case changes', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    await renderSystemSettingsView(vi.fn());
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     // Emails are compared case-sensitively at login, so a case change is a login change
@@ -948,10 +949,10 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 
   it('does not require confirmation when only the name changes', async () => {
-    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    const user = makeUser({ id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-first-name', HTMLInputElement).value = 'Renamed';
@@ -964,11 +965,11 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
 
   it('logs out when sysadmin changes their own email', async () => {
     const { logout } = await import('../api.ts');
-    const self = { id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true };
+    const self = makeUser({ id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true });
     vi.mocked(api.fetchUsers).mockResolvedValue([self]);
-    vi.mocked(api.updateUser).mockResolvedValue({});
-    state.currentUser = { id: 99, role: 'sysadmin' };
-    await renderSystemSettingsView(vi.fn());
+    vi.mocked(api.updateUser).mockResolvedValue(makeUser({}));
+    state.currentUser = makeUser({ id: 99, role: 'sysadmin' });
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
 
     byId('user-email', HTMLInputElement).value = 'self-new@test.com';
@@ -1061,14 +1062,14 @@ const PROJECT_DOM = `
 describe('Project Management', () => {
   beforeEach(() => {
     document.body.innerHTML = PROJECT_DOM;
-    state.currentUser = { role: 'admin' };
+    state.currentUser = makeUser({ id: 100, role: 'admin' });
     vi.clearAllMocks();
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
     vi.mocked(api.fetchProjects).mockResolvedValue([]);
     vi.mocked(permissions.userCan).mockReturnValue(true);
     vi.spyOn(console, 'error').mockImplementation(() => { });
 
-    setupSystemSettingsView(vi.fn());
+    setupSystemSettingsView();
   });
 
   describe('setupProjectModal', () => {
@@ -1091,7 +1092,7 @@ describe('Project Management', () => {
     it('should populate form when opening for an existing project', async () => {
       const project = { id: 2, name: 'My Project', description: 'desc' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
 
@@ -1104,7 +1105,7 @@ describe('Project Management', () => {
     it('should hide delete button for the default project (id 1)', async () => {
       const project = { id: 1, name: 'default', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
 
@@ -1114,7 +1115,7 @@ describe('Project Management', () => {
     it('should show delete button for non-default project with permission', async () => {
       const project = { id: 2, name: 'Other', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
 
@@ -1171,7 +1172,7 @@ describe('Project Management', () => {
     });
 
     it('should create project and show success notification', async () => {
-      vi.mocked(api.createProject).mockResolvedValue({ id: 5, name: 'New' });
+      vi.mocked(api.createProject).mockResolvedValue(makeProject({ id: 5, name: 'New' }));
       document.getElementById('add-project-btn').click();
       byId('project-name', HTMLInputElement).value = 'New';
       document.getElementById('project-form').dispatchEvent(new Event('submit'));
@@ -1186,8 +1187,8 @@ describe('Project Management', () => {
     it('should update project and show success notification', async () => {
       const project = { id: 2, name: 'Existing', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
-      vi.mocked(api.updateProject).mockResolvedValue({});
-      await renderSystemSettingsView(vi.fn());
+      vi.mocked(api.updateProject).mockResolvedValue(makeProject({}));
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
       byId('project-name', HTMLInputElement).value = 'Updated';
@@ -1216,7 +1217,7 @@ describe('Project Management', () => {
       const project = { id: 2, name: 'To Delete', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
       vi.mocked(api.deleteProject).mockResolvedValue(undefined);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
 
@@ -1246,7 +1247,7 @@ describe('Project Management', () => {
     it('should not delete when password prompt is cancelled', async () => {
       const project = { id: 5, name: 'Keep Me Too', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
       document.getElementById('project-modal-delete').click();
@@ -1265,7 +1266,7 @@ describe('Project Management', () => {
       const project = { id: 4, name: 'Fail Delete', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
       vi.mocked(api.deleteProject).mockRejectedValue(new Error('Delete failed'));
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
       document.getElementById('project-modal-delete').click();
@@ -1286,8 +1287,8 @@ describe('Project Management', () => {
     it('should show a blocking error and skip the password dialog when the project still has issues', async () => {
       const project = { id: 3, name: 'Has Issues', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
-      vi.mocked(api.fetchActiveIssuesByProject).mockResolvedValue([{ id: 1 }, { id: 2 }]);
-      await renderSystemSettingsView(vi.fn());
+      vi.mocked(api.fetchActiveIssuesByProject).mockResolvedValue([makeIssue({ id: 1 }), makeIssue({ id: 2 })]);
+      await renderSystemSettingsView();
 
       document.querySelector<HTMLElement>('.settings-entry').click();
       document.getElementById('project-modal-delete').click();
@@ -1303,7 +1304,7 @@ describe('Project Management', () => {
     it('requests the project and user lists in parallel', async () => {
       let answerProjects;
       vi.mocked(api.fetchProjects).mockImplementationOnce(() => new Promise(r => { answerProjects = r; }));
-      const render = renderSystemSettingsView(vi.fn());
+      const render = renderSystemSettingsView();
       await new Promise(process.nextTick);
       // The user list must not wait for the project list's response.
       expect(api.fetchUsers).toHaveBeenCalled();
@@ -1315,7 +1316,7 @@ describe('Project Management', () => {
       vi.mocked(permissions.userCan).mockImplementation((user, action) => {
         return action !== permissions.ACTION_LIST_PROJECTS;
       });
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       expect(document.getElementById('project-management-section').style.display).toBe('none');
     });
@@ -1326,7 +1327,7 @@ describe('Project Management', () => {
         { id: 2, name: 'Alpha', description: 'Alpha project' }
       ];
       vi.mocked(api.fetchProjects).mockResolvedValue(projects);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       const rows = document.querySelectorAll('#projects-list .settings-entry');
       expect(rows).toHaveLength(2);
@@ -1336,7 +1337,7 @@ describe('Project Management', () => {
 
     it('should show "default" badge for project with id 1', async () => {
       vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'default', description: '' }]);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       const row = document.querySelector('#projects-list .settings-entry');
       expect(row.textContent).toContain('default');
@@ -1345,7 +1346,7 @@ describe('Project Management', () => {
 
     it('should render the default badge as the last column, after name and description', async () => {
       vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'default', description: 'The default project' }]);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       const row = document.querySelector('#projects-list .settings-entry');
       const nameIndex = row.innerHTML.indexOf('settings-entry-col-name');
@@ -1358,7 +1359,7 @@ describe('Project Management', () => {
 
     it('should show error message when fetchProjects fails', async () => {
       vi.mocked(api.fetchProjects).mockRejectedValue(new Error('Fetch failed'));
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       expect(document.getElementById('projects-list').innerHTML).toContain('Failed to load projects');
     });
@@ -1368,7 +1369,7 @@ describe('Project Management', () => {
         return action !== permissions.ACTION_CREATE_PROJECT;
       });
       vi.mocked(api.fetchProjects).mockResolvedValue([]);
-      await renderSystemSettingsView(vi.fn());
+      await renderSystemSettingsView();
 
       expect(document.getElementById('add-project-btn').style.display).toBe('none');
     });
@@ -1392,13 +1393,13 @@ describe('User deletion', () => {
     vi.clearAllMocks();
     vi.mocked(permissions.userCan).mockReturnValue(true);
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    state.currentUser = { id: 99, role: 'sysadmin' };
-    setupSystemSettingsView(vi.fn());
+    state.currentUser = makeUser({ id: 99, role: 'sysadmin' });
+    setupSystemSettingsView();
   });
 
   async function openEditModalFor(user) {
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
-    await renderSystemSettingsView(vi.fn());
+    await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
   }
 

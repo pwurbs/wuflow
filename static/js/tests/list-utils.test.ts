@@ -9,6 +9,7 @@ import { handleTogglePriority, handleAssignToMe, handleMoveTop, applyOrderChange
 import { showNotification } from '../utils.ts';
 import { state } from '../state.ts';
 import * as api from '../api.ts';
+import { makeIssue } from './fixtures.ts';
 
 describe('handleTogglePriority', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -175,9 +176,9 @@ describe('getListUpdates', () => {
 
   it('returns only changed issues with their previous values and applies them locally', () => {
     state.issues = [
-      { id: 1, status: 'Open', position: 0 },
-      { id: 2, status: 'Todo', position: 0 },
-      { id: 3, status: 'Open', position: 2 }
+      makeIssue({ id: 1, status: 'Open', position: 0 }),
+      makeIssue({ id: 2, status: 'Todo', position: 0 }),
+      makeIssue({ id: 3, status: 'Open', position: 2 })
     ];
     renderList('list', [2, 1, 3]); // issue 2 dropped in from Todo at the top; issue 3 stays at 2
 
@@ -190,8 +191,8 @@ describe('getListUpdates', () => {
   });
 
   it('starts an archive request for a card dropped into the Archive list', () => {
-    vi.mocked(api.archiveIssue).mockResolvedValue({});
-    state.issues = [{ id: 1, project_id: 5, status: 'Done', position: 0 }];
+    vi.mocked(api.archiveIssue).mockResolvedValue(makeIssue({}));
+    state.issues = [makeIssue({ id: 1, project_id: 5, status: 'Done', position: 0 })];
     renderList('archive', [1]);
 
     const { changes, archives } = getListUpdates('archive', 'Archive');

@@ -7,6 +7,7 @@ import { byId } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as tasks from '../components/tasks.ts';
 import * as activity from '../components/activity.ts';
+import { makeIssue, makeLabel, makeProject, makeRelease, makeTask, makeUser, makeUserRef, savedIssue } from './fixtures.ts';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
 const _localStore = {};
@@ -252,12 +253,12 @@ describe('Modal Component', () => {
     vi.clearAllMocks();
 
     // Default mock returns
-    vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug' }, { id: 2, name: 'Feature' }]);
-    vi.mocked(api.fetchUsers).mockResolvedValue([{ id: 1, first_name: 'Test', last_name: 'User', active: true }]);
-    vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'default' }]);
-    vi.mocked(api.updateIssue).mockResolvedValue({ issue: {}, etag: '"updated-etag"', conflict: false });
+    vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug' }), makeLabel({ id: 2, name: 'Feature' })]);
+    vi.mocked(api.fetchUsers).mockResolvedValue([makeUser({ id: 1, first_name: 'Test', last_name: 'User', active: true })]);
+    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'default' })]);
+    vi.mocked(api.updateIssue).mockImplementation(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"updated-etag"', conflict: false }));
     state.currentIssue = null;
-    state.currentUser = { role: 'admin' };
+    state.currentUser = makeUser({ id: 100, role: 'admin' });
     state.labels = [];
     state.labelsProjectId = null;
     state.users = [];
@@ -280,15 +281,15 @@ describe('Modal Component', () => {
   });
 
   it('should open modal for existing issue', async () => {
-    const issue = {
+    const issue = makeIssue({
       id: 123,
       title: 'Test Issue',
       description: 'Test Desc',
-      status: 'Doing',
+      status: 'Stage1',
       priority: 'High',
-      label: { id: 1, name: 'Bug' },
+      label: makeLabel({ id: 1, name: 'Bug' }),
       tasks: []
-    };
+    });
 
     // Mock fetchIssueById to return this specific issue
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"test-etag"' });
@@ -321,7 +322,7 @@ describe('Modal Component', () => {
     byId('priority', HTMLInputElement).value = 'Normal';
 
     // Mock create response
-    vi.mocked(api.createIssue).mockResolvedValue({ id: 99, title: 'New Title' });
+    vi.mocked(api.createIssue).mockResolvedValue(makeIssue({ id: 99, title: 'New Title' }));
 
     // Trigger submit
     const form = document.getElementById('issue-form');
@@ -383,7 +384,7 @@ describe('Modal Component', () => {
 
     byId('new-task-title', HTMLInputElement).value = 'Subtask 1';
 
-    vi.mocked(api.createTask).mockResolvedValue({ id: 101, title: 'Subtask 1', done: false });
+    vi.mocked(api.createTask).mockResolvedValue(makeTask({ id: 101, title: 'Subtask 1', done: false }));
     const historyCallsBeforeAdd = vi.mocked(api.fetchHistory).mock.calls.length;
 
     // Click add
@@ -766,14 +767,14 @@ describe('Modal Component', () => {
     });
 
     it('should disable project trigger for RoleUser editing an existing issue', async () => {
-      state.currentUser = { role: 'user' };
+      state.currentUser = makeUser({ id: 100, role: 'user' });
       const issue = { id: 1, status: 'Open', priority: 'Normal', label: null };
       await openModalWithMock(issue);
       expect(byId('project-trigger', HTMLButtonElement).disabled).toBe(true);
     });
 
     it('should enable project trigger for RoleAdmin editing an existing issue', async () => {
-      state.currentUser = { role: 'admin' };
+      state.currentUser = makeUser({ id: 100, role: 'admin' });
       const issue = { id: 1, status: 'Open', priority: 'Normal', label: null };
       await openModalWithMock(issue);
       expect(byId('project-trigger', HTMLButtonElement).disabled).toBe(false);
@@ -1034,7 +1035,7 @@ describe('Modal Component', () => {
       vi.mocked(api.updateIssue).mockClear();
       vi.mocked(api.updateIssue)
         .mockImplementationOnce(() => new Promise(r => { answerFirst = r; }))
-        .mockResolvedValueOnce({ issue: {}, etag: '"etag-3"', conflict: false });
+        .mockImplementationOnce(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"etag-3"', conflict: false }));
 
       const prioritySelect = byId('priority', HTMLInputElement);
       prioritySelect.value = 'High';
@@ -1422,7 +1423,7 @@ describe('Modal Component', () => {
       async function saveTitleWithDone(typed, saved) {
         await openModalWithMock({ id: 1, title: 'Old' });
         await flush();
-        vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: { id: 1, title: saved }, etag: '"e2"', conflict: false });
+        vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, title: saved }), etag: '"e2"', conflict: false });
         const title = byId('title', HTMLInputElement);
         title.click();
         title.value = typed;
@@ -1628,9 +1629,9 @@ describe('Modal Component', () => {
       prioritySelect.value = value;
       prioritySelect.dispatchEvent(new Event('change'));
     };
-    const baseIssue = () => ({
+    const baseIssue = () => makeIssue({
       id: 5, project_id: 1, title: 'From Board', description: 'Board desc',
-      status: 'Doing', priority: 'Normal', tasks: [], updated_at: '2026-10-08T10:00:00Z'
+      status: 'Stage1', priority: 'Normal', tasks: [], updated_at: '2026-10-08T10:00:00Z'
     });
 
     it('renders the passed issue before the fetch resolves', () => {
@@ -1669,7 +1670,7 @@ describe('Modal Component', () => {
     it('re-renders with the server copy when it is newer and the user is not editing', async () => {
       const issue = baseIssue();
       vi.mocked(api.fetchIssueById).mockResolvedValue({
-        issue: { ...issue, title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' },
+        issue: makeIssue({ ...issue, title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' }),
         etag: '"newer-etag"'
       });
 
@@ -1695,7 +1696,7 @@ describe('Modal Component', () => {
       titleInput.click(); // enter inline title editing
       titleInput.value = 'My Edit';
 
-      load.resolve({ issue: { ...baseIssue(), title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' }, etag: '"newer-etag"' });
+      load.resolve({ issue: makeIssue({ ...baseIssue(), title: 'Changed Elsewhere', updated_at: '2026-10-08T11:00:00Z' }), etag: '"newer-etag"' });
       await flush();
 
       expect(titleInput.value).toBe('My Edit');
@@ -1728,7 +1729,7 @@ describe('Modal Component', () => {
 
       openModal(baseIssue());
       changePriority('High');
-      load.resolve({ issue: { ...baseIssue(), updated_at: '2026-10-08T11:00:00Z' }, etag: '"newer-etag"' });
+      load.resolve({ issue: makeIssue({ ...baseIssue(), updated_at: '2026-10-08T11:00:00Z' }), etag: '"newer-etag"' });
       await flush();
 
       expect(api.updateIssue).toHaveBeenCalledWith(1, expect.any(Object), '"stale"');
@@ -1739,7 +1740,7 @@ describe('Modal Component', () => {
       vi.mocked(api.fetchIssueById).mockReturnValueOnce(loadA.promise);
       openModal({ ...baseIssue(), id: 5, title: 'Issue A' });
 
-      vi.mocked(api.fetchIssueById).mockResolvedValueOnce({ issue: { ...baseIssue(), id: 6, title: 'Issue B' }, etag: '"b"' });
+      vi.mocked(api.fetchIssueById).mockResolvedValueOnce({ issue: makeIssue({ ...baseIssue(), id: 6, title: 'Issue B' }), etag: '"b"' });
       openModal({ ...baseIssue(), id: 6, title: 'Issue B' });
       await flush();
 
@@ -1765,10 +1766,10 @@ describe('Modal Component', () => {
 
     it('renders dropdown options from cached state without refetching', () => {
       vi.mocked(api.fetchIssueById).mockReturnValue(new Promise(() => {}));
-      state.labels = [{ id: 3, name: 'Cached Label' }];
+      state.labels = [makeLabel({ id: 3, name: 'Cached Label' })];
       state.labelsProjectId = 1;
-      state.users = [{ id: 1, first_name: 'Cached', last_name: 'User', active: true }];
-      state.projects = [{ id: 1, name: 'default' }];
+      state.users = [makeUser({ id: 1, first_name: 'Cached', last_name: 'User', active: true })];
+      state.projects = [makeProject({ id: 1, name: 'default' })];
 
       openModal(baseIssue());
 
@@ -1781,7 +1782,7 @@ describe('Modal Component', () => {
 
     it('fetches labels for an issue from a project other than the cached one', () => {
       vi.mocked(api.fetchIssueById).mockReturnValue(new Promise(() => {}));
-      state.labels = [{ id: 3, name: 'Cached Label' }];
+      state.labels = [makeLabel({ id: 3, name: 'Cached Label' })];
       state.labelsProjectId = 1;
 
       openModal({ ...baseIssue(), project_id: 8 });
@@ -1909,7 +1910,7 @@ describe('Modal Component', () => {
       vi.mocked(api.updateIssue).mockReset();
       vi.mocked(api.updateIssue)
         .mockReturnValueOnce(new Promise(r => { resolveFieldSave = r; }))
-        .mockResolvedValueOnce({ issue: { id: 1 }, etag: '"after-submit"', conflict: false });
+        .mockResolvedValueOnce({ issue: makeIssue({ id: 1 }), etag: '"after-submit"', conflict: false });
 
       const prioritySelect = byId('priority', HTMLInputElement);
       prioritySelect.value = 'High';
@@ -2414,7 +2415,7 @@ describe('Modal Component', () => {
       const input = byId('new-task-title', HTMLInputElement);
       input.value = 'New Task';
 
-      vi.mocked(api.createTask).mockResolvedValue({ id: 999, title: 'New Task' });
+      vi.mocked(api.createTask).mockResolvedValue(makeTask({ id: 999, title: 'New Task' }));
 
       input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter' }));
 
@@ -2565,7 +2566,7 @@ describe('Modal Component', () => {
       await flush();
       const tasksBefore = state.currentIssue.tasks;
       vi.mocked(api.fetchIssueById).mockClear();
-      vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: { id: 1, title: 'Clean', tasks: [] }, etag: '"e2"', conflict: false });
+      vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, title: 'Clean', tasks: [] }), etag: '"e2"', conflict: false });
 
       const title = byId('title', HTMLInputElement);
       title.click();
@@ -2585,7 +2586,7 @@ describe('Modal Component', () => {
       await flush();
       let seen = null;
       rerenderViews.mockImplementation(() => { seen = { ...state.currentIssue }; });
-      vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: { id: 1, title: 'New', updated_at: 't2' }, etag: '"e2"', conflict: false });
+      vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, title: 'New', updated_at: 't2' }), etag: '"e2"', conflict: false });
 
       const title = byId('title', HTMLInputElement);
       title.click();
@@ -2658,8 +2659,8 @@ describe('Modal Component', () => {
       await openModalWithMock({ id: 1, title: 'T', assignee_id: null });
       await flush();
       vi.mocked(api.fetchIssueById).mockClear();
-      const assignee = { id: 1, first_name: 'Test', last_name: 'User' };
-      vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: { id: 1, assignee_id: 1, assignee }, etag: '"e2"', conflict: false });
+      const assignee = makeUserRef({ id: 1, first_name: 'Test', last_name: 'User' });
+      vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, assignee_id: 1, assignee }), etag: '"e2"', conflict: false });
 
       const select = byId('assignee-select', HTMLInputElement);
       select.value = '1';
@@ -2672,7 +2673,7 @@ describe('Modal Component', () => {
 
     it('asks "Add task?" on Done when the new-task field has text, and adds it', async () => {
       await openModalWithMock({ id: 1, project_id: 7, title: 'T', tasks: [] });
-      vi.mocked(api.createTask).mockResolvedValueOnce({ id: 9, title: 'Typed', done: false });
+      vi.mocked(api.createTask).mockResolvedValueOnce(makeTask({ id: 9, title: 'Typed', done: false }));
       byId('new-task-title', HTMLInputElement).value = 'Typed';
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(true);
 
@@ -2728,7 +2729,7 @@ describe('Modal Component', () => {
     it('keeps the leave-page warning after a title edit ends while a comment is still open', async () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
       await openModalWithMock({ id: 1, title: 'T' });
-      vi.mocked(activity.getOpenCommentDraft).mockReturnValue({ changed: true, save: vi.fn(), discard: vi.fn() });
+      vi.mocked(activity.getOpenCommentDraft).mockReturnValue({ changed: () => true, save: vi.fn(), discard: vi.fn() });
       try {
         const title = document.getElementById('title');
         title.click();
@@ -2788,7 +2789,7 @@ describe('Modal Component', () => {
       await flush();
       let answerSave;
       vi.mocked(api.updateIssue).mockReturnValueOnce(new Promise(r => { answerSave = r; }));
-      vi.mocked(api.moveIssue).mockResolvedValueOnce({ issue: { id: 1, project_id: 2, title: 'New', priority: 'Normal' }, etag: '"moved"' });
+      vi.mocked(api.moveIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, project_id: 2, title: 'New', priority: 'Normal' }), etag: '"moved"' });
 
       const title = byId('title', HTMLInputElement);
       title.click();
@@ -2858,7 +2859,7 @@ describe('Modal Component', () => {
 
       vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({ conflict: true });
       vi.mocked(utils.showConfirm).mockResolvedValue(true); // User clicks Reload
-      vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: { ...issue, title: 'Fresh' }, etag: '"new-etag"' });
+      vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: makeIssue({ ...issue, title: 'Fresh' }), etag: '"new-etag"' });
 
       // Trigger a change that calls saveIssueWithConflictCheck (e.g. priority)
       const prioritySelect = byId('priority', HTMLInputElement);
@@ -2913,7 +2914,7 @@ describe('Modal Component', () => {
 
     it('should handle "Me" assignee selection', async () => {
       const issue = { id: 1, title: 'Test' };
-      const meUser = { id: 5, first_name: 'Admin', last_name: 'User' };
+      const meUser = makeUser({ id: 5, first_name: 'Admin', last_name: 'User' });
       state.currentUser = meUser;
 
       await openModalWithMock(issue);
@@ -3018,18 +3019,18 @@ describe('Modal Component', () => {
 describe('Project Selector Coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(api.updateIssue).mockResolvedValue({ issue: {}, etag: '"test-etag"', conflict: false });
+    vi.mocked(api.updateIssue).mockImplementation(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"test-etag"', conflict: false }));
     state.currentIssue = null;
     vi.mocked(setCurrentIssue).mockImplementation((val) => { state.currentIssue = val; });
     setupModal(vi.fn(), undefined);
   });
 
   it('should update project-text after fetchProjects resolves with a matching project (lines 198-199)', async () => {
-    const issue = { id: 1, title: 'Test', project_id: 2 };
+    const issue = makeIssue({ id: 1, title: 'Test', project_id: 2 });
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"etag"' });
     vi.mocked(api.fetchProjects).mockResolvedValue([
-      { id: 1, name: 'Default' },
-      { id: 2, name: 'My Project' }
+      makeProject({ id: 1, name: 'Default' }),
+      makeProject({ id: 2, name: 'My Project' })
     ]);
 
     await openModal(issue);
@@ -3039,9 +3040,9 @@ describe('Project Selector Coverage', () => {
   });
 
   it('should not update project-text when project_id is not found in fetched projects (line 198 branch false)', async () => {
-    const issue = { id: 1, title: 'Test', project_id: 99 };
+    const issue = makeIssue({ id: 1, title: 'Test', project_id: 99 });
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"etag"' });
-    vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'Default' }]);
+    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' })]);
 
     await openModal(issue);
     await new Promise(process.nextTick);
@@ -3051,8 +3052,8 @@ describe('Project Selector Coverage', () => {
   });
 
   it('should move issue when project-select changes with currentIssue set', async () => {
-    state.currentIssue = { id: 1, title: 'Test', project_id: 1 };
-    vi.mocked(api.moveIssue).mockResolvedValue({ issue: { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }, etag: '"move-etag"' });
+    state.currentIssue = makeIssue({ id: 1, title: 'Test', project_id: 1 });
+    vi.mocked(api.moveIssue).mockResolvedValue({ issue: makeIssue({ id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }), etag: '"move-etag"' });
 
     const projectSelect = byId('project-select', HTMLInputElement);
     projectSelect.value = '2';
@@ -3065,7 +3066,7 @@ describe('Project Selector Coverage', () => {
   });
 
   it('should not call moveIssue and revert dropdown when user cancels confirmation', async () => {
-    state.currentIssue = { id: 1, title: 'Test', project_id: 1, project: { name: 'Default' } };
+    state.currentIssue = makeIssue({ id: 1, title: 'Test', project_id: 1, project: makeProject({ name: 'Default' }) });
     vi.mocked(utils.promptAdminPasswordConfirmation).mockResolvedValue(false);
 
     const projectSelect = byId('project-select', HTMLInputElement);
@@ -3092,8 +3093,8 @@ describe('Project Selector Coverage', () => {
   });
 
   it('should reload labels and reset selection when a project option is clicked (lines 1295-1299)', async () => {
-    vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'Default' }, { id: 2, name: 'Other' }]);
-    vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 10, name: 'Backend' }]);
+    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
+    vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 10, name: 'Backend' })]);
 
     await openModal(null);
     await new Promise(process.nextTick);
@@ -3109,7 +3110,7 @@ describe('Project Selector Coverage', () => {
   });
 
   it('should log error when fetchLabelsByProject fails on project option click (line 1299)', async () => {
-    vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'Default' }, { id: 2, name: 'Other' }]);
+    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
     vi.mocked(api.fetchLabelsByProject).mockRejectedValue(new Error('Network error'));
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -3284,9 +3285,9 @@ describe('release-select change handler', () => {
     vi.clearAllMocks();
     vi.mocked(api.fetchLabelsByProject).mockResolvedValue([]);
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
-    vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'Default' }]);
-    vi.mocked(api.updateIssue).mockResolvedValue({ issue: { id: 1, release_id: 2, release: { id: 2, name: 'v2.0' } }, etag: '"etag"', conflict: false });
-    state.releases = [{ id: 2, name: 'v2.0' }];
+    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' })]);
+    vi.mocked(api.updateIssue).mockResolvedValue({ issue: makeIssue({ id: 1, release_id: 2, release: makeRelease({ id: 2, name: 'v2.0' }) }), etag: '"etag"', conflict: false });
+    state.releases = [makeRelease({ id: 2, name: 'v2.0' })];
     HTMLElement.prototype.scrollIntoView = vi.fn();
     HTMLInputElement.prototype.reportValidity = vi.fn();
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -3294,7 +3295,7 @@ describe('release-select change handler', () => {
   });
 
   it('calls updateIssue with new release_id when release-select changes to a release', async () => {
-    const issue = { id: 1, title: 'T', status: 'Open', release_id: null, release: null };
+    const issue = makeIssue({ id: 1, title: 'T', status: 'Open', release_id: null, release: null });
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"e"' });
     vi.mocked(setCurrentIssue).mockImplementation(v => { state.currentIssue = v; });
     await openModal(issue);
@@ -3305,16 +3306,16 @@ describe('release-select change handler', () => {
     releaseSelect.dispatchEvent(new Event('change'));
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(undefined, 
+    expect(api.updateIssue).toHaveBeenCalledWith(1, 
       expect.objectContaining({ release_id: 2 }),
       expect.any(String)
     );
   });
 
   it('calls updateIssue with release_id null when release-select is cleared', async () => {
-    const issue = { id: 1, title: 'T', status: 'Open', release_id: 2, release: { id: 2, name: 'v2.0' } };
+    const issue = makeIssue({ id: 1, title: 'T', status: 'Open', release_id: 2, release: makeRelease({ id: 2, name: 'v2.0' }) });
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"e"' });
-    vi.mocked(api.updateIssue).mockResolvedValue({ issue: { ...issue, release_id: null, release: null }, etag: '"e2"', conflict: false });
+    vi.mocked(api.updateIssue).mockResolvedValue({ issue: makeIssue({ ...issue, release_id: null, release: null }), etag: '"e2"', conflict: false });
     vi.mocked(setCurrentIssue).mockImplementation(v => { state.currentIssue = v; });
     await openModal(issue);
     state.currentIssue = issue;
@@ -3324,7 +3325,7 @@ describe('release-select change handler', () => {
     releaseSelect.dispatchEvent(new Event('change'));
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(undefined, 
+    expect(api.updateIssue).toHaveBeenCalledWith(1, 
       expect.objectContaining({ release_id: null }),
       expect.any(String)
     );

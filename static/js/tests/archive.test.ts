@@ -4,6 +4,7 @@ import { resetIssueLists } from '../issue-lists.ts';
 import * as state from '../state.ts';
 import * as api from '../api.ts';
 import type { CardCallbacks } from '../components/card.ts';
+import { makeIssue } from './fixtures.ts';
 
 // Mock dependencies
 vi.mock('../state.ts', () => ({
@@ -80,8 +81,8 @@ describe('Archive Component', () => {
   describe('renderArchive', () => {
     it('should render cards in correct columns', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Archive', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Done', position: 0 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Archive', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Done', position: 0 })
       ];
       state.state.issues = issues;
 
@@ -131,7 +132,7 @@ describe('Archive Component', () => {
       vi.mocked(dragModule.getDraggedCard).mockReturnValue(card);
 
       // Mock State
-      state.state.issues = [{ id: 99, status: 'Done', position: 0 }];
+      state.state.issues = [makeIssue({ id: 99, status: 'Done', position: 0 })];
 
       // Simulate dragover moving the card to the list
       list.appendChild(card);
@@ -145,7 +146,7 @@ describe('Archive Component', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 99);
+      expect(api.archiveIssue).toHaveBeenCalledWith(1, 99);
       expect(refreshApp).toHaveBeenCalled();
     });
 
@@ -159,7 +160,7 @@ describe('Archive Component', () => {
       item.dataset.id = '100';
       const dragModule = await import('../drag.ts');
       vi.mocked(dragModule.getDraggedCard).mockReturnValue(item);
-      state.state.issues = [{ id: 100, status: 'Done', planned_dates: ['2023-01-01'] }];
+      state.state.issues = [makeIssue({ id: 100, status: 'Done', planned_dates: ['2023-01-01'] })];
 
       Object.defineProperty(section, 'offsetParent', {
         get() { return document.body; }
@@ -177,8 +178,8 @@ describe('Archive Component', () => {
 
       const doneList = document.getElementById('archive-done-list');
       state.state.issues = [
-        { id: 1, title: 'Item 1', status: 'Done', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Done', position: 1 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Done', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Done', position: 1 })
       ];
       const card1 = document.createElement('div');
       card1.className = 'card';
@@ -200,7 +201,7 @@ describe('Archive Component', () => {
       // renderArchive replaces the dropped cards with freshly created ones
       await vi.waitFor(() => expect(mockCreateCardElement).toHaveBeenCalledTimes(2));
       expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
-      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(1, [
         { id: 2, position: 0 }, { id: 1, position: 1 }
       ]);
       expect(api.updateIssue).not.toHaveBeenCalled();
@@ -222,7 +223,7 @@ describe('Archive Component', () => {
       card.dataset.id = '98';
       const dragModule = await import('../drag.ts');
       vi.mocked(dragModule.getDraggedCard).mockReturnValue(card);
-      const issue = { id: 98, status: 'Done', position: 0 };
+      const issue = makeIssue({ id: 98, status: 'Done', position: 0 });
       state.state.issues = [issue];
       vi.mocked(api.archiveIssue).mockRejectedValueOnce(new Error('Connection to the server failed. The change was not saved.'));
 
@@ -232,7 +233,7 @@ describe('Archive Component', () => {
       list.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
 
       await vi.waitFor(() => expect(rerenderActiveView).toHaveBeenCalled());
-      expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 98);
+      expect(api.archiveIssue).toHaveBeenCalledWith(1, 98);
       // Not archived on the server, so it must not look archived
       expect(issue.status).toBe('Done');
       expect(refreshApp).toHaveBeenCalled();

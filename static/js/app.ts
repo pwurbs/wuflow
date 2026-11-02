@@ -69,7 +69,7 @@ async function init() {
     setupBacklogView(refreshApp, openModal, rerenderActiveView);
     setupArchiveView(refreshApp, openModal, rerenderActiveView);
     setupPlanningPanel(refreshApp, openModal, rerenderActiveView);
-    setupSystemSettingsView(refreshApp);
+    setupSystemSettingsView();
     setupProjectSettingsView();
     void setupReleasesView();
     setupModal(refreshApp, rerenderAfterIssueChange);
@@ -255,7 +255,7 @@ const VIEW_CONFIG = {
     'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, onEnter: () => refreshApp() },
     'releases':        { el: releasesView,         nav: navReleases,        hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, onEnter: () => renderReleasesView() },
     'project-settings':{ el: projectSettingsView,  nav: navProjectSettings, hideSidebar: true,  hideFilter: true,  hideProjectSelector: false, systemSettings: false, onEnter: () => renderProjectSettingsView() },
-    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  systemSettings: true,  onEnter: () => renderSystemSettingsView(refreshApp) },
+    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  systemSettings: true,  onEnter: () => renderSystemSettingsView() },
 };
 
 function applyReleaseFilterVisibility(isReleases) {

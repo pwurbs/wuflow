@@ -38,25 +38,23 @@ import {
   setupUserMenu,
 } from '../components/toolbar.ts';
 import { byId } from '../utils.ts';
+import { makeIssue, makeLabel, makeProject } from './fixtures.ts';
+import type { Issue } from '../models.ts';
+import type { Filter } from '../state.ts';
 
 // ─── Shared Fixtures ───────────────────────────────────────────────────────────
 
-const createIssue = (overrides = {}) => ({
-  id: 1,
+const createIssue = (overrides: Partial<Issue> = {}) => makeIssue({
   title: 'Default Title',
   description: 'Default description',
-  status: 'Open',
-  priority: 'Normal',
-  position: 0,
-  label: null,
   ...overrides
 });
 
 const mockIssues = [
-  createIssue({ id: 1, title: 'Login Bug', priority: 'High', label: { id: 1, name: 'Bug', color: '#ff0000' }, assignee_id: 1, position: 2 }),
-  createIssue({ id: 2, title: 'Add Dark Mode', priority: 'Normal', label: { id: 2, name: 'Feature', color: '#00ff00' }, assignee_id: 2, position: 0 }),
+  createIssue({ id: 1, title: 'Login Bug', priority: 'High', label: makeLabel({ id: 1, name: 'Bug', color: '#ff0000' }), assignee_id: 1, position: 2 }),
+  createIssue({ id: 2, title: 'Add Dark Mode', priority: 'Normal', label: makeLabel({ id: 2, name: 'Feature', color: '#00ff00' }), assignee_id: 2, position: 0 }),
   createIssue({ id: 3, title: 'Fix Typo', priority: 'Normal', label: null, assignee_id: null, position: 1 }),
-  createIssue({ id: 4, title: 'API Integration', description: 'Login endpoint', priority: 'High', status: 'Working', assignee_id: 1, position: 3 }),
+  createIssue({ id: 4, title: 'API Integration', description: 'Login endpoint', priority: 'High', status: 'Stage2', assignee_id: 1, position: 3 }),
 ];
 
 // ─── filterIssues ──────────────────────────────────────────────────────────────
@@ -72,56 +70,57 @@ describe('filterIssues', () => {
     });
 
     it('should return empty array for non-array issues', () => {
+      // @ts-expect-error: tests the runtime guard against input that is not an array
       expect(filterIssues('not an array', {})).toEqual([]);
     });
 
     it('should return all issues when filter is empty', () => {
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '' };
       expect(filterIssues(mockIssues, filter)).toHaveLength(4);
     });
   });
 
   describe('label filter', () => {
     it('should filter by label id', () => {
-      const filter = { labelId: 1, priority: null, assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: 1, priority: null, assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Login Bug');
     });
 
     it('should filter to show only unlabeled issues with __no_label__', () => {
-      const filter = { labelId: '__no_label__', priority: null, assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: '__no_label__', priority: null, assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2); // "Fix Typo" and "API Integration" have no label
     });
 
     it('should return empty when label id not found', () => {
-      const filter = { labelId: 999, priority: null, assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: 999, priority: null, assigneeId: null, search: '' };
       expect(filterIssues(mockIssues, filter)).toHaveLength(0);
     });
   });
 
   describe('assignee filter', () => {
     it('should filter by assignee id', () => {
-      const filter = { labelId: null, priority: null, assigneeId: 1, search: '' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: 1, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2); // Login Bug and API Integration
     });
 
     it('should filter by unassigned', () => {
-      const filter = { labelId: null, priority: null, assigneeId: 'unassigned', search: '' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: 'unassigned', search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1); // Fix Typo
     });
 
     it('should filter by "me" using currentUserId', () => {
-      const filter = { labelId: null, priority: null, assigneeId: 'me', search: '' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: 'me', search: '' };
       const result = filterIssues(mockIssues, filter, 1);
       expect(result).toHaveLength(2); // Login Bug and API Integration (assignee_id: 1)
     });
 
     it('should return no issues when "me" filter is used and currentUserId is null', () => {
-      const filter = { labelId: null, priority: null, assigneeId: 'me', search: '' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: 'me', search: '' };
       const result = filterIssues(mockIssues, filter, null);
       expect(result).toHaveLength(0);
     });
@@ -129,14 +128,14 @@ describe('filterIssues', () => {
 
   describe('priority filter', () => {
     it('should filter by High priority', () => {
-      const filter = { labelId: null, priority: 'High', assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: null, priority: 'High', assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2);
       expect(result.every(i => i.priority === 'High')).toBe(true);
     });
 
     it('should filter by Normal priority', () => {
-      const filter = { labelId: null, priority: 'Normal', assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: null, priority: 'Normal', assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2);
       expect(result.every(i => i.priority === 'Normal')).toBe(true);
@@ -145,13 +144,13 @@ describe('filterIssues', () => {
 
   describe('search filter', () => {
     it('should search in title (case insensitive)', () => {
-      const filter = { labelId: null, priority: null, assigneeId: null, search: 'login' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: 'login' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(2); // "Login Bug" and "API Integration" (description has login)
     });
 
     it('should search in description', () => {
-      const filter = { labelId: null, priority: null, assigneeId: null, search: 'endpoint' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: 'endpoint' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('API Integration');
@@ -159,12 +158,12 @@ describe('filterIssues', () => {
 
     it('should handle issues without description', () => {
       const issues = [createIssue({ id: 1, title: 'Test', description: null })];
-      const filter = { labelId: null, priority: null, assigneeId: null, search: 'test' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: 'test' };
       expect(filterIssues(issues, filter)).toHaveLength(1);
     });
 
     it('should search by issue id', () => {
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '3' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '3' };
       const result = filterIssues(mockIssues, filter);
       expect(result.some(i => i.id === 3)).toBe(true);
     });
@@ -177,7 +176,7 @@ describe('filterIssues', () => {
         createIssue({ id: 2, release_id: 6 }),
         createIssue({ id: 3, release_id: null }),
       ];
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: 5 };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: 5 };
       const result = filterIssues(issues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(1);
@@ -189,7 +188,7 @@ describe('filterIssues', () => {
         createIssue({ id: 2, release_id: null }),
         createIssue({ id: 3, release_id: null }),
       ];
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: '__no_release__' };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: '__no_release__' };
       const result = filterIssues(issues, filter);
       expect(result).toHaveLength(2);
       expect(result.every(i => !i.release_id)).toBe(true);
@@ -200,7 +199,7 @@ describe('filterIssues', () => {
         createIssue({ id: 1, release_id: 5 }),
         createIssue({ id: 2, release_id: null }),
       ];
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '', releaseId: null };
       expect(filterIssues(issues, filter)).toHaveLength(2);
     });
 
@@ -210,7 +209,7 @@ describe('filterIssues', () => {
         createIssue({ id: 2, release_id: 20 }),
         createIssue({ id: 3, release_id: 30 }),
       ];
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [10, 20] };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [10, 20] };
       const result = filterIssues(issues, filter);
       expect(result).toHaveLength(2);
       expect(result.map(i => i.id)).toEqual(expect.arrayContaining([1, 2]));
@@ -222,7 +221,7 @@ describe('filterIssues', () => {
         createIssue({ id: 2, release_id: null }),
         createIssue({ id: 3, release_id: null }),
       ];
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [null] };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [null] };
       const result = filterIssues(issues, filter);
       expect(result).toHaveLength(2);
       expect(result.every(i => i.release_id === null)).toBe(true);
@@ -233,28 +232,28 @@ describe('filterIssues', () => {
         createIssue({ id: 1, release_id: 10 }),
         createIssue({ id: 2, release_id: null }),
       ];
-      const filter = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [] };
+      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '', releaseFilterIds: [] };
       expect(filterIssues(issues, filter)).toHaveLength(2);
     });
   });
 
   describe('combined filters', () => {
     it('should apply label and priority filters together', () => {
-      const filter = { labelId: 1, priority: 'High', assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: 1, priority: 'High', assigneeId: null, search: '' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('Login Bug');
     });
 
     it('should apply all filters together', () => {
-      const filter = { labelId: '__no_label__', priority: 'High', assigneeId: 1, search: 'api' };
+      const filter: Partial<Filter> = { labelId: '__no_label__', priority: 'High', assigneeId: 1, search: 'api' };
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('API Integration');
     });
 
     it('should return empty when filters are mutually exclusive', () => {
-      const filter = { labelId: 1, priority: 'Normal', assigneeId: null, search: '' };
+      const filter: Partial<Filter> = { labelId: 1, priority: 'Normal', assigneeId: null, search: '' };
       expect(filterIssues(mockIssues, filter)).toHaveLength(0);
     });
   });
@@ -272,8 +271,8 @@ describe('filterByStatus', () => {
     expect(result).toHaveLength(3);
   });
 
-  it('should return issues matching Working status', () => {
-    const result = filterByStatus(mockIssues, 'Working');
+  it('should return issues matching Stage2 status', () => {
+    const result = filterByStatus(mockIssues, 'Stage2');
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe('API Integration');
   });
@@ -311,11 +310,11 @@ describe('sortByPosition', () => {
 
 describe('filterIssues project (server-side)', () => {
   const projectIssues = [
-    createIssue({ id: 10, project: { id: 1 } }),
-    createIssue({ id: 11, project: { id: 2 } }),
+    createIssue({ id: 10, project: makeProject({ id: 1 }) }),
+    createIssue({ id: 11, project: makeProject({ id: 2 }) }),
     createIssue({ id: 12, project: null }),
   ];
-  const emptyFilter = { labelId: null, priority: null, assigneeId: null, search: '' };
+  const emptyFilter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '' };
 
   afterEach(() => {
     state.selectedProjectId = null;

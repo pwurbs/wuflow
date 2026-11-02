@@ -12,7 +12,7 @@ The security rules wuFlow's code follows and the risks the project has deliberat
   queries filter by both `id` and `project_id` (wrong project → `404`).
   → [Backend Architecture](backend-architecture.md), [User Management](user-management.md)
 - Validation limits are defined in `backend/validation.go` and mirrored in
-  `static/js/validation-config.js`. → [Input Validation](input-validation.md)
+  `static/js/validation-config.ts`. → [Input Validation](input-validation.md)
 - All SQL lives in `backend/db.go` and takes values only as `?` parameters; queries are never
   assembled from input.
 

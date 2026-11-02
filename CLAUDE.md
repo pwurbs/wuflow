@@ -26,6 +26,7 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
 - Go tests: `go test ./backend/...`
 - Go lint + SAST + vuln: `./scripts/go_checks.sh` (runs all, exit 1 if any failed)
 - JS unit tests: `cd static/js && npm test`
+- Frontend typecheck: `cd static/js && npm run typecheck`
 - E2E: `cd playwright && npm test` (builds the frontend, starts its own servers on 8090–8094).
   The sandbox blocks local port binding: run it with `dangerouslyDisableSandbox` and say so in chat first.
 - `go run`/`go build` need `cd static/js && npm run build` first (go:embed); tests and lint don't.
@@ -35,7 +36,7 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
 ## Testing
 - New or changed behaviour needs test cases that assert it: write new tests or extend existing ones
   in the matching layer (docs/testing.md) — existing tests that merely keep passing don't count.
-  Go logic/handlers → `backend/*_test.go`, JS with decisions → `static/js/tests/`, user-visible
+  Go logic/handlers → `backend/*_test.go`, frontend code with decisions → `static/js/tests/`, user-visible
   flows → `playwright/`.
 - After a production code change, run the existing suites first, before writing new tests.
 - Classify every failure: expected (the test asserts behaviour the change intentionally altered)
@@ -45,7 +46,7 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   or delete a test just to make it pass. Keep the full output of every test run, so each failure
   can be named.
 - Then add the new tests and run everything again.
-- Required suites (commands above): Go tests, Go checks, JS unit tests, and E2E (Playwright) when
+- Required suites (commands above): Go tests, Go checks, JS unit tests, frontend typecheck, and E2E (Playwright) when
   production code or dependencies changed: `main.go`, `backend/` (except `_test.go`), `static/`
   (except `static/js/tests/`), `go.mod`, `package.json`
 - Only do the full playwright test as the final step. After each change only execute the affected tests to save time.
@@ -71,17 +72,20 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   pairs; `fmt`/`log` only for startup output. Frontend: API errors go to `showNotification`;
   no empty `catch` without a comment saying why.
 - New input fields, on input: reject what's invalid — a validator in `backend/validation.go`
-  (length, format; 400) plus its mirror in `validation-config.js`; then decide plain text vs
+  (length, format; 400) plus its mirror in `validation-config.ts`; then decide plain text vs
   Markdown. Plain text is cleaned with `sanitizeString` before storing and rendered with
   `textContent`/`escapeHtml`; Markdown is stored raw and rendered via `renderMarkdown`
   (docs/markdown-security.md). No user data in `innerHTML` otherwise.
-- Keep each function's cognitive complexity at 15 or below (SonarQube rule S3776, Go and JS):
+- Keep each function's cognitive complexity at 15 or below (SonarQube rule S3776, Go and TypeScript):
   prefer early returns and small helpers over deep nesting.
-- Frontend mirrors of backend definitions (`permissions.js`, `domain-constants.js`,
-  `validation-config.js`) change in the same change as the backend.
+- Frontend mirrors of backend definitions (`permissions.ts`, `domain-constants.ts`,
+  `validation-config.ts`, `models.ts`) change in the same change as the backend.
+- TypeScript: no `any`, `as` cast or `!` non-null assertion without a comment giving the reason
+  (`as const` is not a cast), and no `@ts-ignore`/`@ts-expect-error` without one. Fix a type error
+  at its cause instead of covering it with a cast.
 - Schema changes must work on existing databases: idempotent migration in `runMigrations`
   (backend/db.go).
-- Few dependencies: Go stdlib plus a few packages; plain JS (ES modules) and CSS, no UI framework.
+- Few dependencies: Go stdlib plus a few packages; TypeScript (ES modules) and CSS, no UI framework.
   No new runtime dependency without asking.
 - Cross-cutting transport concerns — TLS, HTTP/2, compression — belong in the reverse proxy, not
   the app (docs/deployment.md "Reverse proxy").

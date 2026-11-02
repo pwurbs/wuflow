@@ -51,7 +51,7 @@ README.md, docs/swagger.json and chart/README.md cover every change; report gaps
 Steps 1–3 also write the coverage and gosec reports that the Sonar scan in P7 uploads.
 1. `go test -coverprofile=backend/test-results/coverage.out ./backend/...`
 2. `./scripts/go_checks.sh`
-3. `cd static/js && npm run test:coverage`
+3. `cd static/js && npm run typecheck && npm run test:coverage`
 4. `./scripts/go_race_fuzz.sh`
 5. `./scripts/check_dependencies.sh` — no pass/fail: list outstanding updates and npm audit /
    govulncheck findings; the user decides whether one blocks the release.

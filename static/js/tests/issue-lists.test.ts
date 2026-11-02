@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { loadIssues, ensureIssueLists, resetIssueLists } from '../issue-lists.ts';
 import { state } from '../state.ts';
 import * as api from '../api.ts';
+import { makeIssue } from './fixtures.ts';
+import type { Issue } from '../models.ts';
 
 vi.mock('../api.ts', () => ({
   fetchActiveIssuesByProject: vi.fn(),
@@ -11,8 +13,8 @@ vi.mock('../api.ts', () => ({
 
 // A promise the test resolves by hand, to control the order in which responses arrive.
 function deferred() {
-  let resolve;
-  const promise = new Promise(r => { resolve = r; });
+  let resolve: (issues: Issue[]) => void;
+  const promise = new Promise<Issue[]>(r => { resolve = r; });
   return { promise, resolve };
 }
 
@@ -24,9 +26,9 @@ describe('issue-lists', () => {
     state.selectedProjectId = 7;
     state.issues = [];
     // Fresh arrays per call, like real responses: merging pushes into state.issues.
-    vi.mocked(api.fetchActiveIssuesByProject).mockImplementation(async () => [{ id: 1, status: 'Todo' }]);
-    vi.mocked(api.fetchOpenIssuesByProject).mockImplementation(async () => [{ id: 2, status: 'Open' }]);
-    vi.mocked(api.fetchArchivedIssuesByProject).mockImplementation(async () => [{ id: 3, status: 'Archive' }]);
+    vi.mocked(api.fetchActiveIssuesByProject).mockImplementation(async () => [makeIssue({ id: 1, status: 'Todo' })]);
+    vi.mocked(api.fetchOpenIssuesByProject).mockImplementation(async () => [makeIssue({ id: 2, status: 'Open' })]);
+    vi.mocked(api.fetchArchivedIssuesByProject).mockImplementation(async () => [makeIssue({ id: 3, status: 'Archive' })]);
     resetIssueLists();
   });
 
@@ -39,7 +41,7 @@ describe('issue-lists', () => {
     });
 
     it('replaces state.issues with the active issues plus the requested lists', async () => {
-      state.issues = [{ id: 99, status: 'Todo' }];
+      state.issues = [makeIssue({ id: 99, status: 'Todo' })];
       await loadIssues(['open']);
       expect(ids()).toEqual([1, 2]);
       expect(api.fetchArchivedIssuesByProject).not.toHaveBeenCalled();
@@ -59,7 +61,7 @@ describe('issue-lists', () => {
       vi.mocked(api.fetchActiveIssuesByProject).mockReturnValueOnce(active.promise);
       const load = loadIssues(['open']);
       await Promise.resolve(); // open list resolves first
-      active.resolve([{ id: 1, status: 'Todo' }]);
+      active.resolve([makeIssue({ id: 1, status: 'Todo' })]);
       await load;
       expect(ids()).toEqual([1, 2]);
     });
@@ -72,8 +74,8 @@ describe('issue-lists', () => {
       const stale = loadIssues(['open']);
 
       await loadIssues(); // e.g. project switch while the first load is in flight
-      staleActive.resolve([{ id: 50, status: 'Todo' }]);
-      staleOpen.resolve([{ id: 51, status: 'Open' }]);
+      staleActive.resolve([makeIssue({ id: 50, status: 'Todo' })]);
+      staleOpen.resolve([makeIssue({ id: 51, status: 'Open' })]);
       await stale;
       expect(ids()).toEqual([1]);
     });
@@ -81,9 +83,9 @@ describe('issue-lists', () => {
 
   describe('ensureIssueLists', () => {
     it('merges a list into state.issues without duplicating issues already there', async () => {
-      state.issues = [{ id: 2, status: 'Todo' }];
+      state.issues = [makeIssue({ id: 2, status: 'Todo' })];
       await ensureIssueLists(['open']);
-      expect(state.issues).toEqual([{ id: 2, status: 'Todo' }]);
+      expect(state.issues).toEqual([makeIssue({ id: 2, status: 'Todo' })]);
     });
 
     it('does not refetch a list that is already loaded', async () => {
@@ -112,7 +114,7 @@ describe('issue-lists', () => {
     });
 
     it('still merges lists after a failed active load', async () => {
-      state.issues = [{ id: 1, status: 'Todo' }];
+      state.issues = [makeIssue({ id: 1, status: 'Todo' })];
       vi.mocked(api.fetchActiveIssuesByProject).mockRejectedValueOnce(new Error('offline'));
       await expect(loadIssues()).rejects.toThrow('offline');
       await ensureIssueLists(['open']);
@@ -125,7 +127,7 @@ describe('issue-lists', () => {
       const load = loadIssues();
       const ensure = ensureIssueLists(['archived']);
       await Promise.resolve();
-      active.resolve([{ id: 1, status: 'Todo' }]);
+      active.resolve([makeIssue({ id: 1, status: 'Todo' })]);
       await Promise.all([load, ensure]);
       expect(ids()).toEqual([1, 3]);
     });

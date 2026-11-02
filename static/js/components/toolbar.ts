@@ -1,4 +1,6 @@
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setFilterRelease, setFilterReleaseOwner, setSelectedProject } from '../state.ts';
+import type { UserFilter } from '../state.ts';
+import type { User } from '../models.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import { logout, updateCurrentUser } from '../api.ts';
 import { byId, showNotification, getUserInitials, onGuardedSubmit } from '../utils.ts';
@@ -190,10 +192,10 @@ export function initUserFilter(refreshApp) {
   });
 }
 
-function resolveFilterLabel(currentVal, users, myLabel, unassignedLabel) {
+function resolveFilterLabel(currentVal: UserFilter, users: User[], myLabel: string, unassignedLabel: string) {
   if (currentVal === 'me') return myLabel;
   if (currentVal === 'unassigned') return unassignedLabel;
-  const user = users.find(u => u.id === Number.parseInt(currentVal));
+  const user = users.find(u => u.id === currentVal);
   return user ? `${user.first_name} ${user.last_name}` : 'User';
 }
 

@@ -44,6 +44,8 @@ import {
   hasValidSession,
   reauthenticate,
 } from '../api.ts';
+import type { ReleaseWrite, UserWrite } from '../api.ts';
+import { makeIssue, makeTask, makeUser } from './fixtures.ts';
 
 function makeResponse(status, body, headers = {}) {
   const bodyInit = typeof body === 'string' ? body : JSON.stringify(body);
@@ -70,7 +72,7 @@ describe('api', () => {
   describe('authFetch - 429', () => {
     it('returns rate-limit error message without retrying', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(429, 'ignored'));
-      await expect(createIssue(1, { title: 'x' })).rejects.toThrow('Too many requests');
+      await expect(createIssue(1, makeIssue({ title: 'x' }))).rejects.toThrow('Too many requests');
       expect(fetch).toHaveBeenCalledTimes(1);
     });
   });
@@ -133,7 +135,7 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse(401, ''))           // refresh fails
         .mockResolvedValueOnce(makeResponse(200, { id: 3 }));   // replayed PUT
 
-      const result = await updateTask(1, 2, { id: 3, title: 'x' });
+      const result = await updateTask(1, 2, makeTask({ id: 3, title: 'x' }));
 
       expect(handler).toHaveBeenCalledTimes(1);
       expect(location.href).toBe('');
@@ -145,7 +147,7 @@ describe('api', () => {
 
     it('opens the re-login handler only once for concurrent 401s', async () => {
       let resolveLogin;
-      const handler = vi.fn(() => new Promise(res => { resolveLogin = res; }));
+      const handler = vi.fn(() => new Promise<void>(res => { resolveLogin = res; }));
       setSessionExpiredHandler(handler);
       let reloggedIn = false;
       vi.mocked(fetch).mockImplementation((url) => {
@@ -153,8 +155,8 @@ describe('api', () => {
         return Promise.resolve(reloggedIn ? makeResponse(200, { ok: url }) : makeResponse(401, ''));
       });
 
-      const p1 = updateTask(1, 2, { id: 3 });
-      const p2 = updateTask(1, 2, { id: 4 });
+      const p1 = updateTask(1, 2, makeTask({ id: 3 }));
+      const p2 = updateTask(1, 2, makeTask({ id: 4 }));
       await vi.waitFor(() => expect(handler).toHaveBeenCalled());
       reloggedIn = true;
       resolveLogin();
@@ -170,7 +172,7 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse(401, ''))
         .mockRejectedValueOnce(new TypeError('Failed to fetch'));
 
-      await expect(updateTask(1, 2, { id: 3 })).rejects.toBeInstanceOf(NetworkError);
+      await expect(updateTask(1, 2, makeTask({ id: 3 }))).rejects.toBeInstanceOf(NetworkError);
       expect(location.href).toBe('');
     });
 
@@ -193,7 +195,7 @@ describe('api', () => {
     it('treats gateway errors as NetworkError', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(502, '<html>Bad Gateway</html>'));
 
-      await expect(updateTask(1, 2, { id: 3 })).rejects.toBeInstanceOf(NetworkError);
+      await expect(updateTask(1, 2, makeTask({ id: 3 }))).rejects.toBeInstanceOf(NetworkError);
     });
 
     it('aborts a request after the timeout with NetworkError', async () => {
@@ -202,7 +204,7 @@ describe('api', () => {
         vi.mocked(fetch).mockImplementation((_url, opts) => new Promise((_res, rej) => {
           opts.signal.addEventListener('abort', () => rej(new DOMException('Aborted', 'AbortError')));
         }));
-        const p = updateTask(1, 2, { id: 3 });
+        const p = updateTask(1, 2, makeTask({ id: 3 }));
         const assertion = expect(p).rejects.toBeInstanceOf(NetworkError);
         await vi.advanceTimersByTimeAsync(20000);
         await assertion;
@@ -337,14 +339,14 @@ describe('api', () => {
     it('posts issue and returns created data', async () => {
       const created = { id: 5, title: 'New' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(201, created));
-      const result = await createIssue(1, { title: 'New' });
+      const result = await createIssue(1, makeIssue({ title: 'New' }));
       expect(result).toEqual(created);
       expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('POST');
     });
 
     it('throws with server message on failure', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(400, 'Title required'));
-      await expect(createIssue(1, { title: '' })).rejects.toThrow('Title required');
+      await expect(createIssue(1, makeIssue({ title: '' }))).rejects.toThrow('Title required');
     });
   });
 
@@ -352,25 +354,25 @@ describe('api', () => {
     it('returns updated issue and etag on success', async () => {
       const updated = { id: 1, title: 'Updated' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, updated, { ETag: '"v2"' }));
-      const result = await updateIssue(1, { id: 1, title: 'Updated' });
+      const result = await updateIssue(1, makeIssue({ id: 1, title: 'Updated' }));
       expect(result).toEqual({ issue: updated, etag: '"v2"', conflict: false });
     });
 
     it('includes If-Match header when etag is provided', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, { id: 1 }));
-      await updateIssue(1, { id: 1 }, '"v1"');
+      await updateIssue(1, makeIssue({ id: 1 }), '"v1"');
       expect(vi.mocked(fetch).mock.calls[0][1].headers['If-Match']).toBe('"v1"');
     });
 
     it('returns conflict flag on 409', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(409, ''));
-      const result = await updateIssue(1, { id: 1 });
+      const result = await updateIssue(1, makeIssue({ id: 1 }));
       expect(result).toEqual({ issue: null, etag: null, conflict: true });
     });
 
     it('throws on other failures', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(500, 'Internal error'));
-      await expect(updateIssue(1, { id: 1 })).rejects.toThrow('Internal error');
+      await expect(updateIssue(1, makeIssue({ id: 1 }))).rejects.toThrow('Internal error');
     });
   });
 
@@ -539,12 +541,12 @@ describe('api', () => {
     it('posts project and returns created data', async () => {
       const proj = { id: 1, name: 'Alpha' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(201, proj));
-      expect(await createProject({ name: 'Alpha' })).toEqual(proj);
+      expect(await createProject({ name: 'Alpha', description: '' })).toEqual(proj);
     });
 
     it('throws with server message on failure', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(400, 'Name taken'));
-      await expect(createProject({ name: 'Alpha' })).rejects.toThrow('Name taken');
+      await expect(createProject({ name: 'Alpha', description: '' })).rejects.toThrow('Name taken');
     });
   });
 
@@ -552,7 +554,7 @@ describe('api', () => {
     it('puts project and returns updated data', async () => {
       const proj = { id: 1, name: 'Beta' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, proj));
-      expect(await updateProject(1, { name: 'Beta' })).toEqual(proj);
+      expect(await updateProject(1, { name: 'Beta', description: '' })).toEqual(proj);
       expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
     });
   });
@@ -603,7 +605,7 @@ describe('api', () => {
 
   describe('updateStatusConfig', () => {
     it('puts config and returns updated data', async () => {
-      const config = { columns: ['Todo', 'Done'] };
+      const config = { stage1_name: 'Pending', stage2_name: 'Working' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, config));
       expect(await updateStatusConfig(1, config)).toEqual(config);
       expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
@@ -625,24 +627,26 @@ describe('api', () => {
     });
   });
 
+  const userBody: UserWrite = { email: 'bob@example.com', first_name: 'Bob', last_name: 'B', role: 'user', active: true };
+
   describe('createUser', () => {
     it('posts user and returns created data', async () => {
-      const user = { id: 3, name: 'Bob' };
+      const user = makeUser({ id: 3, first_name: 'Bob' });
       vi.mocked(fetch).mockResolvedValue(makeResponse(201, user));
-      expect(await createUser({ name: 'Bob' })).toEqual(user);
+      expect(await createUser(userBody)).toEqual(user);
     });
 
     it('throws with server message on failure', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(409, 'Email already in use'));
-      await expect(createUser({ name: 'Bob' })).rejects.toThrow('Email already in use');
+      await expect(createUser(userBody)).rejects.toThrow('Email already in use');
     });
   });
 
   describe('updateUser', () => {
     it('puts user and returns updated data', async () => {
-      const user = { id: 1, name: 'Alice Updated' };
+      const user = makeUser({ id: 1, first_name: 'Alice Updated' });
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, user));
-      expect(await updateUser(1, { name: 'Alice Updated' })).toEqual(user);
+      expect(await updateUser(1, { ...userBody, first_name: 'Alice Updated' })).toEqual(user);
       expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
     });
   });
@@ -663,11 +667,13 @@ describe('api', () => {
     });
   });
 
+  const releaseBody = (name: string): ReleaseWrite => ({ name, description: '', start_date: null, release_date: null, owner_id: null });
+
   describe('createRelease', () => {
     it('posts release and returns created data', async () => {
       const release = { id: 1, name: 'v1.0' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(201, release));
-      const result = await createRelease(1, { name: 'v1.0' });
+      const result = await createRelease(1, releaseBody('v1.0'));
       expect(result).toEqual(release);
       expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('POST');
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/projects/1/releases');
@@ -675,7 +681,7 @@ describe('api', () => {
 
     it('throws with server message on failure', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(400, 'Name required'));
-      await expect(createRelease(1, {})).rejects.toThrow('Name required');
+      await expect(createRelease(1, releaseBody(''))).rejects.toThrow('Name required');
     });
   });
 
@@ -683,7 +689,7 @@ describe('api', () => {
     it('puts release and returns updated data', async () => {
       const release = { id: 1, name: 'v1.1' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, release));
-      const result = await updateRelease(1, 1, { name: 'v1.1' });
+      const result = await updateRelease(1, 1, releaseBody('v1.1'));
       expect(result).toEqual(release);
       expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/releases/1');
@@ -691,7 +697,7 @@ describe('api', () => {
 
     it('throws with server message on failure', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(500, 'Internal error'));
-      await expect(updateRelease(1, 1, {})).rejects.toThrow('Internal error');
+      await expect(updateRelease(1, 1, releaseBody(''))).rejects.toThrow('Internal error');
     });
   });
 

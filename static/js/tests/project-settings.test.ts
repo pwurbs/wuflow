@@ -5,6 +5,7 @@ import { byId } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as permissions from '../permissions.ts';
 import * as stateModule from '../state.ts';
+import { makeIssue, makeLabel, makeStatusConfig } from './fixtures.ts';
 
 vi.mock('../api.ts', () => ({
   fetchLabelsByProject: vi.fn(),
@@ -44,12 +45,12 @@ vi.mock('../state.ts', () => ({
   setLabels: vi.fn(),
 }));
 
-const DEFAULT_CFG = {
+const DEFAULT_CFG = makeStatusConfig({
   stage1_name: 'Pending',
   stage2_name: 'Working',
   stage3_name: '',
   stage4_name: '',
-};
+});
 
 const DOM = `
   <div id="project-settings-view">
@@ -94,7 +95,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('creates a label on Enter keypress', async () => {
-      vi.mocked(api.createLabel).mockResolvedValue({ id: 1, name: 'Bug', color: '#EF5350' });
+      vi.mocked(api.createLabel).mockResolvedValue(makeLabel({ id: 1, name: 'Bug', color: '#EF5350' }));
       setupProjectSettingsView();
 
       const input = byId('ps-new-label-input', HTMLInputElement);
@@ -181,20 +182,20 @@ describe('project-settings.ts component', () => {
     });
 
     it('renders labels returned from the API', async () => {
-      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
       await renderProjectSettingsView();
       expect(document.querySelector('.label-name').textContent).toBe('Bug');
     });
 
     it('renders delete button when user has DELETE permission', async () => {
-      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
       await renderProjectSettingsView();
       expect(document.querySelector('.delete-label-btn')).not.toBeNull();
     });
 
     it('omits delete button when user cannot delete labels', async () => {
       vi.mocked(permissions.userCan).mockImplementation((user, action) => action !== permissions.ACTION_DELETE_LABEL);
-      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
       await renderProjectSettingsView();
       expect(document.querySelector('.delete-label-btn')).toBeNull();
     });
@@ -213,14 +214,14 @@ describe('project-settings.ts component', () => {
     });
 
     it('sanitizes invalid label color', async () => {
-      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug', color: 'notacolor' }]);
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: 'notacolor' })]);
       await renderProjectSettingsView();
       const labelEl = document.querySelector<HTMLElement>('.label-item');
       expect(labelEl.style.color).toBe('rgb(128, 128, 128)');
     });
 
     it('deletes a label after confirmation', async () => {
-      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
       vi.mocked(api.deleteLabel).mockResolvedValue(undefined);
 
       await renderProjectSettingsView();
@@ -232,7 +233,7 @@ describe('project-settings.ts component', () => {
 
     it('does not delete when confirmation is cancelled', async () => {
       vi.mocked(utils.promptAdminPasswordConfirmation).mockResolvedValue(false);
-      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
 
       await renderProjectSettingsView();
       document.querySelector<HTMLElement>('.delete-label-btn').click();
@@ -242,7 +243,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('does not delete when user lost DELETE permission at click time', async () => {
-      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([{ id: 1, name: 'Bug', color: '#EF5350' }]);
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
       await renderProjectSettingsView();
 
       vi.mocked(permissions.userCan).mockReturnValue(false);
@@ -313,7 +314,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('shows orphan badge on inactive stage that has hidden issues', async () => {
-      stateModule.state.issues = [{ id: 1, status: 'Stage3' }, { id: 2, status: 'Stage3' }];
+      stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage3' }), makeIssue({ id: 2, status: 'Stage3' })];
       await renderProjectSettingsView();
 
       const stage3Box = document.querySelector('.sc-name-input[data-field="stage3_name"]').closest('.sc-box');
@@ -323,7 +324,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('does not show orphan badge on active stage', async () => {
-      stateModule.state.issues = [{ id: 1, status: 'Stage1' }];
+      stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage1' })];
       await renderProjectSettingsView();
 
       const stage1Box = document.querySelector('.sc-name-input[data-field="stage1_name"]').closest('.sc-box');
@@ -359,7 +360,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('input event hides orphan badge when user types a name', async () => {
-      stateModule.state.issues = [{ id: 1, status: 'Stage3' }];
+      stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage3' })];
       await renderProjectSettingsView();
 
       const input = document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage3_name"]');
@@ -374,7 +375,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('input event restores orphan badge visibility when name is cleared again', async () => {
-      stateModule.state.issues = [{ id: 1, status: 'Stage3' }];
+      stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage3' })];
       await renderProjectSettingsView();
 
       const input = document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage3_name"]');
@@ -394,7 +395,7 @@ describe('project-settings.ts component', () => {
   // ── handleSaveStatusConfig ────────────────────────────────────────────────
 
   describe('handleSaveStatusConfig()', () => {
-    const updatedCfg = { stage1_name: 'Review', stage2_name: 'Working', stage3_name: '', stage4_name: '' };
+    const updatedCfg = makeStatusConfig({ stage1_name: 'Review', stage2_name: 'Working', stage3_name: '', stage4_name: '' });
 
     beforeEach(() => {
       setupProjectSettingsView();
@@ -412,6 +413,16 @@ describe('project-settings.ts component', () => {
         1, expect.objectContaining({ stage1_name: 'Review' })
       );
       expect(utils.showNotification).toHaveBeenCalledWith('Column configuration saved', 'success');
+    });
+
+    it('sends the names of all four stage columns', async () => {
+      await renderProjectSettingsView();
+
+      document.getElementById('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      const [, payload] = vi.mocked(api.updateStatusConfig).mock.calls[0];
+      expect(Object.keys(payload).sort()).toEqual(['stage1_name', 'stage2_name', 'stage3_name', 'stage4_name']);
     });
 
     it('calls setStatusConfig with the API response', async () => {
@@ -456,7 +467,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('prompts confirmation when deactivating a column that has hidden issues', async () => {
-      stateModule.state.issues = [{ id: 1, status: 'Stage1' }];
+      stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage1' })];
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       await renderProjectSettingsView();
 
@@ -469,7 +480,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('does not save when deactivation confirmation is cancelled', async () => {
-      stateModule.state.issues = [{ id: 1, status: 'Stage1' }];
+      stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage1' })];
       vi.mocked(utils.showConfirm).mockResolvedValue(false);
       await renderProjectSettingsView();
 
@@ -482,7 +493,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('confirmation message lists column name and issue count', async () => {
-      stateModule.state.issues = [{ id: 1, status: 'Stage1' }, { id: 2, status: 'Stage1' }];
+      stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage1' }), makeIssue({ id: 2, status: 'Stage1' })];
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       await renderProjectSettingsView();
 

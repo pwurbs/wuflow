@@ -4,6 +4,7 @@ import { sortReleasesByDate } from '../list-utils.ts';
 import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
+import type { Release } from '../models.ts';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE, IN_PROGRESS_STATUSES } from '../status-config.ts';
 import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
@@ -152,9 +153,7 @@ export async function renderReleasesView() {
   const releases = state.releases.filter(rel => {
     if (ownerFilter === 'me' && rel.owner_id !== state.currentUser?.id) return false;
     if (ownerFilter === 'unassigned' && rel.owner_id) return false;
-    if (ownerFilter && ownerFilter !== 'me' && ownerFilter !== 'unassigned') {
-      if (rel.owner_id !== Number.parseInt(ownerFilter)) return false;
-    }
+    if (typeof ownerFilter === 'number' && rel.owner_id !== ownerFilter) return false;
     if (searchTerm) {
       const nameMatch = rel.name.toLowerCase().includes(searchTerm);
       const descMatch = rel.description?.toLowerCase().includes(searchTerm);
@@ -180,8 +179,8 @@ export async function renderReleasesView() {
   }
 }
 
-function groupReleasesByMonth(releases) {
-  const groups: Record<string, any[]> = {};
+function groupReleasesByMonth(releases: Release[]) {
+  const groups: Record<string, Release[]> = {};
   releases.forEach(rel => {
     const date = new Date(rel.closed_at || rel.updated_at);
     const key = date.toLocaleDateString(navigator.language, { month: 'long', year: 'numeric' });
@@ -548,7 +547,8 @@ async function handleTriggerReleaseDialog(rel) {
   });
 }
 
-const STATUS_ORDER = [STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE];
+// string[]: it is searched with the keys of Object.entries.
+const STATUS_ORDER: readonly string[] = [STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE];
 
 function buildStatusBreakdown(issues) {
   if (issues.length === 0) return '';

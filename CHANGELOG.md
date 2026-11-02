@@ -1,4 +1,8 @@
 
+# 1.4.6
+
+- Frontend code converted from JavaScript to TypeScript, including types for all API data and a type check as part of the test suites
+
 # 1.4.5
 
 - Docs: Redesign of Readme and doc files

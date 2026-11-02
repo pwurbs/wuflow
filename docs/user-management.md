@@ -49,7 +49,7 @@ Authorization is enforced by a single **allowlist policy table** in `backend/per
 
 Each handler evaluates `Can()` at the **method-dispatch level**, before any database access. A missing or insufficient role always results in `403 Forbidden` before any side effects occur.
 
-The frontend mirrors this policy in `static/js/permissions.js` via `userCan(user, action)`. UI elements (archive/delete buttons, drag-drop targets) are hidden or blocked on the client side, while the backend remains the authoritative enforcement point.
+The frontend mirrors this policy in `static/js/permissions.ts` via `userCan(user, action)`. UI elements (archive/delete buttons, drag-drop targets) are hidden or blocked on the client side, while the backend remains the authoritative enforcement point.
 
 ## Initial Sysadmin
 

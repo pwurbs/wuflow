@@ -3,7 +3,7 @@ package backend
 import "slices"
 
 // Action represents a discrete operation subject to authorization.
-// Action constants must be kept in sync with the frontend permissions.js module.
+// Action constants must be kept in sync with the frontend permissions.ts module.
 type Action string
 
 const (

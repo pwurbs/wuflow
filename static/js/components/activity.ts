@@ -4,6 +4,7 @@ import { renderMarkdown } from '../markdown.ts';
 import { getStatusLabel } from '../status-config.ts';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.ts';
 import { state } from '../state.ts';
+import type { Comment, HistoryEntry, Issue } from '../models.ts';
 
 const MAX_COMMENT_LENGTH = 1000;
 
@@ -12,20 +13,37 @@ interface ActivityCallbacks {
   onEditEnd?: () => void;
 }
 
-// Module-level context so tab switching and post-CRUD re-renders don't need to
-// re-fetch the whole issue. Mirrors the closure style used by renderTasks.
-const ctx = {
-  issue: null,
-  history: [],
-  comments: [],
-  callbacks: {} as ActivityCallbacks,
-  activeTab: 'comments',
-  readOnly: false,
+// The open comment editor: save resolves true once saved.
+interface CommentDraft {
+  changed: () => boolean;
+  save: () => Promise<boolean>;
+  discard: () => void;
+}
+
+interface ActivityContext {
+  issue: Issue | null;
+  history: HistoryEntry[];
+  comments: Comment[];
+  callbacks: ActivityCallbacks;
+  activeTab: 'comments' | 'history';
+  readOnly: boolean;
   // Only one comment may be in edit mode at a time — otherwise saving one
   // triggers a refreshComments() re-render that discards any other comment's
   // in-progress (unsaved) edit. The new-comment form counts as an edit too.
-  activeEditor: null as null | 'new' | number,
-  // The open editor's { changed(), save(), discard() }, null while none is open.
+  activeEditor: null | 'new' | number;
+  draft: CommentDraft | null; // null while no editor is open
+}
+
+// Module-level context so tab switching and post-CRUD re-renders don't need to
+// re-fetch the whole issue. Mirrors the closure style used by renderTasks.
+const ctx: ActivityContext = {
+  issue: null,
+  history: [],
+  comments: [],
+  callbacks: {},
+  activeTab: 'comments',
+  readOnly: false,
+  activeEditor: null,
   draft: null
 };
 
@@ -313,7 +331,7 @@ function renderComments(container) {
   ctx.comments.forEach(comment => {
     const li = document.createElement('li');
     li.className = 'comment-item';
-    li.dataset.id = comment.id;
+    li.dataset.id = String(comment.id);
     if (ctx.readOnly) li.setAttribute('aria-disabled', 'true'); // archived issue
 
     const canModify = (cu && comment.user_id === cu.id) || isCommentModerator(cu);

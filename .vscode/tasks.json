@@ -76,6 +76,21 @@
       "problemMatcher": []
     },
     {
+      "label": "JS Typecheck",
+      "type": "shell",
+      // tsc prints nothing when there are no errors
+      "command": "npm run typecheck && echo 'Typecheck passed: no type errors'",
+      "options": {
+        "cwd": "${workspaceFolder}/static/js"
+      },
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$tsc"]
+    },
+    {
       "label": "Diff Coverage",
       "type": "shell",
       "command": "./scripts/diff_coverage.sh",

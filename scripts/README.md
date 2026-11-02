@@ -61,7 +61,7 @@ The script expects Wapiti to be installed in a virtual environment at `~/python_
 
 ### `check_dependencies.sh`
 A shell script to check for available updates across all dependencies in the repository. It checks:
-1. NPM dependencies in `static/js` (including the build tool Vite) and `playwright`.
+1. NPM dependencies in `static/js` (including the build tool Vite) and `playwright`. The `@types/node` line carries a reminder to keep its major version at the Node major of the `Dockerfile`.
 2. Go modules updates, the Go version used by the repo (including minor patch updates), and runs `govulncheck`.
 3. Whether the installed system Go and the Go used to build `gopls`, `gosec`, `govulncheck` and `golangci-lint` are of an older minor version than the `go` directive in `go.mod`, and whether a newer `golangci-lint` release is available.
 4. Whether newer Docker base images are available for the `FROM` lines of the `Dockerfile` (newest tag of the same form within the same major version, via the Docker Hub API).

@@ -81,6 +81,7 @@ import * as api from '../api.ts';
 import { byId } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as toolbar from '../components/toolbar.ts';
+import { makeIssue, makeRelease, makeUser, makeUserRef } from './fixtures.ts';
 
 function buildDOM() {
   document.body.innerHTML = `
@@ -117,7 +118,7 @@ describe('releases', () => {
   beforeEach(() => {
     buildDOM();
     state.releases = [];
-    state.currentUser = { id: 1, role: 'admin', first_name: 'Alice', last_name: 'Smith' };
+    state.currentUser = makeUser({ id: 1, role: 'admin', first_name: 'Alice', last_name: 'Smith' });
     state.selectedProjectId = 1;
     state.issues = [];
     state.filter = { ...state.filter, releaseOwnerFilter: null, releaseSearch: '' };
@@ -244,14 +245,14 @@ describe('releases', () => {
     });
 
     it('renders an open release row', async () => {
-      state.releases = [{ id: 1, name: 'v1.0', status: 'open', description: 'First', owner: null }];
+      state.releases = [makeRelease({ id: 1, name: 'v1.0', status: 'open', description: 'First', owner: null })];
       await renderReleasesView();
       expect(document.getElementById('releases-view').innerHTML).toContain('v1.0');
     });
 
     it('renders a closed releases section with a divider when closed releases exist', async () => {
       state.releases = [
-        { id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null },
+        makeRelease({ id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
       ];
       await renderReleasesView();
       const container = document.getElementById('releases-view');
@@ -261,14 +262,14 @@ describe('releases', () => {
 
     it('suppresses the "view on board" nav icon for closed releases, since their issues are mostly archived', async () => {
       state.releases = [
-        { id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null },
+        makeRelease({ id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
       ];
       await renderReleasesView();
       expect(document.querySelector('.release-stats-nav-icon')).toBeNull();
     });
 
     it('still shows the "view on board" nav icon for open releases', async () => {
-      state.releases = [{ id: 1, name: 'v1.0', status: 'open', description: '', owner: null }];
+      state.releases = [makeRelease({ id: 1, name: 'v1.0', status: 'open', description: '', owner: null })];
       await renderReleasesView();
       expect(document.querySelector('.release-stats-nav-icon')).not.toBeNull();
     });
@@ -276,8 +277,8 @@ describe('releases', () => {
     it('filters releases by owner "me"', async () => {
       state.filter.releaseOwnerFilter = 'me';
       state.releases = [
-        { id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '', owner: null },
-        { id: 2, name: 'Others', status: 'open', owner_id: 2, description: '', owner: null },
+        makeRelease({ id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '', owner: null }),
+        makeRelease({ id: 2, name: 'Others', status: 'open', owner_id: 2, description: '', owner: null }),
       ];
       await renderReleasesView();
       const html = document.getElementById('releases-view').innerHTML;
@@ -288,8 +289,8 @@ describe('releases', () => {
     it('filters releases by owner "unassigned"', async () => {
       state.filter.releaseOwnerFilter = 'unassigned';
       state.releases = [
-        { id: 1, name: 'Unowned', status: 'open', owner_id: null, description: '', owner: null },
-        { id: 2, name: 'Owned', status: 'open', owner_id: 2, description: '', owner: null },
+        makeRelease({ id: 1, name: 'Unowned', status: 'open', owner_id: null, description: '', owner: null }),
+        makeRelease({ id: 2, name: 'Owned', status: 'open', owner_id: 2, description: '', owner: null }),
       ];
       await renderReleasesView();
       const html = document.getElementById('releases-view').innerHTML;
@@ -298,10 +299,10 @@ describe('releases', () => {
     });
 
     it('filters releases by a specific owner id', async () => {
-      state.filter.releaseOwnerFilter = '2';
+      state.filter.releaseOwnerFilter = 2;
       state.releases = [
-        { id: 1, name: 'ByTwo', status: 'open', owner_id: 2, description: '', owner: null },
-        { id: 2, name: 'ByOne', status: 'open', owner_id: 1, description: '', owner: null },
+        makeRelease({ id: 1, name: 'ByTwo', status: 'open', owner_id: 2, description: '', owner: null }),
+        makeRelease({ id: 2, name: 'ByOne', status: 'open', owner_id: 1, description: '', owner: null }),
       ];
       await renderReleasesView();
       const html = document.getElementById('releases-view').innerHTML;
@@ -312,8 +313,8 @@ describe('releases', () => {
     it('filters releases by search term (name match)', async () => {
       state.filter.releaseSearch = 'beta';
       state.releases = [
-        { id: 1, name: 'v1.0-beta', status: 'open', owner_id: null, description: '', owner: null },
-        { id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '', owner: null },
+        makeRelease({ id: 1, name: 'v1.0-beta', status: 'open', owner_id: null, description: '', owner: null }),
+        makeRelease({ id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '', owner: null }),
       ];
       await renderReleasesView();
       const html = document.getElementById('releases-view').innerHTML;
@@ -324,8 +325,8 @@ describe('releases', () => {
     it('filters releases by search term (description match)', async () => {
       state.filter.releaseSearch = 'hotfix';
       state.releases = [
-        { id: 1, name: 'v1.1', status: 'open', owner_id: null, description: 'hotfix release', owner: null },
-        { id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '', owner: null },
+        makeRelease({ id: 1, name: 'v1.1', status: 'open', owner_id: null, description: 'hotfix release', owner: null }),
+        makeRelease({ id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '', owner: null }),
       ];
       await renderReleasesView();
       const html = document.getElementById('releases-view').innerHTML;
@@ -336,8 +337,8 @@ describe('releases', () => {
     it('shows filtered count when some releases are hidden by filter', async () => {
       state.filter.releaseOwnerFilter = 'me';
       state.releases = [
-        { id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '', owner: null },
-        { id: 2, name: 'Others', status: 'open', owner_id: 2, description: '', owner: null },
+        makeRelease({ id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '', owner: null }),
+        makeRelease({ id: 2, name: 'Others', status: 'open', owner_id: 2, description: '', owner: null }),
       ];
       await renderReleasesView();
       expect(document.getElementById('releases-view').innerHTML).toContain('1/2');
@@ -394,8 +395,8 @@ describe('releases', () => {
     });
 
     it('calls createRelease and refreshes the release list on successful new release submit', async () => {
-      vi.mocked(api.createRelease).mockResolvedValue({ id: 99, name: 'v1.0' });
-      vi.mocked(api.fetchReleases).mockResolvedValue([{ id: 99, name: 'v1.0' }]);
+      vi.mocked(api.createRelease).mockResolvedValue(makeRelease({ id: 99, name: 'v1.0' }));
+      vi.mocked(api.fetchReleases).mockResolvedValue([makeRelease({ id: 99, name: 'v1.0' })]);
       await setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
       document.getElementById('release-form').dispatchEvent(new Event('submit'));
@@ -420,7 +421,7 @@ describe('releases', () => {
     it('sets up delete button when userCan returns true', async () => {
       const { userCan } = await import('../permissions.ts');
       vi.mocked(userCan).mockReturnValue(true);
-      state.releases = [{ id: 5, name: 'ToDelete', status: 'open' }];
+      state.releases = [makeRelease({ id: 5, name: 'ToDelete', status: 'open' })];
       vi.mocked(utils.showConfirm).mockResolvedValue(false); // cancel the confirm
       await setupReleasesView();
       document.getElementById('release-modal-delete').classList.remove('hidden');
@@ -452,11 +453,11 @@ describe('releases', () => {
     });
 
     it('opens modal with release data when an open release card is clicked', async () => {
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: 'My desc',
-        owner: { id: 2, first_name: 'Bob', last_name: 'Jones' },
+        owner: makeUserRef({ id: 2, first_name: 'Bob', last_name: 'Jones' }),
         start_date: '2026-01-01T00:00:00Z', release_date: '2026-06-01T00:00:00Z',
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -467,11 +468,11 @@ describe('releases', () => {
     });
 
     it('opens read-only modal for a closed release, showing the closed-at date', async () => {
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 11, name: 'v1.0', status: 'closed', description: '',
         owner: null, closed_at: '2026-01-15T00:00:00Z',
         start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -484,13 +485,13 @@ describe('releases', () => {
 
     it('shows modal stats when a release with issues is opened', async () => {
       vi.mocked(api.fetchArchivedIssuesByProject).mockResolvedValue([
-        { id: 1, release_id: 10, status: 'Done' },
-        { id: 2, release_id: 10, status: 'Open' },
+        makeIssue({ id: 1, release_id: 10, status: 'Done' }),
+        makeIssue({ id: 2, release_id: 10, status: 'Open' }),
       ]);
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -507,10 +508,10 @@ describe('releases', () => {
     });
 
     it('dispatches nav-to-release event when the stats nav icon is clicked', async () => {
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await renderReleasesView();
       let eventDetail = null;
       document.addEventListener('nav-to-release', e => { if (e instanceof CustomEvent) eventDetail = e.detail; }, { once: true });
@@ -523,11 +524,11 @@ describe('releases', () => {
 
   describe('handleReleaseSubmit (update)', () => {
     it('merges the updated release locally and refreshes the filter/view when editing an open release', async () => {
-      vi.mocked(api.updateRelease).mockResolvedValue({ id: 10, name: 'v2.1', status: 'open' });
-      state.releases = [{
+      vi.mocked(api.updateRelease).mockResolvedValue(makeRelease({ id: 10, name: 'v2.1', status: 'open' }));
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -542,10 +543,10 @@ describe('releases', () => {
     });
 
     it('closes the modal immediately when save is clicked for a closed release', async () => {
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -561,17 +562,17 @@ describe('releases', () => {
   describe('handleDeleteRelease', () => {
     it('removes the release locally and refreshes issues/filter when deletion is confirmed', async () => {
       vi.mocked(api.deleteRelease).mockResolvedValue(undefined);
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click(); // sets editingReleaseId = 10
       document.getElementById('release-modal-delete').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
-      expect(api.deleteRelease).toHaveBeenCalledWith(undefined, 10, 'AdminPass123!');
+      expect(api.deleteRelease).toHaveBeenCalledWith(1, 10, 'AdminPass123!');
       expect(state.releases).toHaveLength(0);
       // Deleting a release clears release_id on its issues server-side, so all issue
       // lists are re-fetched, in one parallel wave.
@@ -583,10 +584,10 @@ describe('releases', () => {
 
     it('does not call deleteRelease when the confirm is cancelled', async () => {
       vi.mocked(utils.promptAdminPasswordConfirmation).mockResolvedValue(false);
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -601,10 +602,10 @@ describe('releases', () => {
 
   describe('handleTriggerReleaseDialog', () => {
     it('shows the release dialog when the Release button is clicked', async () => {
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-trigger-btn').click();
       await new Promise(process.nextTick);
@@ -612,10 +613,10 @@ describe('releases', () => {
     });
 
     it('removes the dialog and does not call triggerRelease when Cancel is clicked', async () => {
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-trigger-btn').click();
       await new Promise(process.nextTick);
@@ -626,18 +627,18 @@ describe('releases', () => {
     });
 
     it('merges the closed release locally and refreshes issues/filter when Confirm Release is clicked', async () => {
-      vi.mocked(api.triggerRelease).mockResolvedValue({ id: 10, name: 'v2.0', status: 'closed' });
+      vi.mocked(api.triggerRelease).mockResolvedValue(makeRelease({ id: 10, name: 'v2.0', status: 'closed' }));
       await setupReleasesView();
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-trigger-btn').click();
       await new Promise(process.nextTick);
       document.getElementById('release-dialog-confirm').click();
       await new Promise(process.nextTick);
-      expect(api.triggerRelease).toHaveBeenCalledWith(undefined, 10, false);
+      expect(api.triggerRelease).toHaveBeenCalledWith(1, 10, false);
       expect(state.releases[0]).toEqual(expect.objectContaining({ id: 10, status: 'closed' }));
       // Triggering can archive Done issues server-side, so all issue lists are re-fetched.
       expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(1);
@@ -648,14 +649,14 @@ describe('releases', () => {
 
     it('shows status breakdown in dialog for releases with issues', async () => {
       vi.mocked(api.fetchArchivedIssuesByProject).mockResolvedValue([
-        { id: 1, release_id: 10, status: 'Done' },
-        { id: 2, release_id: 10, status: 'Open' },
-        { id: 3, release_id: 10, status: 'Done' },
+        makeIssue({ id: 1, release_id: 10, status: 'Done' }),
+        makeIssue({ id: 2, release_id: 10, status: 'Open' }),
+        makeIssue({ id: 3, release_id: 10, status: 'Done' }),
       ]);
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-trigger-btn').click();
       await new Promise(process.nextTick);
@@ -667,10 +668,10 @@ describe('releases', () => {
 
     it('shows error notification when triggerRelease throws', async () => {
       vi.mocked(api.triggerRelease).mockRejectedValue(new Error('Release failed'));
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-trigger-btn').click();
       await new Promise(process.nextTick);
@@ -684,19 +685,19 @@ describe('releases', () => {
 
   describe('setupReleasesView (reopen button)', () => {
     it('merges the reopened release locally and refreshes the filter/view when reopen is confirmed', async () => {
-      vi.mocked(api.reopenRelease).mockResolvedValue({ id: 11, name: 'v1.0', status: 'open' });
+      vi.mocked(api.reopenRelease).mockResolvedValue(makeRelease({ id: 11, name: 'v1.0', status: 'open' }));
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click(); // opens modal for closed release
       document.getElementById('release-modal-reopen').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
-      expect(api.reopenRelease).toHaveBeenCalledWith(undefined, 11);
+      expect(api.reopenRelease).toHaveBeenCalledWith(1, 11);
       // Reopening doesn't touch issues, so only the release itself is merged in locally.
       expect(api.fetchActiveIssuesByProject).not.toHaveBeenCalled();
       expect(state.releases[0]).toEqual(expect.objectContaining({ id: 11, status: 'open' }));
@@ -705,10 +706,10 @@ describe('releases', () => {
 
     it('does not call reopenRelease when reopen confirm is cancelled', async () => {
       vi.mocked(utils.showConfirm).mockResolvedValue(false);
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -721,10 +722,10 @@ describe('releases', () => {
     it('shows error notification when reopenRelease throws', async () => {
       vi.mocked(api.reopenRelease).mockRejectedValue(new Error('Reopen failed'));
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
-      }];
+      })];
       await setupReleasesView();
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-card-left').click();
@@ -740,8 +741,8 @@ describe('releases', () => {
   describe('misc', () => {
     it('sorts closed releases newest-first', async () => {
       state.releases = [
-        { id: 1, name: 'EarlyRelease', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null },
-        { id: 2, name: 'LateRelease', status: 'closed', closed_at: '2026-03-01T00:00:00Z', description: '', owner: null },
+        makeRelease({ id: 1, name: 'EarlyRelease', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 2, name: 'LateRelease', status: 'closed', closed_at: '2026-03-01T00:00:00Z', description: '', owner: null }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -750,8 +751,8 @@ describe('releases', () => {
 
     it('sorts open releases with a release date soonest-first', async () => {
       state.releases = [
-        { id: 1, name: 'FarRelease', status: 'open', release_date: '2026-12-01T00:00:00Z', description: '', owner: null },
-        { id: 2, name: 'NearRelease', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null },
+        makeRelease({ id: 1, name: 'FarRelease', status: 'open', release_date: '2026-12-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 2, name: 'NearRelease', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -760,8 +761,8 @@ describe('releases', () => {
 
     it('places open releases without a release date after those with one', async () => {
       state.releases = [
-        { id: 1, name: 'Undated', status: 'open', release_date: null, description: '', owner: null },
-        { id: 2, name: 'Dated', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null },
+        makeRelease({ id: 1, name: 'Undated', status: 'open', release_date: null, description: '', owner: null }),
+        makeRelease({ id: 2, name: 'Dated', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -770,8 +771,8 @@ describe('releases', () => {
 
     it('sorts undated open releases by creation date oldest-first', async () => {
       state.releases = [
-        { id: 1, name: 'NewerUndated', status: 'open', release_date: null, created_at: '2026-05-01T00:00:00Z', description: '', owner: null },
-        { id: 2, name: 'OlderUndated', status: 'open', release_date: null, created_at: '2026-01-01T00:00:00Z', description: '', owner: null },
+        makeRelease({ id: 1, name: 'NewerUndated', status: 'open', release_date: null, created_at: '2026-05-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 2, name: 'OlderUndated', status: 'open', release_date: null, created_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -779,14 +780,14 @@ describe('releases', () => {
     });
 
     it('deduplicates issues from archive, open fetch, and state when refreshing cache', async () => {
-      const shared = { id: 1, release_id: 10, status: 'Done' };
+      const shared = makeIssue({ id: 1, release_id: 10, status: 'Done' });
       vi.mocked(api.fetchArchivedIssuesByProject).mockResolvedValue([shared]);
       vi.mocked(api.fetchOpenIssuesByProject).mockResolvedValue([shared]);
       state.issues = [shared];
-      state.releases = [{
+      state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
         start_date: null, release_date: null,
-      }];
+      })];
       await renderReleasesView();
       document.querySelector<HTMLElement>('.release-trigger-btn').click();
       await new Promise(process.nextTick);

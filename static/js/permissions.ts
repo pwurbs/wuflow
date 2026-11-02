@@ -7,47 +7,48 @@
  */
 
 // Role constants — must match backend/models.go
-export const ROLE_SYSADMIN = 'sysadmin';
-export const ROLE_ADMIN = 'admin';
-export const ROLE_USER = 'user';
+export const ROLE_SYSADMIN = 'sysadmin' as const;
+export const ROLE_ADMIN = 'admin' as const;
+export const ROLE_USER = 'user' as const;
+export type Role = typeof ROLE_SYSADMIN | typeof ROLE_ADMIN | typeof ROLE_USER;
 
 // Action constants — must match backend/permissions.go
-export const ACTION_LIST_ISSUES     = 'issue:list';
-export const ACTION_GET_ISSUE       = 'issue:get';
-export const ACTION_CREATE_ISSUE    = 'issue:create';
-export const ACTION_UPDATE_ISSUE    = 'issue:update';
-export const ACTION_DELETE_ISSUE    = 'issue:delete';
-export const ACTION_ARCHIVE_ISSUE   = 'issue:archive';
-export const ACTION_UNARCHIVE_ISSUE = 'issue:unarchive';
-export const ACTION_MOVE_ISSUE      = 'issue:move';
-export const ACTION_CREATE_TASK     = 'task:create';
-export const ACTION_UPDATE_TASK     = 'task:update';
-export const ACTION_DELETE_TASK     = 'task:delete';
-export const ACTION_LIST_HISTORY    = 'history:list';
-export const ACTION_LIST_COMMENTS   = 'comment:list';
-export const ACTION_CREATE_COMMENT  = 'comment:create';
-export const ACTION_UPDATE_COMMENT  = 'comment:update';
-export const ACTION_DELETE_COMMENT  = 'comment:delete';
-export const ACTION_LIST_LABELS     = 'label:list';
-export const ACTION_CREATE_LABEL    = 'label:create';
-export const ACTION_DELETE_LABEL    = 'label:delete';
-export const ACTION_LIST_USERS      = 'user:list';
-export const ACTION_GET_USER        = 'user:get';
-export const ACTION_CREATE_USER     = 'user:create';
-export const ACTION_UPDATE_USER     = 'user:update';
-export const ACTION_DELETE_USER     = 'user:delete';
-export const ACTION_LIST_PROJECTS   = 'project:list';
-export const ACTION_CREATE_PROJECT  = 'project:create';
-export const ACTION_UPDATE_PROJECT  = 'project:update';
-export const ACTION_DELETE_PROJECT  = 'project:delete';
-export const ACTION_GET_STATUS_CONFIG    = 'statusconfig:get';
-export const ACTION_UPDATE_STATUS_CONFIG = 'statusconfig:update';
-export const ACTION_LIST_RELEASES   = 'release:list';
-export const ACTION_GET_RELEASE     = 'release:get';
-export const ACTION_CREATE_RELEASE  = 'release:create';
-export const ACTION_UPDATE_RELEASE  = 'release:update';
-export const ACTION_DELETE_RELEASE  = 'release:delete';
-export const ACTION_TRIGGER_RELEASE = 'release:trigger';
+export const ACTION_LIST_ISSUES     = 'issue:list' as const;
+export const ACTION_GET_ISSUE       = 'issue:get' as const;
+export const ACTION_CREATE_ISSUE    = 'issue:create' as const;
+export const ACTION_UPDATE_ISSUE    = 'issue:update' as const;
+export const ACTION_DELETE_ISSUE    = 'issue:delete' as const;
+export const ACTION_ARCHIVE_ISSUE   = 'issue:archive' as const;
+export const ACTION_UNARCHIVE_ISSUE = 'issue:unarchive' as const;
+export const ACTION_MOVE_ISSUE      = 'issue:move' as const;
+export const ACTION_CREATE_TASK     = 'task:create' as const;
+export const ACTION_UPDATE_TASK     = 'task:update' as const;
+export const ACTION_DELETE_TASK     = 'task:delete' as const;
+export const ACTION_LIST_HISTORY    = 'history:list' as const;
+export const ACTION_LIST_COMMENTS   = 'comment:list' as const;
+export const ACTION_CREATE_COMMENT  = 'comment:create' as const;
+export const ACTION_UPDATE_COMMENT  = 'comment:update' as const;
+export const ACTION_DELETE_COMMENT  = 'comment:delete' as const;
+export const ACTION_LIST_LABELS     = 'label:list' as const;
+export const ACTION_CREATE_LABEL    = 'label:create' as const;
+export const ACTION_DELETE_LABEL    = 'label:delete' as const;
+export const ACTION_LIST_USERS      = 'user:list' as const;
+export const ACTION_GET_USER        = 'user:get' as const;
+export const ACTION_CREATE_USER     = 'user:create' as const;
+export const ACTION_UPDATE_USER     = 'user:update' as const;
+export const ACTION_DELETE_USER     = 'user:delete' as const;
+export const ACTION_LIST_PROJECTS   = 'project:list' as const;
+export const ACTION_CREATE_PROJECT  = 'project:create' as const;
+export const ACTION_UPDATE_PROJECT  = 'project:update' as const;
+export const ACTION_DELETE_PROJECT  = 'project:delete' as const;
+export const ACTION_GET_STATUS_CONFIG    = 'statusconfig:get' as const;
+export const ACTION_UPDATE_STATUS_CONFIG = 'statusconfig:update' as const;
+export const ACTION_LIST_RELEASES   = 'release:list' as const;
+export const ACTION_GET_RELEASE     = 'release:get' as const;
+export const ACTION_CREATE_RELEASE  = 'release:create' as const;
+export const ACTION_UPDATE_RELEASE  = 'release:update' as const;
+export const ACTION_DELETE_RELEASE  = 'release:delete' as const;
+export const ACTION_TRIGGER_RELEASE = 'release:trigger' as const;
 
 // Allowlist policy — mirrors rolePermissions in backend/permissions.go.
 // To add a new role or action, update both this map and the backend map.
@@ -101,14 +102,16 @@ const rolePermissions = {
     [ACTION_UPDATE_RELEASE]:  [ROLE_SYSADMIN, ROLE_ADMIN],
     [ACTION_DELETE_RELEASE]:  [ROLE_SYSADMIN, ROLE_ADMIN],
     [ACTION_TRIGGER_RELEASE]: [ROLE_SYSADMIN, ROLE_ADMIN],
-};
+} as const satisfies Record<string, readonly Role[]>;
+
+export type Action = keyof typeof rolePermissions;
 
 /**
  * Returns true if the given role is permitted to perform action.
  */
-export function can(role: string | null, action: string | null): boolean {
+export function can(role: Role | null, action: Action | null): boolean {
     if (!role || !action) return false;
-    const allowed = rolePermissions[action];
+    const allowed: readonly Role[] | undefined = rolePermissions[action];
     if (!allowed) return false;
     return allowed.includes(role);
 }
@@ -116,7 +119,7 @@ export function can(role: string | null, action: string | null): boolean {
 /**
  * Returns true if the given user object is permitted to perform action.
  */
-export function userCan(user: { role?: string | null } | null, action: string): boolean {
+export function userCan(user: { role?: Role | null } | null, action: Action): boolean {
     return can(user?.role ?? null, action);
 }
 
@@ -125,7 +128,7 @@ export function userCan(user: { role?: string | null } | null, action: string): 
  * delete) any comment — not just their own. Mirrors isCommentModerator in
  * backend/activity.go.
  */
-export function isCommentModerator(user: { role?: string | null } | null): boolean {
+export function isCommentModerator(user: { role?: Role | null } | null): boolean {
     const role = user?.role ?? null;
     return role === ROLE_SYSADMIN || role === ROLE_ADMIN;
 }

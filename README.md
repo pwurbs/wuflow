@@ -42,7 +42,7 @@ wuflow                  Go binary, frontend assets embedded
 └─ marked               JS: Markdown rendering
 ```
 
-Everything else is the Go standard library and vanilla JavaScript. The JS packages are pinned and bundled. Vite is used only at build time. Nothing is loaded from outside at runtime, and no external services are needed.
+Everything else is the Go standard library and TypeScript without a framework. The JS packages are pinned and bundled. Vite is used only at build time, to translate the TypeScript to JavaScript and bundle it. Nothing is loaded from outside at runtime, and no external services are needed.
 
 ## Quick start
 Docker images are available for linux/amd64 and linux/arm64:

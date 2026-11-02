@@ -4,6 +4,9 @@ import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, crea
 import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown } from '../utils.ts';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.ts';
 import { PRIORITY_NORMAL } from '../domain-constants.ts';
+import type { Priority } from '../domain-constants.ts';
+import type { IssueStatus } from '../status-config.ts';
+import type { IssueWrite } from '../api.ts';
 import { renderMarkdown, renderMarkdownWithReport } from '../markdown.ts';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.ts';
 import { renderTasks } from './tasks.ts';
@@ -559,7 +562,7 @@ function validateIssueForm(title, description) {
   return true;
 }
 
-function getIssueDataFromForm() {
+function getIssueDataFromForm(): IssueWrite & { project_id: number } {
   const title = byId('title', HTMLInputElement).value.trim();
   const description = byId('description-editor', HTMLTextAreaElement).value || '';
   const assigneeIdVal = byId('assignee-select', HTMLInputElement).value;
@@ -572,8 +575,9 @@ function getIssueDataFromForm() {
     description,
     deadline: byId('deadline', HTMLInputElement).value ? new Date(byId('deadline', HTMLInputElement).value + 'T12:00:00') : null,
     planned_dates: getPlannedDatesFromDOM(),
-    status: byId('status', HTMLInputElement).value,
-    priority: byId('priority', HTMLInputElement).value,
+    // The hidden inputs only ever hold a value of the status and priority dropdowns.
+    status: byId('status', HTMLInputElement).value as IssueStatus,
+    priority: byId('priority', HTMLInputElement).value as Priority,
     assignee_id: assigneeIdVal ? Number.parseInt(assigneeIdVal) : null,
     position: state.currentIssue ? state.currentIssue.position : 0,
     label: labelId ? { id: Number.parseInt(labelId) } : null,
@@ -1107,7 +1111,7 @@ async function moveIssueToProject(projectId) {
     'primary'
   );
   if (!confirmed) {
-    projectSelect.value = state.currentIssue.project_id;
+    projectSelect.value = String(state.currentIssue.project_id);
     document.getElementById('project-text').textContent = state.currentIssue.project?.name ?? '';
     return;
   }

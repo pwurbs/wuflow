@@ -1,4 +1,5 @@
 import { state, isFilterActive } from '../state.ts';
+import type { Issue } from '../models.ts';
 import { STATUS_ARCHIVE, STATUS_DONE } from '../status-config.ts';
 import { ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { createCardElement } from './card.ts';
@@ -70,8 +71,8 @@ export async function renderArchive(refreshApp?, openModal?, rerenderActiveView?
   doneCount.textContent = isFilterActive() ? `${doneIssues.length}/${filterByStatus(state.issues, STATUS_DONE).length}` : String(doneIssues.length);
 }
 
-function groupByMonth(issues) {
-  const groups: Record<string, any[]> = {};
+function groupByMonth(issues: Issue[]) {
+  const groups: Record<string, Issue[]> = {};
   issues.forEach(issue => {
     const date = new Date(issue.updated_at);
     // Format: "September 2023"

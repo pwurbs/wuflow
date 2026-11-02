@@ -5,7 +5,8 @@
 | Test Type | Scope | Tooling | SonarQube Reporting |
 | :--- | :--- | :--- | :--- |
 | **Unit (Backend)** | Go logic, APIs, Math | `go test` | Yes |
-| **Unit (Frontend)** | JS State logic, Utilities | `vitest` | Yes |
+| **Unit (Frontend)** | Frontend state logic, Utilities | `vitest` | Yes |
+| **Type Check (Frontend)** | Type errors in the TypeScript sources | `tsc` | No |
 | **End-to-End** | Essential User Journeys | `playwright` | No |
 | **Go Fuzzing** | Edge Cases, Input Validation | `go test -fuzz` | No |
 | **Race Detection (Go)** | Data races in backend tests | `go test -race` | No |
@@ -32,14 +33,17 @@ The backend test suite is also run under Go's race detector (`go test -race`) to
 * **When:** Together with fuzzing via the "Go Race & Fuzz" task ([`scripts/go_race_fuzz.sh`](../scripts/go_race_fuzz.sh)). It is not part of the regular "Go Test" task because it takes minutes instead of seconds.
 
 
-## Frontend Unit Testing (Plain JS)
+## Frontend Unit Testing
 Since the frontend contains complex state logic, we do not rely solely on the browser for testing.
 Unit Tests verify logic and state.
-Any JavaScript file containing "decisions" (if/else, state transitions, data mapping) must have a corresponding unit test.
+Any frontend module containing "decisions" (if/else, state transitions, data mapping) must have a corresponding unit test.
 * **Requirement:** Decouple state logic from the DOM.
 * **Tool:** Vitest (preferred for speed).
 * **Why:** Testing state transitions in a unit test is ~100x faster than in a browser.
 All Unit tests are located in the [static/js](../static/js/README.md) directory.
+
+## Type Check (Frontend)
+The TypeScript compiler checks the frontend sources and their tests (`npm run typecheck` in `static/js`). The build does not check types, so the type check runs as a test suite of its own. Setup: [Frontend → Type Checking](frontend.md#type-checking).
 
 
 ## End-to-End (E2E) Tests
@@ -53,8 +57,8 @@ All E2E tests are located in the [playwright](../playwright/README.md) directory
 ## Quality Gate & SonarQube
 SonarQube acts as the single source of truth for **Code Health**.
 
-1. **Combined Coverage:** SonarQube aggregates coverage from both Go (`cover.out`) and JavaScript (`lcov.info`).
-2. **Static Analysis:** We monitor for code smells, cognitive complexity (especially in JS state logic), and security vulnerabilities.
+1. **Combined Coverage:** SonarQube aggregates coverage from both Go (`cover.out`) and the frontend (`lcov.info`).
+2. **Static Analysis:** We monitor for code smells, cognitive complexity (especially in frontend state logic), and security vulnerabilities.
 3. **Requirement:** New PRs should not decrease the overall coverage percentage.
 
 ## Static Application Security Testing (gosec)

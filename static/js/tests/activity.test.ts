@@ -4,6 +4,7 @@ import * as api from '../api.ts';
 import { state } from '../state.ts';
 import { byId } from '../utils.ts';
 import * as utils from '../utils.ts';
+import { makeComment, makeHistoryEntry, makeUser, makeUserRef } from './fixtures.ts';
 
 vi.mock('../api.ts', () => ({
   fetchHistory: vi.fn(),
@@ -85,7 +86,7 @@ describe('Activity Component', () => {
   beforeEach(() => {
     domFixture();
     vi.clearAllMocks();
-    state.currentUser = { id: 1, role: 'user' };
+    state.currentUser = makeUser({ id: 1, role: 'user' });
     vi.mocked(api.fetchHistory).mockResolvedValue([]);
     vi.mocked(api.fetchComments).mockResolvedValue([]);
     setupActivity();
@@ -113,7 +114,7 @@ describe('Activity Component', () => {
 
   it('renders comments with author, timestamp, and sanitized markdown body', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 2, user: { first_name: 'Ann', last_name: 'Thor' }, body: '**bold**', edited: false, created_at: '2026-01-01T10:00:00Z' }
+      makeComment({ id: 1, user_id: 2, user: makeUserRef({ first_name: 'Ann', last_name: 'Thor' }), body: '**bold**', edited: false, created_at: '2026-01-01T10:00:00Z' })
     ]);
     await loadActivity(issue);
 
@@ -125,7 +126,7 @@ describe('Activity Component', () => {
 
   it('marks an edited comment in its timestamp line, showing the edit time rather than the creation time', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 2, user: { first_name: 'Ann', last_name: 'Thor' }, body: 'hi', edited: true, created_at: '2026-01-01T10:00:00Z', updated_at: '2026-01-02T11:00:00Z' }
+      makeComment({ id: 1, user_id: 2, user: makeUserRef({ first_name: 'Ann', last_name: 'Thor' }), body: 'hi', edited: true, created_at: '2026-01-01T10:00:00Z', updated_at: '2026-01-02T11:00:00Z' })
     ]);
     await loadActivity(issue);
     const text = document.querySelector('.comment-time').textContent;
@@ -135,9 +136,9 @@ describe('Activity Component', () => {
   });
 
   it('shows edit/delete actions for the comment author', async () => {
-    state.currentUser = { id: 1, role: 'user' };
+    state.currentUser = makeUser({ id: 1, role: 'user' });
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'mine', edited: false, created_at: '2026-01-01T10:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'mine', edited: false, created_at: '2026-01-01T10:00:00Z' })
     ]);
     await loadActivity(issue);
     expect(document.querySelector('.comment-edit-btn')).not.toBeNull();
@@ -145,9 +146,9 @@ describe('Activity Component', () => {
   });
 
   it('hides edit/delete actions for a non-author, non-admin user', async () => {
-    state.currentUser = { id: 99, role: 'user' };
+    state.currentUser = makeUser({ id: 99, role: 'user' });
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Other', last_name: 'User' }, body: 'not mine', edited: false, created_at: '2026-01-01T10:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Other', last_name: 'User' }), body: 'not mine', edited: false, created_at: '2026-01-01T10:00:00Z' })
     ]);
     await loadActivity(issue);
     expect(document.querySelector('.comment-edit-btn')).toBeNull();
@@ -155,9 +156,9 @@ describe('Activity Component', () => {
   });
 
   it('shows edit/delete actions for an admin on a comment they do not own', async () => {
-    state.currentUser = { id: 99, role: 'admin' };
+    state.currentUser = makeUser({ id: 99, role: 'admin' });
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Other', last_name: 'User' }, body: 'not mine', edited: false, created_at: '2026-01-01T10:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Other', last_name: 'User' }), body: 'not mine', edited: false, created_at: '2026-01-01T10:00:00Z' })
     ]);
     await loadActivity(issue);
     expect(document.querySelector('.comment-edit-btn')).not.toBeNull();
@@ -166,8 +167,8 @@ describe('Activity Component', () => {
 
   it('switches to the History tab and renders history entries oldest-first as given by the API', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      { id: 1, event: 'created', data: {}, user: { first_name: 'Ann', last_name: 'Thor' }, created_at: '2026-01-01T09:00:00Z' },
-      { id: 2, event: 'archived', data: {}, user: { first_name: 'Ann', last_name: 'Thor' }, created_at: '2026-01-02T09:00:00Z' }
+      makeHistoryEntry({ id: 1, event: 'created', data: {}, user: makeUserRef({ first_name: 'Ann', last_name: 'Thor' }), created_at: '2026-01-01T09:00:00Z' }),
+      makeHistoryEntry({ id: 2, event: 'archived', data: {}, user: makeUserRef({ first_name: 'Ann', last_name: 'Thor' }), created_at: '2026-01-02T09:00:00Z' })
     ]);
     await loadActivity(issue);
 
@@ -185,7 +186,7 @@ describe('Activity Component', () => {
 
   it('renders a friendly sentence for a status change, mapping raw keys to display labels', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      { id: 1, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, user: null, created_at: '2026-01-01T09:00:00Z' }
+      makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, user: null, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
     document.getElementById('tab-history').click();
@@ -194,7 +195,7 @@ describe('Activity Component', () => {
 
   it('renders a title/description change without from/to values', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      { id: 1, event: 'updated', data: { field: 'title' }, user: null, created_at: '2026-01-01T09:00:00Z' }
+      makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'title' }, user: null, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
     document.getElementById('tab-history').click();
@@ -203,7 +204,7 @@ describe('Activity Component', () => {
 
   it('renders the task change detail verbatim', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      { id: 1, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, user: null, created_at: '2026-01-01T09:00:00Z' }
+      makeHistoryEntry({ id: 1, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, user: null, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
     document.getElementById('tab-history').click();
@@ -212,7 +213,7 @@ describe('Activity Component', () => {
 
   it('renders a move event with old/new project names and a reset note', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      { id: 1, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, user: null, created_at: '2026-01-01T09:00:00Z' }
+      makeHistoryEntry({ id: 1, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, user: null, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
     document.getElementById('tab-history').click();
@@ -221,13 +222,13 @@ describe('Activity Component', () => {
 
   it('picks the marker icon category from the event (and task field for task events)', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      { id: 1, event: 'created', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' },
-      { id: 2, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, user: null, created_at: '2026-01-02T09:00:00Z' },
-      { id: 3, event: 'archived', data: {}, user: null, created_at: '2026-01-03T09:00:00Z' },
-      { id: 4, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, user: null, created_at: '2026-01-04T09:00:00Z' },
-      { id: 5, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, user: null, created_at: '2026-01-05T09:00:00Z' },
-      { id: 6, event: 'task', data: { field: 'task_completed', detail: "Task: Completed 'Foo'" }, user: null, created_at: '2026-01-06T09:00:00Z' },
-      { id: 7, event: 'task', data: { field: 'task_deleted', detail: "Task: Deleted 'Foo'" }, user: null, created_at: '2026-01-07T09:00:00Z' }
+      makeHistoryEntry({ id: 1, event: 'created', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }),
+      makeHistoryEntry({ id: 2, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, user: null, created_at: '2026-01-02T09:00:00Z' }),
+      makeHistoryEntry({ id: 3, event: 'archived', data: {}, user: null, created_at: '2026-01-03T09:00:00Z' }),
+      makeHistoryEntry({ id: 4, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, user: null, created_at: '2026-01-04T09:00:00Z' }),
+      makeHistoryEntry({ id: 5, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, user: null, created_at: '2026-01-05T09:00:00Z' }),
+      makeHistoryEntry({ id: 6, event: 'task', data: { field: 'task_completed', detail: "Task: Completed 'Foo'" }, user: null, created_at: '2026-01-06T09:00:00Z' }),
+      makeHistoryEntry({ id: 7, event: 'task', data: { field: 'task_deleted', detail: "Task: Deleted 'Foo'" }, user: null, created_at: '2026-01-07T09:00:00Z' })
     ]);
     await loadActivity(issue);
     document.getElementById('tab-history').click();
@@ -249,7 +250,7 @@ describe('Activity Component', () => {
 
   it('greys out the comments of an archived issue, but not those of an open one', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity({ ...issue, status: 'Archive' });
     expect(document.querySelector('.comment-item').getAttribute('aria-disabled')).toBe('true');
@@ -260,7 +261,7 @@ describe('Activity Component', () => {
 
   it.each([['an open', 'Open'], ['an archived', 'Archive']])('opens a link in a comment of %s issue in a new tab instead of leaving the app', async (_label, status) => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'see [docs](https://example.com/a)', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'see [docs](https://example.com/a)', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     const marked = await import('../markdown.ts');
     vi.mocked(marked.renderMarkdown).mockReturnValueOnce('<p>see <a href="https://example.com/a"><span>docs</span></a></p>');
@@ -281,10 +282,10 @@ describe('Activity Component', () => {
   });
 
   it('submits a new comment and refreshes the list', async () => {
-    vi.mocked(api.createComment).mockResolvedValue({ id: 5 });
+    vi.mocked(api.createComment).mockResolvedValue(makeComment({ id: 5 }));
     vi.mocked(api.fetchComments)
       .mockResolvedValueOnce([]) // initial load
-      .mockResolvedValueOnce([{ id: 5, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'new comment', edited: false, created_at: '2026-01-03T09:00:00Z' }]);
+      .mockResolvedValueOnce([makeComment({ id: 5, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'new comment', edited: false, created_at: '2026-01-03T09:00:00Z' })]);
 
     await loadActivity(issue);
 
@@ -325,7 +326,7 @@ describe('Activity Component', () => {
 
   it('saves an edited comment only once while the first save is in flight, with the editor greyed out', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     let resolveUpdate;
     vi.mocked(api.updateComment).mockReturnValue(new Promise(r => { resolveUpdate = r; }));
@@ -475,9 +476,9 @@ describe('Activity Component', () => {
   });
 
   it('hides every comment\'s edit/delete actions while a new comment is open, and restores them after submitting', async () => {
-    vi.mocked(api.createComment).mockResolvedValue({ id: 5 });
+    vi.mocked(api.createComment).mockResolvedValue(makeComment({ id: 5 }));
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
 
@@ -496,7 +497,7 @@ describe('Activity Component', () => {
 
   it('re-applies the hidden comment actions after a tab switch while a new comment is open', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
 
@@ -511,7 +512,7 @@ describe('Activity Component', () => {
 
   it('blocks editing an existing comment while a new comment is unconfirmed', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
 
@@ -531,9 +532,9 @@ describe('Activity Component', () => {
     ['saved', '#comment-list .inline-save-btn']
   ])('blocks the new-comment form while an existing comment is being edited, and restores it once %s', async (_label, finishBtn) => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
-    vi.mocked(api.updateComment).mockResolvedValue({});
+    vi.mocked(api.updateComment).mockResolvedValue(makeComment({}));
     await loadActivity(issue);
 
     const input = byId('new-comment-body', HTMLTextAreaElement);
@@ -553,7 +554,7 @@ describe('Activity Component', () => {
 
   it('deletes a comment after confirmation and refreshes the list', async () => {
     vi.mocked(api.fetchComments)
-      .mockResolvedValueOnce([{ id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'mine', edited: false, created_at: '2026-01-01T09:00:00Z' }])
+      .mockResolvedValueOnce([makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'mine', edited: false, created_at: '2026-01-01T09:00:00Z' })])
       .mockResolvedValueOnce([]);
     vi.mocked(utils.showConfirm).mockResolvedValue(true);
     vi.mocked(api.deleteComment).mockResolvedValue();
@@ -571,7 +572,7 @@ describe('Activity Component', () => {
 
   it('does not delete when the user cancels the confirmation', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'mine', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'mine', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     vi.mocked(utils.showConfirm).mockResolvedValue(false);
 
@@ -585,9 +586,9 @@ describe('Activity Component', () => {
 
   it('enters inline edit mode and saves an edited comment', async () => {
     vi.mocked(api.fetchComments)
-      .mockResolvedValueOnce([{ id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }])
-      .mockResolvedValueOnce([{ id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'edited text', edited: true, created_at: '2026-01-01T09:00:00Z', updated_at: '2026-01-01T09:05:00Z' }]);
-    vi.mocked(api.updateComment).mockResolvedValue({});
+      .mockResolvedValueOnce([makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })])
+      .mockResolvedValueOnce([makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'edited text', edited: true, created_at: '2026-01-01T09:00:00Z', updated_at: '2026-01-01T09:05:00Z' })]);
+    vi.mocked(api.updateComment).mockResolvedValue(makeComment({}));
 
     await loadActivity(issue);
     document.querySelector<HTMLElement>('.comment-edit-btn').click();
@@ -609,7 +610,7 @@ describe('Activity Component', () => {
 
   it('auto-continues a numbered list on Enter in the inline comment editor', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
 
     await loadActivity(issue);
@@ -627,7 +628,7 @@ describe('Activity Component', () => {
 
   it('gives the inline comment editor its own visible character counter', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
 
     await loadActivity(issue);
@@ -641,7 +642,7 @@ describe('Activity Component', () => {
 
   it('cancels inline edit mode without calling the API', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
 
     await loadActivity(issue);
@@ -662,8 +663,8 @@ describe('Activity Component', () => {
 
   it('hides edit/delete actions on other comments while one is being edited, and restores them on cancel', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' },
-      { id: 2, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'second', edited: false, created_at: '2026-01-02T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }),
+      makeComment({ id: 2, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'second', edited: false, created_at: '2026-01-02T09:00:00Z' })
     ]);
     await loadActivity(issue);
 
@@ -678,8 +679,8 @@ describe('Activity Component', () => {
 
   it('blocks editing a second comment while another is already being edited', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' },
-      { id: 2, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'second', edited: false, created_at: '2026-01-02T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' }),
+      makeComment({ id: 2, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'second', edited: false, created_at: '2026-01-02T09:00:00Z' })
     ]);
     await loadActivity(issue);
 
@@ -693,7 +694,7 @@ describe('Activity Component', () => {
 
   it('shows an error notification when saving an edited comment fails', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     vi.mocked(api.updateComment).mockRejectedValue(new Error('save failed'));
 
@@ -713,7 +714,7 @@ describe('Activity Component', () => {
 
   it('shows an error notification when deleting a comment fails', async () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'mine', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'mine', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     vi.mocked(utils.showConfirm).mockResolvedValue(true);
     vi.mocked(api.deleteComment).mockRejectedValue(new Error('delete failed'));
@@ -740,7 +741,7 @@ describe('Activity Component', () => {
   });
 
   it('shows an error notification when the comment list re-fetch fails after a successful create', async () => {
-    vi.mocked(api.createComment).mockResolvedValue({ id: 5 });
+    vi.mocked(api.createComment).mockResolvedValue(makeComment({ id: 5 }));
     vi.mocked(api.fetchComments)
       .mockResolvedValueOnce([]) // initial load
       .mockRejectedValueOnce(new Error('refresh failed'));
@@ -760,7 +761,7 @@ describe('Activity Component', () => {
     const key = (el, k, opts = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
     const tick = async () => { for (let i = 0; i < 3; i++) await new Promise(process.nextTick); };
     const oneComment = () => vi.mocked(api.fetchComments).mockResolvedValue([
-      { id: 1, user_id: 1, user: { first_name: 'Me', last_name: 'Self' }, body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' }
+      makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
 
     it('discards the new comment with Escape, asking because text was typed', async () => {
@@ -783,7 +784,7 @@ describe('Activity Component', () => {
 
     it('saves an edited comment with Cmd/Ctrl+Enter', async () => {
       oneComment();
-      vi.mocked(api.updateComment).mockResolvedValue({});
+      vi.mocked(api.updateComment).mockResolvedValue(makeComment({}));
       await loadActivity(issue);
       document.querySelector<HTMLElement>('.comment-edit-btn').click();
       const textarea = document.querySelector<HTMLInputElement>('.comment-edit-input');
@@ -816,7 +817,7 @@ describe('Activity Component', () => {
     });
 
     it('offers the open new comment as a draft whose save reports success', async () => {
-      vi.mocked(api.createComment).mockResolvedValue({ id: 5 });
+      vi.mocked(api.createComment).mockResolvedValue(makeComment({ id: 5 }));
       await loadActivity(issue);
       expect(getOpenCommentDraft()).toBeNull();
 
@@ -865,7 +866,7 @@ describe('Activity Component', () => {
   describe('history sentence text for less common event and field types', () => {
     it('renders an unarchived event', async () => {
       vi.mocked(api.fetchHistory).mockResolvedValue([
-        { id: 1, event: 'unarchived', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }
+        makeHistoryEntry({ id: 1, event: 'unarchived', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await loadActivity(issue);
       document.getElementById('tab-history').click();
@@ -874,6 +875,7 @@ describe('Activity Component', () => {
 
     it('falls back to the raw event name for an unrecognized event type', async () => {
       vi.mocked(api.fetchHistory).mockResolvedValue([
+        // @ts-expect-error: an event the backend may add before the frontend knows it
         { id: 1, event: 'some_future_event', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }
       ]);
       await loadActivity(issue);
@@ -890,7 +892,7 @@ describe('Activity Component', () => {
       ['release', { from: 'v1', to: 'v2' }, 'Release: Changed v1 → v2']
     ])('renders a %s change sentence', async (field, fromTo, expected) => {
       vi.mocked(api.fetchHistory).mockResolvedValue([
-        { id: 1, event: 'updated', data: { field, ...fromTo }, user: null, created_at: '2026-01-01T09:00:00Z' }
+        makeHistoryEntry({ id: 1, event: 'updated', data: { field, ...fromTo }, user: null, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await loadActivity(issue);
       document.getElementById('tab-history').click();
@@ -899,7 +901,7 @@ describe('Activity Component', () => {
 
     it('falls back to a generic "Issue: Updated" sentence for an unrecognized field', async () => {
       vi.mocked(api.fetchHistory).mockResolvedValue([
-        { id: 1, event: 'updated', data: { field: 'some_future_field' }, user: null, created_at: '2026-01-01T09:00:00Z' }
+        makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'some_future_field' }, user: null, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await loadActivity(issue);
       document.getElementById('tab-history').click();
@@ -915,7 +917,7 @@ describe('Activity Component', () => {
       expect(document.querySelectorAll('.history-item')).toHaveLength(0);
 
       vi.mocked(api.fetchHistory).mockResolvedValueOnce([
-        { id: 1, event: 'created', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }
+        makeHistoryEntry({ id: 1, event: 'created', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await refreshHistory();
 
@@ -948,7 +950,7 @@ describe('Activity Component', () => {
       // fresh load resolves before the stale background refresh does.
       const otherIssue = { ...issue, id: 99 };
       vi.mocked(api.fetchHistory).mockResolvedValueOnce([
-        { id: 5, event: 'created', data: {}, user: null, created_at: '2026-02-01T09:00:00Z' }
+        makeHistoryEntry({ id: 5, event: 'created', data: {}, user: null, created_at: '2026-02-01T09:00:00Z' })
       ]);
       vi.mocked(api.fetchComments).mockResolvedValueOnce([]);
       await loadActivity(otherIssue);

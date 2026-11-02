@@ -6,6 +6,7 @@ import * as card from '../components/card.ts';
 import * as api from '../api.ts';
 import * as dragModule from '../drag.ts';
 import type { CardCallbacks } from '../components/card.ts';
+import { makeIssue, makeRelease, makeUser } from './fixtures.ts';
 
 // Mock dependencies
 vi.mock('../state.ts', () => ({
@@ -82,9 +83,9 @@ describe('Backlog Component', () => {
   describe('renderBacklog', () => {
     it('should render cards with move callbacks', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Open', position: 1 },
-        { id: 3, title: 'Item 3', status: 'Todo', position: 0 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 }),
+        makeIssue({ id: 3, title: 'Item 3', status: 'Todo', position: 0 })
       ];
       state.state.issues = issues;
       // Mocks for filter/sort are simple pass-throughs or simple logic above
@@ -111,9 +112,9 @@ describe('Backlog Component', () => {
 
     it('handleMoveTop should save the new order in one positions request', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Open', position: 1 },
-        { id: 3, title: 'Item 3', status: 'Open', position: 2 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 }),
+        makeIssue({ id: 3, title: 'Item 3', status: 'Open', position: 2 })
       ];
       state.state.issues = structuredClone(issues); // Deep copy
 
@@ -131,7 +132,7 @@ describe('Backlog Component', () => {
       // Item 3 moves to pos 0. Item 1 to 1, Item 2 to 2.
       // updatePositions only sends changed items — here all three, in one request.
       expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
-      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(1, [
         { id: 3, position: 0 }, { id: 1, position: 1 }, { id: 2, position: 2 }
       ]);
       expect(api.updateIssue).not.toHaveBeenCalled();
@@ -143,8 +144,8 @@ describe('Backlog Component', () => {
 
     it('handleMoveTop should be null if already at top', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Open', position: 1 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 })
       ];
       state.state.issues = structuredClone(issues);
 
@@ -157,9 +158,9 @@ describe('Backlog Component', () => {
 
     it('handleMoveBottom should reorder issues', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Open', position: 1 },
-        { id: 3, title: 'Item 3', status: 'Open', position: 2 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 }),
+        makeIssue({ id: 3, title: 'Item 3', status: 'Open', position: 2 })
       ];
       state.state.issues = structuredClone(issues);
 
@@ -177,7 +178,7 @@ describe('Backlog Component', () => {
       // Item 1 moves to end (pos 2).
       // Item 2 moves to 0. Item 3 moves to 1.
       expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
-      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(1, [
         { id: 2, position: 0 }, { id: 3, position: 1 }, { id: 1, position: 2 }
       ]);
       expect(api.updateIssue).not.toHaveBeenCalled();
@@ -190,12 +191,12 @@ describe('Backlog Component', () => {
       // but is also returned by fetchOpenIssuesByProject (shouldn't happen normally,
       // but the merge guard must not create duplicates regardless).
       state.state.issues = [
-        { id: 1, title: 'Already There', status: 'Open', position: 0 }
+        makeIssue({ id: 1, title: 'Already There', status: 'Open', position: 0 })
       ];
 
       vi.mocked(api.fetchOpenIssuesByProject).mockResolvedValueOnce([
-        { id: 1, title: 'Already There', status: 'Open', position: 0 }, // duplicate
-        { id: 2, title: 'New Open', status: 'Open', position: 1 }       // new
+        makeIssue({ id: 1, title: 'Already There', status: 'Open', position: 0 }), // duplicate
+        makeIssue({ id: 2, title: 'New Open', status: 'Open', position: 1 })       // new
       ]);
 
       await renderBacklog(vi.fn(), vi.fn());
@@ -207,8 +208,8 @@ describe('Backlog Component', () => {
 
     it('handleMoveBottom should be null if already at bottom', async () => {
       const issues = [
-        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Open', position: 1 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 })
       ];
       state.state.issues = structuredClone(issues);
 
@@ -220,7 +221,7 @@ describe('Backlog Component', () => {
     });
 
     it('handleTogglePriority should flip priority and call updateIssue', async () => {
-      const issues = [{ id: 1, title: 'Item 1', status: 'Open', position: 0, priority: 'Normal' }];
+      const issues = [makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0, priority: 'Normal' })];
       state.state.issues = structuredClone(issues);
 
       const rerenderActiveView = vi.fn();
@@ -229,13 +230,13 @@ describe('Backlog Component', () => {
       const card1 = document.getElementById('backlog-list').children[0];
       await cardCallbacks.get(card1).onTogglePriority();
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ priority: 'High' }));
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }));
       expect(rerenderActiveView).toHaveBeenCalled();
     });
 
     it('handleAssignToMe should assign the issue to the current user and call updateIssue', async () => {
-      state.state.currentUser = { id: 5, first_name: 'Me', last_name: 'User', role: 'admin' };
-      const issues = [{ id: 1, title: 'Item 1', status: 'Open', position: 0, assignee_id: 7 }];
+      state.state.currentUser = makeUser({ id: 5, first_name: 'Me', last_name: 'User', role: 'admin' });
+      const issues = [makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0, assignee_id: 7 })];
       state.state.issues = structuredClone(issues);
 
       const rerenderActiveView = vi.fn();
@@ -245,7 +246,7 @@ describe('Backlog Component', () => {
       expect(cardCallbacks.get(card1).onAssignToMe).toBeDefined();
       await cardCallbacks.get(card1).onAssignToMe();
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ assignee_id: 5 }));
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ assignee_id: 5 }));
       expect(rerenderActiveView).toHaveBeenCalled();
     });
   });
@@ -260,9 +261,9 @@ describe('Backlog Component', () => {
 
     it('should show release cards for each open release plus No Release', async () => {
       state.state.releases = [
-        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
-        { id: 2, name: 'v2.0', status: 'open', release_date: null, created_at: '2024-02-01' },
-        { id: 3, name: 'v3.0', status: 'closed', release_date: null, created_at: '2024-03-01' },
+        makeRelease({ id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
+        makeRelease({ id: 2, name: 'v2.0', status: 'open', release_date: null, created_at: '2024-02-01' }),
+        makeRelease({ id: 3, name: 'v3.0', status: 'closed', release_date: null, created_at: '2024-03-01' }),
       ];
       state.state.issues = [];
       await renderBacklog(vi.fn(), vi.fn());
@@ -275,7 +276,7 @@ describe('Backlog Component', () => {
 
     it('should mark a lane card as active when its release id is in releaseFilterIds', async () => {
       state.state.releases = [
-        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+        makeRelease({ id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
       ];
       state.state.filter.releaseFilterIds = [1];
       state.state.issues = [];
@@ -286,12 +287,12 @@ describe('Backlog Component', () => {
 
     it('should display the correct issue count on each lane card', async () => {
       state.state.releases = [
-        { id: 10, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+        makeRelease({ id: 10, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
       ];
       state.state.issues = [
-        { id: 1, title: 'A', status: 'Open', position: 0, release_id: 10 },
-        { id: 2, title: 'B', status: 'Todo', position: 1, release_id: 10 },
-        { id: 3, title: 'C', status: 'Open', position: 2, release_id: null },
+        makeIssue({ id: 1, title: 'A', status: 'Open', position: 0, release_id: 10 }),
+        makeIssue({ id: 2, title: 'B', status: 'Todo', position: 1, release_id: 10 }),
+        makeIssue({ id: 3, title: 'C', status: 'Open', position: 2, release_id: null }),
       ];
       await renderBacklog(vi.fn(), vi.fn());
       const cards = document.querySelectorAll('.release-lane-card');
@@ -302,8 +303,8 @@ describe('Backlog Component', () => {
 
     it('should sort open releases by release_date ascending', async () => {
       state.state.releases = [
-        { id: 1, name: 'Far', status: 'open', release_date: '2025-12-01', created_at: '2024-01-01' },
-        { id: 2, name: 'Near', status: 'open', release_date: '2025-01-01', created_at: '2024-01-01' },
+        makeRelease({ id: 1, name: 'Far', status: 'open', release_date: '2025-12-01', created_at: '2024-01-01' }),
+        makeRelease({ id: 2, name: 'Near', status: 'open', release_date: '2025-01-01', created_at: '2024-01-01' }),
       ];
       state.state.issues = [];
       await renderBacklog(vi.fn(), vi.fn());
@@ -314,7 +315,7 @@ describe('Backlog Component', () => {
 
     it('should toggle filter and re-render when a lane card is clicked', async () => {
       state.state.releases = [
-        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+        makeRelease({ id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
       ];
       state.state.issues = [];
       await renderBacklog(vi.fn(), vi.fn());
@@ -325,12 +326,12 @@ describe('Backlog Component', () => {
 
     it('should assign a release to a dragged issue on drop', async () => {
       state.state.releases = [
-        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+        makeRelease({ id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
       ];
       state.state.issues = [
-        { id: 99, title: 'Test', status: 'Open', position: 0, release_id: null },
+        makeIssue({ id: 99, title: 'Test', status: 'Open', position: 0, release_id: null }),
       ];
-      vi.mocked(api.updateIssue, { partial: true }).mockResolvedValueOnce({ issue: { id: 99, release_id: 1 } });
+      vi.mocked(api.updateIssue, { partial: true }).mockResolvedValueOnce({ issue: makeIssue({ id: 99, release_id: 1 }) });
 
       const mockCard = document.createElement('div');
       mockCard.className = 'card';
@@ -345,12 +346,12 @@ describe('Backlog Component', () => {
 
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ id: 99, release_id: 1 }));
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ id: 99, release_id: 1 }));
     });
 
     it('should add drag-over class on dragover when a card is being dragged', async () => {
       state.state.releases = [
-        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+        makeRelease({ id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
       ];
       state.state.issues = [];
 
@@ -372,9 +373,9 @@ describe('Backlog Component', () => {
     it('should show filtered counts when a filter is active', async () => {
       vi.mocked(state.isFilterActive).mockReturnValue(true);
       state.state.issues = [
-        { id: 1, title: 'A', status: 'Open', position: 0 },
-        { id: 2, title: 'B', status: 'Open', position: 1 },
-        { id: 3, title: 'C', status: 'Todo', position: 0 },
+        makeIssue({ id: 1, title: 'A', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'B', status: 'Open', position: 1 }),
+        makeIssue({ id: 3, title: 'C', status: 'Todo', position: 0 }),
       ];
 
       await renderBacklog(vi.fn(), vi.fn());
@@ -386,10 +387,10 @@ describe('Backlog Component', () => {
 
     it('should not call updateIssue if issue already has the target release', async () => {
       state.state.releases = [
-        { id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' },
+        makeRelease({ id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
       ];
       state.state.issues = [
-        { id: 99, title: 'Test', status: 'Open', position: 0, release_id: 1 },
+        makeIssue({ id: 99, title: 'Test', status: 'Open', position: 0, release_id: 1 }),
       ];
 
       const mockCard = document.createElement('div');
@@ -432,7 +433,7 @@ describe('Backlog Component', () => {
       setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
 
       const todoSection = document.getElementById('backlog-todo-section');
-      const issue = { id: 7, title: 'Open item', status: 'Open', position: 0, planned_dates: ['2026-10-12'] };
+      const issue = makeIssue({ id: 7, title: 'Open item', status: 'Open', position: 0, planned_dates: ['2026-10-12'] });
       state.state.issues = [issue];
       const card = document.createElement('div');
       card.className = 'card';
@@ -445,7 +446,7 @@ describe('Backlog Component', () => {
       todoSection.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
 
       await vi.waitFor(() => expect(rerenderActiveView).toHaveBeenCalled());
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ id: 7 }));
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ id: 7 }));
       // The old status is back after the failure, so the re-render shows the card in Open again
       expect(issue).toMatchObject({ status: 'Open', planned_dates: ['2026-10-12'] });
       expect(refreshApp).toHaveBeenCalled();
@@ -457,7 +458,7 @@ describe('Backlog Component', () => {
       setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
 
       const openSection = document.getElementById('backlog-open-section');
-      const issue = { id: 99, title: 'Todo item', status: 'Todo', planned_dates: ['2026-10-20'] };
+      const issue = makeIssue({ id: 99, title: 'Todo item', status: 'Todo', planned_dates: ['2026-10-20'] });
       state.state.issues = [issue];
 
       const card = document.createElement('div');
@@ -474,7 +475,7 @@ describe('Backlog Component', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
 
       // Planned dates change only in the planning sidebar or the issue modal, never by a status move.
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         id: 99,
         status: 'Open',
         planned_dates: ['2026-10-20']
@@ -488,7 +489,7 @@ describe('Backlog Component', () => {
       setupBacklogView(vi.fn(), vi.fn(), vi.fn());
 
       const openSection = document.getElementById('backlog-open-section');
-      state.state.issues = [{ id: 98, title: 'Plan Item', status: 'Todo', planned_dates: ['2026-10-20'] }];
+      state.state.issues = [makeIssue({ id: 98, title: 'Plan Item', status: 'Todo', planned_dates: ['2026-10-20'] })];
       const item = document.createElement('div');
       item.classList.add('planning-item');
       item.dataset.id = '98';
@@ -514,8 +515,8 @@ describe('Backlog Component', () => {
 
       // Mock state with 2 items
       state.state.issues = [
-        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Open', position: 1 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 })
       ];
 
       // Simulate that Item 2 was dragged and dropped before Item 1
@@ -545,7 +546,7 @@ describe('Backlog Component', () => {
 
       // A reorder within one list is a single positions request
       expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
-      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(1, [
         { id: 2, position: 0 }, { id: 1, position: 1 }
       ]);
       expect(api.updateIssue).not.toHaveBeenCalled();
@@ -558,8 +559,8 @@ describe('Backlog Component', () => {
 
       const backlogList = document.getElementById('backlog-list');
       state.state.issues = [
-        { id: 1, title: 'Item 1', status: 'Open', position: 0 },
-        { id: 2, title: 'Item 2', status: 'Open', position: 1 }
+        makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
+        makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 })
       ];
       const card1 = document.createElement('div');
       card1.className = 'card';

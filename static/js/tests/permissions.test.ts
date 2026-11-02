@@ -103,11 +103,14 @@ describe('can()', () => {
     });
 
     it('returns false for unknown role', () => {
+        // @ts-expect-error: tests the runtime guard against a role outside the type
         expect(can('superadmin', ACTION_DELETE_ISSUE)).toBe(false);
     });
 
     it('returns false for unknown action', () => {
+        // @ts-expect-error: tests the runtime guard against an action outside the type
         expect(can(ROLE_SYSADMIN, 'nonexistent:action')).toBe(false);
+        // @ts-expect-error: as above
         expect(can(ROLE_ADMIN, 'nonexistent:action')).toBe(false);
     });
 

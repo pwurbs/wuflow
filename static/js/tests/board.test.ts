@@ -8,6 +8,7 @@ import * as drag from '../drag.ts';
 import * as api from '../api.ts';
 import * as listUtils from '../list-utils.ts';
 import * as utils from '../utils.ts';
+import { makeIssue, makeUser } from './fixtures.ts';
 
 // Mock dependencies
 vi.mock('../state.ts', () => ({
@@ -82,16 +83,16 @@ describe('Board Component', () => {
   beforeEach(() => {
     document.body.innerHTML = `<div class="board-columns"><aside class="sidebar"></aside></div>`;
     state.state.issues = [];
-    state.state.currentUser = { role: 'admin' };
+    state.state.currentUser = makeUser({ id: 100, role: 'admin' });
     vi.clearAllMocks();
   });
 
   describe('renderBoard', () => {
     it('should render issues into correct columns', () => {
       const issues = [
-        { id: 1, title: 'Task 1', status: 'Todo' },
-        { id: 2, title: 'Task 2', status: 'Stage2' },
-        { id: 3, title: 'Task 3', status: 'Done' }
+        makeIssue({ id: 1, title: 'Task 1', status: 'Todo' }),
+        makeIssue({ id: 2, title: 'Task 2', status: 'Stage2' }),
+        makeIssue({ id: 3, title: 'Task 3', status: 'Done' })
       ];
 
       state.state.issues = issues;
@@ -110,8 +111,8 @@ describe('Board Component', () => {
 
     it('should update column counts', () => {
       const issues = [
-        { id: 1, title: 'Task 1', status: 'Todo' },
-        { id: 2, title: 'Task 2', status: 'Todo' }
+        makeIssue({ id: 1, title: 'Task 1', status: 'Todo' }),
+        makeIssue({ id: 2, title: 'Task 2', status: 'Todo' })
       ];
       state.state.issues = issues;
       vi.mocked(filters.filterIssues).mockReturnValue(issues);
@@ -127,7 +128,7 @@ describe('Board Component', () => {
     });
 
     it('should filter issues properly', () => {
-      state.state.issues = [{ id: 1, status: 'Todo' }];
+      state.state.issues = [makeIssue({ id: 1, status: 'Todo' })];
       // Mock filter to return empty
       vi.mocked(filters.filterIssues).mockReturnValue([]);
       vi.mocked(filters.sortByPosition).mockReturnValue([]);
@@ -185,7 +186,7 @@ describe('Board Component', () => {
     it('should revert card if drag was not successful', () => {
       setupBoardView(vi.fn(), vi.fn(), undefined);
 
-      const issues = [{ id: 1, title: 'Task 1', status: 'Todo' }];
+      const issues = [makeIssue({ id: 1, title: 'Task 1', status: 'Todo' })];
       state.state.issues = issues;
       vi.mocked(filters.filterIssues).mockReturnValue(issues);
       vi.mocked(filters.sortByPosition).mockReturnValue(issues);
@@ -319,7 +320,7 @@ describe('Board Component', () => {
 
       // Mock issues state
       state.state.issues = [
-        { id: 1, title: 'Task 1', status: 'Todo', position: 0 }
+        makeIssue({ id: 1, title: 'Task 1', status: 'Todo', position: 0 })
       ];
 
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockCard);
@@ -334,7 +335,7 @@ describe('Board Component', () => {
 
       // The moved card changed status, so it is saved with its per-issue PUT
       await vi.waitFor(() => {
-        expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+        expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
           id: 1,
           status: 'Stage2',
           position: 0
@@ -347,7 +348,7 @@ describe('Board Component', () => {
       const refreshApp = vi.fn();
 
       // Render the issue into the board so the card exists at the correct position
-      const issues = [{ id: 1, title: 'Task 1', status: 'Todo', position: 0 }];
+      const issues = [makeIssue({ id: 1, title: 'Task 1', status: 'Todo', position: 0 })];
       state.state.issues = issues;
       vi.mocked(filters.filterIssues).mockReturnValue(issues);
       vi.mocked(filters.sortByPosition).mockReturnValue(issues);
@@ -376,8 +377,8 @@ describe('Board Component', () => {
       // Two issues in the same column so onMoveTop/onMoveBottom aren't both null
       // (a lone issue is simultaneously first and last in its column).
       const issues = [
-        { id: 1, title: 'Task 1', status: 'Todo', position: 0, priority: 'Normal' },
-        { id: 2, title: 'Task 2', status: 'Todo', position: 1, priority: 'Normal' }
+        makeIssue({ id: 1, title: 'Task 1', status: 'Todo', position: 0, priority: 'Normal' }),
+        makeIssue({ id: 2, title: 'Task 2', status: 'Todo', position: 1, priority: 'Normal' })
       ];
       state.state.issues = issues;
       vi.mocked(filters.filterIssues).mockReturnValue(issues);
@@ -406,10 +407,10 @@ describe('Board Component', () => {
     });
 
     it('should pass onAssignToMe only when user is not the assignee', () => {
-      state.state.currentUser = { id: 99, first_name: 'Me', last_name: 'User' };
+      state.state.currentUser = makeUser({ id: 99, first_name: 'Me', last_name: 'User' });
       const issues = [
-        { id: 1, status: 'Todo', position: 0, assignee_id: 99 },
-        { id: 2, status: 'Todo', position: 1, assignee_id: 7  }
+        makeIssue({ id: 1, status: 'Todo', position: 0, assignee_id: 99 }),
+        makeIssue({ id: 2, status: 'Todo', position: 1, assignee_id: 7  })
       ];
       state.state.issues = issues;
       vi.mocked(filters.filterIssues).mockReturnValue(issues);
@@ -496,7 +497,7 @@ describe('Board Component', () => {
       mockCard.dataset.id = '1';
 
       state.state.issues = [
-        { id: 1, title: 'Task 1', status: 'Todo', position: 0 }
+        makeIssue({ id: 1, title: 'Task 1', status: 'Todo', position: 0 })
       ];
 
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockCard);
@@ -520,7 +521,7 @@ describe('Board Component', () => {
       vi.mocked(filters.filterIssues).mockImplementation(issues => issues);
       vi.mocked(filters.sortByPosition).mockImplementation(issues => issues);
       state.state.issues = [
-        { id: 1, title: 'Task 1', status: 'Stage1', position: 0 }
+        makeIssue({ id: 1, title: 'Task 1', status: 'Stage1', position: 0 })
       ];
       renderBoard();
 
@@ -546,8 +547,8 @@ describe('Board Component', () => {
       vi.mocked(filters.filterIssues).mockImplementation(issues => issues);
       vi.mocked(filters.sortByPosition).mockImplementation(issues => [...issues].sort((a, b) => a.position - b.position));
       state.state.issues = [
-        { id: 1, title: 'Task 1', status: 'Stage1', position: 0 },
-        { id: 2, title: 'Task 2', status: 'Stage1', position: 1 }
+        makeIssue({ id: 1, title: 'Task 1', status: 'Stage1', position: 0 }),
+        makeIssue({ id: 2, title: 'Task 2', status: 'Stage1', position: 1 })
       ];
       renderBoard();
 
@@ -562,7 +563,7 @@ describe('Board Component', () => {
       await vi.waitFor(() => {
         expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed. The change was not saved.', 'error');
       });
-      expect(api.updateIssuePositions).toHaveBeenCalledWith(undefined, [{ id: 2, position: 0 }, { id: 1, position: 1 }]);
+      expect(api.updateIssuePositions).toHaveBeenCalledWith(1, [{ id: 2, position: 0 }, { id: 1, position: 1 }]);
       expect(state.state.issues.map(i => [i.id, i.position])).toEqual([[1, 0], [2, 1]]);
       // renderBoard rebuilds the columns, so query the re-rendered one
       const rendered = document.querySelector('.column[data-status="Stage1"] .column-content');

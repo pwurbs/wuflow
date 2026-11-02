@@ -6,7 +6,7 @@
     - Uses HTML5 attributes (`maxlength`, `required`, `type="email"`) for basic constraints.
     - JavaScript logic handles complex rules (e.g., password strength) and displays error toasts.
     - Prevents invalid requests from being sent to the server.
-    - All limits and regex patterns are centrally defined in `static/js/validation-config.js`.
+    - All limits and regex patterns are centrally defined in `static/js/validation-config.ts`.
 
 2.  **Server-Side (Backend)**:
     - The source of truth for data integrity.

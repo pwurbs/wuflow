@@ -16,7 +16,7 @@ The issue description **and** issue comments in wuFlow natively support Markdown
 3. **Retrieval and Client-Side Rendering**
    - Clients retrieve the raw Markdown string via the API.
    - **Parsing**: The `marked` library converts the Markdown string into raw HTML (GitHub Flavored Markdown is enabled).
-   - **Sanitization**: The raw HTML is passed through `DOMPurify` (in `markdown.js`), which acts as an air-tight security boundary. The issue description preview and the Activity area's comment bodies both call the same `renderMarkdown()` helper. Its variant `renderMarkdownWithReport()` runs the same pipeline and also reports whether DOMPurify removed something, for the notifications under "Behaviour on disallowed tags".
+   - **Sanitization**: The raw HTML is passed through `DOMPurify` (in `markdown.ts`), which acts as an air-tight security boundary. The issue description preview and the Activity area's comment bodies both call the same `renderMarkdown()` helper. Its variant `renderMarkdownWithReport()` runs the same pipeline and also reports whether DOMPurify removed something, for the notifications under "Behaviour on disallowed tags".
    - The safe, purified HTML is then injected into the DOM for viewing.
 
 ## API Consumers & Trust Boundary
@@ -51,7 +51,7 @@ Any tag outside the allowlist is treated the same, whether it is `<script>` or a
 
 | Where | What happens |
 |-------|--------------|
-| Creating an issue (Save) | Blocked with "Description contains unsupported HTML tags." (frontend only, `handleIssueSubmit` in `modal.js`). The backend accepts the text unchanged. |
+| Creating an issue (Save) | Blocked with "Description contains unsupported HTML tags." (frontend only, `handleIssueSubmit` in `modal.ts`). The backend accepts the text unchanged. |
 | Editing a description inline | Saved as typed, then a notification "Unsupported HTML tags are not rendered for security." |
 | Preview button | The tag is removed from the preview, with the same notification. |
 | Viewing an issue, comments | The tag is removed from the output without a message. |
