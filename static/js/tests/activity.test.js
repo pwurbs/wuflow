@@ -19,6 +19,7 @@ vi.mock('../state.js', () => ({
 vi.mock('../utils.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
+    byId: actual.byId,
     escapeHtml: vi.fn(s => s),
     formatDateTime: vi.fn(dateStr => `formatted:${dateStr}`),
     getUserInitials: vi.fn(user => {

@@ -98,7 +98,7 @@ export function renderBoard(refreshApp, openModal, rerenderActiveView) {
   });
 
   const filterActive = isFilterActive();
-  document.querySelectorAll('[data-status]').forEach(el => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-status]')).forEach(el => {
     const status = el.dataset.status;
     const countEl = el.querySelector('.count');
     if (countEl && counts[status] !== undefined) {
@@ -174,9 +174,9 @@ export function setupBoardView(refreshApp, openModal, rerenderActiveView) {
 // saveIssueOrder (which also restores the old order if the save fails).
 function getBoardUpdates() {
   const changes = [];
-  document.querySelectorAll('.column').forEach(col => {
+  /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.column')).forEach(col => {
     const status = col.dataset.status;
-    const cards = [...col.querySelectorAll('.column-content .card')];
+    const cards = [.../** @type {NodeListOf<HTMLElement>} */ (col.querySelectorAll('.column-content .card'))];
     cards.forEach((card, index) => {
       const id = Number.parseInt(card.dataset.id);
       const issue = state.issues.find(i => i.id === id);

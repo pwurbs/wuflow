@@ -158,7 +158,7 @@ export function renderPlanningPanel(refreshApp, openModal, rerenderActiveView) {
     }
   });
 
-  planningCount.textContent = count;
+  planningCount.textContent = String(count);
 
   if (isFilterActive()) {
     let totalCount = 0;
@@ -207,7 +207,7 @@ function createPlanningDayElement(title, idSuffix) {
     div.classList.add('drag-over');
   });
   div.addEventListener('dragleave', (e) => {
-    if (!div.contains(e.relatedTarget)) div.classList.remove('drag-over');
+    if (!(e.relatedTarget instanceof Node && div.contains(e.relatedTarget))) div.classList.remove('drag-over');
   });
   div.addEventListener('drop', handlePlanningDrop);
 

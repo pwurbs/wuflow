@@ -1,5 +1,5 @@
 import { fetchUsers, createUser, updateUser, deleteUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.js';
-import { showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.js';
+import { byId, showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.js';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.js';
 import { state, setUsers, setProjects } from '../state.js';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.js';
@@ -42,8 +42,8 @@ function setupProjectModal(refreshCallback) {
   const form = document.getElementById('project-form');
   const projectDeleteBtn = document.getElementById('project-modal-delete');
 
-  const nameInput = document.getElementById('project-name');
-  const descInput = document.getElementById('project-description');
+  const nameInput = byId('project-name', HTMLInputElement);
+  const descInput = byId('project-description', HTMLTextAreaElement);
   if (nameInput) initCharCounter(nameInput, MAX_PROJECT_NAME_LEN);
   if (descInput) initCharCounter(descInput, MAX_PROJECT_DESC_LEN);
 
@@ -62,8 +62,8 @@ function setupProjectModal(refreshCallback) {
 function openProjectModal(project) {
   const overlay = document.getElementById('project-modal-overlay');
   const title = document.getElementById('project-modal-title');
-  const nameInput = document.getElementById('project-name');
-  const descInput = document.getElementById('project-description');
+  const nameInput = byId('project-name', HTMLInputElement);
+  const descInput = byId('project-description', HTMLTextAreaElement);
   const errorDisplay = document.getElementById('project-modal-error');
   const deleteBtn = document.getElementById('project-modal-delete');
 
@@ -103,8 +103,8 @@ function closeProjectModal() {
 }
 
 async function handleProjectSubmit(refreshCallback) {
-  const nameInput = document.getElementById('project-name');
-  const descInput = document.getElementById('project-description');
+  const nameInput = byId('project-name', HTMLInputElement);
+  const descInput = byId('project-description', HTMLTextAreaElement);
   const errorDisplay = document.getElementById('project-modal-error');
 
   const name = nameInput.value.trim();
@@ -164,7 +164,7 @@ async function handleDeleteProject(refreshCallback) {
     return;
   }
 
-  const projectName = document.getElementById('project-name').value;
+  const projectName = byId('project-name', HTMLInputElement).value;
   const confirmed = await promptAdminPasswordConfirmation(
     'Delete Project',
     `Do you really want to delete the project "${projectName}"?\nThis action cannot be undone.`,
@@ -276,23 +276,23 @@ function setupUserModal(refreshCallback) {
   setupUserDropdown('user-role-trigger', 'user-role-options', 'user-role', 'user-role-text');
 
   // Character counters for user name fields
-  initCharCounter(document.getElementById('user-first-name'), MAX_USERNAME_LENGTH);
-  initCharCounter(document.getElementById('user-last-name'), MAX_USERNAME_LENGTH);
+  initCharCounter(byId('user-first-name', HTMLInputElement), MAX_USERNAME_LENGTH);
+  initCharCounter(byId('user-last-name', HTMLInputElement), MAX_USERNAME_LENGTH);
 }
 
 function openUserModal(user) {
   const overlay = document.getElementById('user-modal-overlay');
   const modalTitle = document.getElementById('user-modal-title');
-  const emailInput = document.getElementById('user-email');
-  const firstNameInput = document.getElementById('user-first-name');
-  const lastNameInput = document.getElementById('user-last-name');
-  const passwordInput = document.getElementById('user-password');
+  const emailInput = byId('user-email', HTMLInputElement);
+  const firstNameInput = byId('user-first-name', HTMLInputElement);
+  const lastNameInput = byId('user-last-name', HTMLInputElement);
+  const passwordInput = byId('user-password', HTMLInputElement);
   const passwordHint = document.getElementById('user-password-hint');
   const errorDisplay = document.getElementById('user-modal-error');
-  const activeInput = document.getElementById('user-active');
-  const roleInput = document.getElementById('user-role');
+  const activeInput = byId('user-active', HTMLInputElement);
+  const roleInput = byId('user-role', HTMLInputElement);
   const roleText = document.getElementById('user-role-text');
-  const userForm = document.getElementById('user-form');
+  const userForm = byId('user-form', HTMLFormElement);
   const deleteBtn = document.getElementById('user-modal-delete');
 
   // Editing an existing user other than yourself (the backend blocks self-deletion)
@@ -358,12 +358,12 @@ function closeUserModal() {
 }
 
 async function handleUserSubmit(refreshCallback) {
-  const emailInput = document.getElementById('user-email');
-  const firstNameInput = document.getElementById('user-first-name');
-  const lastNameInput = document.getElementById('user-last-name');
-  const passwordInput = document.getElementById('user-password');
-  const roleInput = document.getElementById('user-role');
-  const activeInput = document.getElementById('user-active');
+  const emailInput = byId('user-email', HTMLInputElement);
+  const firstNameInput = byId('user-first-name', HTMLInputElement);
+  const lastNameInput = byId('user-last-name', HTMLInputElement);
+  const passwordInput = byId('user-password', HTMLInputElement);
+  const roleInput = byId('user-role', HTMLInputElement);
+  const activeInput = byId('user-active', HTMLInputElement);
   const errorDisplay = document.getElementById('user-modal-error');
 
   const userData = {
@@ -506,12 +506,12 @@ async function applyUserUpdate(userData) {
 function validateUserInput(userData, errorDisplay) {
   if (!userData.email || !EMAIL_REGEX.test(userData.email)) {
     showUserError(errorDisplay, 'A valid email address is required.');
-    document.getElementById('user-email')?.focus();
+    byId('user-email', HTMLInputElement)?.focus();
     return false;
   }
   if (userData.email.length > MAX_EMAIL_LENGTH) {
     showUserError(errorDisplay, `Email must not exceed ${MAX_EMAIL_LENGTH} characters.`);
-    document.getElementById('user-email')?.focus();
+    byId('user-email', HTMLInputElement)?.focus();
     return false;
   }
   if (!userData.first_name || !userData.last_name) {
@@ -667,7 +667,7 @@ async function renderUserList(refreshCallback) {
 function setupUserDropdown(triggerId, optionsId, inputId, textId) {
   const trigger = document.getElementById(triggerId);
   const options = document.getElementById(optionsId);
-  const input = document.getElementById(inputId);
+  const input = byId(inputId, HTMLInputElement);
   const text = document.getElementById(textId);
   if (!trigger || !options || !input || !text) return;
 
@@ -683,8 +683,8 @@ function setupUserDropdown(triggerId, optionsId, inputId, textId) {
   });
 
   options.addEventListener('click', (e) => {
-    const option = e.target.closest('.custom-option');
-    if (!option) return;
+    const option = e.target instanceof Element ? e.target.closest('.custom-option') : null;
+    if (!(option instanceof HTMLElement)) return;
     const value = option.dataset.value;
     input.value = value;
     text.textContent = option.textContent;

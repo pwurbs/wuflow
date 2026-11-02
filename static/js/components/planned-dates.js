@@ -4,7 +4,7 @@ import { showNotification } from '../utils.js';
 export function getPlannedDatesFromDOM() {
   const container = document.getElementById('planned-dates-container');
   if (!container) return [];
-  const chips = container.querySelectorAll('.date-chip');
+  const chips = /** @type {NodeListOf<HTMLElement>} */ (container.querySelectorAll('.date-chip'));
   const dates = [];
   chips.forEach(chip => {
     dates.push(chip.dataset.date);

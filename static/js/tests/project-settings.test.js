@@ -18,6 +18,7 @@ vi.mock('../components/toolbar.js', () => ({
 }));
 
 vi.mock('../utils.js', async (importOriginal) => ({
+  byId: (await importOriginal()).byId,
   guardSubmit: (await importOriginal()).guardSubmit,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),

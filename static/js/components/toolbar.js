@@ -1,7 +1,7 @@
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setFilterRelease, setFilterReleaseOwner, setSelectedProject } from '../state.js';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
 import { logout, updateCurrentUser } from '../api.js';
-import { showNotification, getUserInitials, onGuardedSubmit } from '../utils.js';
+import { byId, showNotification, getUserInitials, onGuardedSubmit } from '../utils.js';
 import { validatePasswordPolicy } from './system-settings.js';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
@@ -416,7 +416,8 @@ export function setupUserMenu(user) {
     });
 
     document.addEventListener('click', (e) => {
-      if (!userMenuBtn.contains(e.target) && !userMenuDropdown.contains(e.target)) {
+      const inside = e.target instanceof Node && (userMenuBtn.contains(e.target) || userMenuDropdown.contains(e.target));
+      if (!inside) {
         userMenuDropdown.classList.add('hidden');
       }
     });
@@ -440,7 +441,7 @@ export function setupUserMenu(user) {
 
 function setupPasswordModal(user) {
   const modal = document.getElementById('password-modal');
-  const form = document.getElementById('password-form');
+  const form = byId('password-form', HTMLFormElement);
   const cancelBtn = document.getElementById('password-cancel-btn');
 
   if (!modal || !form || !cancelBtn) return;
@@ -451,9 +452,9 @@ function setupPasswordModal(user) {
   });
 
   onGuardedSubmit(form, async () => {
-    const currentPassword = document.getElementById('current-password').value;
-    const newPassword = document.getElementById('new-password').value;
-    const confirmNewPassword = document.getElementById('confirm-new-password').value;
+    const currentPassword = byId('current-password', HTMLInputElement).value;
+    const newPassword = byId('new-password', HTMLInputElement).value;
+    const confirmNewPassword = byId('confirm-new-password', HTMLInputElement).value;
 
     try {
       if (newPassword !== confirmNewPassword) {
@@ -495,7 +496,7 @@ function openPasswordModal() {
       errorDisplay.classList.add('hidden');
     }
 
-    const usernameField = document.getElementById('password-form-username');
+    const usernameField = byId('password-form-username', HTMLInputElement);
     if (usernameField && state.currentUser) {
       usernameField.value = state.currentUser.email || '';
     }

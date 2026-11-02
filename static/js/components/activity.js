@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.js';
-import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled } from '../utils.js';
+import { byId, escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled } from '../utils.js';
 import { renderMarkdown } from '../markdown.js';
 import { getStatusLabel } from '../status-config.js';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.js';
@@ -43,7 +43,7 @@ const els = () => ({
   historyList: document.getElementById('history-list'),
   form: document.getElementById('comment-form-container'),
   editor: document.getElementById('new-comment-editor'),
-  input: document.getElementById('new-comment-body'),
+  input: byId('new-comment-body', HTMLTextAreaElement),
   actions: document.getElementById('new-comment-actions'),
   addBtn: document.getElementById('add-comment-btn'),
   cancelBtn: document.getElementById('cancel-comment-btn')
@@ -64,8 +64,8 @@ export function setupActivity() {
   // Links in a comment open in a new tab, like those in the description, instead of
   // replacing the app in this one.
   e.commentList?.addEventListener('click', (ev) => {
-    const anchor = ev.target.closest('.comment-body a');
-    if (!anchor) return;
+    const anchor = ev.target instanceof Element ? ev.target.closest('.comment-body a') : null;
+    if (!(anchor instanceof HTMLAnchorElement)) return;
     ev.preventDefault();
     globalThis.open(anchor.href, '_blank', 'noopener,noreferrer');
   });

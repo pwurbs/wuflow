@@ -145,8 +145,8 @@ export async function renderBacklog(refreshApp, openModal, rerenderActiveView) {
     backlogCount.textContent = `${openIssues.length}/${totalOpen}`;
     todoCount.textContent = `${todoIssues.length}/${totalTodo}`;
   } else {
-    backlogCount.textContent = openIssues.length;
-    todoCount.textContent = todoIssues.length;
+    backlogCount.textContent = String(openIssues.length);
+    todoCount.textContent = String(todoIssues.length);
   }
 }
 

@@ -19,7 +19,7 @@ vi.mock('dompurify', () => ({
   },
 }));
 
-const { renderMarkdown } = await import('../markdown.js');
+const { renderMarkdown, renderMarkdownWithReport } = await import('../markdown.js');
 
 // Helpers: configure addHook to capture the callback, then make sanitize
 // invoke it with controlled data — mirrors how real DOMPurify calls hooks.
@@ -66,27 +66,32 @@ describe('renderMarkdown', () => {
       expect(renderMarkdown('')).toBe('');
     });
 
-    it('returns { html: "", strippedHTML: false } for falsy input with returnObject', () => {
-      expect(renderMarkdown(null, true)).toEqual({ html: '', strippedHTML: false });
-      expect(renderMarkdown('', true)).toEqual({ html: '', strippedHTML: false });
+    it('returns { html: "", strippedHTML: false } for falsy input with a report', () => {
+      expect(renderMarkdownWithReport(null)).toEqual({ html: '', strippedHTML: false });
+      expect(renderMarkdownWithReport('')).toEqual({ html: '', strippedHTML: false });
     });
   });
 
-  describe('returnObject mode', () => {
-    it('returns a plain string by default', () => {
+  describe('return shape', () => {
+    it('renderMarkdown returns a plain string', () => {
       expect(renderMarkdown('hello')).toBe('<p>hello</p>');
     });
 
-    it('returns { html, strippedHTML: false } when no dangerous content', () => {
-      const result = renderMarkdown('hello', true);
+    it('renderMarkdownWithReport returns { html, strippedHTML: false } when no dangerous content', () => {
+      const result = renderMarkdownWithReport('hello');
       expect(result).toEqual({ html: '<p>hello</p>', strippedHTML: false });
+    });
+
+    it('parses synchronously, so the result is never a Promise', () => {
+      renderMarkdown('hello');
+      expect(marked.parse).toHaveBeenCalledWith('hello', { async: false });
     });
   });
 
   describe('strippedHTML detection', () => {
     it('stays false when only allowed elements are processed', () => {
       withElementHookTrigger('p', { p: true });
-      expect(renderMarkdown('hello', true).strippedHTML).toBe(false);
+      expect(renderMarkdownWithReport('hello').strippedHTML).toBe(false);
     });
 
     it('ignores body, #text, and #comment in element hook', () => {
@@ -100,34 +105,34 @@ describe('renderMarkdown', () => {
         hook?.(null, { tagName: '#comment', allowedTags: {} });
         return html;
       });
-      expect(renderMarkdown('hello', true).strippedHTML).toBe(false);
+      expect(renderMarkdownWithReport('hello').strippedHTML).toBe(false);
     });
 
     it('sets strippedHTML: true when a disallowed tag is stripped', () => {
       withElementHookTrigger('script', { p: true });
-      expect(renderMarkdown('<script>evil()</script>', true).strippedHTML).toBe(true);
+      expect(renderMarkdownWithReport('<script>evil()</script>').strippedHTML).toBe(true);
     });
 
     it('sets strippedHTML: true when a disallowed attribute is stripped', () => {
       withAttrHookTrigger('onclick', { href: true });
-      expect(renderMarkdown('<a onclick="evil()">x</a>', true).strippedHTML).toBe(true);
+      expect(renderMarkdownWithReport('<a onclick="evil()">x</a>').strippedHTML).toBe(true);
     });
 
     it('sets strippedHTML: true for a javascript: href', () => {
       withAttrHookTrigger('href', { href: true }, 'javascript:alert(1)');
-      expect(renderMarkdown('[x](javascript:alert(1))', true).strippedHTML).toBe(true);
+      expect(renderMarkdownWithReport('[x](javascript:alert(1))').strippedHTML).toBe(true);
     });
 
     it('detects javascript: href with leading whitespace', () => {
       withAttrHookTrigger('href', { href: true }, '  javascript:alert(1)');
-      expect(renderMarkdown('[x](  javascript:alert(1))', true).strippedHTML).toBe(true);
+      expect(renderMarkdownWithReport('[x](  javascript:alert(1))').strippedHTML).toBe(true);
     });
 
     it('stays false for the start attribute on ol (regression: "1. - 2. April" nested list)', () => {
       // marked renders "1. - 2. April" as <ol><li><ul><li><ol start="2">...</ol></li></ul></li></ol>.
       // The start="2" attribute must not trigger the strippedHTML warning.
       withAttrHookTrigger('start', { start: true });
-      expect(renderMarkdown('1. - 2. April', true).strippedHTML).toBe(false);
+      expect(renderMarkdownWithReport('1. - 2. April').strippedHTML).toBe(false);
     });
   });
 });

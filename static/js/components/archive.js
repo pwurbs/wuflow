@@ -34,7 +34,7 @@ export async function renderArchive(refreshApp, openModal, rerenderActiveView) {
 
   // Archive list: Sorted by UpdatedAt (desc), Grouped by Month
   const archivedIssuesRaw = filterByStatus(filteredIssues, STATUS_ARCHIVE);
-  const archivedIssues = archivedIssuesRaw.toSorted((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  const archivedIssues = archivedIssuesRaw.toSorted((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
   // Done list: Keep existing behavior (position sorted)
   const doneIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_DONE));
@@ -66,8 +66,8 @@ export async function renderArchive(refreshApp, openModal, rerenderActiveView) {
     }));
   });
 
-  archiveCount.textContent = isFilterActive() ? `${archivedIssues.length}/${filterByStatus(state.issues, STATUS_ARCHIVE).length}` : archivedIssues.length;
-  doneCount.textContent = isFilterActive() ? `${doneIssues.length}/${filterByStatus(state.issues, STATUS_DONE).length}` : doneIssues.length;
+  archiveCount.textContent = isFilterActive() ? `${archivedIssues.length}/${filterByStatus(state.issues, STATUS_ARCHIVE).length}` : String(archivedIssues.length);
+  doneCount.textContent = isFilterActive() ? `${doneIssues.length}/${filterByStatus(state.issues, STATUS_DONE).length}` : String(doneIssues.length);
 }
 
 function groupByMonth(issues) {

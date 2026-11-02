@@ -11,8 +11,7 @@ import { setupReleasesView, renderReleasesView, renderReleaseOwnerOptions } from
 import { setupModal, openModal } from './components/modal.js';
 import { setupSession } from './session.js';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from './issue-lists.js';
-import { debounce } from './utils.js';
-import { STATUS_OPEN } from './status-config.js';
+import { byId, debounce } from './utils.js';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.js';
 
 // DOM Elements
@@ -33,7 +32,7 @@ const filterContainer = document.getElementById('filter-container');
 const projectSelectorContainer = document.getElementById('project-selector-container');
 const toolbar = document.querySelector('.toolbar');
 const searchInput = document.getElementById('search-input');
-const releaseSearchInput = document.getElementById('release-search-input');
+const releaseSearchInput = byId('release-search-input', HTMLInputElement);
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -244,21 +243,9 @@ function setupEventListeners() {
 
     // Custom Events
     document.addEventListener('nav-to-release', (e) => {
+        if (!(e instanceof CustomEvent)) return;
         setFilterRelease(e.detail.releaseId);
         switchView('board');
-    });
-
-    document.addEventListener('nav-to-issue', (e) => {
-        const issueId = e.detail.issueId;
-        const issue = state.issues.find(i => i.id === issueId);
-        if (issue) {
-            if (issue.status === STATUS_OPEN && backlogView.classList.contains('hidden')) {
-                switchView('backlog');
-            } else if (issue.status !== STATUS_OPEN && boardView.classList.contains('hidden')) {
-                switchView('board');
-            }
-            setTimeout(() => highlightIssueCard(issue.id), 100);
-        }
     });
 }
 
@@ -305,14 +292,4 @@ function switchView(view) {
     }
 
     cfg.onEnter();
-}
-
-function highlightIssueCard(issueId) {
-    document.querySelectorAll('.card.highlighted').forEach(card => card.classList.remove('highlighted'));
-    const targetCard = document.querySelector(`.card[data-id="${issueId}"]`);
-    if (targetCard) {
-        targetCard.classList.add('highlighted');
-        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => targetCard.classList.remove('highlighted'), 2000);
-    }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  escapeHtml, debounce, getUserInitials,
+  byId, escapeHtml, debounce, getUserInitials,
   countCodepoints, countUtf8Bytes, canArchive,
   showNotification, showConfirm,
   updateDateInputStyle, initCharCounter,
@@ -66,6 +66,32 @@ describe('getTaskDeadlineStatus', () => {
   it('returns not-late for a task deadline within bounds', () => {
     const res = getTaskDeadlineStatus('2999-06-01', { deadline: '2999-12-31' });
     expect(res.late).toBe(false);
+  });
+});
+
+describe('byId', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<input id="field"><div id="box"></div>';
+  });
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('returns the element when it has the expected type', () => {
+    const el = byId('field', HTMLInputElement);
+    expect(el).toBe(document.getElementById('field'));
+  });
+
+  it('accepts a base type of the element', () => {
+    expect(byId('field', HTMLElement)).toBe(document.getElementById('field'));
+  });
+
+  it('returns null when there is no element with the id', () => {
+    expect(byId('missing', HTMLInputElement)).toBeNull();
+  });
+
+  it('throws when the element has another type', () => {
+    expect(() => byId('box', HTMLInputElement)).toThrow(new TypeError('#box is a HTMLDivElement, expected HTMLInputElement'));
   });
 });
 

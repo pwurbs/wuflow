@@ -2,16 +2,16 @@ import { describe, it, expect } from 'vitest';
 
 // Unlike markdown.test.js, this file runs the real marked + DOMPurify (in jsdom),
 // so it asserts what actually reaches the DOM.
-const { renderMarkdown } = await import('../markdown.js');
+const { renderMarkdownWithReport } = await import('../markdown.js');
 
 function render(md) {
-  const { html, strippedHTML } = renderMarkdown(md, true);
+  const { html, strippedHTML } = renderMarkdownWithReport(md);
   const root = document.createElement('div');
   root.innerHTML = html;
   return { root, strippedHTML };
 }
 
-describe('renderMarkdown class attribute (real marked + DOMPurify)', () => {
+describe('renderMarkdownWithReport class attribute (real marked + DOMPurify)', () => {
   it('keeps the language-… class on a fenced code block', () => {
     const { root, strippedHTML } = render('```js\nconst x = 1;\n```');
     expect(root.querySelector('pre > code').className).toBe('language-js');

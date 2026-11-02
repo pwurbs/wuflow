@@ -26,15 +26,24 @@ function isAllowedClass(node, value) {
 
 /**
  * Render a Markdown string to safe HTML.
+ * @param {string} md
+ * @returns {string}
+ */
+export function renderMarkdown(md) {
+  return renderMarkdownWithReport(md).html;
+}
+
+/**
+ * Render a Markdown string to safe HTML and report whether sanitizing removed anything.
  * marked converts Markdown → HTML (raw HTML in source passes through unchanged).
  * DOMPurify is the security boundary — it strips any disallowed tags/attributes
  * and dangerous hrefs (javascript:, data:) from the rendered output.
  * @param {string} md
- * @returns {{ html: string, strippedHTML: boolean } | string} Returns an object containing the safe HTML and a flag indicating if dangerous tags were removed. Returns string for backward compatibility where needed.
+ * @returns {{ html: string, strippedHTML: boolean }} strippedHTML is true if DOMPurify removed a tag or attribute.
  */
-export function renderMarkdown(md, returnObject = false) {
-  if (!md) return returnObject ? { html: '', strippedHTML: false } : '';
-  const raw = marked.parse(md);
+export function renderMarkdownWithReport(md) {
+  if (!md) return { html: '', strippedHTML: false };
+  const raw = marked.parse(md, { async: false });
 
   let strippedHTML = false;
   DOMPurify.addHook('uponSanitizeElement', (_node, data) => {
@@ -66,5 +75,5 @@ export function renderMarkdown(md, returnObject = false) {
   DOMPurify.removeHook('uponSanitizeElement');
   DOMPurify.removeHook('uponSanitizeAttribute');
 
-  return returnObject ? { html, strippedHTML } : html;
+  return { html, strippedHTML };
 }

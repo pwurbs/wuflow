@@ -1,10 +1,10 @@
 import { state, setCurrentIssue } from '../state.js';
 import { getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown } from '../utils.js';
+import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
 import { PRIORITY_NORMAL } from '../domain-constants.js';
-import { renderMarkdown } from '../markdown.js';
+import { renderMarkdown, renderMarkdownWithReport } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
 import { setupEditorToolbar } from './editor-toolbar.js';
@@ -27,7 +27,7 @@ let hasSavedDuringSession = false; // Tracks whether any save occurred in this m
 export function setupModal(refreshApp, rerenderViews) {
   refreshAppCallback = refreshApp;
   rerenderViewsCallback = rerenderViews;
-  const form = document.getElementById('issue-form');
+  const form = byId('issue-form', HTMLFormElement);
 
   // Global checking of state is tricky if we don't have reference to 'currentIssue' variable in app.js
   // We use state.currentIssue.
@@ -52,14 +52,14 @@ export function setupModal(refreshApp, rerenderViews) {
   setupScrollCue();
 
   // Character counters
-  initCharCounter(document.getElementById('description-editor'), MAX_DESC_LENGTH, { className: 'editor-counter' });
-  initCharCounter(document.getElementById('new-task-title'), MAX_TITLE_LENGTH, { className: 'task-title-counter' });
+  initCharCounter(byId('description-editor', HTMLTextAreaElement), MAX_DESC_LENGTH, { className: 'editor-counter' });
+  initCharCounter(byId('new-task-title', HTMLInputElement), MAX_TITLE_LENGTH, { className: 'task-title-counter' });
 
   // Task Form
   // + Add and Enter share the in-flight submit instead of creating the task twice
   // while the first request is still running.
   const addTaskBtn = document.getElementById('add-task-btn');
-  const newTaskTitle = document.getElementById('new-task-title');
+  const newTaskTitle = byId('new-task-title', HTMLInputElement);
   _submitTaskFn = guardSubmit(handleTaskSubmit, { field: addTaskBtn.closest('.input-group') });
   addTaskBtn.addEventListener('click', _submitTaskFn);
   newTaskTitle.addEventListener('keypress', (e) => {
@@ -90,7 +90,7 @@ export function setupModal(refreshApp, rerenderViews) {
       // Skip if this is the planned dates wrapper (handled separately)
       if (container.id === 'planned-dates-wrapper') return;
 
-      const input = container.querySelector('input[type="date"]');
+      const input = /** @type {HTMLInputElement | null} */ (container.querySelector('input[type="date"]'));
       if (input && typeof input.showPicker === 'function') {
         input.showPicker();
       } else if (input) {
@@ -116,8 +116,8 @@ export function setupModal(refreshApp, rerenderViews) {
   document.addEventListener('click', (e) => {
     ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown', 'project-dropdown', 'release-dropdown'].forEach(id => {
       const container = document.getElementById(id);
-      if (container && !container.contains(e.target)) {
-        const opts = container.querySelector('.custom-select-options');
+      if (container && !(e.target instanceof Node && container.contains(e.target))) {
+        const opts = /** @type {HTMLElement} */ (container.querySelector('.custom-select-options'));
         opts.classList.add('hidden');
         opts.style.maxHeight = '';
       }
@@ -228,9 +228,9 @@ async function etagForSave() {
 }
 
 function setupProjectDropdown(issue) {
-  const projectInput = document.getElementById('project-select');
+  const projectInput = byId('project-select', HTMLInputElement);
   const projectText = document.getElementById('project-text');
-  const projectTrigger = document.getElementById('project-trigger');
+  const projectTrigger = byId('project-trigger', HTMLButtonElement);
   if (!projectInput || !projectText) return;
 
   const storedProjectId = issue ? null : localStorage.getItem('wuflow_selectedProjectId');
@@ -258,20 +258,20 @@ function setupProjectDropdown(issue) {
 
 function renderModalDropdowns(issue) {
   // Status Dropdown
-  const statusInput = document.getElementById('status');
+  const statusInput = byId('status', HTMLInputElement);
   const currentStatus = issue?.status ?? STATUS_OPEN;
   statusInput.value = currentStatus;
   document.getElementById('status-text').textContent = getStatusLabel(currentStatus);
   renderStatusOptions();
 
   // Priority Dropdown
-  const priorityInput = document.getElementById('priority');
+  const priorityInput = byId('priority', HTMLInputElement);
   priorityInput.value = issue?.priority ?? PRIORITY_NORMAL;
   document.getElementById('priority-text').textContent = issue?.priority ?? PRIORITY_NORMAL;
   renderPriorityOptions();
 
   // Label Dropdown
-  const labelInput = document.getElementById('label-select');
+  const labelInput = byId('label-select', HTMLInputElement);
   const labelText = document.getElementById('label-text');
   labelInput.value = issue?.label?.id ?? '';
   labelText.textContent = issue?.label?.name ?? 'No Label';
@@ -293,7 +293,7 @@ function renderModalDropdowns(issue) {
   }
 
   // Assignee Dropdown
-  const assigneeInput = document.getElementById('assignee-select');
+  const assigneeInput = byId('assignee-select', HTMLInputElement);
   const assigneeText = document.getElementById('assignee-text');
   assigneeInput.value = issue?.assignee_id ?? '';
   assigneeText.textContent = issue?.assignee ? (issue.assignee.first_name + ' ' + issue.assignee.last_name) : 'Unassigned';
@@ -315,7 +315,7 @@ function renderModalDropdowns(issue) {
   setupProjectDropdown(issue);
 
   // Release Dropdown
-  const releaseInput = document.getElementById('release-select');
+  const releaseInput = byId('release-select', HTMLInputElement);
   const releaseText = document.getElementById('release-text');
   if (releaseInput && releaseText) {
     releaseInput.value = issue?.release_id ?? '';
@@ -339,11 +339,10 @@ function setupEditModal(issue) {
 function renderIssueFields(issue) {
   const isArchived = issue.status === STATUS_ARCHIVE;
   document.getElementById('modal-title').textContent = isArchived ? `Archived Issue #${issue.id}` : `Issue Details #${issue.id}`;
-  document.getElementById('issue-id').value = issue.id;
-  document.getElementById('title').value = issue.title;
-  document.getElementById('description-editor').value = issue.description || '';
-  const { html } = renderMarkdown(issue.description || '', true);
-  document.getElementById('description-preview').innerHTML = html;
+  byId('issue-id', HTMLInputElement).value = issue.id;
+  byId('title', HTMLInputElement).value = issue.title;
+  byId('description-editor', HTMLTextAreaElement).value = issue.description || '';
+  document.getElementById('description-preview').innerHTML = renderMarkdown(issue.description || '');
   // We do NOT show the toast on initial load to avoid spamming the user when opening an issue with old bad data,
   // we only show the error on active edit actions (Save / Preview).
 
@@ -378,14 +377,14 @@ function renderIssueFields(issue) {
 
 function setupNewModal() {
   document.getElementById('modal-title').textContent = 'New Issue';
-  document.getElementById('issue-form').reset();
-  document.getElementById('description-editor').value = '';
+  byId('issue-form', HTMLFormElement).reset();
+  byId('description-editor', HTMLTextAreaElement).value = '';
   document.getElementById('description-preview').innerHTML = '';
-  document.getElementById('issue-id').value = '';
+  byId('issue-id', HTMLInputElement).value = '';
 
   renderPlannedDateChips(null, savePlannedDates);
 
-  updateDateInputStyle(document.getElementById('deadline'));
+  updateDateInputStyle(byId('deadline', HTMLInputElement));
   document.getElementById('deadline-display')?.classList.remove('overdue');
 
   document.getElementById('tasks-section').classList.add('hidden');
@@ -412,7 +411,7 @@ function setupNewModal() {
 function resetMdPreview(previewEl) {
   previewEl.classList.remove('active');
   document.getElementById('md-preview-toggle')?.classList.remove('active');
-  document.querySelectorAll('.editor-btn[data-md]').forEach(b => {
+  /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.editor-btn[data-md]')).forEach(b => {
     b.disabled = false;
     b.classList.remove('disabled');
   });
@@ -421,9 +420,9 @@ function resetMdPreview(previewEl) {
 // enable: edit modal, where title and description are shown read-only until clicked
 // (readOnly: never, for an archived issue, which is greyed out); otherwise the new-issue form.
 function toggleInlineEditMode(enable, readOnly = false) {
-  const titleInput = document.getElementById('title');
+  const titleInput = byId('title', HTMLInputElement);
   const descContainer = document.querySelector('.editor-container');
-  const descEditor = document.getElementById('description-editor');
+  const descEditor = byId('description-editor', HTMLTextAreaElement);
   const descPreview = document.getElementById('description-preview');
   const descEditActions = document.getElementById('description-edit-actions');
 
@@ -444,7 +443,7 @@ function toggleInlineEditMode(enable, readOnly = false) {
 // to setupProjectDropdown, which also disables it for missing permissions.
 function setSidebarReadOnly(readOnly) {
   const modal = document.getElementById('issue-modal');
-  modal.querySelectorAll('.custom-select-trigger:not(#project-trigger)').forEach(el => { el.disabled = readOnly; });
+  /** @type {NodeListOf<HTMLButtonElement>} */ (modal.querySelectorAll('.custom-select-trigger:not(#project-trigger)')).forEach(el => { el.disabled = readOnly; });
   modal.querySelectorAll('.custom-date-input').forEach(el => setAriaDisabled(el, readOnly));
 }
 
@@ -510,9 +509,15 @@ async function saveIssueWithConflictCheck(issue, successMessage) {
 // Writes to the open issue run one at a time. Each is built from the issue as the previous
 // save left it and sent with that save's new ETag; sent in parallel, the second save would
 // carry the ETag the first one just replaced and fail with a false conflict.
+/** @type {Promise<unknown>} */
 let issueSaveChain = Promise.resolve();
 
 // Runs write() after the writes queued before it.
+/**
+ * @template T
+ * @param {() => Promise<T>} write
+ * @returns {Promise<T>}
+ */
 function enqueueIssueWrite(write) {
   const run = issueSaveChain.then(write);
   issueSaveChain = run.catch(() => {});
@@ -545,12 +550,12 @@ function saveIssueChanges(getChanges, successMessage) {
 function validateIssueForm(title, description) {
   if (!title) {
     showNotification('Title is required.', 'error');
-    document.getElementById('title').focus();
+    byId('title', HTMLInputElement).focus();
     return false;
   }
   if (countCodepoints(title) > MAX_TITLE_LENGTH) {
     showNotification(`Title must not exceed ${MAX_TITLE_LENGTH} characters.`, 'error');
-    document.getElementById('title').focus();
+    byId('title', HTMLInputElement).focus();
     return false;
   }
   if (countCodepoints(description) > MAX_DESC_LENGTH) {
@@ -561,20 +566,20 @@ function validateIssueForm(title, description) {
 }
 
 function getIssueDataFromForm() {
-  const title = document.getElementById('title').value.trim();
-  const description = document.getElementById('description-editor').value || '';
-  const assigneeIdVal = document.getElementById('assignee-select').value;
-  const labelId = document.getElementById('label-select').value;
-  const projectIdVal = document.getElementById('project-select')?.value;
-  const releaseIdVal = document.getElementById('release-select')?.value;
+  const title = byId('title', HTMLInputElement).value.trim();
+  const description = byId('description-editor', HTMLTextAreaElement).value || '';
+  const assigneeIdVal = byId('assignee-select', HTMLInputElement).value;
+  const labelId = byId('label-select', HTMLInputElement).value;
+  const projectIdVal = byId('project-select', HTMLInputElement)?.value;
+  const releaseIdVal = byId('release-select', HTMLInputElement)?.value;
 
   return {
     title,
     description,
-    deadline: document.getElementById('deadline').value ? new Date(document.getElementById('deadline').value + 'T12:00:00') : null,
+    deadline: byId('deadline', HTMLInputElement).value ? new Date(byId('deadline', HTMLInputElement).value + 'T12:00:00') : null,
     planned_dates: getPlannedDatesFromDOM(),
-    status: document.getElementById('status').value,
-    priority: document.getElementById('priority').value,
+    status: byId('status', HTMLInputElement).value,
+    priority: byId('priority', HTMLInputElement).value,
     assignee_id: assigneeIdVal ? Number.parseInt(assigneeIdVal) : null,
     position: state.currentIssue ? state.currentIssue.position : 0,
     label: labelId ? { id: Number.parseInt(labelId) } : null,
@@ -594,7 +599,7 @@ async function handleIssueSubmit() {
       if (!(await saveIssueChanges(() => issueData, 'Issue updated'))) return;
     } else {
       if (!userCan(state.currentUser, ACTION_CREATE_ISSUE)) return;
-      const { strippedHTML } = renderMarkdown(issueData.description || '', true);
+      const { strippedHTML } = renderMarkdownWithReport(issueData.description || '');
       if (strippedHTML) {
         showNotification('Description contains unsupported HTML tags.', 'error');
         return;
@@ -701,10 +706,10 @@ function onTaskEditEnd() {
 }
 
 function setupInlineEditing() {
-  const titleInput = document.getElementById('title');
+  const titleInput = byId('title', HTMLInputElement);
   const titleCounter = initCharCounter(titleInput, MAX_TITLE_LENGTH, { manual: true });
 
-  const descEditor = document.getElementById('description-editor');
+  const descEditor = byId('description-editor', HTMLTextAreaElement);
   const descContainer = document.querySelector('.editor-container');
   const descEditActions = document.getElementById('description-edit-actions');
   const descCancelBtn = document.getElementById('desc-cancel-btn');
@@ -791,7 +796,7 @@ function setupInlineEditing() {
       titleCounter.hide(); // new-issue mode: hide counter on blur
       return;
     }
-    if (e.relatedTarget?.id === 'done-btn') return; // handleDone() will save it directly
+    if (e.relatedTarget instanceof Element && e.relatedTarget.id === 'done-btn') return; // handleDone() will save it directly
     await saveTitle();
   });
 
@@ -802,7 +807,7 @@ function setupInlineEditing() {
   const descPreview = document.getElementById('description-preview');
 
   descPreview.addEventListener('click', (e) => {
-    const anchor = e.target.closest('a');
+    const anchor = e.target instanceof Element ? e.target.closest('a') : null;
     if (anchor) {
       e.preventDefault();
       globalThis.open(anchor.href, '_blank', 'noopener,noreferrer');
@@ -855,7 +860,7 @@ function setupInlineEditing() {
         return false;
       }
     }
-    const { html, strippedHTML } = renderMarkdown(newDesc, true);
+    const { html, strippedHTML } = renderMarkdownWithReport(newDesc);
     descPreview.innerHTML = html;
     if (strippedHTML) {
       showNotification('Unsupported HTML tags are not rendered for security.', 'error');
@@ -886,7 +891,7 @@ function setupInlineEditing() {
 }
 
 async function handleDone() {
-  const descEditor = document.getElementById('description-editor');
+  const descEditor = byId('description-editor', HTMLTextAreaElement);
 
   // Let queued field saves finish first, so closing the modal does not drop them.
   await issueSaveChain;
@@ -946,7 +951,7 @@ function isEditing() {
 }
 
 function isTitleEditing() {
-  return document.getElementById('title').classList.contains('inline-editing');
+  return byId('title', HTMLInputElement).classList.contains('inline-editing');
 }
 
 function isDescEditing() {
@@ -954,7 +959,7 @@ function isDescEditing() {
 }
 
 function hasNewTaskText() {
-  return document.getElementById('new-task-title').value.trim() !== '';
+  return byId('new-task-title', HTMLInputElement).value.trim() !== '';
 }
 
 // The browser asks before leaving the page only while an editor holds unsaved text. The
@@ -976,7 +981,7 @@ function revertSidebarControls() {
 }
 
 function setDeadlineInput(issue) {
-  const deadlineInput = document.getElementById('deadline');
+  const deadlineInput = byId('deadline', HTMLInputElement);
   deadlineInput.value = toDateInputValue(issue.deadline);
   updateDateInputStyle(deadlineInput);
 }
@@ -1011,7 +1016,7 @@ function savePlannedDates(getChanges, successMessage) {
 async function handleDeadlineChange(rawValue) {
   if (!state.currentIssue) return;
   const dateVal = rawValue ? new Date(rawValue + 'T12:00:00') : null;
-  if (!(await saveSidebarField({ deadline: dateVal }, null, document.getElementById('deadline')))) return;
+  if (!(await saveSidebarField({ deadline: dateVal }, null, byId('deadline', HTMLInputElement)))) return;
   const dlStatus = getDeadlineStatus({ deadline: dateVal, release: state.currentIssue.release });
   document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
   const lateTaskCount = refreshTaskDeadlineStyles();
@@ -1025,12 +1030,12 @@ async function handleDeadlineChange(rawValue) {
 
 function setupSidebarImmediateSave() {
 
-  const deadlineInput = document.getElementById('deadline');
+  const deadlineInput = byId('deadline', HTMLInputElement);
 
-  const statusSelect = document.getElementById('status');
-  const labelSelect = document.getElementById('label-select');
-  const prioritySelect = document.getElementById('priority');
-  const assigneeSelect = document.getElementById('assignee-select');
+  const statusSelect = byId('status', HTMLInputElement);
+  const labelSelect = byId('label-select', HTMLInputElement);
+  const prioritySelect = byId('priority', HTMLInputElement);
+  const assigneeSelect = byId('assignee-select', HTMLInputElement);
 
   prioritySelect.addEventListener('change', async () => {
     if (state.currentIssue) await saveSidebarField({ priority: prioritySelect.value }, 'Priority updated', prioritySelect);
@@ -1061,7 +1066,7 @@ function setupSidebarImmediateSave() {
     });
   }
 
-  const releaseSelect = document.getElementById('release-select');
+  const releaseSelect = byId('release-select', HTMLInputElement);
   if (releaseSelect) {
     releaseSelect.addEventListener('change', async () => {
       if (state.currentIssue) {
@@ -1077,7 +1082,7 @@ function setupSidebarImmediateSave() {
     });
   }
 
-  const projectSelect = document.getElementById('project-select');
+  const projectSelect = byId('project-select', HTMLInputElement);
   if (projectSelect) {
     projectSelect.addEventListener('change', async () => {
       const val = projectSelect.value;
@@ -1096,7 +1101,7 @@ function setupSidebarImmediateSave() {
 
 async function moveIssueToProject(projectId) {
   if (!state.currentIssue) return;
-  const projectSelect = document.getElementById('project-select');
+  const projectSelect = byId('project-select', HTMLInputElement);
   let moveResult = null;
   const confirmed = await promptAdminPasswordConfirmation(
     'Move Issue to another Project',
@@ -1118,11 +1123,11 @@ async function moveIssueToProject(projectId) {
   localStorage.setItem('wuflow_selectedProjectId', String(projectId));
   // The project-option click already loaded label/release/statusconfig for the new
   // project. Just reset the displayed values that the server cleared on move.
-  document.getElementById('label-select').value = '';
+  byId('label-select', HTMLInputElement).value = '';
   document.getElementById('label-text').textContent = 'No Label';
-  document.getElementById('release-select').value = '';
+  byId('release-select', HTMLInputElement).value = '';
   document.getElementById('release-text').textContent = 'No Release';
-  document.getElementById('status').value = STATUS_OPEN;
+  byId('status', HTMLInputElement).value = STATUS_OPEN;
   document.getElementById('status-text').textContent = getStatusLabel(STATUS_OPEN);
   document.getElementById('status-options')?.classList.add('hidden');
   setupEditModal(updated);
@@ -1133,9 +1138,9 @@ async function moveIssueToProject(projectId) {
 function refreshTaskDeadlineStyles() {
   let lateCount = 0;
   document.querySelectorAll('#task-list .task-item').forEach(li => {
-    const input = li.querySelector('.task-deadline-input');
+    const input = /** @type {HTMLInputElement | null} */ (li.querySelector('.task-deadline-input'));
     const display = li.querySelector('.task-deadline-display');
-    const container = li.querySelector('.task-deadline-container');
+    const container = /** @type {HTMLElement | null} */ (li.querySelector('.task-deadline-container'));
     if (!input || !display || !container) return;
     const deadline = input.value ? new Date(input.value + 'T12:00:00') : null;
     const status = getTaskDeadlineStatus(deadline, state.currentIssue);
@@ -1147,8 +1152,8 @@ function refreshTaskDeadlineStyles() {
 }
 
 function resetTaskForm() {
-  const title = document.getElementById('new-task-title');
-  const deadline = document.getElementById('new-task-deadline');
+  const title = byId('new-task-title', HTMLInputElement);
+  const deadline = byId('new-task-deadline', HTMLInputElement);
   if (title) title.value = '';
   if (deadline) {
     deadline.value = '';
@@ -1160,8 +1165,8 @@ function resetTaskForm() {
 async function handleTaskSubmit() {
   if (!state.currentIssue) return false;
   if (!userCan(state.currentUser, ACTION_CREATE_TASK)) return false;
-  const titleInput = document.getElementById('new-task-title');
-  const deadlineInput = document.getElementById('new-task-deadline');
+  const titleInput = byId('new-task-title', HTMLInputElement);
+  const deadlineInput = byId('new-task-deadline', HTMLInputElement);
   if (!titleInput.value.trim()) return false;
   if (countCodepoints(titleInput.value) > MAX_TITLE_LENGTH) {
     showNotification(`Task title must not exceed ${MAX_TITLE_LENGTH} characters.`, 'error');
@@ -1196,7 +1201,7 @@ async function handleTaskSubmit() {
 
 async function saveTaskOrder(issue) {
   if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
-  const taskItems = [...document.querySelectorAll('#task-list .task-item')];
+  const taskItems = [.../** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('#task-list .task-item'))];
   const positions = [];
   const previous = [];
   taskItems.forEach((item, index) => {

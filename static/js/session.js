@@ -7,7 +7,7 @@
 
 import { setSessionExpiredHandler, setConnectionListener, fetchCurrentUser, hasValidSession, reauthenticate, logout } from './api.js';
 import { state } from './state.js';
-import { singleFlight } from './utils.js';
+import { byId, singleFlight } from './utils.js';
 
 const PROBE_THROTTLE_MS = 60 * 1000;
 const IDLE_THRESHOLD_MS = 10 * 60 * 1000;
@@ -23,7 +23,7 @@ export function setupSession() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') onReturn();
   });
-  globalThis.addEventListener('focus', onReturn);
+  globalThis.addEventListener('focus', () => onReturn());
   globalThis.addEventListener('online', () => onReturn({ force: true }));
   globalThis.addEventListener('offline', () => setConnectionState(false));
   document.addEventListener('pointerdown', onInteraction, { capture: true, passive: true });
@@ -85,8 +85,8 @@ export function showReauthDialog() {
   pendingReauth = { promise, resolve };
 
   const modal = document.getElementById('reauth-modal');
-  const emailInput = document.getElementById('reauth-email');
-  const passwordInput = document.getElementById('reauth-password');
+  const emailInput = byId('reauth-email', HTMLInputElement);
+  const passwordInput = byId('reauth-password', HTMLInputElement);
   emailInput.value = state.currentUser?.email ?? '';
   passwordInput.value = '';
   setReauthError('');
@@ -97,9 +97,9 @@ export function showReauthDialog() {
 }
 
 async function submitReauth() {
-  const emailInput = document.getElementById('reauth-email');
-  const passwordInput = document.getElementById('reauth-password');
-  const submitBtn = document.getElementById('reauth-submit-btn');
+  const emailInput = byId('reauth-email', HTMLInputElement);
+  const passwordInput = byId('reauth-password', HTMLInputElement);
+  const submitBtn = byId('reauth-submit-btn', HTMLButtonElement);
 
   setReauthError('');
   submitBtn.disabled = true;
@@ -120,7 +120,7 @@ async function submitReauth() {
 
 function finishReauth() {
   if (!pendingReauth) return;
-  document.getElementById('reauth-password').value = '';
+  byId('reauth-password', HTMLInputElement).value = '';
   document.getElementById('reauth-modal').classList.add('hidden');
   const { resolve } = pendingReauth;
   pendingReauth = null;

@@ -1,5 +1,5 @@
 import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.js';
-import { showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation, guardSubmit } from '../utils.js';
+import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation, guardSubmit } from '../utils.js';
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.js';
 import { state, setStatusConfig, setLabels } from '../state.js';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.js';
@@ -12,7 +12,7 @@ let projectSettingsContainer = null;
 export function setupProjectSettingsView() {
   projectSettingsContainer = document.getElementById('project-settings-view');
 
-  const addLabelInput = document.getElementById('ps-new-label-input');
+  const addLabelInput = byId('ps-new-label-input', HTMLInputElement);
 
   if (addLabelInput) {
     if (userCan(state.currentUser, ACTION_CREATE_LABEL)) {
@@ -49,7 +49,7 @@ export function setupProjectSettingsView() {
         if (e.key === 'Enter') void addLabel();
       });
     } else {
-      const group = addLabelInput.closest('.label-input-group');
+      const group = /** @type {HTMLElement | null} */ (addLabelInput.closest('.label-input-group'));
       if (group) group.style.display = 'none';
     }
   }
@@ -63,7 +63,7 @@ export async function renderProjectSettingsView() {
   const labelsList = document.getElementById('ps-labels-list');
   if (!labelsList) return;
 
-  const labelsSection = labelsList.closest('.settings-section');
+  const labelsSection = /** @type {HTMLElement | null} */ (labelsList.closest('.settings-section'));
   if (labelsSection) {
     labelsSection.style.display = userCan(state.currentUser, ACTION_LIST_LABELS) ? '' : 'none';
     if (!userCan(state.currentUser, ACTION_LIST_LABELS)) return;
@@ -165,14 +165,14 @@ function renderStatusConfigSection() {
   `;
 
   // Toggle active/inactive styling as user types
-  content.querySelectorAll('.sc-name-input').forEach(input => {
+  /** @type {NodeListOf<HTMLInputElement>} */ (content.querySelectorAll('.sc-name-input')).forEach(input => {
     input.addEventListener('input', () => {
       const box = input.closest('.sc-box');
       const active = input.value !== '';
       box.classList.toggle('sc-box--active', active);
       box.classList.toggle('sc-box--inactive', !active);
       // Hide badge when user types a name (column becoming active)
-      const badge = box.querySelector('.sc-orphan-badge');
+      const badge = /** @type {HTMLElement | null} */ (box.querySelector('.sc-orphan-badge'));
       if (badge) badge.style.display = active ? 'none' : '';
     });
   });
@@ -185,7 +185,7 @@ function renderStatusConfigSection() {
 }
 
 async function handleSaveStatusConfig(projectId, previousCfg) {
-  const inputs = document.querySelectorAll('#ps-status-config-content .sc-name-input');
+  const inputs = /** @type {NodeListOf<HTMLInputElement>} */ (document.querySelectorAll('#ps-status-config-content .sc-name-input'));
   const payload = {};
   inputs.forEach(input => {
     payload[input.dataset.field] = input.value.trim();

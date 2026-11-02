@@ -150,7 +150,7 @@ export function getListUpdates(listId, targetStatus) {
   const listElement = document.getElementById(listId);
   if (!listElement) return result;
 
-  const cards = [...listElement.querySelectorAll('.card')];
+  const cards = [.../** @type {NodeListOf<HTMLElement>} */ (listElement.querySelectorAll('.card'))];
   cards.forEach((card, index) => {
     const id = Number.parseInt(card.dataset.id);
     const issue = state.issues.find(i => i.id === id);
@@ -191,7 +191,7 @@ export function setupSectionDrop(sectionId, targetStatus, options = {}) {
   });
 
   section.addEventListener('dragleave', (e) => {
-    if (!section.contains(e.relatedTarget) && list) {
+    if (!(e.relatedTarget instanceof Node && section.contains(e.relatedTarget)) && list) {
       list.classList.remove('drag-over');
       const draggedCard = getDraggedCard();
       const origin = getDraggedCardOrigin();
@@ -267,7 +267,7 @@ export function setupListDrag(listId, targetStatus, options = {}) {
   });
 
   list.addEventListener('dragleave', (e) => {
-    if (!list.contains(e.relatedTarget)) {
+    if (!(e.relatedTarget instanceof Node && list.contains(e.relatedTarget))) {
       list.classList.remove('drag-over');
     }
   });
@@ -307,9 +307,9 @@ export function sortReleasesByDate(releases) {
   return releases.slice().sort((a, b) => {
     const da = a.release_date ? new Date(a.release_date) : null;
     const db = b.release_date ? new Date(b.release_date) : null;
-    if (da && db) return da - db;
+    if (da && db) return da.getTime() - db.getTime();
     if (da) return -1;
     if (db) return 1;
-    return new Date(a.created_at) - new Date(b.created_at);
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 }

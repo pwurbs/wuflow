@@ -36,6 +36,7 @@ vi.mock('../api.js', () => ({
 vi.mock('../utils.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
+    byId: actual.byId,
     onGuardedSubmit: actual.onGuardedSubmit,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),

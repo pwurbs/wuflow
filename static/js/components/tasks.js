@@ -44,7 +44,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
         `;
 
     // Checkbox Logic
-    const checkbox = li.querySelector('input[type="checkbox"]');
+    const checkbox = /** @type {HTMLInputElement} */ (li.querySelector('input[type="checkbox"]'));
     if (callbacks.readOnly) {
       checkbox.disabled = true;
       li.draggable = false;
@@ -101,7 +101,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
     }
 
     // Edit Mode Logic
-    const titleInput = li.querySelector('.task-title-input');
+    const titleInput = /** @type {HTMLInputElement} */ (li.querySelector('.task-title-input'));
 
     if (!callbacks.readOnly) {
       let originalTitle = task.title;
@@ -175,8 +175,8 @@ export function renderTasks(tasks, container, currentIssue, callbacks = {}) {
       });
 
       // Deadline Logic (Interactive)
-      const deadlineContainer = li.querySelector('.task-deadline-container');
-      const deadlineInput = li.querySelector('.task-deadline-input');
+      const deadlineContainer = /** @type {HTMLElement} */ (li.querySelector('.task-deadline-container'));
+      const deadlineInput = /** @type {HTMLInputElement} */ (li.querySelector('.task-deadline-input'));
       deadlineContainer.addEventListener('click', () => deadlineInput.showPicker());
       deadlineInput.addEventListener('change', async () => {
         if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;

@@ -40,6 +40,22 @@ export function getTaskDeadlineStatus(taskDeadline, issue) {
   return { late: false };
 }
 
+// Returns the element with this id typed as Type, or null if there is none. An element of
+// another type throws, so a wrong id or a changed element fails loudly instead of yielding
+// undefined properties. Plain document.getElementById is enough where HTMLElement suffices.
+/**
+ * @template {HTMLElement} T
+ * @param {string} id
+ * @param {new () => T} Type
+ * @returns {T | null}
+ */
+export function byId(id, Type) {
+  const el = document.getElementById(id);
+  if (el === null) return null;
+  if (el instanceof Type) return el;
+  throw new TypeError(`#${id} is a ${el.constructor.name}, expected ${Type.name}`);
+}
+
 export function escapeHtml(text) {
   if (!text) return '';
   return text
@@ -149,7 +165,7 @@ export function promptAdminPasswordConfirmation(title, message, onConfirm, okTex
     const modal = document.getElementById('admin-confirm-modal');
     const titleEl = document.getElementById('admin-confirm-title');
     const messageEl = document.getElementById('admin-confirm-message');
-    const input = document.getElementById('admin-confirm-password');
+    const input = byId('admin-confirm-password', HTMLInputElement);
     const errorDiv = document.getElementById('admin-confirm-error');
     const okBtn = document.getElementById('admin-confirm-ok-btn');
     const cancelBtn = document.getElementById('admin-confirm-cancel-btn');
@@ -161,7 +177,7 @@ export function promptAdminPasswordConfirmation(title, message, onConfirm, okTex
     okBtn.classList.add(okType);
 
     input.value = '';
-    const usernameField = document.getElementById('admin-confirm-username');
+    const usernameField = byId('admin-confirm-username', HTMLInputElement);
     if (usernameField && state.currentUser) {
       usernameField.value = state.currentUser.email || '';
     }

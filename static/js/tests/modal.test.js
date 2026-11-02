@@ -52,6 +52,7 @@ vi.mock('../state.js', () => ({
 vi.mock('../utils.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
+    byId: actual.byId,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     updateDateInputStyle: vi.fn(),
@@ -87,12 +88,12 @@ vi.mock('../utils.js', async (importOriginal) => {
 });
 
 vi.mock('../markdown.js', () => ({
-  renderMarkdown: vi.fn((s, returnObject = false) => {
-    const html = s ? `<p>${s}</p>` : '';
+  renderMarkdown: vi.fn(s => (s ? `<p>${s}</p>` : '')),
+  renderMarkdownWithReport: vi.fn(s => ({
+    html: s ? `<p>${s}</p>` : '',
     // Let tests mock strippedHTML by throwing something specific in the string, or just default to false
-    const strippedHTML = s?.includes('<script>') ?? false;
-    return returnObject ? { html, strippedHTML } : html;
-  }),
+    strippedHTML: s?.includes('<script>') ?? false,
+  })),
 }));
 
 vi.mock('../components/tasks.js', () => ({
@@ -190,7 +191,7 @@ describe('Modal Component', () => {
               <input type="hidden" id="assignee-select">
             </div>
             <div id="project-dropdown">
-              <div id="project-trigger" class="custom-select-trigger"><span id="project-text"></span></div>
+              <button type="button" id="project-trigger" class="custom-select-trigger"><span id="project-text"></span></button>
               <div id="project-options" class="custom-select-options hidden"></div>
               <input type="hidden" id="project-select" value="1">
             </div>
@@ -3237,7 +3238,7 @@ describe('release-select change handler', () => {
               <input type="hidden" id="assignee-select">
             </div>
             <div id="project-dropdown">
-              <div id="project-trigger"><span id="project-text"></span></div>
+              <button type="button" id="project-trigger"><span id="project-text"></span></button>
               <div id="project-options" class="hidden"></div>
               <input type="hidden" id="project-select" value="1">
             </div>

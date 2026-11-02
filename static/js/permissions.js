@@ -120,7 +120,7 @@ export function can(role, action) {
 /**
  * Returns true if the given user object is permitted to perform action.
  *
- * @param {object|null} user - User object with a .role property
+ * @param {{ role?: string | null } | null} user
  * @param {string} action
  * @returns {boolean}
  */
@@ -133,7 +133,7 @@ export function userCan(user, action) {
  * delete) any comment — not just their own. Mirrors isCommentModerator in
  * backend/activity.go.
  *
- * @param {object|null} user - User object with a .role property
+ * @param {{ role?: string | null } | null} user
  * @returns {boolean}
  */
 export function isCommentModerator(user) {

@@ -1,5 +1,5 @@
-import { continueListOnEnter, showNotification } from '../utils.js';
-import { renderMarkdown } from '../markdown.js';
+import { byId, continueListOnEnter, showNotification } from '../utils.js';
+import { renderMarkdown, renderMarkdownWithReport } from '../markdown.js';
 
 function needsLeadingNewline(value, pos) {
   return pos > 0 && value[pos - 1] !== '\n';
@@ -8,7 +8,7 @@ function needsLeadingNewline(value, pos) {
 // inlineEditor: the description's inline editing in the edit modal ({ isEditing, save, discard }),
 // which Cmd/Ctrl+Enter saves and Escape discards.
 export function setupEditorToolbar(inlineEditor) {
-  const editor = document.getElementById('description-editor');
+  const editor = byId('description-editor', HTMLTextAreaElement);
   const preview = document.getElementById('description-preview');
 
   function handleEnterKey(e) {
@@ -173,7 +173,7 @@ export function setupEditorToolbar(inlineEditor) {
     }
   }
 
-  document.querySelectorAll('.editor-btn[data-md]').forEach(btn => {
+  /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.editor-btn[data-md]')).forEach(btn => {
     btn.addEventListener('mousedown', (e) => e.preventDefault());
     btn.addEventListener('click', () => {
       if (btn.dataset.prefix) {
@@ -185,23 +185,23 @@ export function setupEditorToolbar(inlineEditor) {
   });
 
   // Preview toggle
-  document.getElementById('md-preview-toggle')?.addEventListener('click', (e) => {
-    const btn = e.currentTarget;
+  const previewToggle = document.getElementById('md-preview-toggle');
+  previewToggle?.addEventListener('click', () => {
     const showingPreview = !preview.classList.contains('hidden');
-    const toolbarBtns = document.querySelectorAll('.editor-btn[data-md]');
+    const toolbarBtns = /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.editor-btn[data-md]'));
 
     if (showingPreview) {
       preview.classList.add('hidden');
       preview.classList.remove('active');
       editor.classList.remove('hidden');
       editor.focus();
-      btn.classList.remove('active');
+      previewToggle.classList.remove('active');
       toolbarBtns.forEach(b => {
         b.disabled = false;
         b.classList.remove('disabled');
       });
     } else {
-      const { html, strippedHTML } = renderMarkdown(editor.value, true);
+      const { html, strippedHTML } = renderMarkdownWithReport(editor.value);
       preview.innerHTML = html;
       if (strippedHTML) {
         showNotification('Unsupported HTML tags are not rendered for security.', 'error');
@@ -209,7 +209,7 @@ export function setupEditorToolbar(inlineEditor) {
       preview.classList.remove('hidden');
       preview.classList.add('active');
       editor.classList.add('hidden');
-      btn.classList.add('active');
+      previewToggle.classList.add('active');
       toolbarBtns.forEach(b => {
         b.disabled = true;
         b.classList.add('disabled');

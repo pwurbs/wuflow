@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { byId } from '../utils.js';
 import { getStatusOptions, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
 import { fetchLabelsByProject, fetchReleases, fetchStatusConfig } from '../api.js';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
@@ -17,7 +18,7 @@ export function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, te
     // Close others
     ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
       if (id !== wrapperId) {
-        const otherOptions = document.getElementById(id).querySelector('.custom-select-options');
+        const otherOptions = /** @type {HTMLElement} */ (document.getElementById(id).querySelector('.custom-select-options'));
         otherOptions.classList.add('hidden');
         otherOptions.style.maxHeight = '';
       }
@@ -117,12 +118,12 @@ export function renderReleaseOptions(releases, currentReleaseId) {
     optionsContainer.appendChild(div);
   });
 
-  const releaseInput = document.getElementById('release-select');
+  const releaseInput = byId('release-select', HTMLInputElement);
   const releaseText = document.getElementById('release-text');
   if (releaseInput && releaseText) {
     if (currentReleaseId) {
       const found = (releases || []).find(r => r.id === currentReleaseId);
-      releaseInput.value = currentReleaseId;
+      releaseInput.value = String(currentReleaseId);
       releaseText.textContent = found ? found.name : 'No Release';
     } else {
       releaseInput.value = '';
@@ -144,7 +145,7 @@ export function renderProjectOptions(projects) {
       selectOption('project-select', 'project-text', 'project-options', project.id, project.name);
       fetchLabelsByProject(project.id).then(labels => {
         renderLabelOptions(labels);
-        document.getElementById('label-select').value = '';
+        byId('label-select', HTMLInputElement).value = '';
         document.getElementById('label-text').textContent = 'No Label';
       }).catch(err => console.error('Failed to reload labels for project', err));
       fetchReleases(project.id).then(releases => {
@@ -154,7 +155,7 @@ export function renderProjectOptions(projects) {
       fetchStatusConfig(project.id).then(cfg => {
         state.statusConfig = cfg;
         renderStatusOptions();
-        const statusInput = document.getElementById('status');
+        const statusInput = byId('status', HTMLInputElement);
         const statusText = document.getElementById('status-text');
         if (statusInput) statusInput.value = STATUS_OPEN;
         if (statusText) statusText.textContent = 'Open';
@@ -202,7 +203,7 @@ export function renderAssigneeOptions(users) {
 }
 
 function selectOption(inputId, textId, optionsId, value, text) {
-  const input = document.getElementById(inputId);
+  const input = byId(inputId, HTMLInputElement);
   const textSpan = document.getElementById(textId);
   const options = document.getElementById(optionsId);
 

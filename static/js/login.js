@@ -3,10 +3,11 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('login-form');
-  const emailInput = document.getElementById('login-email');
-  const passwordInput = document.getElementById('login-password');
+  // Casts instead of byId: importing utils.js would add it and state.js to the login bundle.
+  const emailInput = /** @type {HTMLInputElement} */ (document.getElementById('login-email'));
+  const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById('login-password'));
   const errorDisplay = document.getElementById('login-error');
-  const submitBtn = document.getElementById('login-btn');
+  const submitBtn = /** @type {HTMLButtonElement} */ (document.getElementById('login-btn'));
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
