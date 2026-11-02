@@ -141,7 +141,7 @@ if [[ -n "$GOMOD_GO_VERSION" ]] && command -v go >/dev/null 2>&1; then
     echo -e "${YELLOW}--> Checking installed system Go against go.mod ($GOMOD_GO_VERSION)...${NC}"
     SYSTEM_GO_VERSION=$(GOTOOLCHAIN=local go version | awk '{print $3}' | sed "$STRIP_GO_PREFIX")
     if minor_older "$SYSTEM_GO_VERSION" "$GOMOD_GO_VERSION"; then
-        echo -e "${RED}System Go ($SYSTEM_GO_VERSION) is older than go.mod ($GOMOD_GO_VERSION). Install the new Go from https://go.dev/dl/, then run 'Go: Install/Update Tools' in VS Code.${NC}"
+        echo -e "${RED}System Go ($SYSTEM_GO_VERSION) is older than go.mod ($GOMOD_GO_VERSION). Update the installed Go, then rebuild the tools checked below.${NC}"
     else
         echo -e "${GREEN}System Go ($SYSTEM_GO_VERSION) matches the go.mod minor version.${NC}"
     fi
@@ -149,11 +149,11 @@ if [[ -n "$GOMOD_GO_VERSION" ]] && command -v go >/dev/null 2>&1; then
     # Source-parsing tools only understand the language features of the Go they
     # were built with: an older gopls reports false errors in the IDE, older
     # gosec/govulncheck builds fail outright in go_checks.sh, and golangci-lint
-    # refuses to run at all. Entries are "binary|rebuild hint"; gopls and
-    # golangci-lint are on the VS Code extension's tool list, gosec and
-    # govulncheck are not and need a manual go install.
+    # refuses to run at all. Entries are "binary|rebuild hint"; gopls is on the
+    # VS Code extension's tool list, golangci-lint may be installed in several
+    # ways, gosec and govulncheck need a manual go install.
     SOURCE_TOOLS="gopls|run 'Go: Install/Update Tools' in VS Code
-golangci-lint|run 'Go: Install/Update Tools' in VS Code (go.lintTool: golangci-lint-v2)
+golangci-lint|reinstall it the way it was installed (in VS Code: 'Go: Install/Update Tools' with go.lintTool: golangci-lint-v2)
 gosec|go install github.com/securego/gosec/v2/cmd/gosec@latest
 govulncheck|go install golang.org/x/vuln/cmd/govulncheck@latest"
     while IFS='|' read -r TOOL HINT; do
@@ -178,7 +178,7 @@ govulncheck|go install golang.org/x/vuln/cmd/govulncheck@latest"
         GOLANGCI_VERSION=$(golangci-lint version 2>/dev/null | sed -E 's/.*has version v?([0-9][0-9.]*).*/\1/')
         LATEST_GOLANGCI=$(latest_github_release golangci/golangci-lint)
         report_version golangci-lint "$GOLANGCI_VERSION" "$LATEST_GOLANGCI" GitHub \
-            "Update via 'Go: Install/Update Tools' in VS Code (go.lintTool: golangci-lint-v2)."
+            "Update it the way it was installed (in VS Code: 'Go: Install/Update Tools' with go.lintTool: golangci-lint-v2)."
     else
         echo -e "${RED}golangci-lint is not installed.${NC}"
     fi
