@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.ts';
-import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled } from '../utils.ts';
+import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled, errorMessage } from '../utils.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { getStatusLabel } from '../status-config.ts';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.ts';
@@ -251,7 +251,7 @@ export async function loadActivity(issue: Issue, callbacks: ActivityCallbacks = 
     ctx.comments = comments || [];
   } catch (err) {
     if (isStale(seq)) return;
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
     return;
   }
   renderAll();
@@ -276,7 +276,7 @@ export async function refreshHistory() {
     ctx.history = history;
   } catch (err) {
     if (isStale(seq)) return;
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
     return;
   }
   renderAll();
@@ -520,7 +520,7 @@ function enterCommentEdit(comment: Comment, li: HTMLElement, container: HTMLElem
       showNotification('Comment updated');
       return true;
     } catch (err) {
-      showNotification(err.message, 'error');
+      showNotification(errorMessage(err), 'error');
       return false;
     }
   }, { field: editorContainer });
@@ -540,7 +540,7 @@ async function removeComment(comment: Comment) {
     await refreshComments();
     showNotification('Comment deleted');
   } catch (err) {
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
   }
 }
 
@@ -557,7 +557,7 @@ async function submitNewComment() {
     showNotification('Comment added');
     return true;
   } catch (err) {
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
     return false;
   }
 }
@@ -572,7 +572,7 @@ async function refreshComments() {
     ctx.comments = comments;
   } catch (err) {
     if (isStale(seq)) return;
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
     return;
   }
   renderAll();

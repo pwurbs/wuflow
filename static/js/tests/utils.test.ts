@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest'
 import {
   byId, bySelector, escapeHtml, debounce, getUserInitials,
   countCodepoints, countUtf8Bytes, canArchive,
-  showNotification, showConfirm,
+  errorMessage, showNotification, showConfirm,
   updateDateInputStyle, initCharCounter,
   getUnusedColor,
   getDeadlineStatus, getTaskDeadlineStatus,
@@ -322,6 +322,17 @@ describe('canArchive', () => {
   it('should report open tasks before planned dates', () => {
     const result = canArchive(makeIssue({ tasks: [makeTask({ done: false })], planned_dates: ['2024-01-01'] }));
     expect(result.reason).toBe('Issue has open tasks');
+  });
+});
+
+describe('errorMessage', () => {
+  it('returns the message of an Error', () => {
+    expect(errorMessage(new TypeError('bad input'))).toBe('bad input');
+  });
+
+  it('turns any other thrown value into a string', () => {
+    expect(errorMessage('plain text')).toBe('plain text');
+    expect(errorMessage({ message: 'not an Error' })).toBe('[object Object]');
   });
 });
 

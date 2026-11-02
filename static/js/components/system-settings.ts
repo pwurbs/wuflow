@@ -1,5 +1,5 @@
 import { fetchUsers, createUser, updateUser, deleteUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.ts';
-import { byId, showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit } from '../utils.ts';
+import { byId, showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit, errorMessage } from '../utils.ts';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.ts';
 import { state, setUsers, setProjects } from '../state.ts';
 import { ROLE_DISPLAY_NAMES, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
@@ -142,7 +142,7 @@ async function handleProjectSubmit() {
     // refresh only if the currently selected project was affected (e.g. deleted elsewhere).
     updateProjectSelectorOptions(projects ?? await fetchProjects());
   } catch (err) {
-    showProjectError(errorDisplay, err.message);
+    showProjectError(errorDisplay, errorMessage(err));
   }
 }
 
@@ -405,7 +405,7 @@ async function handleUserSubmit() {
     closeUserModal();
     void renderSystemSettingsView();
   } catch (err) {
-    showUserError(errorDisplay, err.message);
+    showUserError(errorDisplay, errorMessage(err));
   }
 }
 

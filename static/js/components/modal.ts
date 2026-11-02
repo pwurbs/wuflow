@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.ts';
-import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, bySelector } from '../utils.ts';
+import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, bySelector, errorMessage } from '../utils.ts';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.ts';
 import { PRIORITY_NORMAL, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import type { Priority } from '../domain-constants.ts';
@@ -606,7 +606,7 @@ async function handleIssueSubmit() {
     }
     closeModal();
   } catch (err) {
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
   }
 }
 
@@ -648,7 +648,7 @@ async function handleArchiveIssue() {
         showNotification('Issue archived');
       }
     } catch (err) {
-      showNotification(err.message, 'error');
+      showNotification(errorMessage(err), 'error');
     }
   }
 }
@@ -667,7 +667,7 @@ async function handleUnarchiveIssue() {
         showNotification('Issue unarchived');
       }
     } catch (err) {
-      showNotification(err.message, 'error');
+      showNotification(errorMessage(err), 'error');
     }
   }
 }
@@ -783,7 +783,7 @@ function setupInlineEditing() {
           showNotification('Unsupported HTML tags are not rendered for security.', 'error');
         }
       } catch (err) {
-        showNotification(err.message, 'error');
+        showNotification(errorMessage(err), 'error');
         return false; // Keep edit mode
       }
     }
@@ -865,7 +865,7 @@ function setupInlineEditing() {
         const saved = await saveIssueChanges(() => ({ description: newDesc }), 'Description updated');
         if (!saved) return false;
       } catch (err) {
-        showNotification(err.message, 'error');
+        showNotification(errorMessage(err), 'error');
         return false;
       }
     }
@@ -1002,7 +1002,7 @@ async function saveSidebarField(changes: IssueChanges, successMsg: string | null
   try {
     if (await markBusy(sidebarFieldOf(control), () => saveIssueChanges(() => changes, successMsg))) return true;
   } catch (err) {
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
   }
   revertSidebarControls();
   return false;
@@ -1194,7 +1194,7 @@ async function handleTaskSubmit() {
     void refreshHistory();
     return true;
   } catch (err) {
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
     return false;
   }
 }
@@ -1220,7 +1220,7 @@ async function saveTaskOrder(issue: Issue) {
       await updateTaskPositions(issue.project_id, issue.id, positions);
       tasks.sort((a, b) => a.position - b.position);
     } catch (err) {
-      showNotification(err.message, 'error');
+      showNotification(errorMessage(err), 'error');
       // The server saved none of the positions (all-or-nothing), so put the tasks back
       // in their old order; otherwise the unsaved order would look saved.
       previous.forEach(({ task, position }) => { task.position = position; });

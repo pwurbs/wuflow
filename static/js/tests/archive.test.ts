@@ -59,6 +59,7 @@ vi.mock('../drag.ts', () => ({
 
 vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
+  errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   canArchive: vi.fn().mockReturnValue({ allowed: true }),
   showConfirm: vi.fn().mockResolvedValue(true),
   showNotification: vi.fn(),

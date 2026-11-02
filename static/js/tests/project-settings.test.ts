@@ -24,6 +24,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
   bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   guardSubmit: (await importOriginal<typeof import('../utils.ts')>()).guardSubmit,
+  errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn((str) => str),
@@ -454,7 +455,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('shows error notification using message from error when available', async () => {
-      vi.mocked(api.updateStatusConfig).mockRejectedValue({ message: 'Validation failed' });
+      vi.mocked(api.updateStatusConfig).mockRejectedValue(new Error('Validation failed'));
       await renderProjectSettingsView();
 
       byId('ps-save-status-config-btn').click();

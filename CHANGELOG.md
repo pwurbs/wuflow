@@ -1,7 +1,7 @@
 
 # 1.4.6
 
-- Frontend code converted from JavaScript to TypeScript, including types for all API data and a type check in the test suites and in the build
+- Frontend code converted from JavaScript to TypeScript with strict type checking, including types for all API data and a type check in the test suites and in the build
 
 # 1.4.5
 

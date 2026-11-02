@@ -20,6 +20,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
   bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
+  errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   showNotification: vi.fn(),
   getUserInitials: vi.fn((user) => (user.first_name[0] + user.last_name[0]).toUpperCase()),
   debounce: vi.fn((fn) => fn),

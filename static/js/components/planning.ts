@@ -1,7 +1,7 @@
 import { state, isFilterActive } from '../state.ts';
 import { STATUS_DONE, STATUS_ARCHIVE } from '../status-config.ts';
 import { updateIssue } from '../api.ts';
-import { showNotification, byId, bySelector } from '../utils.ts';
+import { showNotification, byId, bySelector, errorMessage } from '../utils.ts';
 import { getDraggedCard, setDraggedCard } from '../drag.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues } from '../filters.ts';
@@ -323,7 +323,7 @@ function createPlanningItem(issue: Issue, dateStr: string) {
         if (rerenderActiveViewCallback) rerenderActiveViewCallback();
       } catch (err) {
         issue.planned_dates = prevDates; // already reverted locally, no need for a full re-fetch
-        showNotification(err.message, 'error');
+        showNotification(errorMessage(err), 'error');
         if (rerenderActiveViewCallback) rerenderActiveViewCallback();
       }
     }
@@ -510,7 +510,7 @@ async function handlePlanningDrop(this: HTMLElement, e: DragEvent) {
     try {
       await processDroppedCard(draggedCard, targetDateStr);
     } catch (err) {
-      showNotification(err.message, 'error');
+      showNotification(errorMessage(err), 'error');
       if (refreshAppCallback) refreshAppCallback(); // re-render to restore actual server state
     }
   }

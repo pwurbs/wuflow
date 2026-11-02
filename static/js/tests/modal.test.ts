@@ -60,6 +60,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
   return {
     byId: actual.byId,
     bySelector: actual.bySelector,
+    errorMessage: actual.errorMessage,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     updateDateInputStyle: vi.fn(),

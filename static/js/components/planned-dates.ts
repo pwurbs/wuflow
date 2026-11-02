@@ -1,5 +1,5 @@
 import { state } from '../state.ts';
-import { showNotification, byId } from '../utils.ts';
+import { showNotification, byId, errorMessage } from '../utils.ts';
 import type { Issue } from '../models.ts';
 import type { IssueWrite } from '../api.ts';
 
@@ -105,7 +105,7 @@ async function addPlannedDate(dateStr: string, saveDates: SaveDates) {
         }), 'Date added');
         if (saved) renderPlannedDateChips(state.currentIssue, saveDates);
       } catch (err) {
-        showNotification(err.message, 'error');
+        showNotification(errorMessage(err), 'error');
       }
     }
   } else {
@@ -129,7 +129,7 @@ async function removePlannedDate(dateStr: string, saveDates: SaveDates) {
         }), 'Date removed');
         if (saved) renderPlannedDateChips(state.currentIssue, saveDates);
       } catch (err) {
-        showNotification(err.message, 'error');
+        showNotification(errorMessage(err), 'error');
       }
     }
   } else {

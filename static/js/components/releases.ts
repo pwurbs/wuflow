@@ -1,7 +1,7 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { sortReleasesByDate } from '../list-utils.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector } from '../utils.ts';
+import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector, errorMessage } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
 import type { Issue, Release, User } from '../models.ts';
@@ -79,7 +79,7 @@ export async function setupReleasesView() {
         updateReleaseFilterOptions(state.releases);
         void renderReleasesView();
       } catch (err) {
-        showNotification(err.message || 'Failed to reopen release', 'error');
+        showNotification(errorMessage(err) || 'Failed to reopen release', 'error');
       }
     });
   }
@@ -366,7 +366,7 @@ async function handleReleaseSubmit() {
     void renderReleasesView();
   } catch (err) {
     if (errorDisplay) {
-      errorDisplay.textContent = err.message || 'Failed to save release.';
+      errorDisplay.textContent = errorMessage(err) || 'Failed to save release.';
       errorDisplay.classList.remove('hidden');
     }
   }
@@ -538,7 +538,7 @@ async function handleTriggerReleaseDialog(rel: Release) {
         updateReleaseFilterOptions(state.releases);
         void renderReleasesView();
       } catch (err) {
-        showNotification(err.message || 'Failed to release', 'error');
+        showNotification(errorMessage(err) || 'Failed to release', 'error');
       }
       resolve(true);
     });

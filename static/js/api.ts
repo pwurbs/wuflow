@@ -1,4 +1,4 @@
-import { singleFlight } from './utils.ts';
+import { singleFlight, errorMessage } from './utils.ts';
 import type { Comment, HistoryEntry, Issue, Label, PositionUpdate, Project, Release, StatusConfig, Task, User } from './models.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Priority } from './domain-constants.ts';
@@ -200,7 +200,7 @@ export async function reauthenticate(email: string, password: string): Promise<s
     if (res.status === 429) return 'Too many login attempts. Please wait a moment and try again.';
     return (await res.text()) || 'Login failed. Please try again.';
   } catch (err) {
-    return err.message;
+    return errorMessage(err);
   }
 }
 

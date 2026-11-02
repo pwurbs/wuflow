@@ -4,7 +4,7 @@ import type { Label, Project, Release, User } from '../models.ts';
 import type { Priority } from '../domain-constants.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import { logout, updateCurrentUser } from '../api.ts';
-import { byId, showNotification, getUserInitials, onGuardedSubmit } from '../utils.ts';
+import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage } from '../utils.ts';
 import { validatePasswordPolicy } from './system-settings.ts';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
@@ -470,10 +470,10 @@ function setupPasswordModal(user: User) {
     } catch (err) {
       const errorDisplay = document.getElementById('password-modal-error');
       if (errorDisplay) {
-        errorDisplay.textContent = err.message;
+        errorDisplay.textContent = errorMessage(err);
         errorDisplay.classList.remove('hidden');
       } else {
-        showNotification(err.message, 'error');
+        showNotification(errorMessage(err), 'error');
       }
     }
   });

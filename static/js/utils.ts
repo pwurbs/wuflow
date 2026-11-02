@@ -78,6 +78,11 @@ export function escapeHtml(text: string) {
     .replaceAll("'", "&#039;");
 }
 
+// The message of a caught value: a thrown Error, or anything else turned into a string.
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 let notificationTimeout: ReturnType<typeof setTimeout> | undefined;
 export function showNotification(message: string, type = 'success') {
   const notificationToast = document.getElementById('notification-toast');
@@ -219,7 +224,7 @@ export function promptAdminPasswordConfirmation(title: string, message: string, 
         await onConfirm(input.value);
         return true;
       } catch (err) {
-        errorDiv.textContent = err.message || 'Action failed.';
+        errorDiv.textContent = errorMessage(err) || 'Action failed.';
         errorDiv.classList.remove('hidden');
         input.focus();
         return false;

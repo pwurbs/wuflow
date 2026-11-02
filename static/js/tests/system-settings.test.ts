@@ -41,6 +41,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     byId: actual.byId,
     bySelector: actual.bySelector,
     onGuardedSubmit: actual.onGuardedSubmit,
+    errorMessage: actual.errorMessage,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     getUserInitials: vi.fn().mockReturnValue('AD'),

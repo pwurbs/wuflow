@@ -27,6 +27,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   toDateInputValue: (await importOriginal<typeof import('../utils.ts')>()).toDateInputValue,
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
+  errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => String(s ?? '')),

@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, guardSubmit, bySelector } from '../utils.ts';
+import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, guardSubmit, bySelector, errorMessage } from '../utils.ts';
 import { MAX_TITLE_LENGTH } from '../validation-config.ts';
 import { updateTask, deleteTask } from '../api.ts'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.ts';
@@ -72,7 +72,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
         } catch (err) {
           task.done = !checkbox.checked; // revert local state
           checkbox.checked = !checkbox.checked;
-          showNotification(err.message, 'error');
+          showNotification(errorMessage(err), 'error');
         }
       });
 
@@ -92,7 +92,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
             showNotification('Task deleted');
             if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
           } catch (err) {
-            showNotification(err.message, 'error');
+            showNotification(errorMessage(err), 'error');
           }
         }
       });
@@ -159,7 +159,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
             if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
           } catch (err) {
             task.title = originalTitle; // revert local state, keep the typed text in the input
-            showNotification(err.message, 'error');
+            showNotification(errorMessage(err), 'error');
             return false; // keep edit mode so user can retry
           }
         }
@@ -205,7 +205,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
         } catch (err) {
           task.deadline = prevDeadline; // revert local state
           deadlineInput.value = toDateInputValue(prevDeadline);
-          showNotification(err.message, 'error');
+          showNotification(errorMessage(err), 'error');
         }
       });
     }

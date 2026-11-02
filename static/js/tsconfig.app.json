@@ -7,9 +7,7 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
-    "strict": false,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
+    "strict": true,
     "noEmit": true,
     "skipLibCheck": true
   },

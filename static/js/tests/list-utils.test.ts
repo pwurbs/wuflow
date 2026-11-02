@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../api.ts', () => ({ updateIssue: vi.fn(), updateIssuePositions: vi.fn(), archiveIssue: vi.fn() }));
-vi.mock('../utils.ts', () => ({ showNotification: vi.fn() }));
+vi.mock('../utils.ts', async (importOriginal) => ({
+  errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
+  showNotification: vi.fn()
+}));
 vi.mock('../drag.ts', () => ({ getDraggedCard: vi.fn(), getDragAfterElement: vi.fn() }));
 vi.mock('../state.ts', () => ({ state: { issues: [] } }));
 

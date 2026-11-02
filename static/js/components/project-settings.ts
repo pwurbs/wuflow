@@ -1,5 +1,5 @@
 import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation, guardSubmit } from '../utils.ts';
+import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation, guardSubmit, errorMessage } from '../utils.ts';
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.ts';
 import { state, setStatusConfig, setLabels } from '../state.ts';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.ts';
@@ -239,6 +239,6 @@ async function handleSaveStatusConfig(projectId: number, previousCfg: StatusName
     showNotification('Column configuration saved', 'success');
     renderBoard();
   } catch (err) {
-    showNotification(err.message || 'Failed to save column configuration', 'error');
+    showNotification(errorMessage(err) || 'Failed to save column configuration', 'error');
   }
 }

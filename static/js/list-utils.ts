@@ -5,7 +5,7 @@ import { STATUS_ARCHIVE } from './status-config.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Issue, Release, User } from './models.ts';
 import { getDraggedCard, getDraggedCardOrigin, getDragAfterElement } from './drag.ts';
-import { showNotification } from './utils.ts';
+import { showNotification, errorMessage } from './utils.ts';
 
 // The callbacks app.ts hands to each issue view (board, backlog, archive).
 export type RefreshApp = () => unknown;
@@ -52,8 +52,8 @@ export async function handleMoveBottom(issue: Issue, allIssuesInList: Issue[], r
  * re-rendering moves the cards back right away, even when the server is unreachable. The
  * refresh then shows the actual server state.
  */
-export function showSaveFailure(err: Error, rerenderCallback?: () => void, refreshCallback?: () => unknown) {
-  showNotification(err.message, 'error');
+export function showSaveFailure(err: unknown, rerenderCallback?: () => void, refreshCallback?: () => unknown) {
+  showNotification(errorMessage(err), 'error');
   if (rerenderCallback) rerenderCallback();
   if (refreshCallback) refreshCallback();
 }
@@ -66,7 +66,7 @@ export async function handleTogglePriority(issue: Issue, rerenderCallback?: () =
     if (rerenderCallback) rerenderCallback();
   } catch (err) {
     issue.priority = originalPriority; // already reverted locally, no need for a full re-fetch
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
     if (rerenderCallback) rerenderCallback();
   }
 }
@@ -82,7 +82,7 @@ export async function handleAssignToMe(issue: Issue, currentUser: User, rerender
   } catch (err) {
     issue.assignee_id = originalAssigneeId;
     issue.assignee = originalAssignee; // already reverted locally, no need for a full re-fetch
-    showNotification(err.message, 'error');
+    showNotification(errorMessage(err), 'error');
     if (rerenderCallback) rerenderCallback();
   }
 }
