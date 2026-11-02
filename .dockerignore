@@ -31,6 +31,6 @@
 backend/testdata/
 static/js/tests/
 static/js/coverage/
-static/js/vitest.config.js
+static/js/vitest.config.ts
 static/dist/
 static/logo.png

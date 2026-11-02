@@ -1,0 +1,222 @@
+import { escapeHtml, showNotification, getUserInitials, getDeadlineStatus } from '../utils.ts';
+import { COLOR_REGEX } from '../validation-config.ts';
+import { PRIORITY_HIGH } from '../domain-constants.ts';
+import { STATUS_ARCHIVE } from '../status-config.ts';
+import { setDraggedCard, setDraggedCardOrigin } from '../drag.ts';
+import { showCardContextMenu } from '../context-menu.ts';
+
+export interface CardCallbacks {
+  openModal?: (issue) => void;
+  onDragStart?: (cardEl: HTMLElement) => void;
+  onDragEnd?: (cardEl: HTMLElement) => void;
+  onMoveTop?: () => unknown;
+  onMoveBottom?: () => unknown;
+  onTogglePriority?: () => unknown;
+  onAssignToMe?: () => unknown;
+}
+
+export function createCardElement(issue, isBoard = false, callbacks: CardCallbacks = {}) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  if (isBoard) {
+    card.classList.add('board-card');
+  }
+  card.draggable = issue.status !== STATUS_ARCHIVE;
+  card.dataset.id = issue.id;
+  card.classList.toggle('is-archived', issue.status === STATUS_ARCHIVE);
+  if (issue.priority === PRIORITY_HIGH) {
+    card.classList.add('high-priority');
+  }
+
+  const completedTasks = issue.tasks ? issue.tasks.filter(t => t.done).length : 0;
+  const totalTasks = issue.tasks ? issue.tasks.length : 0;
+  const openTasks = totalTasks - completedTasks;
+
+  if (isBoard) {
+    card.innerHTML = getBoardCardHTML(issue, openTasks);
+  } else {
+    card.innerHTML = getBacklogCardHTML(issue, openTasks, totalTasks);
+  }
+
+  // Event Listeners
+  card.addEventListener('click', () => {
+    if (callbacks.openModal) {
+      callbacks.openModal(issue);
+    }
+  });
+
+  card.addEventListener('dragstart', function (e) {
+    setDraggedCard(this);
+    setDraggedCardOrigin({
+      parent: this.parentNode,
+      nextSibling: this.nextElementSibling
+    });
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => {
+      this.classList.add('dragging');
+      document.body.classList.add('is-dragging');
+    }, 0);
+
+    if (callbacks.onDragStart) callbacks.onDragStart(this);
+  });
+
+  card.addEventListener('dragend', function () {
+    this.classList.remove('dragging');
+    document.body.classList.remove('is-dragging');
+    setDraggedCard(null);
+    setDraggedCardOrigin(null);
+
+    if (callbacks.onDragEnd) callbacks.onDragEnd(this);
+  });
+
+  // Hover handlers for planning highlighting
+  card.addEventListener('mouseenter', () => {
+    document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
+  });
+
+  card.addEventListener('mouseleave', () => {
+    document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
+  });
+
+  const hasContextActions = callbacks.onMoveTop || callbacks.onMoveBottom || callbacks.onTogglePriority || callbacks.onAssignToMe;
+  if (hasContextActions) {
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+
+      const items = [
+        {
+          label: 'Move to top',
+          disabled: !callbacks.onMoveTop,
+          action: () => callbacks.onMoveTop?.()
+        },
+        {
+          label: 'Move to bottom',
+          disabled: !callbacks.onMoveBottom,
+          action: () => callbacks.onMoveBottom?.()
+        },
+        {
+          label: issue.priority === PRIORITY_HIGH ? 'Remove high priority' : 'Set high priority',
+          disabled: !callbacks.onTogglePriority,
+          action: () => callbacks.onTogglePriority?.()
+        },
+        {
+          label: 'Copy issue ID',
+          action: async () => {
+            try {
+              await navigator.clipboard.writeText(`#${issue.id}`);
+              showNotification(`Copied #${issue.id} to clipboard`, 'success');
+            } catch {
+              showNotification('Failed to copy to clipboard', 'error');
+            }
+          }
+        }
+      ];
+
+      items.push({
+        label: 'Assign to me',
+        disabled: !callbacks.onAssignToMe,
+        action: () => callbacks.onAssignToMe?.()
+      });
+
+      showCardContextMenu(e.clientX, e.clientY, items);
+    });
+  }
+
+  return card;
+}
+
+function getBoardCardHTML(issue, openTasks) {
+  const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
+  const deadlineStatus = getDeadlineStatus(issue);
+  const deadlineClass = deadlineStatus.late ? ' overdue' : '';
+  const deadlineTitle = deadlineStatus.late ? ` title="${deadlineStatus.reason}"` : '';
+
+  return `
+            <div class="board-card-title">${escapeHtml(issue.title)}</div>
+            <div class="board-card-label-space">
+                ${issue.label ? `<span class="label-chip" title="${escapeHtml(issue.label.name)}" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
+                ${getReleaseChipHTML(issue.release)}
+            </div>
+            <div class="board-card-bottom">
+                <div class="board-card-id-group" style="display: flex; align-items: center; gap: 8px;">
+                  <div class="board-card-id">#${issue.id}</div>
+                  ${getAssigneeBadgeHTML(issue)}
+                </div>
+                <div class="board-card-meta-right">
+                    ${issue.deadline ? `<div class="board-card-deadline${deadlineClass}"${deadlineTitle}>${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    <div class="board-task-info">
+                        <span class="board-task-icon" aria-hidden="true"></span>
+                        <span>${openTasks}</span>
+                        ${issue.tasks && openTasks > 0 ? `
+                        <div class="board-task-tooltip">
+                            <ul>
+                                ${issue.tasks.filter(t => !t.done).map(t => `
+                                    <li>
+                                        <span class="tooltip-icon" aria-hidden="true"></span>
+                                        <span class="tooltip-title">${escapeHtml(t.title)}</span>
+                                        ${t.deadline ? `<span class="tooltip-deadline">${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+}
+
+function getBacklogCardHTML(issue, openTasks, totalTasks) {
+  const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
+  const deadlineStatus = getDeadlineStatus(issue);
+  const deadlineClass = deadlineStatus.late ? ' overdue' : '';
+  const deadlineTitle = deadlineStatus.late ? ` title="${deadlineStatus.reason}"` : '';
+
+  const taskTooltipHTML = openTasks > 0 ? `
+    <div class="board-task-tooltip">
+        <ul>
+            ${issue.tasks.filter(t => !t.done).map(t => `
+                <li>
+                    <span class="tooltip-icon" aria-hidden="true"></span>
+                    <span class="tooltip-title">${escapeHtml(t.title)}</span>
+                    ${t.deadline ? `<span class="tooltip-deadline">${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                </li>
+            `).join('')}
+        </ul>
+    </div>` : '';
+
+  return `
+    <div class="backlog-card-left">
+        <span class="card-id">Issue #${issue.id}</span>
+        ${issue.assignee ? getAssigneeBadgeHTML(issue) : '<span class="backlog-badge-placeholder"></span>'}
+        <span class="backlog-card-title">${escapeHtml(issue.title)}</span>
+    </div>
+    <div class="backlog-card-spacer"></div>
+    <div class="backlog-card-right">
+        ${issue.label ? `<span class="label-chip" title="${escapeHtml(issue.label.name)}" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
+        ${issue.deadline ? `<span class="backlog-card-deadline${deadlineClass}"${deadlineTitle}>${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
+        ${totalTasks > 0 ? `
+        <div class="board-task-info">
+            <span class="board-task-icon" aria-hidden="true"></span>
+            <span>${openTasks}</span>
+            ${taskTooltipHTML}
+        </div>
+        ` : ''}
+        ${getReleaseChipHTML(issue.release)}
+    </div>
+  `;
+}
+
+function getReleaseChipHTML(release) {
+  if (!release) return '';
+  const check = release.status === 'closed' ? '<span class="release-chip-check">✓</span>' : '';
+  return `<span class="release-chip">${check}${escapeHtml(release.name)}</span>`;
+}
+
+function getAssigneeBadgeHTML(issue, extraStyle = '') {
+  if (!issue.assignee) return '';
+  const initials = getUserInitials(issue.assignee);
+  const fullName = `${issue.assignee.first_name} ${issue.assignee.last_name}`;
+  return `<span class="user-badge" title="Assignee: ${escapeHtml(fullName)}" style="${extraStyle}">${escapeHtml(initials)}</span>`;
+}
+

@@ -1,0 +1,182 @@
+import { state, isFilterActive, toggleBacklogReleaseFilter, pruneReleaseFilterIds } from '../state.ts';
+import { STATUS_OPEN, STATUS_TODO } from '../status-config.ts';
+import { RELEASE_STATUS_OPEN } from '../domain-constants.ts';
+import { updateIssue } from '../api.ts';
+import { ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
+import { createCardElement, type CardCallbacks } from './card.ts';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.ts';
+import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
+import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
+import { getDraggedCard } from '../drag.ts';
+import { escapeHtml } from '../utils.ts';
+
+let refreshAppCallback = null;
+let openModalCallback = null;
+let rerenderActiveViewCallback = null;
+
+function buildLaneCard(releaseId, name, count) {
+  const isChecked = state.filter.releaseFilterIds.includes(releaseId);
+  const card = document.createElement('div');
+  card.className = 'release-lane-card' + (isChecked ? ' active' : '');
+  card.innerHTML = `
+    <span class="release-lane-name">${escapeHtml(name)}</span>
+    <span class="release-lane-count">${count}</span>
+  `;
+
+  card.addEventListener('click', () => {
+    toggleBacklogReleaseFilter(releaseId);
+    void renderBacklog();
+  });
+
+  card.addEventListener('dragover', (e) => {
+    if (getDraggedCard() && userCan(state.currentUser, ACTION_UPDATE_ISSUE)) {
+      e.preventDefault();
+      card.classList.add('drag-over');
+    }
+  });
+  card.addEventListener('dragenter', (e) => e.preventDefault());
+  card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+
+  card.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    card.classList.remove('drag-over');
+    if (!userCan(state.currentUser, ACTION_UPDATE_ISSUE)) return;
+    const draggedCard = getDraggedCard();
+    if (!draggedCard) return;
+    const issueId = Number.parseInt(draggedCard.dataset.id, 10);
+    const issue = state.issues.find(i => i.id === issueId);
+    if (!issue || issue.release_id === releaseId) return;
+    const updated = { ...issue, release_id: releaseId };
+    const result = await updateIssue(updated.project_id, updated);
+    if (result.issue) {
+      Object.assign(issue, result.issue);
+      void renderBacklog();
+    }
+  });
+
+  return card;
+}
+
+function renderBacklogReleaseLanes() {
+  const container = document.getElementById('backlog-release-lanes');
+  if (!container) return;
+
+  const openReleases = sortReleasesByDate(state.releases.filter(r => r.status === RELEASE_STATUS_OPEN));
+
+  if (openReleases.length === 0) {
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  container.innerHTML = `
+    <div class="backlog-header">
+      <h2>Open Releases</h2>
+    </div>
+    <div class="release-lanes-list"></div>
+  `;
+  const list = container.querySelector('.release-lanes-list');
+
+  const countsByRelease = new Map<number | null, number>();
+  state.issues.forEach(i => {
+    if (i.status === STATUS_OPEN || i.status === STATUS_TODO) {
+      const key = i.release_id ?? null;
+      countsByRelease.set(key, (countsByRelease.get(key) || 0) + 1);
+    }
+  });
+
+  openReleases.forEach(rel => {
+    list.appendChild(buildLaneCard(rel.id, rel.name, countsByRelease.get(rel.id) || 0));
+  });
+  list.appendChild(buildLaneCard(null, 'No Release', countsByRelease.get(null) || 0));
+}
+
+export async function renderBacklog(refreshApp?, openModal?, rerenderActiveView?) {
+  if (refreshApp) refreshAppCallback = refreshApp;
+  if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
+
+  // Lazy-load open issues if not already loaded
+  await ensureIssueLists(VIEW_ISSUE_LISTS.backlog);
+
+  const validReleaseIds = new Set([null, ...state.releases.filter(r => r.status === RELEASE_STATUS_OPEN).map(r => r.id)]);
+  pruneReleaseFilterIds(validReleaseIds);
+  renderBacklogReleaseLanes();
+
+  const backlogList = document.getElementById('backlog-list');
+  const moveToTodoList = document.getElementById('move-to-todo-list');
+  const backlogCount = document.getElementById('backlog-count');
+  const todoCount = document.getElementById('todo-count');
+
+  // Clear
+  backlogList.innerHTML = '';
+  moveToTodoList.innerHTML = '';
+
+  // Filter and sort issues using extracted pure functions
+  const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
+  const openIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_OPEN));
+  const todoIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_TODO));
+
+  function makeCardCallbacks(issue, issuesInList) {
+    const isFirst = issuesInList[0]?.id === issue.id;
+    const isLast  = issuesInList[issuesInList.length - 1]?.id === issue.id;
+    const cb: CardCallbacks = {
+      openModal:        openModalCallback,
+      onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),
+      onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),
+      onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback)
+    };
+    if (state.currentUser && issue.assignee_id !== state.currentUser.id) {
+      cb.onAssignToMe = () => handleAssignToMe(issue, state.currentUser, rerenderActiveViewCallback);
+    }
+    return cb;
+  }
+
+  openIssues.forEach(issue => {
+    backlogList.appendChild(createCardElement(issue, false, makeCardCallbacks(issue, openIssues)));
+  });
+  todoIssues.forEach(issue => {
+    moveToTodoList.appendChild(createCardElement(issue, false, makeCardCallbacks(issue, todoIssues)));
+  });
+
+  if (isFilterActive()) {
+    const totalOpen = state.issues.filter(i => i.status === STATUS_OPEN).length;
+    const totalTodo = state.issues.filter(i => i.status === STATUS_TODO).length;
+    backlogCount.textContent = `${openIssues.length}/${totalOpen}`;
+    todoCount.textContent = `${todoIssues.length}/${totalTodo}`;
+  } else {
+    backlogCount.textContent = String(openIssues.length);
+    todoCount.textContent = String(todoIssues.length);
+  }
+}
+
+
+
+export function setupBacklogView(refreshApp, openModal, rerenderActiveView) {
+  if (refreshApp) refreshAppCallback = refreshApp;
+  if (openModal) openModalCallback = openModal;
+  if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
+
+  const validateUpdate = () => userCan(state.currentUser, ACTION_UPDATE_ISSUE);
+
+  const dropOptions = {
+    refreshApp: refreshAppCallback,
+    rerenderCallback: rerenderActiveViewCallback,
+    onValidate: validateUpdate,
+    onDrop: async () => {
+      await saveIssueOrder([
+        ...getListUpdates('backlog-list', STATUS_OPEN).changes,
+        ...getListUpdates('move-to-todo-list', STATUS_TODO).changes
+      ]);
+      void renderBacklog();
+    }
+  };
+
+  setupSectionDrop('backlog-open-section', STATUS_OPEN, { refreshApp: refreshAppCallback, rerenderCallback: rerenderActiveViewCallback, onValidate: validateUpdate, showDragHighlight: false });
+  setupSectionDrop('backlog-todo-section', STATUS_TODO, { refreshApp: refreshAppCallback, rerenderCallback: rerenderActiveViewCallback, onValidate: validateUpdate, showDragHighlight: false });
+
+  setupListDrag('backlog-list', STATUS_OPEN, { ...dropOptions, showDragHighlight: false });
+  setupListDrag('move-to-todo-list', STATUS_TODO, { ...dropOptions, showDragHighlight: false });
+}
+
+

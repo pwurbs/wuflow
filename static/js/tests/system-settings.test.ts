@@ -1,0 +1,1487 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { setupSystemSettingsView, renderSystemSettingsView, validatePasswordPolicy, isBlacklistedPassword, isLight } from '../components/system-settings.ts';
+import { byId, getUnusedColor } from '../utils.ts';
+import * as api from '../api.ts';
+import * as utils from '../utils.ts';
+import * as permissions from '../permissions.ts';
+import { state } from '../state.ts';
+
+// Helper to generate random pass
+// Drawn again when the random part happens to contain a blacklisted word (e.g. "m0nd" in
+// about 0.2 % of draws), which the password policy would reject.
+function generateRandomPassword() {
+  let password;
+  do {
+    password = btoa(Math.random().toString()).slice(0, 16) + 'U1!'; // NOSONAR
+  } while (isBlacklistedPassword(password));
+  return password;
+}
+
+// Mock dependencies
+vi.mock('../api.ts', () => ({
+  fetchUsers: vi.fn(),
+  createUser: vi.fn(),
+  updateUser: vi.fn(),
+  deleteUser: vi.fn(),
+  fetchProjects: vi.fn(),
+  createProject: vi.fn(),
+  updateProject: vi.fn(),
+  deleteProject: vi.fn(),
+  logout: vi.fn(),
+  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../utils.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils.ts')>();
+  return {
+    byId: actual.byId,
+    onGuardedSubmit: actual.onGuardedSubmit,
+    showNotification: vi.fn(),
+    showConfirm: vi.fn(),
+    getUserInitials: vi.fn().mockReturnValue('AD'),
+    escapeHtml: vi.fn((str) => str),
+    initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
+    countCodepoints: vi.fn(s => [...s].length),
+    countUtf8Bytes: actual.countUtf8Bytes,
+    getUnusedColor: (usedColors) => {
+      const palette = [
+        '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
+        '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
+        '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
+        '#FF7043', '#8D6E63', '#78909C'
+      ];
+      const unused = palette.filter(c => !usedColors.includes(c));
+      return unused.length > 0 ? unused[0] : palette[0];
+    },
+    formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString()),
+    // Real implementation — these tests drive the actual admin-confirm-modal DOM.
+    promptAdminPasswordConfirmation: actual.promptAdminPasswordConfirmation
+  };
+});
+
+vi.mock('../permissions.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../permissions.ts')>();
+  return {
+    ...actual,
+    userCan: vi.fn()
+  };
+});
+
+vi.mock('../state.ts', () => ({
+  state: {
+    currentUser: { role: 'admin' }
+  },
+  setUsers: vi.fn(),
+  setProjects: vi.fn(),
+}));
+
+describe('system-settings.ts component', () => {
+  beforeEach(() => {
+    // Setup DOM
+    document.body.innerHTML = `
+      <div id="system-settings-view">
+        <div class="settings-section">
+          <input type="text" id="new-label-input">
+          <button id="add-label-btn"></button>
+          <div id="labels-list"></div>
+        </div>
+        <div id="user-management-section">
+          <button id="add-user-btn"></button>
+          <div id="users-list"></div>
+        </div>
+      </div>
+
+      <!-- User Modal -->
+      <div id="user-modal-overlay" class="modal-overlay hidden">
+        <h2 id="user-modal-title"></h2>
+        <form id="user-form">
+          <input type="text" id="user-email">
+          <input type="text" id="user-first-name">
+          <input type="text" id="user-last-name">
+          <input type="password" id="user-password">
+          <small id="user-password-hint"></small>
+          <div id="user-role-dropdown">
+            <input type="hidden" id="user-role">
+            <button type="button" id="user-role-trigger">
+              <span id="user-role-text"></span>
+            </button>
+            <div id="user-role-options" class="hidden">
+              <div class="custom-option" data-value="user">User</div>
+              <div class="custom-option" data-value="admin">Admin</div>
+              <div class="custom-option" data-value="sysadmin">Sysadmin</div>
+            </div>
+          </div>
+          <div id="user-active-options" class="hidden"></div>
+          <input type="checkbox" id="user-active">
+          <div id="user-modal-error" class="hidden"></div>
+          <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
+          <button type="submit" id="user-modal-save"></button>
+        </form>
+      </div>
+
+      <!-- Admin Confirm Modal -->
+      <div id="admin-confirm-modal" class="hidden">
+        <input type="password" id="admin-confirm-password">
+        <div id="admin-confirm-error" class="hidden"></div>
+        <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+        <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+      </div>
+    `;
+
+    vi.clearAllMocks();
+    // Default mock returns
+    vi.mocked(api.fetchUsers).mockResolvedValue([]);
+    vi.mocked(permissions.userCan).mockReturnValue(true);
+    // Suppress console.error in tests
+    vi.spyOn(console, 'error').mockImplementation(() => { });
+  });
+
+  describe('User Management Rendering', () => {
+    beforeEach(() => {
+      setupSystemSettingsView(vi.fn());
+    });
+    it('should hide user management section for non-sysadmins', async () => {
+      // simulate userCan returning false for ACTION_LIST_USERS (non-sysadmin context)
+      state.currentUser = { role: 'user' };
+      vi.mocked(permissions.userCan).mockImplementation((user, action) => {
+        return !(action === permissions.ACTION_LIST_USERS && user.role !== 'sysadmin');
+      });
+      await renderSystemSettingsView(vi.fn());
+      expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should show and render user list for sysadmins', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      vi.mocked(permissions.userCan).mockReturnValue(true);
+      const users = [
+        { id: 1, email: 'sysadmin@test.com', first_name: 'Sys', last_name: 'Admin', role: 'sysadmin', active: true },
+        { id: 2, email: 'admin@test.com', first_name: 'Ad', last_name: 'Min', role: 'admin', active: true },
+        { id: 3, email: 'user@test.com', first_name: 'Us', last_name: 'Er', role: 'user', active: true }
+      ];
+      vi.mocked(api.fetchUsers).mockResolvedValue(users);
+
+      await renderSystemSettingsView(vi.fn());
+
+      expect(document.getElementById('user-management-section').classList.contains('hidden')).toBe(false);
+      const rows = document.querySelectorAll('.settings-entry');
+      expect(rows).toHaveLength(3);
+      // Users are sorted by email: admin < sysadmin < user
+      expect(rows[0].textContent).toContain('admin@test.com');
+      expect(rows[0].textContent).toContain('Admin');
+      expect(rows[1].textContent).toContain('sysadmin@test.com');
+      expect(rows[1].textContent).toContain('Sysadmin');
+    });
+
+    it('should escape user initials to prevent XSS', async () => {
+      state.currentUser = { role: 'admin' };
+      const users = [
+        { id: 1, email: 'xss@test.com', first_name: '<', last_name: 'S', role: 'user', active: true }
+      ];
+      vi.mocked(api.fetchUsers).mockResolvedValue(users);
+      vi.mocked(utils.getUserInitials).mockReturnValue('<S');
+
+      // Use a safer mock or just check if it was called correctly
+      // The original mock is escapeHtml: vi.fn((str) => str)
+      // We want to verify it's called with the initials.
+
+      await renderSystemSettingsView(vi.fn());
+
+      expect(utils.getUserInitials).toHaveBeenCalled();
+      expect(utils.escapeHtml).toHaveBeenCalledWith('<S');
+
+      // Reset mocks to avoid breaking subsequent tests
+      vi.mocked(utils.getUserInitials).mockReturnValue('AD');
+    });
+
+    it('should render a formatted last login for a user who has logged in', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'seen@test.com', first_name: 'Seen', last_name: 'User', role: 'user', active: true, last_login: '2026-07-02T17:27:00Z' }
+      ];
+      vi.mocked(api.fetchUsers).mockResolvedValue(users);
+
+      await renderSystemSettingsView(vi.fn());
+
+      const row = document.querySelector('.settings-entry');
+      expect(row.textContent).toContain('Last login:');
+      expect(row.textContent).not.toContain('Last login: Never');
+    });
+
+    it('should render "Never" as the last login for a user who has not logged in', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'unseen@test.com', first_name: 'Unseen', last_name: 'User', role: 'user', active: true, last_login: null }
+      ];
+      vi.mocked(api.fetchUsers).mockResolvedValue(users);
+
+      await renderSystemSettingsView(vi.fn());
+
+      const row = document.querySelector('.settings-entry');
+      expect(row.textContent).toContain('Last login: Never');
+    });
+
+    it('should show a "User" badge for the base user role, matching admin/sysadmin badges', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'plain@test.com', first_name: 'Plain', last_name: 'User', role: 'user', active: true }
+      ];
+      vi.mocked(api.fetchUsers).mockResolvedValue(users);
+
+      await renderSystemSettingsView(vi.fn());
+
+      const row = document.querySelector('.settings-entry');
+      expect(row.innerHTML).toContain('settings-entry-badge user');
+      expect(row.textContent).toContain('User');
+    });
+
+    it('should render the role badge before the last-login column', async () => {
+      state.currentUser = { role: 'sysadmin' };
+      const users = [
+        { id: 1, email: 'order@test.com', first_name: 'Order', last_name: 'Test', role: 'admin', active: true, last_login: null }
+      ];
+      vi.mocked(api.fetchUsers).mockResolvedValue(users);
+
+      await renderSystemSettingsView(vi.fn());
+
+      const row = document.querySelector('.settings-entry');
+      const roleIndex = row.innerHTML.indexOf('settings-entry-badge admin');
+      const lastLoginIndex = row.innerHTML.indexOf('Last login:');
+      expect(roleIndex).toBeGreaterThan(-1);
+      expect(lastLoginIndex).toBeGreaterThan(roleIndex);
+    });
+  });
+
+  describe('User Modal', () => {
+    it('should open modal for new user', () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+
+      expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('user-modal-title').textContent).toBe('New User');
+      expect(byId('user-password', HTMLInputElement).required).toBe(true);
+    });
+
+    it('should open modal for editing user', async () => {
+      state.currentUser = { role: 'admin' };
+      const user = { id: 1, email: 'edit@test.com', first_name: 'E', last_name: 'D', role: 'user', active: true };
+      vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+
+      expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('user-modal-title').textContent).toBe('Edit User');
+      expect(byId('user-email', HTMLInputElement).value).toBe('edit@test.com');
+      expect(byId('user-password', HTMLInputElement).required).toBe(false);
+    });
+
+    it('should handle user form submission (create)', async () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+
+      byId('user-email', HTMLInputElement).value = 'new@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'New';
+      byId('user-last-name', HTMLInputElement).value = 'User';
+      const password = generateRandomPassword();
+      byId('user-password', HTMLInputElement).value = password;
+      byId('user-role', HTMLInputElement).value = 'user';
+      byId('user-active', HTMLInputElement).checked = true;
+
+      vi.mocked(api.createUser).mockResolvedValue({ id: 3 });
+
+      const form = document.getElementById('user-form');
+      form.dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.createUser).toHaveBeenCalledWith(expect.objectContaining({
+        email: 'new@test.com',
+        password: password
+      }));
+      expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(true);
+    });
+
+    it('creates a user only once when submitted again while the first save is in flight, with the form greyed out', async () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+      byId('user-email', HTMLInputElement).value = 'new@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'New';
+      byId('user-last-name', HTMLInputElement).value = 'User';
+      byId('user-password', HTMLInputElement).value = generateRandomPassword();
+      byId('user-role', HTMLInputElement).value = 'user';
+      let resolveCreate;
+      vi.mocked(api.createUser).mockReturnValue(new Promise(r => { resolveCreate = r; }));
+      const form = document.getElementById('user-form');
+
+      form.dispatchEvent(new Event('submit'));
+      expect(form.getAttribute('aria-busy')).toBe('true');
+      form.dispatchEvent(new Event('submit'));
+
+      resolveCreate({ id: 3 });
+      await new Promise(process.nextTick);
+
+      expect(api.createUser).toHaveBeenCalledTimes(1);
+      expect(form.hasAttribute('aria-busy')).toBe(false);
+    });
+
+    it('should handle user form submission (update)', async () => {
+      state.currentUser = { role: 'admin' };
+      const user = { id: 1, email: 'edit@test.com', role: 'user', active: true };
+      vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+      setupSystemSettingsView(vi.fn());
+      await renderSystemSettingsView(vi.fn());
+      document.querySelector<HTMLElement>('.settings-entry').click();
+
+      byId('user-first-name', HTMLInputElement).value = 'Updated';
+      vi.mocked(api.updateUser).mockResolvedValue({});
+
+      const form = document.getElementById('user-form');
+      form.dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({
+        first_name: 'Updated'
+      }));
+    });
+
+    it('should show error for missing password on new user', async () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+      byId('user-email', HTMLInputElement).value = 'valid@email.com';
+      byId('user-first-name', HTMLInputElement).value = 'Test';
+      byId('user-last-name', HTMLInputElement).value = 'User';
+      byId('user-password', HTMLInputElement).value = '';
+
+      const form = document.getElementById('user-form');
+      form.dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('user-modal-error').textContent).toBe('Password is required for new users');
+      expect(document.getElementById('user-modal-error').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show error for invalid email format', async () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+      byId('user-email', HTMLInputElement).value = 'invalid-email';
+
+      const form = document.getElementById('user-form');
+      form.dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('user-modal-error').textContent).toBe('A valid email address is required.');
+      expect(document.getElementById('user-modal-error').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show error for long names', async () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+      byId('user-email', HTMLInputElement).value = 'valid@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'a'.repeat(51); // Max 50
+      byId('user-last-name', HTMLInputElement).value = 'Valid';
+
+      const form = document.getElementById('user-form');
+      form.dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('user-modal-error').textContent).toBe('First and last name must not exceed 50 characters.');
+    });
+
+    it('should NOT close on overlay click', () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+      const overlay = document.getElementById('user-modal-overlay');
+      overlay.click();
+      expect(overlay.classList.contains('hidden')).toBe(false);
+    });
+  });
+
+  describe('Dropdowns and Support', () => {
+    it('should toggle dropdown and close others', () => {
+      setupSystemSettingsView(vi.fn());
+      const trigger = document.getElementById('user-role-trigger');
+      const options = document.getElementById('user-role-options');
+      const otherOptions = document.getElementById('user-active-options');
+
+      otherOptions.classList.remove('hidden');
+      trigger.click(); // Opens
+      expect(options.classList.contains('hidden')).toBe(false);
+      expect(otherOptions.classList.contains('hidden')).toBe(true);
+
+      trigger.click(); // Closes
+      expect(options.classList.contains('hidden')).toBe(true);
+    });
+
+    it('should select option from dropdown', () => {
+      setupSystemSettingsView(vi.fn());
+      document.getElementById('user-role-trigger').click();
+      const adminOption = document.querySelector<HTMLElement>('.custom-option[data-value="admin"]');
+      adminOption.click();
+
+      expect(byId('user-role', HTMLInputElement).value).toBe('admin');
+      expect(document.getElementById('user-role-text').textContent).toBe('Admin');
+      expect(document.getElementById('user-role-options').classList.contains('hidden')).toBe(true);
+    });
+  });
+});
+
+describe('Utility Functions', () => {
+  it('isLight should correctly identify light colors', () => {
+    expect(isLight('#FFFFFF')).toBe(true); // White
+    expect(isLight('#000000')).toBe(false); // Black
+    expect(isLight('#FFFF00')).toBe(true); // Yellow
+    expect(isLight('#0000FF')).toBe(false); // Blue
+  });
+});
+
+describe('Password Policy', () => {
+  describe('isBlacklistedPassword', () => {
+    it('should identify direct matches in blacklist', () => {
+      expect(isBlacklistedPassword('password')).toBe(true);
+      expect(isBlacklistedPassword('admin')).toBe(true);
+      expect(isBlacklistedPassword('123456')).toBe(true);
+    });
+
+    it('should be case insensitive', () => {
+      expect(isBlacklistedPassword('PASSWORD')).toBe(true);
+      expect(isBlacklistedPassword('Admin')).toBe(true);
+    });
+
+    it('should identify leet speak variations', () => {
+      expect(isBlacklistedPassword('p@ssw0rd')).toBe(true);
+      expect(isBlacklistedPassword('4dm!n')).toBe(true);
+    });
+
+    it('should allow non-blacklisted passwords', () => {
+      expect(isBlacklistedPassword('CorrectHorseBatteryStaple')).toBe(false);
+    });
+  });
+
+  describe('validatePasswordPolicy', () => {
+    it('should return null for valid passwords', () => {
+      expect(validatePasswordPolicy('CorrectHorseBatteryStaple', '')).toBeNull();
+    });
+
+    it('should reject passwords shorter than 12 characters', () => {
+      expect(validatePasswordPolicy('short', '')).toBe('Password must be at least 12 characters');
+    });
+
+    it('should reject passwords matching email', () => {
+      expect(validatePasswordPolicy('user@example.com', 'user@example.com')).toBe('Password must not be your email address');
+    });
+
+    it('should reject blacklisted passwords', () => {
+      expect(validatePasswordPolicy('password1234', '')).toBe('Password is too common');
+    });
+
+    it('should count the maximum in UTF-8 bytes, not characters', () => {
+      const tooLong = 'Password must not exceed 72 bytes (letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4)';
+      expect(validatePasswordPolicy('ä'.repeat(36), '')).toBeNull();
+      expect(validatePasswordPolicy('ä'.repeat(37), '')).toBe(tooLong);
+      expect(validatePasswordPolicy('x'.repeat(72), '')).toBeNull();
+      expect(validatePasswordPolicy('x'.repeat(73), '')).toBe(tooLong);
+    });
+  });
+});
+
+describe('Additional Coverage', () => {
+  describe('User Management Validation & Errors', () => {
+    beforeEach(async () => {
+      // Re-initialize DOM specifically for these tests to guarantee elements exist
+      document.body.innerHTML = `
+        <div id="system-settings-view">
+          <div class="settings-section">
+            <input type="text" id="new-label-input">
+            <button id="add-label-btn"></button>
+            <div id="labels-list"></div>
+          </div>
+          <div id="user-management-section">
+            <button id="add-user-btn"></button>
+            <div id="users-list"></div>
+          </div>
+        </div>
+
+        <div id="user-modal-overlay" class="modal-overlay hidden">
+          <h2 id="user-modal-title"></h2>
+          <form id="user-form">
+            <input type="text" id="user-email">
+            <input type="text" id="user-first-name">
+            <input type="text" id="user-last-name">
+            <input type="password" id="user-password">
+            <small id="user-password-hint"></small>
+            <div id="user-role-dropdown">
+              <input type="hidden" id="user-role">
+              <button type="button" id="user-role-trigger">
+                <span id="user-role-text"></span>
+              </button>
+              <div id="user-role-options" class="hidden">
+                <div class="custom-option" data-value="user">User</div>
+                <div class="custom-option" data-value="admin">Admin</div>
+                <div class="custom-option" data-value="sysadmin">Sysadmin</div>
+              </div>
+            </div>
+            <div id="user-active-options" class="hidden"></div>
+            <input type="checkbox" id="user-active">
+            <div id="user-modal-error" class="hidden"></div>
+            <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
+            <button type="submit" id="user-modal-save"></button>
+          </form>
+        </div>
+
+        <!-- Admin Confirm Modal -->
+        <div id="admin-confirm-modal" class="hidden">
+          <input type="password" id="admin-confirm-password">
+          <div id="admin-confirm-error" class="hidden"></div>
+          <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+          <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+        </div>
+      `;
+      state.currentUser = { role: 'admin' };
+      setupSystemSettingsView(vi.fn());
+      await renderSystemSettingsView(vi.fn());
+      document.getElementById('add-user-btn').click();
+    });
+
+    it('should handle user fetch failure', async () => {
+      vi.mocked(api.fetchUsers).mockRejectedValue(new Error('Fetch failed'));
+      await renderSystemSettingsView(vi.fn());
+      expect(document.getElementById('users-list').innerHTML).toContain('Failed to load users');
+    });
+
+    it('should validate email length', async () => {
+      byId('user-email', HTMLInputElement).value = 'a'.repeat(250) + '@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'New';
+      byId('user-last-name', HTMLInputElement).value = 'User';
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Email must not exceed 254 characters.');
+    });
+
+    it('should validate missing names', async () => {
+      byId('user-email', HTMLInputElement).value = 'test@test.com';
+      byId('user-first-name', HTMLInputElement).value = '';
+      byId('user-last-name', HTMLInputElement).value = '';
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('First name and last name are required.');
+    });
+
+    it('should validate name length', async () => {
+      byId('user-email', HTMLInputElement).value = 'test@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'a'.repeat(51);
+      byId('user-last-name', HTMLInputElement).value = 'User';
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('First and last name must not exceed 50 characters.');
+    });
+
+    it('should validate password length', async () => {
+      byId('user-email', HTMLInputElement).value = 'test@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'First';
+      byId('user-last-name', HTMLInputElement).value = 'Last';
+      byId('user-password', HTMLInputElement).value = 'a'.repeat(73);
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Password must not exceed 72 bytes (letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4)');
+    });
+
+    it('should handle user creation failure', async () => {
+      byId('user-email', HTMLInputElement).value = 'fail@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'Fail';
+      byId('user-last-name', HTMLInputElement).value = 'User';
+      byId('user-password', HTMLInputElement).value = generateRandomPassword();
+      vi.mocked(api.createUser).mockRejectedValue(new Error('Creation failed'));
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Creation failed');
+    });
+
+    it('should trigger password policy error in handleUserSubmit', async () => {
+      byId('user-email', HTMLInputElement).value = 'test@test.com';
+      byId('user-first-name', HTMLInputElement).value = 'First';
+      byId('user-last-name', HTMLInputElement).value = 'Last';
+      byId('user-password', HTMLInputElement).value = 'too-short'; //NOSONAR
+      document.getElementById('user-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(document.getElementById('user-modal-error').textContent).toBe('Password must be at least 12 characters');
+    });
+  });
+
+  describe('Utilities', () => {
+    it('getUnusedColor should fallback to full list if all colors used', () => {
+      const fullList = [
+        '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
+        '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
+        '#9CCC65', '#D4E157', '#FFEE58', '#FFCA28', '#FFA726',
+        '#FF7043', '#8D6E63', '#78909C'
+      ];
+      // If all are used, it should still return a color from the list
+      const result = getUnusedColor(fullList);
+      expect(fullList).toContain(result);
+    });
+
+    it('isLight should handle colors with no # or different case', () => {
+      // isLight(color) uses color.replaceAll('#', '')
+      expect(isLight('FFFFFF')).toBe(true);
+      expect(isLight('#000000')).toBe(false);
+    });
+  });
+});
+
+const ADMIN_CONFIRM_MODAL = `
+  <div id="admin-confirm-modal" class="hidden">
+    <h2 id="admin-confirm-title"></h2>
+    <p id="admin-confirm-message"></p>
+    <input type="password" id="admin-confirm-password">
+    <div id="admin-confirm-error" class="hidden"></div>
+    <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+    <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+  </div>
+`;
+
+const USER_MODAL = `
+  <div id="user-modal-overlay" class="modal-overlay hidden">
+    <h2 id="user-modal-title"></h2>
+    <form id="user-form">
+      <input type="text" id="user-email">
+      <input type="text" id="user-first-name">
+      <input type="text" id="user-last-name">
+      <input type="password" id="user-password">
+      <small id="user-password-hint"></small>
+      <div id="user-role-dropdown">
+        <input type="hidden" id="user-role">
+        <button type="button" id="user-role-trigger"><span id="user-role-text"></span></button>
+        <div id="user-role-options" class="hidden">
+          <div class="custom-option" data-value="user">User</div>
+          <div class="custom-option" data-value="admin">Admin</div>
+          <div class="custom-option" data-value="sysadmin">Sysadmin</div>
+        </div>
+      </div>
+      <div id="user-active-options" class="hidden"></div>
+      <input type="checkbox" id="user-active">
+      <div id="user-modal-error" class="hidden"></div>
+      <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
+      <button type="submit" id="user-modal-save"></button>
+    </form>
+  </div>
+`;
+
+describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="system-settings-view">
+        <div id="user-management-section">
+          <button id="add-user-btn"></button>
+          <div id="users-list"></div>
+        </div>
+      </div>
+      ${USER_MODAL}
+      ${ADMIN_CONFIRM_MODAL}
+    `;
+    vi.clearAllMocks();
+    vi.mocked(api.fetchUsers).mockResolvedValue([]);
+    vi.mocked(permissions.userCan).mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.currentUser = { id: 99, role: 'sysadmin' };
+    setupSystemSettingsView(vi.fn());
+  });
+
+  it('shows modal and resolves with password when OK clicked', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-password', HTMLInputElement).value = generateRandomPassword();
+    const submitPromise = new Promise<void>(resolve => {
+      const origUpdate = vi.mocked(api.updateUser).getMockImplementation();
+      vi.mocked(api.updateUser).mockImplementation(async (...args) => {
+        resolve();
+        return origUpdate ? origUpdate(...args) : {};
+      });
+    });
+
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    const modal = document.getElementById('admin-confirm-modal');
+    expect(modal.classList.contains('hidden')).toBe(false);
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+
+    await submitPromise;
+    // submitPromise only signals that updateUser was invoked (inside onConfirm);
+    // the dialog closes one tick later, once onConfirm's promise itself resolves.
+    await new Promise(process.nextTick);
+    expect(modal.classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ admin_password: 'AdminPass123!' }));
+  });
+
+  it('shows error when OK clicked with empty password', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-password', HTMLInputElement).value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    byId('admin-confirm-password', HTMLInputElement).value = '';
+    document.getElementById('admin-confirm-ok-btn').click();
+
+    const errorDiv = document.getElementById('admin-confirm-error');
+    expect(errorDiv.textContent).toBe('Password is required.');
+    expect(errorDiv.classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+  });
+
+  it('submits when Enter is pressed in the password input', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-password', HTMLInputElement).value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    const modal = document.getElementById('admin-confirm-modal');
+    expect(modal.classList.contains('hidden')).toBe(false);
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-password').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await new Promise(process.nextTick);
+
+    expect(modal.classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ admin_password: 'AdminPass123!' }));
+  });
+
+  it('resolves null and closes modal when Cancel clicked', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-password', HTMLInputElement).value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+
+    document.getElementById('admin-confirm-cancel-btn').click();
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('requires confirmation for role promotion', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    // Promote user → admin (no password change)
+    byId('user-role', HTMLInputElement).value = 'admin';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    document.getElementById('admin-confirm-cancel-btn').click();
+    expect(api.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does not require confirmation for role demotion', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'admin', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    // Demote admin → user (no password change)
+    byId('user-role', HTMLInputElement).value = 'user';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalled();
+  });
+
+  it('requires confirmation for deactivating a user', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    // Deactivate (no password/role change)
+    byId('user-active', HTMLInputElement).checked = false;
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    expect(api.updateUser).not.toHaveBeenCalled();
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ active: false, admin_password: 'AdminPass123!' }));
+  });
+
+  it('requires confirmation for reactivating a user', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: false };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    // Reactivate (no password/role change)
+    byId('user-active', HTMLInputElement).checked = true;
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    expect(api.updateUser).not.toHaveBeenCalled();
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ active: true, admin_password: 'AdminPass123!' }));
+  });
+
+  it('does not require confirmation when active status is unchanged', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    // No changes at all besides re-submitting the form
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalled();
+  });
+
+  it('logs out when sysadmin changes their own password', async () => {
+    const { logout } = await import('../api.ts');
+    const self = { id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([self]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-password', HTMLInputElement).value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(logout).toHaveBeenCalled();
+  });
+
+  it('requires confirmation for changing a user email', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    // Change email only (no password/role/active change)
+    byId('user-email', HTMLInputElement).value = 'new@test.com';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('admin-confirm-title').textContent).toBe('Confirm Email Change');
+    expect(api.updateUser).not.toHaveBeenCalled();
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.objectContaining({ email: 'new@test.com', admin_password: 'AdminPass123!' }));
+  });
+
+  it('lists every change in one confirmation when password and email change together', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-email', HTMLInputElement).value = 'new@test.com';
+    byId('user-password', HTMLInputElement).value = generateRandomPassword();
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-title').textContent).toBe('Confirm User Changes');
+    const message = document.getElementById('admin-confirm-message').textContent;
+    expect(message).toContain('Set a new password');
+    expect(message).toContain('Change the login email to new@test.com');
+    expect(message.match(/signs them out/g)).toHaveLength(1);
+  });
+
+  it('requires confirmation when only the email case changes', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    // Emails are compared case-sensitively at login, so a case change is a login change
+    byId('user-email', HTMLInputElement).value = 'U@test.com';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    document.getElementById('admin-confirm-cancel-btn').click();
+    expect(api.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does not require confirmation when only the name changes', async () => {
+    const user = { id: 1, email: 'u@test.com', first_name: 'U', last_name: 'S', role: 'user', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-first-name', HTMLInputElement).value = 'Renamed';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(api.updateUser).toHaveBeenCalledWith(1, expect.not.objectContaining({ admin_password: expect.anything() }));
+  });
+
+  it('logs out when sysadmin changes their own email', async () => {
+    const { logout } = await import('../api.ts');
+    const self = { id: 99, email: 'self@test.com', first_name: 'S', last_name: 'A', role: 'sysadmin', active: true };
+    vi.mocked(api.fetchUsers).mockResolvedValue([self]);
+    vi.mocked(api.updateUser).mockResolvedValue({});
+    state.currentUser = { id: 99, role: 'sysadmin' };
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+
+    byId('user-email', HTMLInputElement).value = 'self-new@test.com';
+    document.getElementById('user-form').dispatchEvent(new Event('submit'));
+    await Promise.resolve();
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(logout).toHaveBeenCalled();
+  });
+});
+
+const PROJECT_DOM = `
+  <div id="system-settings-view">
+    <div class="settings-section">
+      <input type="text" id="new-label-input">
+      <button id="add-label-btn"></button>
+      <div id="labels-list"></div>
+    </div>
+    <div id="project-management-section">
+      <button id="add-project-btn"></button>
+      <div id="projects-list"></div>
+    </div>
+    <div id="user-management-section">
+      <button id="add-user-btn"></button>
+      <div id="users-list"></div>
+    </div>
+  </div>
+
+  <!-- Project Modal -->
+  <div id="project-modal-overlay" class="hidden">
+    <h2 id="project-modal-title"></h2>
+    <form id="project-form">
+      <input type="text" id="project-name">
+      <textarea id="project-description"></textarea>
+      <div id="project-modal-error" class="hidden"></div>
+      <button type="button" id="project-modal-cancel"></button>
+      <button type="button" id="project-modal-delete" class="hidden"></button>
+      <button type="submit" id="project-modal-save"></button>
+    </form>
+  </div>
+
+  <!-- Confirm Modal -->
+  <div id="confirm-modal" class="hidden">
+    <h2 id="confirm-title"></h2>
+    <p id="confirm-message"></p>
+    <button id="confirm-ok-btn"></button>
+    <button id="confirm-cancel-btn"></button>
+  </div>
+
+  <!-- User Modal (required by setupUserModal) -->
+  <div id="user-modal-overlay" class="modal-overlay hidden">
+    <h2 id="user-modal-title"></h2>
+    <form id="user-form">
+      <input type="text" id="user-email">
+      <input type="text" id="user-first-name">
+      <input type="text" id="user-last-name">
+      <input type="password" id="user-password">
+      <small id="user-password-hint"></small>
+      <div id="user-role-dropdown">
+        <input type="hidden" id="user-role">
+        <button type="button" id="user-role-trigger"><span id="user-role-text"></span></button>
+        <div id="user-role-options" class="hidden">
+          <div class="custom-option" data-value="user">User</div>
+          <div class="custom-option" data-value="admin">Admin</div>
+          <div class="custom-option" data-value="sysadmin">Sysadmin</div>
+        </div>
+      </div>
+      <div id="user-active-options" class="hidden"></div>
+      <input type="checkbox" id="user-active">
+      <div id="user-modal-error" class="hidden"></div>
+      <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
+      <button type="submit" id="user-modal-save"></button>
+    </form>
+  </div>
+
+  <!-- Admin Confirm Modal (required by promptAdminPasswordConfirmation) -->
+  <div id="admin-confirm-modal" class="hidden">
+    <h2 id="admin-confirm-title"></h2>
+    <p id="admin-confirm-message"></p>
+    <input type="password" id="admin-confirm-password">
+    <div id="admin-confirm-error" class="hidden"></div>
+    <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+    <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+  </div>
+`;
+
+describe('Project Management', () => {
+  beforeEach(() => {
+    document.body.innerHTML = PROJECT_DOM;
+    state.currentUser = { role: 'admin' };
+    vi.clearAllMocks();
+    vi.mocked(api.fetchUsers).mockResolvedValue([]);
+    vi.mocked(api.fetchProjects).mockResolvedValue([]);
+    vi.mocked(permissions.userCan).mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => { });
+
+    setupSystemSettingsView(vi.fn());
+  });
+
+  describe('setupProjectModal', () => {
+    it('should open project modal for new project on add-project-btn click', () => {
+      document.getElementById('add-project-btn').click();
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('project-modal-title').textContent).toBe('New Project');
+      expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should close project modal on cancel click', () => {
+      document.getElementById('add-project-btn').click();
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+      document.getElementById('project-modal-cancel').click();
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(true);
+    });
+  });
+
+  describe('openProjectModal for edit', () => {
+    it('should populate form when opening for an existing project', async () => {
+      const project = { id: 2, name: 'My Project', description: 'desc' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('project-modal-title').textContent).toBe('Edit Project');
+      expect(byId('project-name', HTMLInputElement).value).toBe('My Project');
+      expect(byId('project-description', HTMLTextAreaElement).value).toBe('desc');
+    });
+
+    it('should hide delete button for the default project (id 1)', async () => {
+      const project = { id: 1, name: 'default', description: '' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+
+      expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should show delete button for non-default project with permission', async () => {
+      const project = { id: 2, name: 'Other', description: '' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+
+      expect(document.getElementById('project-modal-delete').classList.contains('hidden')).toBe(false);
+    });
+  });
+
+  describe('handleProjectSubmit', () => {
+    it('should show error when name is empty', () => {
+      document.getElementById('add-project-btn').click();
+      byId('project-name', HTMLInputElement).value = '';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      const err = document.getElementById('project-modal-error');
+      expect(err.textContent).toBe('Project name is required.');
+      expect(err.classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show error when name exceeds 15 characters', () => {
+      document.getElementById('add-project-btn').click();
+      byId('project-name', HTMLInputElement).value = 'a'.repeat(16);
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('project-modal-error').textContent)
+        .toBe('Project name must not exceed 15 characters.');
+    });
+
+    it('should show error when description exceeds 100 characters', () => {
+      document.getElementById('add-project-btn').click();
+      byId('project-name', HTMLInputElement).value = 'Valid';
+      byId('project-description', HTMLTextAreaElement).value = 'a'.repeat(101);
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      expect(document.getElementById('project-modal-error').textContent)
+        .toBe('Project description must not exceed 100 characters.');
+    });
+
+    it('creates a project only once when submitted again while the first save is in flight, with the form greyed out', async () => {
+      let resolveCreate;
+      vi.mocked(api.createProject).mockReturnValue(new Promise(r => { resolveCreate = r; }));
+      document.getElementById('add-project-btn').click();
+      byId('project-name', HTMLInputElement).value = 'New';
+      const form = document.getElementById('project-form');
+
+      form.dispatchEvent(new Event('submit'));
+      expect(form.getAttribute('aria-busy')).toBe('true');
+      form.dispatchEvent(new Event('submit'));
+
+      resolveCreate({ id: 5, name: 'New' });
+      await new Promise(process.nextTick);
+
+      expect(api.createProject).toHaveBeenCalledTimes(1);
+      expect(form.hasAttribute('aria-busy')).toBe(false);
+    });
+
+    it('should create project and show success notification', async () => {
+      vi.mocked(api.createProject).mockResolvedValue({ id: 5, name: 'New' });
+      document.getElementById('add-project-btn').click();
+      byId('project-name', HTMLInputElement).value = 'New';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.createProject).toHaveBeenCalledWith(expect.objectContaining({ name: 'New' }));
+      expect(utils.showNotification).toHaveBeenCalledWith('Project created', 'success');
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should update project and show success notification', async () => {
+      const project = { id: 2, name: 'Existing', description: '' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      vi.mocked(api.updateProject).mockResolvedValue({});
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+      byId('project-name', HTMLInputElement).value = 'Updated';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateProject).toHaveBeenCalledWith(2, expect.objectContaining({ name: 'Updated' }));
+      expect(utils.showNotification).toHaveBeenCalledWith('Project updated', 'success');
+    });
+
+    it('should show error in modal when API call fails', async () => {
+      vi.mocked(api.createProject).mockRejectedValue(new Error('API Error'));
+      document.getElementById('add-project-btn').click();
+      byId('project-name', HTMLInputElement).value = 'Fail';
+      document.getElementById('project-form').dispatchEvent(new Event('submit'));
+
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('project-modal-error').textContent).toBe('API Error');
+    });
+  });
+
+  describe('handleDeleteProject', () => {
+    it('should prompt for password and delete project on confirm', async () => {
+      const project = { id: 2, name: 'To Delete', description: '' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      vi.mocked(api.deleteProject).mockResolvedValue(undefined);
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+
+      document.getElementById('project-modal-delete').click();
+      await new Promise(process.nextTick); // let the issue-count precheck resolve
+
+      expect(api.fetchActiveIssuesByProject).toHaveBeenCalledWith(2);
+      expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledWith(2);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledWith(2);
+      expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('admin-confirm-title').textContent).toBe('Delete Project');
+      expect(document.getElementById('admin-confirm-message').textContent).toBe('Do you really want to delete the project "To Delete"?\nThis action cannot be undone.');
+      expect(api.deleteProject).not.toHaveBeenCalled();
+
+      byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+      document.getElementById('admin-confirm-ok-btn').click();
+      await new Promise(process.nextTick);
+      await new Promise(process.nextTick);
+
+      expect(api.deleteProject).toHaveBeenCalledWith(2, 'AdminPass123!');
+      expect(utils.showNotification).toHaveBeenCalledWith('Project deleted', 'success');
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should not delete when password prompt is cancelled', async () => {
+      const project = { id: 5, name: 'Keep Me Too', description: '' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+      document.getElementById('project-modal-delete').click();
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+
+      document.getElementById('admin-confirm-cancel-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(api.deleteProject).not.toHaveBeenCalled();
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+    });
+
+    it('should show the rejection inline in the dialog and allow retry when delete API fails', async () => {
+      const project = { id: 4, name: 'Fail Delete', description: '' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      vi.mocked(api.deleteProject).mockRejectedValue(new Error('Delete failed'));
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+      document.getElementById('project-modal-delete').click();
+      await new Promise(process.nextTick);
+
+      byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+      document.getElementById('admin-confirm-ok-btn').click();
+      await new Promise(process.nextTick);
+      await new Promise(process.nextTick);
+
+      const errorDiv = document.getElementById('admin-confirm-error');
+      expect(errorDiv.textContent).toBe('Delete failed');
+      expect(errorDiv.classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+      expect(document.getElementById('project-modal-overlay').classList.contains('hidden')).toBe(false);
+    });
+
+    it('should show a blocking error and skip the password dialog when the project still has issues', async () => {
+      const project = { id: 3, name: 'Has Issues', description: '' };
+      vi.mocked(api.fetchProjects).mockResolvedValue([project]);
+      vi.mocked(api.fetchActiveIssuesByProject).mockResolvedValue([{ id: 1 }, { id: 2 }]);
+      await renderSystemSettingsView(vi.fn());
+
+      document.querySelector<HTMLElement>('.settings-entry').click();
+      document.getElementById('project-modal-delete').click();
+      await new Promise(process.nextTick);
+
+      expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+      expect(document.getElementById('project-modal-error').textContent).toBe('This project still has 2 issues. Move or delete them first before deleting the project.');
+      expect(api.deleteProject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('renderProjectList', () => {
+    it('requests the project and user lists in parallel', async () => {
+      let answerProjects;
+      vi.mocked(api.fetchProjects).mockImplementationOnce(() => new Promise(r => { answerProjects = r; }));
+      const render = renderSystemSettingsView(vi.fn());
+      await new Promise(process.nextTick);
+      // The user list must not wait for the project list's response.
+      expect(api.fetchUsers).toHaveBeenCalled();
+      answerProjects([]);
+      await render;
+    });
+
+    it('should hide project section when user lacks LIST_PROJECTS permission', async () => {
+      vi.mocked(permissions.userCan).mockImplementation((user, action) => {
+        return action !== permissions.ACTION_LIST_PROJECTS;
+      });
+      await renderSystemSettingsView(vi.fn());
+
+      expect(document.getElementById('project-management-section').style.display).toBe('none');
+    });
+
+    it('should render project rows', async () => {
+      const projects = [
+        { id: 1, name: 'default', description: '' },
+        { id: 2, name: 'Alpha', description: 'Alpha project' }
+      ];
+      vi.mocked(api.fetchProjects).mockResolvedValue(projects);
+      await renderSystemSettingsView(vi.fn());
+
+      const rows = document.querySelectorAll('#projects-list .settings-entry');
+      expect(rows).toHaveLength(2);
+      expect(rows[0].textContent).toContain('default');
+      expect(rows[1].textContent).toContain('Alpha');
+    });
+
+    it('should show "default" badge for project with id 1', async () => {
+      vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'default', description: '' }]);
+      await renderSystemSettingsView(vi.fn());
+
+      const row = document.querySelector('#projects-list .settings-entry');
+      expect(row.textContent).toContain('default');
+      expect(row.innerHTML).toContain('admin');
+    });
+
+    it('should render the default badge as the last column, after name and description', async () => {
+      vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 1, name: 'default', description: 'The default project' }]);
+      await renderSystemSettingsView(vi.fn());
+
+      const row = document.querySelector('#projects-list .settings-entry');
+      const nameIndex = row.innerHTML.indexOf('settings-entry-col-name');
+      const descIndex = row.innerHTML.indexOf('settings-entry-col-description');
+      const badgeIndex = row.innerHTML.indexOf('settings-entry-badge admin');
+      expect(nameIndex).toBeGreaterThan(-1);
+      expect(descIndex).toBeGreaterThan(nameIndex);
+      expect(badgeIndex).toBeGreaterThan(descIndex);
+    });
+
+    it('should show error message when fetchProjects fails', async () => {
+      vi.mocked(api.fetchProjects).mockRejectedValue(new Error('Fetch failed'));
+      await renderSystemSettingsView(vi.fn());
+
+      expect(document.getElementById('projects-list').innerHTML).toContain('Failed to load projects');
+    });
+
+    it('should hide add-project-btn when user lacks CREATE_PROJECT permission', async () => {
+      vi.mocked(permissions.userCan).mockImplementation((user, action) => {
+        return action !== permissions.ACTION_CREATE_PROJECT;
+      });
+      vi.mocked(api.fetchProjects).mockResolvedValue([]);
+      await renderSystemSettingsView(vi.fn());
+
+      expect(document.getElementById('add-project-btn').style.display).toBe('none');
+    });
+  });
+});
+
+describe('User deletion', () => {
+  const target = { id: 7, email: 'peter@test.com', first_name: 'Peter', last_name: 'Pan', role: 'user', active: true };
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="system-settings-view">
+        <div id="user-management-section">
+          <button id="add-user-btn"></button>
+          <div id="users-list"></div>
+        </div>
+      </div>
+      ${USER_MODAL}
+      ${ADMIN_CONFIRM_MODAL}
+    `;
+    vi.clearAllMocks();
+    vi.mocked(permissions.userCan).mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.currentUser = { id: 99, role: 'sysadmin' };
+    setupSystemSettingsView(vi.fn());
+  });
+
+  async function openEditModalFor(user) {
+    vi.mocked(api.fetchUsers).mockResolvedValue([user]);
+    await renderSystemSettingsView(vi.fn());
+    document.querySelector<HTMLElement>('.settings-entry').click();
+  }
+
+  const deleteBtn = () => document.getElementById('user-modal-delete');
+
+  it('shows the delete button when editing another user', async () => {
+    await openEditModalFor(target);
+    expect(deleteBtn().classList.contains('hidden')).toBe(false);
+  });
+
+  it('hides the delete button when editing your own account', async () => {
+    await openEditModalFor({ ...target, id: 99 });
+    expect(deleteBtn().classList.contains('hidden')).toBe(true);
+  });
+
+  it('hides the delete button without the delete permission', async () => {
+    vi.mocked(permissions.userCan).mockImplementation((_, action) => action !== permissions.ACTION_DELETE_USER);
+    await openEditModalFor(target);
+    expect(deleteBtn().classList.contains('hidden')).toBe(true);
+  });
+
+  it('hides the delete button when creating a user', async () => {
+    await openEditModalFor(target);
+    document.getElementById('user-modal-cancel').click();
+    document.getElementById('add-user-btn').click();
+    expect(deleteBtn().classList.contains('hidden')).toBe(true);
+  });
+
+  it('names the loaded user in the dialog, not unsaved edits to the name fields', async () => {
+    await openEditModalFor(target);
+    byId('user-first-name', HTMLInputElement).value = 'Captain';
+    byId('user-last-name', HTMLInputElement).value = 'Hook';
+
+    deleteBtn().click();
+    const message = document.getElementById('admin-confirm-message').textContent;
+    expect(message).toContain('Do you really want to delete Peter Pan?');
+    expect(message).not.toContain('Hook');
+  });
+
+  it('warns about the unassignment in the password dialog and deletes on confirm', async () => {
+    vi.mocked(api.deleteUser).mockResolvedValue();
+    await openEditModalFor(target);
+
+    deleteBtn().click();
+    expect(document.getElementById('admin-confirm-modal').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('admin-confirm-title').textContent).toBe('Delete User');
+    const message = document.getElementById('admin-confirm-message').textContent;
+    expect(message).toContain('Do you really want to delete Peter Pan?');
+    expect(message).toContain('Issues assigned to them become unassigned (noted in each issue\'s history)');
+    expect(message).toContain('releases they own lose their owner');
+    expect(api.deleteUser).not.toHaveBeenCalled();
+
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(api.deleteUser).toHaveBeenCalledWith(7, 'AdminPass123!');
+    expect(utils.showNotification).toHaveBeenCalledWith('User deleted', 'success');
+    expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(true);
+    expect(api.fetchUsers).toHaveBeenCalledTimes(2); // list reloaded after the delete
+  });
+
+  it('does not delete when the password dialog is cancelled', async () => {
+    await openEditModalFor(target);
+    deleteBtn().click();
+    document.getElementById('admin-confirm-cancel-btn').click();
+    await new Promise(process.nextTick);
+
+    expect(api.deleteUser).not.toHaveBeenCalled();
+    expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
+  });
+
+  it('shows a rejected delete inline in the dialog', async () => {
+    vi.mocked(api.deleteUser).mockRejectedValue(new Error('Cannot deactivate, demote or delete the last active system administrator'));
+    await openEditModalFor(target);
+    deleteBtn().click();
+    byId('admin-confirm-password', HTMLInputElement).value = 'AdminPass123!';
+    document.getElementById('admin-confirm-ok-btn').click();
+    await new Promise(process.nextTick);
+    await new Promise(process.nextTick);
+
+    expect(document.getElementById('admin-confirm-error').textContent).toBe('Cannot deactivate, demote or delete the last active system administrator');
+    expect(document.getElementById('user-modal-overlay').classList.contains('hidden')).toBe(false);
+  });
+});
