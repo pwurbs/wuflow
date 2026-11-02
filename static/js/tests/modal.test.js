@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { setupModal, openModal, closeModal, preventNavigation, renderReleaseOptions } from '../components/modal.js';
+import { setupModal, openModal, closeModal, preventNavigation } from '../components/modal.js';
+import { renderReleaseOptions } from '../components/issue-dropdowns.js';
 import * as api from '../api.js';
 import { state, setCurrentIssue } from '../state.js';
 import * as utils from '../utils.js';

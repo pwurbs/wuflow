@@ -1,12 +1,15 @@
 import { state, setCurrentIssue } from '../state.js';
-import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
-import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchReleases, fetchStatusConfig, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
-import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, continueListOnEnter, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown } from '../utils.js';
+import { getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.js';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.js';
+import { showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown } from '../utils.js';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.js';
-import { PRIORITY_NORMAL, PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.js';
+import { PRIORITY_NORMAL } from '../domain-constants.js';
 import { renderMarkdown } from '../markdown.js';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.js';
 import { renderTasks } from './tasks.js';
+import { setupEditorToolbar } from './editor-toolbar.js';
+import { setupCustomDropdown, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions } from './issue-dropdowns.js';
+import { getPlannedDatesFromDOM, renderPlannedDateChips } from './planned-dates.js';
 import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from './activity.js';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.js';
 
@@ -39,7 +42,11 @@ export function setupModal(refreshApp, rerenderViews) {
   document.getElementById('unarchive-issue-btn').addEventListener('click', handleUnarchiveIssue);
 
   setupInlineEditing();
-  setupEditorToolbar();
+  setupEditorToolbar({
+    isEditing: isDescEditing,
+    save: () => _saveDescFn(),
+    discard: () => _discardDescFn(),
+  });
   setupSidebarImmediateSave();
   setupActivity();
   setupScrollCue();
@@ -341,7 +348,7 @@ function renderIssueFields(issue) {
   // we only show the error on active edit actions (Save / Preview).
 
   // Planned Date Chip Logic
-  renderPlannedDateChips(issue);
+  renderPlannedDateChips(issue, savePlannedDates);
 
   setDeadlineInput(issue);
   document.getElementById('deadline-display')?.classList.toggle('overdue', getDeadlineStatus(issue).late);
@@ -376,7 +383,7 @@ function setupNewModal() {
   document.getElementById('description-preview').innerHTML = '';
   document.getElementById('issue-id').value = '';
 
-  renderPlannedDateChips(null);
+  renderPlannedDateChips(null, savePlannedDates);
 
   updateDateInputStyle(document.getElementById('deadline'));
   document.getElementById('deadline-display')?.classList.remove('overdue');
@@ -992,6 +999,15 @@ function sidebarFieldOf(control) {
   return control.closest('.form-group');
 }
 
+function plannedDatesField() {
+  return sidebarFieldOf(document.getElementById('planned-dates-container'));
+}
+
+// Saves the planned dates of the current issue, with their field busy until the save is done.
+function savePlannedDates(getChanges, successMessage) {
+  return markBusy(plannedDatesField(), () => saveIssueChanges(getChanges, successMessage));
+}
+
 async function handleDeadlineChange(rawValue) {
   if (!state.currentIssue) return;
   const dateVal = rawValue ? new Date(rawValue + 'T12:00:00') : null;
@@ -1113,221 +1129,6 @@ async function moveIssueToProject(projectId) {
   showNotification('Project changed', 'info');
 }
 
-function needsLeadingNewline(value, pos) {
-  return pos > 0 && value[pos - 1] !== '\n';
-}
-
-function setupEditorToolbar() {
-  const editor = document.getElementById('description-editor');
-  const preview = document.getElementById('description-preview');
-
-  function handleEnterKey(e) {
-    continueListOnEnter(editor, e);
-  }
-
-  function handleTabKey(e) {
-    e.preventDefault();
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
-    const value = editor.value;
-
-    // If no text is selected, and Shift is NOT pressed, just insert two spaces.
-    if (start === end && !e.shiftKey) {
-      editor.value = value.substring(0, start) + '  ' + value.substring(end);
-      editor.selectionStart = editor.selectionEnd = start + 2;
-      editor.dispatchEvent(new Event('input'));
-      return;
-    }
-
-    // Multi-line or Shift+Tab logic
-    let adjustedEnd = end;
-    if (end > start && value[end - 1] === '\n') {
-      adjustedEnd = end - 1;
-    }
-
-    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-    let lineEnd = value.indexOf('\n', adjustedEnd);
-    if (lineEnd === -1) lineEnd = value.length;
-
-    const beforeStr = value.substring(0, lineStart);
-    const lines = value.substring(lineStart, lineEnd).split('\n');
-    const afterStr = value.substring(lineEnd);
-
-    let startOffset = 0;
-    let endOffset = 0;
-
-    const newLines = lines.map((line, idx) => {
-      let newLine = line;
-      let diff = 0;
-
-      if (e.shiftKey) {
-        if (newLine.startsWith('  ')) {
-          newLine = newLine.substring(2);
-          diff = -2;
-        } else if (newLine.startsWith(' ') || newLine.startsWith('\t')) {
-          newLine = newLine.substring(1);
-          diff = -1;
-        }
-      } else {
-        newLine = '  ' + newLine;
-        diff = 2;
-      }
-
-      if (idx === 0) startOffset += diff;
-      endOffset += diff;
-
-      return newLine;
-    });
-
-    editor.value = beforeStr + newLines.join('\n') + afterStr;
-
-    const newStart = Math.max(lineStart, start + startOffset);
-    const newEnd = Math.max(lineStart, end + endOffset);
-
-    editor.selectionStart = newStart;
-    editor.selectionEnd = start === end ? newStart : newEnd;
-
-    editor.dispatchEvent(new Event('input'));
-  }
-
-  editor.addEventListener('keydown', (e) => {
-    // Saving and discarding only apply to the inline editor, not to the new-issue form.
-    const inlineEditing = isDescEditing();
-    if (inlineEditing && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      void _saveDescFn();
-    } else if (inlineEditing && e.key === 'Escape') {
-      e.preventDefault();
-      void _discardDescFn();
-    } else if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      handleEnterKey(e);
-    } else if (e.key === 'Tab') {
-      handleTabKey(e);
-    }
-  });
-
-  function insertMarkdown(before, after = '') {
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
-    const selected = editor.value.slice(start, end);
-    editor.value = editor.value.slice(0, start) + before + selected + after + editor.value.slice(end);
-    editor.selectionStart = start + before.length;
-    editor.selectionEnd = start + before.length + selected.length;
-    editor.focus();
-    preview.innerHTML = renderMarkdown(editor.value);
-  }
-
-  function applyList(type) {
-    const start = editor.selectionStart;
-    const lines = editor.value.slice(start, editor.selectionEnd).split('\n');
-    const replaced = lines.map((l, i) => type === 'ol' ? `${i + 1}. ` + l : '- ' + l).join('\n');
-    editor.value = editor.value.slice(0, start) + replaced + editor.value.slice(editor.selectionEnd);
-    editor.focus();
-    preview.innerHTML = renderMarkdown(editor.value);
-  }
-
-  function applyHeading(level) {
-    const start = editor.selectionStart;
-    const lines = editor.value.slice(start, editor.selectionEnd).split('\n');
-    const prefix = level === 1 ? '# ' : '## ';
-    const replaced = lines.map(l => prefix + l.replace(/^#+\s/, '')).join('\n');
-    editor.value = editor.value.slice(0, start) + replaced + editor.value.slice(editor.selectionEnd);
-    editor.focus();
-    preview.innerHTML = renderMarkdown(editor.value);
-  }
-
-  function applyLink() {
-    const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim();
-    if (selected && /^https?:\/\//i.test(selected)) {
-      insertMarkdown('[', `](${selected})`);
-    } else {
-      insertMarkdown('[', '](https://)');
-    }
-  }
-
-  function applyCode() {
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
-    const selected = editor.value.slice(start, end);
-
-    if (selected.includes('\n')) {
-      const needsNewlineAfter = end < editor.value.length && editor.value[end] !== '\n';
-      const beforePfx = needsLeadingNewline(editor.value, start) ? '\n```\n' : '```\n';
-      const afterSfx = needsNewlineAfter ? '\n```\n' : '\n```';
-      insertMarkdown(beforePfx, afterSfx);
-    } else {
-      insertMarkdown('`', '`');
-    }
-  }
-
-  function applyTable() {
-    const pos = editor.selectionStart;
-    const value = editor.value;
-    const prefix = needsLeadingNewline(value, pos) ? '\n' : '';
-    const template = `${prefix}| Header 1 | Header 2 | Header 3 |\n| --- | --- | --- |\n| Cell | Cell | Cell |\n`;
-    editor.value = value.slice(0, pos) + template + value.slice(pos);
-    editor.selectionStart = editor.selectionEnd = pos + prefix.length + 2;
-    editor.focus();
-    preview.innerHTML = renderMarkdown(editor.value);
-  }
-
-  function handleMarkdownCommand(cmd) {
-    switch (cmd) {
-      case 'ul': applyList('ul'); break;
-      case 'ol': applyList('ol'); break;
-      case 'h1': applyHeading(1); break;
-      case 'h2': applyHeading(2); break;
-      case 'link': applyLink(); break;
-      case 'code': applyCode(); break;
-      case 'table': applyTable(); break;
-    }
-  }
-
-  document.querySelectorAll('.editor-btn[data-md]').forEach(btn => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', () => {
-      if (btn.dataset.prefix) {
-        insertMarkdown(btn.dataset.prefix, btn.dataset.suffix || '');
-      } else {
-        handleMarkdownCommand(btn.dataset.md);
-      }
-    });
-  });
-
-  // Preview toggle
-  document.getElementById('md-preview-toggle')?.addEventListener('click', (e) => {
-    const btn = e.currentTarget;
-    const showingPreview = !preview.classList.contains('hidden');
-    const toolbarBtns = document.querySelectorAll('.editor-btn[data-md]');
-
-    if (showingPreview) {
-      preview.classList.add('hidden');
-      preview.classList.remove('active');
-      editor.classList.remove('hidden');
-      editor.focus();
-      btn.classList.remove('active');
-      toolbarBtns.forEach(b => {
-        b.disabled = false;
-        b.classList.remove('disabled');
-      });
-    } else {
-      const { html, strippedHTML } = renderMarkdown(editor.value, true);
-      preview.innerHTML = html;
-      if (strippedHTML) {
-        showNotification('Unsupported HTML tags are not rendered for security.', 'error');
-      }
-      preview.classList.remove('hidden');
-      preview.classList.add('active');
-      editor.classList.add('hidden');
-      btn.classList.add('active');
-      toolbarBtns.forEach(b => {
-        b.disabled = true;
-        b.classList.add('disabled');
-      });
-    }
-  });
-}
-
 // Task Logic Helpers
 function refreshTaskDeadlineStyles() {
   let lateCount = 0;
@@ -1419,360 +1220,5 @@ async function saveTaskOrder(issue) {
       previous.forEach(({ task, position }) => { task.position = position; });
       renderTasks(issue.tasks, document.getElementById('task-list'), issue, taskCallbacks(issue));
     }
-  }
-}
-
-
-
-// Custom Dropdown Split
-function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
-  const trigger = document.getElementById(triggerId);
-  const options = document.getElementById(optionsId);
-
-  trigger.addEventListener('click', (e) => {
-    e.stopPropagation();
-
-    if (state.currentIssue?.status === STATUS_ARCHIVE) return;
-
-    const wasHidden = options.classList.contains('hidden');
-
-    // Close others
-    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
-      if (id !== wrapperId) {
-        const otherOptions = document.getElementById(id).querySelector('.custom-select-options');
-        otherOptions.classList.add('hidden');
-        otherOptions.style.maxHeight = '';
-      }
-    });
-
-    if (wasHidden) {
-      // Constrain dropdown to available space below the trigger within the modal
-      const triggerRect = trigger.getBoundingClientRect();
-      const modalContent = document.querySelector('.issue-modal-content');
-      if (modalContent) {
-        const modalRect = modalContent.getBoundingClientRect();
-        const spaceBelow = modalRect.bottom - 20 - triggerRect.bottom;
-        options.style.maxHeight = Math.max(80, Math.min(300, spaceBelow)) + 'px';
-      }
-      options.classList.remove('hidden');
-    } else {
-      options.classList.add('hidden');
-      options.style.maxHeight = '';
-    }
-  });
-}
-
-function renderStatusOptions() {
-  const optionsContainer = document.getElementById('status-options');
-  optionsContainer.innerHTML = '';
-
-  getStatusOptions().forEach(({ value, label }) => {
-    const div = document.createElement('div');
-    div.className = 'custom-option';
-    div.textContent = label;
-    div.addEventListener('click', () => {
-      selectOption('status', 'status-text', 'status-options', value, label);
-    });
-    optionsContainer.appendChild(div);
-  });
-}
-
-function renderPriorityOptions() {
-  const optionsContainer = document.getElementById('priority-options');
-  optionsContainer.innerHTML = '';
-  PRIORITY_OPTIONS.forEach(({ text, value }) => {
-    const div = document.createElement('div');
-    div.className = 'custom-option';
-    div.textContent = text;
-    div.addEventListener('click', () => {
-      selectOption('priority', 'priority-text', 'priority-options', value, text);
-    });
-    optionsContainer.appendChild(div);
-  });
-}
-
-function renderLabelOptions(labels) {
-  const optionsContainer = document.getElementById('label-options');
-  optionsContainer.innerHTML = '';
-
-  // No Label Option
-  const noLabelDiv = document.createElement('div');
-  noLabelDiv.className = 'custom-option';
-  noLabelDiv.textContent = 'No Label';
-  noLabelDiv.addEventListener('click', () => {
-    selectOption('label-select', 'label-text', 'label-options', '', 'No Label');
-  });
-  optionsContainer.appendChild(noLabelDiv);
-
-  labels.forEach(label => {
-    const div = document.createElement('div');
-    div.className = 'custom-option';
-    div.textContent = label.name;
-
-    div.addEventListener('click', () => {
-      selectOption('label-select', 'label-text', 'label-options', label.id, label.name);
-    });
-    optionsContainer.appendChild(div);
-  });
-}
-
-export function renderReleaseOptions(releases, currentReleaseId) {
-  const optionsContainer = document.getElementById('release-options');
-  if (!optionsContainer) return;
-  optionsContainer.innerHTML = '';
-
-  const noReleaseDiv = document.createElement('div');
-  noReleaseDiv.className = 'custom-option';
-  noReleaseDiv.textContent = 'No Release';
-  noReleaseDiv.addEventListener('click', () => {
-    selectOption('release-select', 'release-text', 'release-options', '', 'No Release');
-  });
-  optionsContainer.appendChild(noReleaseDiv);
-
-  (releases || []).filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
-    const div = document.createElement('div');
-    div.className = 'custom-option';
-    div.textContent = release.name;
-    div.addEventListener('click', () => {
-      selectOption('release-select', 'release-text', 'release-options', release.id, release.name);
-    });
-    optionsContainer.appendChild(div);
-  });
-
-  const releaseInput = document.getElementById('release-select');
-  const releaseText = document.getElementById('release-text');
-  if (releaseInput && releaseText) {
-    if (currentReleaseId) {
-      const found = (releases || []).find(r => r.id === currentReleaseId);
-      releaseInput.value = currentReleaseId;
-      releaseText.textContent = found ? found.name : 'No Release';
-    } else {
-      releaseInput.value = '';
-      releaseText.textContent = 'No Release';
-    }
-  }
-}
-
-function renderProjectOptions(projects) {
-  const optionsContainer = document.getElementById('project-options');
-  if (!optionsContainer) return;
-  optionsContainer.innerHTML = '';
-
-  (projects || []).forEach(project => {
-    const div = document.createElement('div');
-    div.className = 'custom-option';
-    div.textContent = project.name;
-    div.addEventListener('click', () => {
-      selectOption('project-select', 'project-text', 'project-options', project.id, project.name);
-      fetchLabelsByProject(project.id).then(labels => {
-        renderLabelOptions(labels);
-        document.getElementById('label-select').value = '';
-        document.getElementById('label-text').textContent = 'No Label';
-      }).catch(err => console.error('Failed to reload labels for project', err));
-      fetchReleases(project.id).then(releases => {
-        state.releases = releases;
-        renderReleaseOptions(releases, null);
-      }).catch(err => console.error('Failed to reload releases for project', err));
-      fetchStatusConfig(project.id).then(cfg => {
-        state.statusConfig = cfg;
-        renderStatusOptions();
-        const statusInput = document.getElementById('status');
-        const statusText = document.getElementById('status-text');
-        if (statusInput) statusInput.value = STATUS_OPEN;
-        if (statusText) statusText.textContent = 'Open';
-        document.getElementById('status-options')?.classList.add('hidden');
-      }).catch(err => console.error('Failed to reload status config for project', err));
-    });
-    optionsContainer.appendChild(div);
-  });
-}
-
-function renderAssigneeOptions(users) {
-  const optionsContainer = document.getElementById('assignee-options');
-  optionsContainer.innerHTML = '';
-
-  // Unassigned Option
-  const unassignedDiv = document.createElement('div');
-  unassignedDiv.className = 'custom-option';
-  unassignedDiv.textContent = 'Unassigned';
-  unassignedDiv.addEventListener('click', () => {
-    selectOption('assignee-select', 'assignee-text', 'assignee-options', '', 'Unassigned');
-  });
-  optionsContainer.appendChild(unassignedDiv);
-
-  // "Assign to me" Option
-  if (state.currentUser) {
-    const meDiv = document.createElement('div');
-    meDiv.className = 'custom-option';
-    meDiv.textContent = 'Assign to me';
-    meDiv.addEventListener('click', () => {
-      selectOption('assignee-select', 'assignee-text', 'assignee-options', state.currentUser.id, `${state.currentUser.first_name} ${state.currentUser.last_name}`);
-    });
-    optionsContainer.appendChild(meDiv);
-  }
-
-  users.filter(u => u.active && u.id !== state.currentUser?.id).forEach(user => {
-    const div = document.createElement('div');
-    div.className = 'custom-option';
-    div.textContent = `${user.first_name} ${user.last_name}`;
-
-    div.addEventListener('click', () => {
-      selectOption('assignee-select', 'assignee-text', 'assignee-options', user.id, `${user.first_name} ${user.last_name}`);
-    });
-    optionsContainer.appendChild(div);
-  });
-}
-
-function selectOption(inputId, textId, optionsId, value, text) {
-  const input = document.getElementById(inputId);
-  const textSpan = document.getElementById(textId);
-  const options = document.getElementById(optionsId);
-
-  if (input.value != value) {
-    input.value = value;
-    textSpan.textContent = text;
-    input.dispatchEvent(new Event('change')); // Trigger immediate save if applicable
-  }
-
-  options.classList.add('hidden');
-  options.style.maxHeight = '';
-}
-
-
-// --- Planned Dates Chip UI ---
-
-function getPlannedDatesFromDOM() {
-  const container = document.getElementById('planned-dates-container');
-  if (!container) return [];
-  const chips = container.querySelectorAll('.date-chip');
-  const dates = [];
-  chips.forEach(chip => {
-    dates.push(chip.dataset.date);
-  });
-  return dates;
-}
-
-function renderPlannedDateChips(issue) {
-  const container = document.getElementById('planned-dates-container');
-  if (!container) return; // Ensure element exists in HTML
-
-  container.innerHTML = '';
-
-  const dates = issue?.planned_dates ? [...issue.planned_dates] : [];
-  dates.sort((a, b) => a.localeCompare(b));
-
-  dates.forEach(dateStr => {
-    container.appendChild(createDateChip(dateStr));
-  });
-
-  // Add Button
-  const addBtn = document.createElement('div');
-  addBtn.className = 'date-chip-add';
-  addBtn.innerHTML = '+';
-  addBtn.title = 'Add Date';
-
-  // Hidden Date Input for picking
-  const picker = document.createElement('input');
-  picker.type = 'date';
-  picker.id = 'planned-date-picker';
-  picker.name = 'planned-date-picker';
-  picker.style.position = 'absolute';
-  picker.style.opacity = '0';
-  picker.style.bottom = '0';
-  picker.style.left = '0';
-  picker.style.width = '0';
-  picker.style.height = '0';
-
-  addBtn.appendChild(picker);
-
-  addBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (typeof picker.showPicker === 'function') {
-      picker.showPicker();
-    } else {
-      picker.click();
-    }
-  });
-
-  picker.addEventListener('change', async () => {
-    if (picker.value) {
-      await addPlannedDate(picker.value);
-      picker.value = ''; // Reset
-    }
-  });
-
-  container.appendChild(addBtn);
-}
-
-function createDateChip(dateStr) {
-  const chip = document.createElement('div');
-  chip.className = 'date-chip';
-  chip.dataset.date = dateStr;
-
-  const span = document.createElement('span');
-  span.textContent = new Date(dateStr).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' });
-
-  const remove = document.createElement('span');
-  remove.className = 'remove';
-  remove.innerHTML = '&times;';
-  remove.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await removePlannedDate(dateStr);
-  });
-
-  chip.appendChild(span);
-  chip.appendChild(remove);
-
-  return chip;
-}
-
-function plannedDatesField() {
-  return sidebarFieldOf(document.getElementById('planned-dates-container'));
-}
-
-async function addPlannedDate(dateStr) {
-  // If editing existing issue
-  if (state.currentIssue) {
-    if (!(state.currentIssue.planned_dates || []).includes(dateStr)) {
-      try {
-        // The dates are computed when the save runs, so quick consecutive adds all persist.
-        const saved = await markBusy(plannedDatesField(), () => saveIssueChanges(issue => ({
-          planned_dates: [...new Set([...(issue.planned_dates || []), dateStr])]
-            .sort((a, b) => a.localeCompare(b)),
-        }), 'Date added'));
-        if (saved) renderPlannedDateChips(state.currentIssue);
-      } catch (err) {
-        showNotification(err.message, 'error');
-      }
-    }
-  } else {
-    // New Issue mode
-    const dates = getPlannedDatesFromDOM();
-    // Check dupe
-    if (!dates.includes(dateStr)) {
-      dates.push(dateStr);
-      dates.sort((a, b) => a.localeCompare(b));
-      renderPlannedDateChips({ planned_dates: dates });
-    }
-  }
-}
-
-async function removePlannedDate(dateStr) {
-  if (state.currentIssue) {
-    if (state.currentIssue.planned_dates) {
-      try {
-        const saved = await markBusy(plannedDatesField(), () => saveIssueChanges(issue => ({
-          planned_dates: (issue.planned_dates || []).filter(d => d !== dateStr),
-        }), 'Date removed'));
-        if (saved) renderPlannedDateChips(state.currentIssue);
-      } catch (err) {
-        showNotification(err.message, 'error');
-      }
-    }
-  } else {
-    // New Issue mode
-    const container = document.getElementById('planned-dates-container');
-    const chip = container.querySelector(`.date-chip[data-date="${dateStr}"]`);
-    if (chip) chip.remove();
   }
 }
