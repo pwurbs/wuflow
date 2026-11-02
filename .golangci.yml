@@ -34,8 +34,6 @@ linters:
     exhaustive:
       # A default clause that handles unlisted values counts as exhaustive.
       default-signifies-exhaustive: true
-      # unknownRole is a test-only fixture, not a real member of the UserRole enum.
-      ignore-enum-members: unknownRole
     errcheck:
       # Deferred Close on a read-only *sql.Rows has no actionable error path;
       # the query error is already surfaced via rows.Err().

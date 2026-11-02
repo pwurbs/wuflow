@@ -4716,7 +4716,8 @@ func TestHandleCreateIssueWithInvalidRelease(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // unknownRole is a UserRole value that has no permissions in the policy table.
-const unknownRole UserRole = "unknown"
+// A var, not a const: the exhaustive linter would count a const as a UserRole enum member.
+var unknownRole = UserRole("unknown")
 
 // --- checkRelease DB error (lines 123-127) ---
 
