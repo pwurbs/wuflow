@@ -9,7 +9,7 @@ import {
 } from '../drag.ts';
 
 // Build a container with positioned elements whose bounding rects are mocked.
-function makeContainer(selector, items) {
+function makeContainer(selector: string, items: { top: number; height: number; isDragging?: boolean }[]) {
   const container = document.createElement('div');
   for (const { top, height, isDragging = false } of items) {
     const el = document.createElement('div');
@@ -30,7 +30,7 @@ describe('drag state', () => {
   });
 
   it('card origin state: set and get', () => {
-    const origin = document.createElement('div');
+    const origin = { parent: document.createElement('div'), nextSibling: document.createElement('div') };
     setDraggedCardOrigin(origin);
     expect(getDraggedCardOrigin()).toBe(origin);
     setDraggedCardOrigin(null);
@@ -57,7 +57,7 @@ describe('getDragAfterElement', () => {
   //   Card A: top=100, height=50 → midpoint=125
   //   Card B: top=200, height=50 → midpoint=225
   //   Card C: top=300, height=50 → midpoint=325
-  let column;
+  let column: HTMLDivElement;
 
   beforeEach(() => {
     column = makeContainer('card', [

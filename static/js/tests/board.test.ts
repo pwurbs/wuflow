@@ -358,7 +358,7 @@ describe('Board Component', () => {
 
       // Get the card rendered by renderBoard
       const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
-      const renderedCard = colContent.querySelector('.card');
+      const renderedCard = colContent.querySelector<HTMLElement>('.card');
 
       vi.mocked(drag.getDraggedCard).mockReturnValue(renderedCard);
       // Drop in the same column — status and position unchanged
@@ -525,7 +525,7 @@ describe('Board Component', () => {
       ];
       renderBoard();
 
-      const card = document.querySelector('.card[data-id="1"]');
+      const card = document.querySelector<HTMLElement>('.card[data-id="1"]');
       vi.mocked(drag.getDraggedCard).mockReturnValue(card);
       vi.mocked(api.updateIssue).mockRejectedValue(new Error('Connection to the server failed. The change was not saved.'));
 
@@ -553,7 +553,7 @@ describe('Board Component', () => {
       renderBoard();
 
       const column = document.querySelector('.column[data-status="Stage1"] .column-content');
-      const card2 = column.querySelector('.card[data-id="2"]');
+      const card2 = column.querySelector<HTMLElement>('.card[data-id="2"]');
       vi.mocked(drag.getDraggedCard).mockReturnValue(card2);
       vi.mocked(api.updateIssuePositions).mockRejectedValue(new Error('Connection to the server failed. The change was not saved.'));
 

@@ -20,7 +20,7 @@ const PURIFY_CONFIG = {
 
 // `class` is allowed only for marked's `language-…` class on code blocks; any
 // other class could apply the app's own CSS (e.g. fixed overlays) to user content.
-function isAllowedClass(node, value) {
+function isAllowedClass(node: Node, value: string) {
   return node.nodeName === 'CODE' && /^language-\S+$/.test(value);
 }
 

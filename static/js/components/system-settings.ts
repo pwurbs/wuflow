@@ -5,13 +5,14 @@ import { state, setUsers, setProjects } from '../state.ts';
 import { ROLE_DISPLAY_NAMES } from '../domain-constants.ts';
 import type { UserWrite } from '../api.ts';
 import type { Role } from '../permissions.ts';
+import type { Project, User } from '../models.ts';
 import { userCan, ACTION_CREATE_PROJECT, ACTION_UPDATE_PROJECT, ACTION_LIST_PROJECTS, ACTION_DELETE_PROJECT, ACTION_LIST_USERS, ACTION_CREATE_USER, ACTION_UPDATE_USER, ACTION_DELETE_USER } from '../permissions.ts';
 import { updateProjectSelectorOptions } from './toolbar.ts';
 
 const HINT_EDIT_USER = 'Leave empty to keep current password';
 const HINT_NEW_USER = 'Minimum 12 characters. No common passwords.';
 
-let systemSettingsViewContainer = null;
+let systemSettingsViewContainer: HTMLElement | null = null;
 
 export function setupSystemSettingsView() {
   systemSettingsViewContainer = document.getElementById('system-settings-view');
@@ -36,12 +37,12 @@ export async function renderSystemSettingsView() {
 
 // --- Project Management ---
 
-let editingProjectId = null;
+let editingProjectId: number | null = null;
 
 function setupProjectModal() {
   const addProjectBtn = document.getElementById('add-project-btn');
   const cancelBtn = document.getElementById('project-modal-cancel');
-  const form = document.getElementById('project-form');
+  const form = byId('project-form', HTMLFormElement);
   const projectDeleteBtn = document.getElementById('project-modal-delete');
 
   const nameInput = byId('project-name', HTMLInputElement);
@@ -61,7 +62,7 @@ function setupProjectModal() {
   }
 }
 
-function openProjectModal(project) {
+function openProjectModal(project: Project | null) {
   const overlay = document.getElementById('project-modal-overlay');
   const title = document.getElementById('project-modal-title');
   const nameInput = byId('project-name', HTMLInputElement);
@@ -145,7 +146,7 @@ async function handleProjectSubmit() {
   }
 }
 
-function showProjectError(el, message) {
+function showProjectError(el: HTMLElement, message: string) {
   el.textContent = message;
   el.classList.remove('hidden');
 }
@@ -243,19 +244,20 @@ async function renderProjectList() {
 
 // --- User Management ---
 
-let editingUserId = null;
+let editingUserId: number | null = null;
 // Role, active flag, email and name of the user being edited, as loaded (null when creating).
-let editingUserOriginal = null;
+type EditedUser = Pick<User, 'role' | 'active' | 'email' | 'first_name' | 'last_name'>;
+let editingUserOriginal: EditedUser | null = null;
 
-const ROLE_RANK = { user: 0, admin: 1, sysadmin: 2 };
-function isRolePromotion(fromRole, toRole) {
+const ROLE_RANK: Record<Role, number> = { user: 0, admin: 1, sysadmin: 2 };
+function isRolePromotion(fromRole: Role, toRole: Role) {
   return (ROLE_RANK[toRole] ?? -1) > (ROLE_RANK[fromRole] ?? -1);
 }
 
 function setupUserModal() {
   const addUserBtn = document.getElementById('add-user-btn');
   const cancelBtn = document.getElementById('user-modal-cancel');
-  const form = document.getElementById('user-form');
+  const form = byId('user-form', HTMLFormElement);
 
   if (addUserBtn) {
     if (userCan(state.currentUser, ACTION_CREATE_USER)) {
@@ -282,7 +284,7 @@ function setupUserModal() {
   initCharCounter(byId('user-last-name', HTMLInputElement), MAX_USERNAME_LENGTH);
 }
 
-function openUserModal(user) {
+function openUserModal(user: User | null) {
   const overlay = document.getElementById('user-modal-overlay');
   const modalTitle = document.getElementById('user-modal-title');
   const emailInput = byId('user-email', HTMLInputElement);
@@ -427,10 +429,10 @@ async function handleDeleteUser() {
 
 // Returns the confirmation dialog copy for the update, or null if it needs no confirmation.
 // Several confirmable changes at once get one dialog that lists all of them.
-function getUserUpdateConfirmationCopy(userData, original) {
+function getUserUpdateConfirmationCopy(userData: UserWrite, original: EditedUser) {
   const name = `${userData.first_name} ${userData.last_name}`.trim();
   // title + message: the dialog for this change alone; change: its line in a combined dialog.
-  const cases = [];
+  const cases: { title: string; message: string; change: string; signsOut: boolean }[] = [];
   if (userData.password) {
     cases.push({
       title: 'Confirm Password Reset',
@@ -481,7 +483,7 @@ function getUserUpdateConfirmationCopy(userData, original) {
   };
 }
 
-async function applyUserUpdate(userData) {
+async function applyUserUpdate(userData: UserWrite) {
   const original = editingUserOriginal;
   const confirmation = getUserUpdateConfirmationCopy(userData, original);
   if (confirmation) {
@@ -506,7 +508,7 @@ async function applyUserUpdate(userData) {
   return true;
 }
 
-function validateUserInput(userData, errorDisplay) {
+function validateUserInput(userData: UserWrite, errorDisplay: HTMLElement) {
   if (!userData.email || !EMAIL_REGEX.test(userData.email)) {
     showUserError(errorDisplay, 'A valid email address is required.');
     byId('user-email', HTMLInputElement)?.focus();
@@ -542,7 +544,7 @@ function validateUserInput(userData, errorDisplay) {
   return true;
 }
 
-function showUserError(el, message) {
+function showUserError(el: HTMLElement, message: string) {
   el.textContent = message;
   el.classList.remove('hidden');
 }
@@ -551,7 +553,7 @@ function showUserError(el, message) {
  * Client-side password policy validation.
  * Must match backend rules in validation.go.
  */
-export function validatePasswordPolicy(password, email): string | null {
+export function validatePasswordPolicy(password: string, email: string): string | null {
   if (countCodepoints(password) < MIN_PASSWORD_LENGTH) {
     return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
   }
@@ -585,7 +587,7 @@ const LEET_REPLACEMENTS = {
   '5': 's', '@': 'a', '$': 's', '!': 'i',
 };
 
-export function isBlacklistedPassword(pw) {
+export function isBlacklistedPassword(pw: string) {
   let normalized = pw.toLowerCase();
 
   // Check exact match before leet speak replacement (fixes numeric passwords like 123456)
@@ -631,7 +633,7 @@ async function renderUserList() {
       const row = document.createElement('div');
       row.className = user.active ? 'settings-entry' : 'settings-entry user-inactive';
 
-      const roleBadgeMap = {
+      const roleBadgeMap: Record<Role, string> = {
         sysadmin: '<span class="settings-entry-badge sysadmin">Sysadmin</span>',
         admin: '<span class="settings-entry-badge admin">Admin</span>',
         user: '<span class="settings-entry-badge user">User</span>',
@@ -667,7 +669,7 @@ async function renderUserList() {
 
 // --- Custom Dropdown Helpers ---
 
-function setupUserDropdown(triggerId, optionsId, inputId, textId) {
+function setupUserDropdown(triggerId: string, optionsId: string, inputId: string, textId: string) {
   const trigger = document.getElementById(triggerId);
   const options = document.getElementById(optionsId);
   const input = byId(inputId, HTMLInputElement);
@@ -701,15 +703,4 @@ function setupUserDropdown(triggerId, optionsId, inputId, textId) {
   document.addEventListener('click', () => {
     options.classList.add('hidden');
   });
-}
-
-
-// Simple helper to check if color is light or dark (for text contrast)
-export function isLight(color) {
-  const hex = color.replaceAll('#', '');
-  const r = Number.parseInt(hex.substr(0, 2), 16);
-  const g = Number.parseInt(hex.substr(2, 2), 16);
-  const b = Number.parseInt(hex.substr(4, 2), 16);
-  const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return brightness > 155;
 }

@@ -5,16 +5,18 @@ import { updateIssue } from '../api.ts';
 import { ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { createCardElement, type CardCallbacks } from './card.ts';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.ts';
+import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
+import type { Issue } from '../models.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
 import { getDraggedCard } from '../drag.ts';
 import { escapeHtml } from '../utils.ts';
 
-let refreshAppCallback = null;
-let openModalCallback = null;
-let rerenderActiveViewCallback = null;
+let refreshAppCallback: RefreshApp | null = null;
+let openModalCallback: OpenModal | null = null;
+let rerenderActiveViewCallback: RerenderView | null = null;
 
-function buildLaneCard(releaseId, name, count) {
+function buildLaneCard(releaseId: number | null, name: string, count: number) {
   const isChecked = state.filter.releaseFilterIds.includes(releaseId);
   const card = document.createElement('div');
   card.className = 'release-lane-card' + (isChecked ? ' active' : '');
@@ -91,7 +93,7 @@ function renderBacklogReleaseLanes() {
   list.appendChild(buildLaneCard(null, 'No Release', countsByRelease.get(null) || 0));
 }
 
-export async function renderBacklog(refreshApp?, openModal?, rerenderActiveView?) {
+export async function renderBacklog(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
@@ -117,7 +119,7 @@ export async function renderBacklog(refreshApp?, openModal?, rerenderActiveView?
   const openIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_OPEN));
   const todoIssues = sortByPosition(filterByStatus(filteredIssues, STATUS_TODO));
 
-  function makeCardCallbacks(issue, issuesInList) {
+  function makeCardCallbacks(issue: Issue, issuesInList: Issue[]) {
     const isFirst = issuesInList[0]?.id === issue.id;
     const isLast  = issuesInList[issuesInList.length - 1]?.id === issue.id;
     const cb: CardCallbacks = {
@@ -152,7 +154,7 @@ export async function renderBacklog(refreshApp?, openModal?, rerenderActiveView?
 
 
 
-export function setupBacklogView(refreshApp, openModal, rerenderActiveView) {
+export function setupBacklogView(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;

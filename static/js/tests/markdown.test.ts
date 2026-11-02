@@ -21,12 +21,17 @@ vi.mock('dompurify', () => ({
 
 const { renderMarkdown, renderMarkdownWithReport } = await import('../markdown.ts');
 
+// A captured DOMPurify hook as the tests call it: without a node and with only the event
+// fields markdown.ts reads.
+type TestHook = (node: null, data: object) => void;
+
 // Helpers: configure addHook to capture the callback, then make sanitize
 // invoke it with controlled data — mirrors how real DOMPurify calls hooks.
-function withElementHookTrigger(tagName, allowedTags) {
-  let hook;
+function withElementHookTrigger(tagName: string, allowedTags: Record<string, boolean>) {
+  let hook: TestHook | undefined;
   vi.mocked(DOMPurify.addHook).mockImplementation((event: string, fn) => {
-    if (event === 'uponSanitizeElement') hook = fn;
+    // vi.mocked types fn by the last addHook overload, whatever the event.
+    if (event === 'uponSanitizeElement') hook = fn as TestHook;
   });
   vi.mocked(DOMPurify.sanitize).mockImplementation((html) => {
     hook?.(null, { tagName, allowedTags });
@@ -34,10 +39,11 @@ function withElementHookTrigger(tagName, allowedTags) {
   });
 }
 
-function withAttrHookTrigger(attrName, allowedAttributes, attrValue = '') {
-  let hook;
+function withAttrHookTrigger(attrName: string, allowedAttributes: Record<string, boolean>, attrValue = '') {
+  let hook: TestHook | undefined;
   vi.mocked(DOMPurify.addHook).mockImplementation((event: string, fn) => {
-    if (event === 'uponSanitizeAttribute') hook = fn;
+    // vi.mocked types fn by the last addHook overload, whatever the event.
+    if (event === 'uponSanitizeAttribute') hook = fn as TestHook;
   });
   vi.mocked(DOMPurify.sanitize).mockImplementation((html) => {
     hook?.(null, { attrName, allowedAttributes, attrValue });
@@ -95,9 +101,10 @@ describe('renderMarkdown', () => {
     });
 
     it('ignores body, #text, and #comment in element hook', () => {
-      let hook;
+      let hook: TestHook | undefined;
       vi.mocked(DOMPurify.addHook).mockImplementation((event: string, fn) => {
-        if (event === 'uponSanitizeElement') hook = fn;
+        // vi.mocked types fn by the last addHook overload, whatever the event.
+        if (event === 'uponSanitizeElement') hook = fn as TestHook;
       });
       vi.mocked(DOMPurify.sanitize).mockImplementation((html) => {
         hook?.(null, { tagName: 'body', allowedTags: {} });

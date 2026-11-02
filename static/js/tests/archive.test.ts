@@ -4,6 +4,7 @@ import { resetIssueLists } from '../issue-lists.ts';
 import * as state from '../state.ts';
 import * as api from '../api.ts';
 import type { CardCallbacks } from '../components/card.ts';
+import type { Issue } from '../models.ts';
 import { makeIssue } from './fixtures.ts';
 
 // Mock dependencies
@@ -46,8 +47,8 @@ vi.mock('../components/card.ts', () => ({
 
 vi.mock('../filters.ts', () => ({
   filterIssues: vi.fn(issues => issues),
-  filterByStatus: vi.fn((issues, status) => issues.filter(i => i.status === status)),
-  sortByPosition: vi.fn(issues => issues.sort((a, b) => a.position - b.position))
+  filterByStatus: vi.fn((issues: Issue[], status: string) => issues.filter(i => i.status === status)),
+  sortByPosition: vi.fn((issues: Issue[]) => issues.sort((a, b) => a.position - b.position))
 }));
 
 vi.mock('../drag.ts', () => ({

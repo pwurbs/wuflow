@@ -45,9 +45,9 @@ import {
   reauthenticate,
 } from '../api.ts';
 import type { ReleaseWrite, UserWrite } from '../api.ts';
-import { makeIssue, makeTask, makeUser } from './fixtures.ts';
+import { makeIssue, makeStatusConfig, makeTask, makeUser } from './fixtures.ts';
 
-function makeResponse(status, body, headers = {}) {
+function makeResponse(status: number, body: unknown, headers: Record<string, string> = {}) {
   const bodyInit = typeof body === 'string' ? body : JSON.stringify(body);
   return new Response(bodyInit, {
     status,
@@ -103,7 +103,7 @@ describe('api', () => {
     });
 
     it('issues only one refresh request for concurrent 401s (mutex)', async () => {
-      let resolveRefresh;
+      let resolveRefresh: (value?: unknown) => void;
       const deferredRefresh = new Promise(res => { resolveRefresh = res; });
 
       vi.mocked(fetch).mockImplementation((url) => {
@@ -146,7 +146,7 @@ describe('api', () => {
     });
 
     it('opens the re-login handler only once for concurrent 401s', async () => {
-      let resolveLogin;
+      let resolveLogin: () => void;
       const handler = vi.fn(() => new Promise<void>(res => { resolveLogin = res; }));
       setSessionExpiredHandler(handler);
       let reloggedIn = false;
@@ -361,7 +361,7 @@ describe('api', () => {
     it('includes If-Match header when etag is provided', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, { id: 1 }));
       await updateIssue(1, makeIssue({ id: 1 }), '"v1"');
-      expect(vi.mocked(fetch).mock.calls[0][1].headers['If-Match']).toBe('"v1"');
+      expect(new Headers(vi.mocked(fetch).mock.calls[0][1].headers).get('If-Match')).toBe('"v1"');
     });
 
     it('returns conflict flag on 409', async () => {
@@ -454,7 +454,7 @@ describe('api', () => {
 
   describe('moveIssue', () => {
     it('posts to move endpoint with new_project_id and admin_password, returns updated issue with etag', async () => {
-      const moved = { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' };
+      const moved = makeIssue({ id: 1, project_id: 2, label: null, release_id: null, status: 'Open' });
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, moved, { ETag: '"move-etag"' }));
       const result = await moveIssue(1, 1, 2, 'AdminPass123!');
       expect(result).toEqual({ issue: moved, etag: '"move-etag"' });
@@ -592,7 +592,7 @@ describe('api', () => {
 
   describe('fetchStatusConfig', () => {
     it('returns config on success', async () => {
-      const config = { columns: [] };
+      const config = makeStatusConfig();
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, config));
       expect(await fetchStatusConfig(1)).toEqual(config);
     });

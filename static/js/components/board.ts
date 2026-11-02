@@ -6,12 +6,15 @@ import { filterIssues, sortByPosition } from '../filters.ts';
 import { getBoardColumns, STATUS_OPEN } from '../status-config.ts';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, applyOrderChange, saveIssueOrder, showSaveFailure } from '../list-utils.ts';
 import { renderPlanningPanel } from './planning.ts';
+import type { IssueStatus } from '../status-config.ts';
+import type { Issue } from '../models.ts';
+import type { OrderChange, OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 
-let refreshAppCallback = null;
-let openModalCallback = null;
-let rerenderActiveViewCallback = null;
+let refreshAppCallback: RefreshApp | null = null;
+let openModalCallback: OpenModal | null = null;
+let rerenderActiveViewCallback: RerenderView | null = null;
 
-export function renderBoard(refreshApp?, openModal?, rerenderActiveView?) {
+export function renderBoard(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
@@ -20,9 +23,9 @@ export function renderBoard(refreshApp?, openModal?, rerenderActiveView?) {
   boardColumns.querySelectorAll('.column').forEach(c => c.remove());
 
   const columnDefs = getBoardColumns();
-  const columns = {};
-  const counts = {};
-  const totalCounts = {};
+  const columns: Record<string, HTMLElement> = {};
+  const counts: Record<string, number> = {};
+  const totalCounts: Record<string, number> = {};
 
   for (const col of columnDefs) {
     counts[col.statusKey] = 0;
@@ -57,7 +60,7 @@ export function renderBoard(refreshApp?, openModal?, rerenderActiveView?) {
   const filteredIssues = filterIssues(nonBacklogIssues, state.filter, state.currentUser?.id);
   const sortedIssues = sortByPosition(filteredIssues);
 
-  const columnIssues = {};
+  const columnIssues: Record<string, Issue[]> = {};
   for (const col of columnDefs) {
     columnIssues[col.statusKey] = sortByPosition(
       nonBacklogIssues.filter(i => i.status === col.statusKey)
@@ -104,12 +107,12 @@ export function renderBoard(refreshApp?, openModal?, rerenderActiveView?) {
     if (countEl && counts[status] !== undefined) {
       countEl.textContent = filterActive
         ? `${counts[status]}/${totalCounts[status]}`
-        : counts[status];
+        : String(counts[status]);
     }
   });
 }
 
-function attachColumnDragListeners(colContent) {
+function attachColumnDragListeners(colContent: HTMLElement) {
   colContent.addEventListener('dragover', (e) => {
     const draggedCard = getDraggedCard();
     if (!draggedCard?.classList.contains('card')) return;
@@ -128,7 +131,7 @@ function attachColumnDragListeners(colContent) {
   });
 
   colContent.addEventListener('dragleave', (e) => {
-    if (e.relatedTarget && !colContent.contains(e.relatedTarget) && e.relatedTarget !== colContent) {
+    if (e.relatedTarget instanceof Node && !colContent.contains(e.relatedTarget) && e.relatedTarget !== colContent) {
       const draggedCard = getDraggedCard();
       const origin = getDraggedCardOrigin();
       if (draggedCard && origin?.parent) {
@@ -164,7 +167,7 @@ function attachColumnDragListeners(colContent) {
 }
 
 // setupBoardView stores callbacks; drag listeners are now attached per-render in renderBoard.
-export function setupBoardView(refreshApp, openModal, rerenderActiveView) {
+export function setupBoardView(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
@@ -173,9 +176,10 @@ export function setupBoardView(refreshApp, openModal, rerenderActiveView) {
 // Applies the dropped order to the local issues and returns the changes for
 // saveIssueOrder (which also restores the old order if the save fails).
 function getBoardUpdates() {
-  const changes = [];
+  const changes: OrderChange[] = [];
   document.querySelectorAll<HTMLElement>('.column').forEach(col => {
-    const status = col.dataset.status;
+    // renderBoard sets data-status from BoardColumn.statusKey.
+    const status = col.dataset.status as IssueStatus;
     const cards = [...col.querySelectorAll<HTMLElement>('.column-content .card')];
     cards.forEach((card, index) => {
       const id = Number.parseInt(card.dataset.id);

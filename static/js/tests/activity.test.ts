@@ -4,7 +4,8 @@ import * as api from '../api.ts';
 import { state } from '../state.ts';
 import { byId } from '../utils.ts';
 import * as utils from '../utils.ts';
-import { makeComment, makeHistoryEntry, makeUser, makeUserRef } from './fixtures.ts';
+import { makeComment, makeHistoryEntry, makeIssue, makeUser, makeUserRef } from './fixtures.ts';
+import type { Comment, HistoryEntry } from '../models.ts';
 
 vi.mock('../api.ts', () => ({
   fetchHistory: vi.fn(),
@@ -44,9 +45,10 @@ vi.mock('../markdown.ts', () => ({
   renderMarkdown: vi.fn(md => `<p>${md}</p>`)
 }));
 
-vi.mock('../status-config.ts', () => ({
-  getStatusLabel: vi.fn(key => ({ Stage1: 'Working', Done: 'Done', Open: 'Open' }[key] || key))
-}));
+vi.mock('../status-config.ts', () => {
+  const labels: Record<string, string> = { Stage1: 'Working', Done: 'Done', Open: 'Open' };
+  return { getStatusLabel: vi.fn((key: string) => labels[key] || key) };
+});
 
 vi.mock('../permissions.ts', () => ({
   userCan: vi.fn(() => true),
@@ -56,7 +58,7 @@ vi.mock('../permissions.ts', () => ({
   ACTION_DELETE_COMMENT: 'comment:delete'
 }));
 
-const issue = { id: 1, project_id: 7, status: 'Open' };
+const issue = makeIssue({ id: 1, project_id: 7, status: 'Open' });
 
 function domFixture() {
   document.body.innerHTML = `
@@ -259,7 +261,7 @@ describe('Activity Component', () => {
     expect(document.querySelector('.comment-item').hasAttribute('aria-disabled')).toBe(false);
   });
 
-  it.each([['an open', 'Open'], ['an archived', 'Archive']])('opens a link in a comment of %s issue in a new tab instead of leaving the app', async (_label, status) => {
+  it.each([['an open', 'Open'], ['an archived', 'Archive']] as const)('opens a link in a comment of %s issue in a new tab instead of leaving the app', async (_label, status) => {
     vi.mocked(api.fetchComments).mockResolvedValue([
       makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'see [docs](https://example.com/a)', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
@@ -302,7 +304,7 @@ describe('Activity Component', () => {
   });
 
   it('posts a new comment only once while the first submit is in flight, with the editor greyed out', async () => {
-    let resolveCreate;
+    let resolveCreate: (comment: Comment) => void;
     vi.mocked(api.createComment).mockReturnValue(new Promise(r => { resolveCreate = r; }));
     await loadActivity(issue);
 
@@ -316,7 +318,7 @@ describe('Activity Component', () => {
     addBtn.click();
     input.dispatchEvent(new globalThis.KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, cancelable: true }));
 
-    resolveCreate({ id: 5 });
+    resolveCreate(makeComment({ id: 5 }));
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
 
@@ -328,7 +330,7 @@ describe('Activity Component', () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
       makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
-    let resolveUpdate;
+    let resolveUpdate: (comment: Comment) => void;
     vi.mocked(api.updateComment).mockReturnValue(new Promise(r => { resolveUpdate = r; }));
     await loadActivity(issue);
 
@@ -340,7 +342,7 @@ describe('Activity Component', () => {
     expect(textarea.closest('.comment-editor-container').getAttribute('aria-busy')).toBe('true');
     save.dispatchEvent(new MouseEvent('click')); // a second ✓, e.g. from a stale handler
 
-    resolveUpdate({});
+    resolveUpdate(makeComment());
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
 
@@ -403,7 +405,7 @@ describe('Activity Component', () => {
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
     const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(cb => { cb(0); return 0; });
     const editorBox = document.getElementById('new-comment-editor');
-    const setHeight = h => Object.defineProperty(editorBox, 'offsetHeight', { configurable: true, value: h });
+    const setHeight = (h: number) => Object.defineProperty(editorBox, 'offsetHeight', { configurable: true, value: h });
 
     try {
       setHeight(60);
@@ -758,7 +760,7 @@ describe('Activity Component', () => {
 
   // docs/frontend.md "Editing Fields"
   describe('editor keys and drafts', () => {
-    const key = (el, k, opts = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
+    const key = (el: Element, k: string, opts: KeyboardEventInit = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
     const tick = async () => { for (let i = 0; i < 3; i++) await new Promise(process.nextTick); };
     const oneComment = () => vi.mocked(api.fetchComments).mockResolvedValue([
       makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
@@ -942,7 +944,7 @@ describe('Activity Component', () => {
 
       // Simulate a background refresh (e.g. from a field save) whose request is
       // still in flight — we control exactly when it resolves.
-      let resolveStaleFetch;
+      let resolveStaleFetch: (history: HistoryEntry[]) => void;
       vi.mocked(api.fetchHistory).mockImplementationOnce(() => new Promise(resolve => { resolveStaleFetch = resolve; }));
       const stalePromise = refreshHistory();
 
@@ -957,7 +959,7 @@ describe('Activity Component', () => {
 
       // The stale fetch (for the old issue) finally resolves after the newer load.
       resolveStaleFetch([
-        { id: 1, event: 'archived', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }
+        makeHistoryEntry({ id: 1, event: 'archived', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await stalePromise;
 

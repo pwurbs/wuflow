@@ -4,9 +4,11 @@ import { PRIORITY_HIGH } from '../domain-constants.ts';
 import { STATUS_ARCHIVE } from '../status-config.ts';
 import { setDraggedCard, setDraggedCardOrigin } from '../drag.ts';
 import { showCardContextMenu } from '../context-menu.ts';
+import type { ContextMenuItem } from '../context-menu.ts';
+import type { Issue, ReleaseRef } from '../models.ts';
 
 export interface CardCallbacks {
-  openModal?: (issue) => void;
+  openModal?: (issue: Issue) => void;
   onDragStart?: (cardEl: HTMLElement) => void;
   onDragEnd?: (cardEl: HTMLElement) => void;
   onMoveTop?: () => unknown;
@@ -15,14 +17,14 @@ export interface CardCallbacks {
   onAssignToMe?: () => unknown;
 }
 
-export function createCardElement(issue, isBoard = false, callbacks: CardCallbacks = {}) {
+export function createCardElement(issue: Issue, isBoard = false, callbacks: CardCallbacks = {}) {
   const card = document.createElement('div');
   card.className = 'card';
   if (isBoard) {
     card.classList.add('board-card');
   }
   card.draggable = issue.status !== STATUS_ARCHIVE;
-  card.dataset.id = issue.id;
+  card.dataset.id = String(issue.id);
   card.classList.toggle('is-archived', issue.status === STATUS_ARCHIVE);
   if (issue.priority === PRIORITY_HIGH) {
     card.classList.add('high-priority');
@@ -83,7 +85,7 @@ export function createCardElement(issue, isBoard = false, callbacks: CardCallbac
     card.addEventListener('contextmenu', (e) => {
       e.preventDefault();
 
-      const items = [
+      const items: ContextMenuItem[] = [
         {
           label: 'Move to top',
           disabled: !callbacks.onMoveTop,
@@ -125,7 +127,7 @@ export function createCardElement(issue, isBoard = false, callbacks: CardCallbac
   return card;
 }
 
-function getBoardCardHTML(issue, openTasks) {
+function getBoardCardHTML(issue: Issue, openTasks: number) {
   const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
   const deadlineStatus = getDeadlineStatus(issue);
   const deadlineClass = deadlineStatus.late ? ' overdue' : '';
@@ -166,7 +168,7 @@ function getBoardCardHTML(issue, openTasks) {
         `;
 }
 
-function getBacklogCardHTML(issue, openTasks, totalTasks) {
+function getBacklogCardHTML(issue: Issue, openTasks: number, totalTasks: number) {
   const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
   const deadlineStatus = getDeadlineStatus(issue);
   const deadlineClass = deadlineStatus.late ? ' overdue' : '';
@@ -207,13 +209,13 @@ function getBacklogCardHTML(issue, openTasks, totalTasks) {
   `;
 }
 
-function getReleaseChipHTML(release) {
+function getReleaseChipHTML(release: ReleaseRef | null) {
   if (!release) return '';
   const check = release.status === 'closed' ? '<span class="release-chip-check">✓</span>' : '';
   return `<span class="release-chip">${check}${escapeHtml(release.name)}</span>`;
 }
 
-function getAssigneeBadgeHTML(issue, extraStyle = '') {
+function getAssigneeBadgeHTML(issue: Issue, extraStyle = '') {
   if (!issue.assignee) return '';
   const initials = getUserInitials(issue.assignee);
   const fullName = `${issue.assignee.first_name} ${issue.assignee.last_name}`;

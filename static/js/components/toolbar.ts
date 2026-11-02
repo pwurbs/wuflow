@@ -1,13 +1,14 @@
 import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setFilterRelease, setFilterReleaseOwner, setSelectedProject } from '../state.ts';
-import type { UserFilter } from '../state.ts';
-import type { User } from '../models.ts';
+import type { Filter, UserFilter } from '../state.ts';
+import type { Label, Project, Release, User } from '../models.ts';
+import type { Priority } from '../domain-constants.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import { logout, updateCurrentUser } from '../api.ts';
 import { byId, showNotification, getUserInitials, onGuardedSubmit } from '../utils.ts';
 import { validatePasswordPolicy } from './system-settings.ts';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
-function updateFilterButtonState(btn, defaultText, selectedText, clearHandler) {
+function updateFilterButtonState(btn: HTMLElement, defaultText: string, selectedText: string | null, clearHandler: () => void) {
   btn.innerHTML = '';
   if (selectedText == null) {
     const textSpan = document.createElement('span');
@@ -40,12 +41,12 @@ function updateFilterButtonState(btn, defaultText, selectedText, clearHandler) {
 
 // ─── Label Filter ──────────────────────────────────────────────────────────────
 
-let labelFilterContainer;
-let labelFilterBtn;
-let labelFilterOptions;
-let labelRefreshCallback;
+let labelFilterContainer: HTMLElement | null;
+let labelFilterBtn: HTMLElement | null;
+let labelFilterOptions: HTMLElement | null;
+let labelRefreshCallback: (() => unknown) | undefined;
 
-export function initLabelFilter(refreshApp) {
+export function initLabelFilter(refreshApp: () => unknown) {
   labelRefreshCallback = refreshApp;
 
   labelFilterContainer = document.getElementById('label-filter-wrapper');
@@ -58,13 +59,13 @@ export function initLabelFilter(refreshApp) {
   });
 
   document.addEventListener('click', (e) => {
-    if (labelFilterContainer && !labelFilterContainer.contains(e.target)) {
+    if (labelFilterContainer && !(e.target instanceof Node && labelFilterContainer.contains(e.target))) {
       labelFilterOptions.classList.add('hidden');
     }
   });
 }
 
-export function updateLabelFilterOptions(labels) {
+export function updateLabelFilterOptions(labels: Label[]) {
   const currentVal = state.filter.labelId;
 
   labelFilterOptions.innerHTML = '';
@@ -77,7 +78,7 @@ export function updateLabelFilterOptions(labels) {
     labelFilterOptions.appendChild(option);
   });
 
-  let labelSelectedText = null;
+  let labelSelectedText: string | null = null;
   if (currentVal != null) {
     const labelText = currentVal === '__no_label__' ? 'No Label' : (labels.find(l => l.id === currentVal)?.name ?? 'Unknown');
     labelSelectedText = `Label: ${labelText}`;
@@ -88,7 +89,7 @@ export function updateLabelFilterOptions(labels) {
   });
 }
 
-function createLabelOption(text, value) {
+function createLabelOption(text: string, value: Filter['labelId']) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
@@ -102,12 +103,12 @@ function createLabelOption(text, value) {
 
 // ─── Priority Filter ───────────────────────────────────────────────────────────
 
-let priorityFilterContainer;
-let priorityFilterBtn;
-let priorityFilterOptions;
-let priorityRefreshCallback;
+let priorityFilterContainer: HTMLElement | null;
+let priorityFilterBtn: HTMLElement | null;
+let priorityFilterOptions: HTMLElement | null;
+let priorityRefreshCallback: (() => unknown) | undefined;
 
-export function initPriorityFilter(refreshApp) {
+export function initPriorityFilter(refreshApp: () => unknown) {
   priorityRefreshCallback = refreshApp;
 
   priorityFilterContainer = document.getElementById('priority-filter-wrapper');
@@ -124,7 +125,7 @@ export function initPriorityFilter(refreshApp) {
   });
 
   document.addEventListener('click', (e) => {
-    if (priorityFilterContainer && !priorityFilterContainer.contains(e.target)) {
+    if (priorityFilterContainer && !(e.target instanceof Node && priorityFilterContainer.contains(e.target))) {
       priorityFilterOptions.classList.add('hidden');
     }
   });
@@ -151,7 +152,7 @@ export function updatePriorityFilterOptions() {
   });
 }
 
-function createPriorityOption(text, value) {
+function createPriorityOption(text: string, value: Priority) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
@@ -166,12 +167,12 @@ function createPriorityOption(text, value) {
 
 // ─── User Filter ───────────────────────────────────────────────────────────────
 
-let userFilterContainer;
-let userFilterBtn;
-let userFilterOptions;
-let userRefreshCallback;
+let userFilterContainer: HTMLElement | null;
+let userFilterBtn: HTMLElement | null;
+let userFilterOptions: HTMLElement | null;
+let userRefreshCallback: (() => unknown) | undefined;
 
-export function initUserFilter(refreshApp) {
+export function initUserFilter(refreshApp: () => unknown) {
   userRefreshCallback = refreshApp;
 
   userFilterContainer = document.getElementById('user-filter-wrapper');
@@ -186,7 +187,7 @@ export function initUserFilter(refreshApp) {
   });
 
   document.addEventListener('click', (e) => {
-    if (userFilterContainer && !userFilterContainer.contains(e.target)) {
+    if (userFilterContainer && !(e.target instanceof Node && userFilterContainer.contains(e.target))) {
       userFilterOptions.classList.add('hidden');
     }
   });
@@ -199,7 +200,7 @@ function resolveFilterLabel(currentVal: UserFilter, users: User[], myLabel: stri
   return user ? `${user.first_name} ${user.last_name}` : 'User';
 }
 
-export function updateUserFilterOptions(users, context = 'issues') {
+export function updateUserFilterOptions(users: User[], context: 'issues' | 'releases' = 'issues') {
   if (!userFilterOptions) return;
   const isReleases = context === 'releases';
   const currentVal = isReleases ? state.filter.releaseOwnerFilter : state.filter.assigneeId;
@@ -230,7 +231,7 @@ export function updateUserFilterOptions(users, context = 'issues') {
   });
 }
 
-function createUserOption(text, value, setFilter) {
+function createUserOption(text: string, value: UserFilter, setFilter: (value: UserFilter | null) => void) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
@@ -244,12 +245,12 @@ function createUserOption(text, value, setFilter) {
 
 // ─── Release Filter ────────────────────────────────────────────────────────────
 
-let releaseFilterContainer;
-let releaseFilterBtn;
-let releaseFilterOptions;
-let releaseRefreshCallback;
+let releaseFilterContainer: HTMLElement | null;
+let releaseFilterBtn: HTMLElement | null;
+let releaseFilterOptions: HTMLElement | null;
+let releaseRefreshCallback: (() => unknown) | undefined;
 
-export function initReleaseFilter(refreshApp) {
+export function initReleaseFilter(refreshApp: () => unknown) {
   releaseRefreshCallback = refreshApp;
 
   releaseFilterContainer = document.getElementById('release-filter-wrapper');
@@ -264,13 +265,13 @@ export function initReleaseFilter(refreshApp) {
   });
 
   document.addEventListener('click', (e) => {
-    if (releaseFilterContainer && !releaseFilterContainer.contains(e.target)) {
+    if (releaseFilterContainer && !(e.target instanceof Node && releaseFilterContainer.contains(e.target))) {
       releaseFilterOptions.classList.add('hidden');
     }
   });
 }
 
-export function updateReleaseFilterOptions(releases) {
+export function updateReleaseFilterOptions(releases: Release[]) {
   if (!releaseFilterOptions) return;
   const currentVal = state.filter.releaseId;
 
@@ -284,7 +285,7 @@ export function updateReleaseFilterOptions(releases) {
     releaseFilterOptions.appendChild(option);
   });
 
-  let releaseSelectedText = null;
+  let releaseSelectedText: string | null = null;
   if (currentVal != null) {
     const releaseText = currentVal === '__no_release__' ? 'No Release' : (releases.find(r => r.id === currentVal)?.name ?? 'Unknown');
     releaseSelectedText = `Release: ${releaseText}`;
@@ -295,7 +296,7 @@ export function updateReleaseFilterOptions(releases) {
   });
 }
 
-function createReleaseOption(text, value) {
+function createReleaseOption(text: string, value: Filter['releaseId']) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
@@ -309,9 +310,9 @@ function createReleaseOption(text, value) {
 
 // ─── Project Selector ──────────────────────────────────────────────────────────
 
-let _onProjectChange = null;
+let _onProjectChange: (() => unknown) | null = null;
 
-export function initProjectSelector(onProjectChange) {
+export function initProjectSelector(onProjectChange: () => unknown) {
   _onProjectChange = onProjectChange;
 
   const btn = document.getElementById('project-selector-btn');
@@ -338,7 +339,7 @@ export function initProjectSelector(onProjectChange) {
   });
 }
 
-export function updateProjectSelectorOptions(projects) {
+export function updateProjectSelectorOptions(projects: Project[]) {
   const btn = document.getElementById('project-selector-btn');
   const optionsDiv = document.getElementById('project-selector-options');
 
@@ -381,7 +382,7 @@ export function updateProjectSelectorOptions(projects) {
   updateProjectButtonLabel(btn, current ? current.name : 'Select Project');
 }
 
-function updateProjectButtonLabel(btn, projectName) {
+function updateProjectButtonLabel(btn: HTMLElement, projectName: string) {
   const textSpan = btn.querySelector('#project-selector-text');
   if (textSpan) {
     textSpan.textContent = projectName || 'Select Project';
@@ -390,7 +391,7 @@ function updateProjectButtonLabel(btn, projectName) {
 
 // ─── User Menu ─────────────────────────────────────────────────────────────────
 
-export function setupUserMenu(user) {
+export function setupUserMenu(user: User) {
   const userMenuBtn = document.getElementById('user-menu-btn');
   const userMenuDropdown = document.getElementById('user-menu-dropdown');
   const userEmailSpan = document.getElementById('current-user-email');
@@ -441,7 +442,7 @@ export function setupUserMenu(user) {
   setupPasswordModal(user);
 }
 
-function setupPasswordModal(user) {
+function setupPasswordModal(user: User) {
   const modal = document.getElementById('password-modal');
   const form = byId('password-form', HTMLFormElement);
   const cancelBtn = document.getElementById('password-cancel-btn');

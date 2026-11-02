@@ -7,14 +7,18 @@ import { byId } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as tasks from '../components/tasks.ts';
 import * as activity from '../components/activity.ts';
+import type { Issue, Task } from '../models.ts';
+import type { IssueWrite } from '../api.ts';
+
+type UpdateIssueResult = Awaited<ReturnType<typeof api.updateIssue>>;
 import { makeIssue, makeLabel, makeProject, makeRelease, makeTask, makeUser, makeUserRef, savedIssue } from './fixtures.ts';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
-const _localStore = {};
+const _localStore: Record<string, string> = {};
 vi.stubGlobal('localStorage', {
-  getItem: (key) => _localStore[key] ?? null,
-  setItem: (key, value) => { _localStore[key] = String(value); },
-  removeItem: (key) => { delete _localStore[key]; },
+  getItem: (key: string) => _localStore[key] ?? null,
+  setItem: (key: string, value: unknown) => { _localStore[key] = String(value); },
+  removeItem: (key: string) => { delete _localStore[key]; },
 });
 
 // Mock dependencies
@@ -120,11 +124,21 @@ vi.mock('../drag.ts', () => ({
 }));
 
 // Helper function to open modal with proper mocking for existing issues
-async function openModalWithMock(issue) {
+async function openModalWithMock(issue: Issue | null) {
   if (issue) {
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"test-etag"' });
   }
   await openModal(issue);
+}
+
+// A save of the open issue that the test answers by hand: answer(etag) lets the server answer
+// with the sent fields as the saved issue. It may be called before the save is sent.
+function answerByHand() {
+  let answer: (etag: string) => void;
+  const etag = new Promise<string>(r => { answer = r; });
+  const save = async (_projectId: number, sent: IssueWrite & { id: number }): Promise<UpdateIssueResult> =>
+    ({ issue: savedIssue(sent), etag: await etag, conflict: false });
+  return { save, answer: (value: string) => answer(value) };
 }
 
 // Lets chained promise callbacks (save → state update → re-render) settle.
@@ -134,7 +148,7 @@ async function flush() {
 
 // jsdom never lays out content, so scrollHeight/clientHeight/scrollTop must be
 // stubbed manually to simulate overflow states in the Scroll Cue tests below.
-function setScrollMetrics(el, { scrollHeight, clientHeight, scrollTop }) {
+function setScrollMetrics(el: Element, { scrollHeight, clientHeight, scrollTop }: { scrollHeight: number; clientHeight: number; scrollTop: number }) {
   Object.defineProperty(el, 'scrollHeight', { value: scrollHeight, configurable: true });
   Object.defineProperty(el, 'clientHeight', { value: clientHeight, configurable: true });
   Object.defineProperty(el, 'scrollTop', { value: scrollTop, configurable: true });
@@ -344,7 +358,7 @@ describe('Modal Component', () => {
   it('creates a new issue only once while the first submit is in flight, with the form greyed out', async () => {
     openModal(null);
     byId('title', HTMLInputElement).value = 'New Title';
-    let resolveCreate;
+    let resolveCreate: (issue: Issue) => void;
     vi.mocked(api.createIssue).mockReturnValue(new Promise(r => { resolveCreate = r; }));
 
     const form = document.getElementById('issue-form');
@@ -353,7 +367,7 @@ describe('Modal Component', () => {
     // A second submit (e.g. Enter) must not create again.
     form.dispatchEvent(new Event('submit'));
 
-    resolveCreate({ id: 99, title: 'New Title' });
+    resolveCreate(makeIssue({ id: 99, title: 'New Title' }));
     await new Promise(process.nextTick);
 
     expect(api.createIssue).toHaveBeenCalledTimes(1);
@@ -361,7 +375,7 @@ describe('Modal Component', () => {
   });
 
   it('should update existing issue on status change (inline save)', async () => {
-    const issue = { id: 1, title: 'Old', status: 'Open' };
+    const issue = makeIssue({ id: 1, title: 'Old', status: 'Open' });
     await openModalWithMock(issue);
 
     // Simulate status change
@@ -371,7 +385,7 @@ describe('Modal Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+    expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
       id: 1,
       status: 'Done'
     }), expect.any(String));
@@ -379,7 +393,7 @@ describe('Modal Component', () => {
   });
 
   it('should handle task creation', async () => {
-    const issue = { id: 1, project_id: 7, title: 'Task Parent', tasks: [] };
+    const issue = makeIssue({ id: 1, project_id: 7, title: 'Task Parent', tasks: [] });
     await openModalWithMock(issue);
 
     byId('new-task-title', HTMLInputElement).value = 'Subtask 1';
@@ -403,9 +417,9 @@ describe('Modal Component', () => {
   });
 
   it('creates a task only once while the first submit is in flight, with the task form greyed out', async () => {
-    const issue = { id: 1, project_id: 7, title: 'Task Parent', tasks: [] };
+    const issue = makeIssue({ id: 1, project_id: 7, title: 'Task Parent', tasks: [] });
     await openModalWithMock(issue);
-    let resolveCreate;
+    let resolveCreate: (task: Task) => void;
     vi.mocked(api.createTask).mockReturnValue(new Promise(r => { resolveCreate = r; }));
 
     const titleInput = byId('new-task-title', HTMLInputElement);
@@ -417,7 +431,7 @@ describe('Modal Component', () => {
     // Enter must not create again.
     titleInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', cancelable: true }));
 
-    resolveCreate({ id: 101, title: 'Subtask 1', done: false });
+    resolveCreate(makeTask({ id: 101, title: 'Subtask 1', done: false }));
     await new Promise(process.nextTick);
 
     expect(api.createTask).toHaveBeenCalledTimes(1);
@@ -425,19 +439,19 @@ describe('Modal Component', () => {
   });
 
   it('should delete issue after confirmation', async () => {
-    const issue = { id: 99, title: 'To Delete' };
+    const issue = makeIssue({ id: 99, title: 'To Delete' });
     await openModalWithMock(issue);
 
     document.getElementById('delete-issue-btn').click();
     await new Promise(process.nextTick);
 
     expect(utils.promptAdminPasswordConfirmation).toHaveBeenCalled();
-    expect(api.deleteIssue).toHaveBeenCalledWith(undefined, 99, 'AdminPass123!');
+    expect(api.deleteIssue).toHaveBeenCalledWith(1, 99, 'AdminPass123!');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
 
   it('should archive issue after confirmation', async () => {
-    const issue = { id: 100, title: 'To Archive', status: 'Open' };
+    const issue = makeIssue({ id: 100, title: 'To Archive', status: 'Open' });
     await openModalWithMock(issue);
 
     vi.mocked(utils.showConfirm).mockResolvedValue(true);
@@ -446,22 +460,22 @@ describe('Modal Component', () => {
     await new Promise(process.nextTick);
 
     expect(utils.showConfirm).toHaveBeenCalled();
-    expect(api.archiveIssue).toHaveBeenCalledWith(undefined, 100);
+    expect(api.archiveIssue).toHaveBeenCalledWith(1, 100);
     expect(utils.showNotification).toHaveBeenCalledWith('Issue archived');
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
   it.each([
     ['archive', { status: 'Done' }, 'archiveIssue'],
     ['unarchive', { status: 'Archive' }, 'unarchiveIssue'],
-  ])('should let a queued field save finish before the %s closes the modal', async (action, fields, apiFn) => {
-    const issue = { id: 100, title: 'Queued', priority: 'Normal', ...fields };
+  ] as const)('should let a queued field save finish before the %s closes the modal', async (action, fields, apiFn) => {
+    const issue = makeIssue({ id: 100, title: 'Queued', priority: 'Normal', ...fields });
     await openModalWithMock(issue);
     vi.mocked(utils.canArchive).mockReturnValue({ allowed: true });
     vi.mocked(utils.showConfirm).mockResolvedValue(true);
-    api[apiFn].mockResolvedValue({ id: 100 });
+    vi.mocked(api[apiFn]).mockResolvedValue(makeIssue({ id: 100 }));
 
-    let resolveFieldSave;
-    vi.mocked(api.updateIssue).mockReturnValueOnce(new Promise(r => { resolveFieldSave = r; }));
+    const resolveFieldSave = answerByHand();
+    vi.mocked(api.updateIssue).mockImplementationOnce(resolveFieldSave.save);
     const prioritySelect = byId('priority', HTMLInputElement);
     prioritySelect.value = 'High';
     prioritySelect.dispatchEvent(new Event('change'));
@@ -471,12 +485,12 @@ describe('Modal Component', () => {
     await new Promise(process.nextTick);
     expect(api[apiFn]).not.toHaveBeenCalled();
 
-    resolveFieldSave({ issue: { id: 100 }, etag: '"e2"', conflict: false });
+    resolveFieldSave.answer('"e2"');
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ id: 100, priority: 'High' }), expect.any(String));
-    expect(api[apiFn]).toHaveBeenCalledWith(undefined, 100);
+    expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ id: 100, priority: 'High' }), expect.any(String));
+    expect(api[apiFn]).toHaveBeenCalledWith(1, 100);
     expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
   });
 
@@ -533,7 +547,7 @@ describe('Modal Component', () => {
   });
 
   it('should handle inline title editing keys', async () => {
-    const issue = { id: 1, title: 'Original', status: 'Open' };
+    const issue = makeIssue({ id: 1, title: 'Original', status: 'Open' });
     await openModalWithMock(issue);
 
     const titleInput = byId('title', HTMLInputElement);
@@ -549,7 +563,7 @@ describe('Modal Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+    expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
       title: 'New Title'
     }), expect.any(String));
     expect(titleInput.classList.contains('inline-editing')).toBe(false);
@@ -736,16 +750,16 @@ describe('Modal Component', () => {
 
   describe('Helper Functions Coverage', () => {
     it('should render modal dropdowns with issue data', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
-        status: 'Working',
+        status: 'Stage2',
         priority: 'High',
-        label: { id: 2, name: 'Feature' }
-      };
+        label: makeLabel({ id: 2, name: 'Feature' })
+      });
 
       await openModalWithMock(issue);
 
-      expect(byId('status', HTMLInputElement).value).toBe('Working');
+      expect(byId('status', HTMLInputElement).value).toBe('Stage2');
       expect(document.getElementById('status-text').textContent).toBe('Working');
       expect(byId('priority', HTMLInputElement).value).toBe('High');
       expect(document.getElementById('priority-text').textContent).toBe('High');
@@ -768,20 +782,20 @@ describe('Modal Component', () => {
 
     it('should disable project trigger for RoleUser editing an existing issue', async () => {
       state.currentUser = makeUser({ id: 100, role: 'user' });
-      const issue = { id: 1, status: 'Open', priority: 'Normal', label: null };
+      const issue = makeIssue({ id: 1, status: 'Open', priority: 'Normal', label: null });
       await openModalWithMock(issue);
       expect(byId('project-trigger', HTMLButtonElement).disabled).toBe(true);
     });
 
     it('should enable project trigger for RoleAdmin editing an existing issue', async () => {
       state.currentUser = makeUser({ id: 100, role: 'admin' });
-      const issue = { id: 1, status: 'Open', priority: 'Normal', label: null };
+      const issue = makeIssue({ id: 1, status: 'Open', priority: 'Normal', label: null });
       await openModalWithMock(issue);
       expect(byId('project-trigger', HTMLButtonElement).disabled).toBe(false);
     });
 
     it('should setup edit modal button visibility', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 5,
         title: 'Edit Test',
         description: 'Edit Desc',
@@ -789,7 +803,7 @@ describe('Modal Component', () => {
         tasks: [],
         created_at: '2024-01-15T10:00:00Z',
         updated_at: '2024-01-16T15:30:00Z'
-      };
+      });
 
       await openModalWithMock(issue);
 
@@ -802,12 +816,12 @@ describe('Modal Component', () => {
     });
 
     it('should show unarchive button when issue is already archived', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 99,
         title: 'Archived',
         status: 'Archive',
         tasks: []
-      };
+      });
 
       await openModalWithMock(issue);
 
@@ -816,7 +830,7 @@ describe('Modal Component', () => {
     });
 
     it('should unarchive issue after confirmation', async () => {
-      const issue = { id: 101, title: 'To Unarchive', status: 'Archive' };
+      const issue = makeIssue({ id: 101, title: 'To Unarchive', status: 'Archive' });
       await openModalWithMock(issue);
 
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
@@ -825,18 +839,18 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).toHaveBeenCalled();
-      expect(api.unarchiveIssue).toHaveBeenCalledWith(undefined, 101);
+      expect(api.unarchiveIssue).toHaveBeenCalledWith(1, 101);
       expect(utils.showNotification).toHaveBeenCalledWith('Issue unarchived');
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should set read-only mode for archived issues', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 102,
         title: 'Read Only',
         status: 'Archive',
         tasks: []
-      };
+      });
 
       await openModalWithMock(issue);
 
@@ -881,7 +895,7 @@ describe('Modal Component', () => {
     });
 
     it('should toggle inline edit mode on', async () => {
-      const issue = { id: 1, title: 'Test', status: 'Todo', tasks: [] };
+      const issue = makeIssue({ id: 1, title: 'Test', status: 'Todo', tasks: [] });
       await openModalWithMock(issue);
 
       const titleInput = byId('title', HTMLInputElement);
@@ -908,13 +922,13 @@ describe('Modal Component', () => {
     });
 
     it('should handle issue with null priority gracefully', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 7,
         title: 'No Priority',
         status: 'Todo',
         priority: null,
         tasks: []
-      };
+      });
 
       await openModalWithMock(issue);
 
@@ -923,13 +937,13 @@ describe('Modal Component', () => {
     });
 
     it('should handle issue with null label gracefully', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 8,
         title: 'No Label',
         status: 'Todo',
         label: null,
         tasks: []
-      };
+      });
 
       await openModalWithMock(issue);
 
@@ -938,12 +952,12 @@ describe('Modal Component', () => {
     });
 
     it('should render tasks section for edit modal', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 9,
         title: 'With Tasks',
         status: 'Todo',
-        tasks: [{ id: 1, title: 'Task 1', done: false }]
-      };
+        tasks: [makeTask({ id: 1, title: 'Task 1', done: false })]
+      });
 
       await openModalWithMock(issue);
 
@@ -960,14 +974,14 @@ describe('Modal Component', () => {
     });
 
     it('should set planned_date and deadline for edit modal', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 10,
         title: 'With Dates',
         status: 'Todo',
         tasks: [],
         planned_dates: ['2024-02-01'],
         deadline: '2024-02-15T12:00:00Z'
-      };
+      });
 
       await openModalWithMock(issue);
 
@@ -981,7 +995,7 @@ describe('Modal Component', () => {
 
   describe('Sidebar Immediate Save', () => {
     it('should revert the priority control when the save fails', async () => {
-      const issue = { id: 1, priority: 'Normal' };
+      const issue = makeIssue({ id: 1, priority: 'Normal' });
       await openModalWithMock(issue);
       vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('Connection to the server failed'));
 
@@ -996,7 +1010,7 @@ describe('Modal Component', () => {
     });
 
     it('should revert the status control when the save fails', async () => {
-      const issue = { id: 1, status: 'Todo' };
+      const issue = makeIssue({ id: 1, status: 'Todo' });
       await openModalWithMock(issue);
       vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('offline'));
 
@@ -1009,7 +1023,7 @@ describe('Modal Component', () => {
     });
 
     it('should update priority immediately on change', async () => {
-      const issue = { id: 1, priority: 'Normal' };
+      const issue = makeIssue({ id: 1, priority: 'Normal' });
       await openModalWithMock(issue);
 
       const prioritySelect = byId('priority', HTMLInputElement);
@@ -1018,7 +1032,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         id: 1,
         priority: 'High'
       }), expect.any(String));
@@ -1028,13 +1042,13 @@ describe('Modal Component', () => {
     // answered. Sent in parallel, both would carry the same ETag and the second would fail
     // with a false "modified by another user" conflict.
     it('sends overlapping field saves one after another, each with the ETag of the previous save', async () => {
-      const issue = { id: 1, priority: 'Normal', status: 'Todo' };
+      const issue = makeIssue({ id: 1, priority: 'Normal', status: 'Todo' });
       await openModalWithMock(issue);
       await flush();
-      let answerFirst;
+      const answerFirst = answerByHand();
       vi.mocked(api.updateIssue).mockClear();
       vi.mocked(api.updateIssue)
-        .mockImplementationOnce(() => new Promise(r => { answerFirst = r; }))
+        .mockImplementationOnce(answerFirst.save)
         .mockImplementationOnce(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"etag-3"', conflict: false }));
 
       const prioritySelect = byId('priority', HTMLInputElement);
@@ -1046,21 +1060,21 @@ describe('Modal Component', () => {
       await flush();
       expect(api.updateIssue).toHaveBeenCalledTimes(1);
 
-      answerFirst({ issue: {}, etag: '"etag-2"', conflict: false });
+      answerFirst.answer('"etag-2"');
       await flush();
       expect(api.updateIssue).toHaveBeenCalledTimes(2);
-      expect(api.updateIssue).toHaveBeenLastCalledWith(undefined,
+      expect(api.updateIssue).toHaveBeenLastCalledWith(1,
         expect.objectContaining({ priority: 'High', status: 'Done' }), '"etag-2"');
       expect(utils.showConfirm).not.toHaveBeenCalled();
       expect(state.currentIssue).toMatchObject({ priority: 'High', status: 'Done' });
     });
 
     it('keeps both dates when two planned dates are added before the first save answers', async () => {
-      await openModalWithMock({ id: 1, planned_dates: [] });
+      await openModalWithMock(makeIssue({ id: 1, planned_dates: [] }));
       await flush();
-      let answerFirst;
+      const answerFirst = answerByHand();
       vi.mocked(api.updateIssue).mockClear();
-      vi.mocked(api.updateIssue).mockImplementationOnce(() => new Promise(r => { answerFirst = r; }));
+      vi.mocked(api.updateIssue).mockImplementationOnce(answerFirst.save);
 
       const picker = byId('planned-date-picker', HTMLInputElement);
       picker.value = '2025-05-21';
@@ -1068,20 +1082,20 @@ describe('Modal Component', () => {
       picker.value = '2025-05-20';
       picker.dispatchEvent(new Event('change'));
       await flush();
-      answerFirst({ issue: {}, etag: '"etag-2"', conflict: false });
+      answerFirst.answer('"etag-2"');
       await flush();
 
-      expect(api.updateIssue).toHaveBeenLastCalledWith(undefined,
+      expect(api.updateIssue).toHaveBeenLastCalledWith(1,
         expect.objectContaining({ planned_dates: ['2025-05-20', '2025-05-21'] }), '"etag-2"');
       expect(state.currentIssue.planned_dates).toEqual(['2025-05-20', '2025-05-21']);
     });
 
     it('drops a queued field save when another issue is opened before it runs', async () => {
-      await openModalWithMock({ id: 1, priority: 'Normal', status: 'Todo' });
+      await openModalWithMock(makeIssue({ id: 1, priority: 'Normal', status: 'Todo' }));
       await flush();
-      let answerFirst;
+      const answerFirst = answerByHand();
       vi.mocked(api.updateIssue).mockClear();
-      vi.mocked(api.updateIssue).mockImplementationOnce(() => new Promise(r => { answerFirst = r; }));
+      vi.mocked(api.updateIssue).mockImplementationOnce(answerFirst.save);
 
       const prioritySelect = byId('priority', HTMLInputElement);
       prioritySelect.value = 'High';
@@ -1092,8 +1106,8 @@ describe('Modal Component', () => {
       await flush();
 
       document.getElementById('cancel-btn').click();
-      await openModalWithMock({ id: 2, priority: 'Normal', status: 'Todo' });
-      answerFirst({ issue: {}, etag: '"etag-2"', conflict: false });
+      await openModalWithMock(makeIssue({ id: 2, priority: 'Normal', status: 'Todo' }));
+      answerFirst.answer('"etag-2"');
       await flush();
 
       expect(api.updateIssue).toHaveBeenCalledTimes(1);
@@ -1101,7 +1115,7 @@ describe('Modal Component', () => {
     });
 
     it('should update planned_dates immediately on change via picker', async () => {
-      const issue = { id: 1, planned_dates: [] };
+      const issue = makeIssue({ id: 1, planned_dates: [] });
       await openModalWithMock(issue);
 
       const picker = byId('planned-date-picker', HTMLInputElement);
@@ -1110,14 +1124,14 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         id: 1,
         planned_dates: ['2025-01-01']
       }), expect.any(String));
     });
 
     it('should update deadline immediately on change', async () => {
-      const issue = { id: 1 };
+      const issue = makeIssue({ id: 1 });
       await openModalWithMock(issue);
 
       const input = byId('deadline', HTMLInputElement);
@@ -1126,14 +1140,14 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         id: 1,
         deadline: new Date('2025-12-31T12:00:00')
       }), expect.any(String));
     });
 
     it('should refresh task deadline styles when issue deadline changes', async () => {
-      const issue = { id: 1 };
+      const issue = makeIssue({ id: 1 });
       await openModalWithMock(issue);
 
       // Seed a task item so refreshTaskDeadlineStyles' forEach has something to iterate.
@@ -1161,7 +1175,7 @@ describe('Modal Component', () => {
     });
 
     it('should update label immediately on change', async () => {
-      const issue = { id: 1, label: null };
+      const issue = makeIssue({ id: 1, label: null });
       await openModalWithMock(issue);
 
       const select = byId('label-select', HTMLInputElement);
@@ -1170,7 +1184,7 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         id: 1,
         label: { id: 2 }
       }), expect.any(String));
@@ -1180,7 +1194,7 @@ describe('Modal Component', () => {
   describe('Unload Listeners', () => {
     it('should add unload listener when entering inline edit', async () => {
       const addSpy = vi.spyOn(globalThis, 'addEventListener');
-      const issue = { id: 1, title: 'Test' };
+      const issue = makeIssue({ id: 1, title: 'Test' });
       await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
@@ -1191,7 +1205,7 @@ describe('Modal Component', () => {
 
     it('should remove unload listener when canceling edit', async () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
-      const issue = { id: 1, title: 'Test' };
+      const issue = makeIssue({ id: 1, title: 'Test' });
       await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
@@ -1310,7 +1324,7 @@ describe('Modal Component', () => {
       const scrollEl = document.querySelector('.modal-main-scroll');
       scrollEl.scrollTop = 300;
 
-      await openModalWithMock({ id: 2, title: 'Another long issue' });
+      await openModalWithMock(makeIssue({ id: 2, title: 'Another long issue' }));
 
       expect(scrollEl.scrollTop).toBe(0);
     });
@@ -1318,7 +1332,7 @@ describe('Modal Component', () => {
 
   describe('Inline Editing Features', () => {
     it('should cancel inline title edit on Escape key', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
 
       const titleInput = byId('title', HTMLInputElement);
@@ -1332,7 +1346,7 @@ describe('Modal Component', () => {
     });
 
     it('should revert to original on empty title blur', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
 
       const titleInput = byId('title', HTMLInputElement);
@@ -1349,7 +1363,7 @@ describe('Modal Component', () => {
     });
 
     it('should revert title and close modal on Done with empty title', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
       const titleInput = byId('title', HTMLInputElement);
       titleInput.click();
@@ -1367,7 +1381,7 @@ describe('Modal Component', () => {
     });
 
     it('should auto-save title on blur', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
 
       const titleInput = byId('title', HTMLInputElement);
@@ -1378,14 +1392,14 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         title: 'Saved Title'
       }), expect.any(String));
       expect(titleInput.readOnly).toBe(true);
     });
 
     it('should auto-save title on Done click with changes', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
 
       const titleInput = byId('title', HTMLInputElement);
@@ -1398,13 +1412,13 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         title: 'Changed'
       }), expect.any(String));
     });
 
     describe('Done toast', () => {
-      let toast;
+      let toast: HTMLDivElement;
       beforeEach(() => {
         toast = document.createElement('div');
         toast.id = 'notification-toast';
@@ -1420,8 +1434,8 @@ describe('Modal Component', () => {
         vi.mocked(utils.showNotification).mockImplementation(() => {});
       });
 
-      async function saveTitleWithDone(typed, saved) {
-        await openModalWithMock({ id: 1, title: 'Old' });
+      async function saveTitleWithDone(typed: string, saved: string) {
+        await openModalWithMock(makeIssue({ id: 1, title: 'Old' }));
         await flush();
         vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, title: saved }), etag: '"e2"', conflict: false });
         const title = byId('title', HTMLInputElement);
@@ -1446,7 +1460,7 @@ describe('Modal Component', () => {
     });
 
     it('should prompt save on done button click with description changes - save path', async () => {
-      const issue = { id: 1, description: 'Original' };
+      const issue = makeIssue({ id: 1, description: 'Original' });
       await openModalWithMock(issue);
 
       // Enter description edit mode by clicking the preview
@@ -1465,13 +1479,13 @@ describe('Modal Component', () => {
       expect(utils.showConfirm).toHaveBeenCalled();
 
       await new Promise(process.nextTick);
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         description: 'Changed Desc'
       }), expect.any(String));
     });
 
     it('should keep the modal and the description open on Done when the description save fails', async () => {
-      const issue = { id: 1, title: 'T', description: 'Old Desc' };
+      const issue = makeIssue({ id: 1, title: 'T', description: 'Old Desc' });
       await openModalWithMock(issue);
       vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('Connection to the server failed'));
 
@@ -1490,7 +1504,7 @@ describe('Modal Component', () => {
     });
 
     it('should keep the modal and the title open on Done when the title save fails', async () => {
-      await openModalWithMock({ id: 1, title: 'Original' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'Original' }));
       vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('Connection to the server failed'));
 
       const titleInput = byId('title', HTMLInputElement);
@@ -1507,7 +1521,7 @@ describe('Modal Component', () => {
     });
 
     it('should close on Done without asking when the open description is unchanged', async () => {
-      await openModalWithMock({ id: 1, title: 'T', description: 'Desc' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T', description: 'Desc' }));
       document.getElementById('description-preview').click();
 
       document.getElementById('done-btn').click();
@@ -1519,7 +1533,7 @@ describe('Modal Component', () => {
     });
 
     it('should discard the description edit and close on Done when the user chooses Discard', async () => {
-      await openModalWithMock({ id: 1, title: 'T', description: 'Desc' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T', description: 'Desc' }));
       document.getElementById('description-preview').click();
       const descEditor = byId('description-editor', HTMLTextAreaElement);
       descEditor.value = 'Changed';
@@ -1534,7 +1548,7 @@ describe('Modal Component', () => {
     });
 
     it('should auto-save title on Enter key', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
 
       const titleInput = byId('title', HTMLInputElement);
@@ -1545,17 +1559,17 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         title: 'Changed'
       }), expect.any(String));
       expect(titleInput.readOnly).toBe(true);
     });
 
     it('should send only one title save when blur fires while the Enter save is still pending', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
-      let resolveUpdate;
-      vi.mocked(api.updateIssue).mockReturnValueOnce(new Promise(res => { resolveUpdate = res; }));
+      const resolveUpdate = answerByHand();
+      vi.mocked(api.updateIssue).mockImplementationOnce(resolveUpdate.save);
 
       const titleInput = byId('title', HTMLInputElement);
       titleInput.click();
@@ -1564,7 +1578,7 @@ describe('Modal Component', () => {
       // e.g. the re-login dialog takes focus while the first save waits
       titleInput.dispatchEvent(new FocusEvent('blur'));
 
-      resolveUpdate({ issue: { id: 1, title: 'Changed' }, etag: '"v2"', conflict: false });
+      resolveUpdate.answer('"v2"');
       await flush();
 
       expect(api.updateIssue).toHaveBeenCalledTimes(1);
@@ -1572,7 +1586,7 @@ describe('Modal Component', () => {
     });
 
     it('should NOT call updateIssue and close modal when Done clicked with no changes', async () => {
-      const issue = { id: 1, title: 'Original', description: 'Desc' };
+      const issue = makeIssue({ id: 1, title: 'Original', description: 'Desc' });
       await openModalWithMock(issue);
 
       // Enter edit mode but don't change anything
@@ -1588,7 +1602,7 @@ describe('Modal Component', () => {
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
     });
     it('should enter description inline edit on click', async () => {
-      const issue = { id: 1, description: 'Desc' };
+      const issue = makeIssue({ id: 1, description: 'Desc' });
       await openModalWithMock(issue);
 
       const descContainer = document.querySelector('.editor-container');
@@ -1602,7 +1616,7 @@ describe('Modal Component', () => {
     });
 
     it('should open link in new tab when clicked in description', async () => {
-      const issue = { id: 1, description: '<a href="https://example.com" id="test-link">Link</a>' };
+      const issue = makeIssue({ id: 1, description: '<a href="https://example.com" id="test-link">Link</a>' });
       await openModalWithMock(issue);
 
       const link = document.getElementById('test-link');
@@ -1624,7 +1638,7 @@ describe('Modal Component', () => {
       const promise = new Promise<Awaited<ReturnType<typeof api.fetchIssueById>>>(r => { resolve = r; });
       return { promise, resolve };
     };
-    const changePriority = (value) => {
+    const changePriority = (value: string) => {
       const prioritySelect = byId('priority', HTMLInputElement);
       prioritySelect.value = value;
       prioritySelect.dispatchEvent(new Event('change'));
@@ -1738,10 +1752,10 @@ describe('Modal Component', () => {
     it('ignores a late response for a previously opened issue', async () => {
       const loadA = deferred();
       vi.mocked(api.fetchIssueById).mockReturnValueOnce(loadA.promise);
-      openModal({ ...baseIssue(), id: 5, title: 'Issue A' });
+      openModal(makeIssue({ ...baseIssue(), id: 5, title: 'Issue A' }));
 
       vi.mocked(api.fetchIssueById).mockResolvedValueOnce({ issue: makeIssue({ ...baseIssue(), id: 6, title: 'Issue B' }), etag: '"b"' });
-      openModal({ ...baseIssue(), id: 6, title: 'Issue B' });
+      openModal(makeIssue({ ...baseIssue(), id: 6, title: 'Issue B' }));
       await flush();
 
       loadA.resolve({ issue: null, etag: null });
@@ -1785,7 +1799,7 @@ describe('Modal Component', () => {
       state.labels = [makeLabel({ id: 3, name: 'Cached Label' })];
       state.labelsProjectId = 1;
 
-      openModal({ ...baseIssue(), project_id: 8 });
+      openModal(makeIssue({ ...baseIssue(), project_id: 8 }));
 
       expect(api.fetchLabelsByProject).toHaveBeenCalledWith(8);
     });
@@ -1793,7 +1807,7 @@ describe('Modal Component', () => {
 
   describe('Multi-Day Date Management', () => {
     it('should add a date via the picker in existing issue mode', async () => {
-      const issue = { id: 1, planned_dates: [] };
+      const issue = makeIssue({ id: 1, planned_dates: [] });
       await openModalWithMock(issue);
 
       const picker = byId('planned-date-picker', HTMLInputElement);
@@ -1811,7 +1825,7 @@ describe('Modal Component', () => {
     });
 
     it('should remove a date via chip in existing issue mode', async () => {
-      const issue = { id: 1, planned_dates: ['2025-05-20'] };
+      const issue = makeIssue({ id: 1, planned_dates: ['2025-05-20'] });
       await openModalWithMock(issue);
 
       const container = document.getElementById('planned-dates-container');
@@ -1849,7 +1863,7 @@ describe('Modal Component', () => {
 
   describe('Conflict Handling', () => {
     it('should show conflict dialog when updateIssue returns conflict', async () => {
-      const issue = { id: 1, title: 'Original', status: 'Todo' };
+      const issue = makeIssue({ id: 1, title: 'Original', status: 'Todo' });
       await openModalWithMock(issue);
 
       // Mock updateIssue to return conflict
@@ -1878,12 +1892,12 @@ describe('Modal Component', () => {
       expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
 
       // Verify fresh data was fetched and modal was updated
-      expect(api.fetchIssueById).toHaveBeenCalledWith(undefined, 1);
+      expect(api.fetchIssueById).toHaveBeenCalledWith(1, 1);
       expect(utils.showNotification).toHaveBeenCalledWith('Reloaded with latest data');
     });
 
     it('should keep the modal open when a form submit hits a conflict, without a second save', async () => {
-      const issue = { id: 1, title: 'Old', status: 'Todo' };
+      const issue = makeIssue({ id: 1, title: 'Old', status: 'Todo' });
       await openModalWithMock(issue);
       byId('title', HTMLInputElement).value = 'Old';
       byId('status', HTMLInputElement).value = 'Todo';
@@ -1902,14 +1916,14 @@ describe('Modal Component', () => {
     });
 
     it('should queue a form submit behind a pending field save and send it with that save\'s ETag', async () => {
-      const issue = { id: 1, title: 'Old', status: 'Todo', priority: 'Normal' };
+      const issue = makeIssue({ id: 1, title: 'Old', status: 'Todo', priority: 'Normal' });
       await openModalWithMock(issue);
       byId('title', HTMLInputElement).value = 'Old';
 
-      let resolveFieldSave;
+      const resolveFieldSave = answerByHand();
       vi.mocked(api.updateIssue).mockReset();
       vi.mocked(api.updateIssue)
-        .mockReturnValueOnce(new Promise(r => { resolveFieldSave = r; }))
+        .mockImplementationOnce(resolveFieldSave.save)
         .mockResolvedValueOnce({ issue: makeIssue({ id: 1 }), etag: '"after-submit"', conflict: false });
 
       const prioritySelect = byId('priority', HTMLInputElement);
@@ -1921,7 +1935,7 @@ describe('Modal Component', () => {
 
       expect(api.updateIssue).toHaveBeenCalledTimes(1); // the submit waits for the field save
 
-      resolveFieldSave({ issue: { id: 1 }, etag: '"after-field-save"', conflict: false });
+      resolveFieldSave.answer('"after-field-save"');
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
 
@@ -1931,7 +1945,7 @@ describe('Modal Component', () => {
     });
 
     it('should keep modal open when user cancels conflict reload', async () => {
-      const issue = { id: 1, title: 'Original', status: 'Todo' };
+      const issue = makeIssue({ id: 1, title: 'Original', status: 'Todo' });
       await openModalWithMock(issue);
 
       vi.mocked(api.updateIssue).mockResolvedValue({ issue: null, etag: null, conflict: true });
@@ -1951,7 +1965,7 @@ describe('Modal Component', () => {
 
   describe('Additional Coverage Improvements', () => {
     it('should handle link click in description editor in read-only mode', async () => {
-      const issue = { id: 1, description: '<a id="test-link" href="https://example.com">Link</a>' };
+      const issue = makeIssue({ id: 1, description: '<a id="test-link" href="https://example.com">Link</a>' });
       await openModalWithMock(issue);
 
       const descPreview = document.getElementById('description-preview');
@@ -1973,7 +1987,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle assignee change and immediate save', async () => {
-      const issue = { id: 1, assignee_id: null };
+      const issue = makeIssue({ id: 1, assignee_id: null });
       await openModalWithMock(issue);
 
       const assigneeSelect = byId('assignee-select', HTMLInputElement);
@@ -1982,14 +1996,14 @@ describe('Modal Component', () => {
 
       await new Promise(process.nextTick);
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         assignee_id: 1
       }), expect.any(String));
       expect(api.fetchIssueById).toHaveBeenCalled();
     });
 
     it('should await the editing task save on Done click and close on success', async () => {
-      const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
+      const issue = makeIssue({ id: 1, tasks: [makeTask({ id: 101, title: 'Task 1' })] });
       const saveTask = vi.fn().mockResolvedValue(true);
       // Simulate a task entering edit mode: renderTasks hands its save() to the modal
       vi.mocked(tasks.renderTasks).mockImplementation((_taskList, container, _issue, callbacks) => {
@@ -2008,7 +2022,7 @@ describe('Modal Component', () => {
     });
 
     it('should keep the modal open on Done when the editing task save fails', async () => {
-      const issue = { id: 1, tasks: [{ id: 101, title: 'Task 1' }] };
+      const issue = makeIssue({ id: 1, tasks: [makeTask({ id: 101, title: 'Task 1' })] });
       const saveTask = vi.fn().mockResolvedValue(false);
       vi.mocked(tasks.renderTasks).mockImplementation((_taskList, container, _issue, callbacks) => {
         container.innerHTML = '<li class="task-item editing" data-id="101"><input class="task-title-input" value="Changed Task"></li>';
@@ -2031,7 +2045,7 @@ describe('Modal Component', () => {
         callbacks.onTaskEditStart(saveTask);
         callbacks.onTaskEditEnd();
       });
-      await openModalWithMock({ id: 1, tasks: [{ id: 101, title: 'Task 1' }] });
+      await openModalWithMock(makeIssue({ id: 1, tasks: [makeTask({ id: 101, title: 'Task 1' })] }));
 
       expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
 
@@ -2046,7 +2060,7 @@ describe('Modal Component', () => {
     it('should re-render the views and refresh the history after a task update', async () => {
       const rerenderViews = vi.fn();
       setupModal(vi.fn(), rerenderViews);
-      await openModalWithMock({ id: 1, tasks: [] });
+      await openModalWithMock(makeIssue({ id: 1, tasks: [] }));
 
       const callbacks = vi.mocked(tasks.renderTasks).mock.lastCall[3];
       callbacks.onTaskUpdate();
@@ -2058,7 +2072,7 @@ describe('Modal Component', () => {
     it('should guard against leaving the page while an activity comment is edited', async () => {
       const addSpy = vi.spyOn(globalThis, 'addEventListener');
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
-      await openModalWithMock({ id: 1, title: 'T' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T' }));
 
       // The callbacks look at the actual editor state: open while onEditStart runs, closed after.
       const { onEditStart, onEditEnd } = vi.mocked(activity.loadActivity).mock.lastCall[1];
@@ -2070,14 +2084,14 @@ describe('Modal Component', () => {
     });
 
     it('should save task order', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
         project_id: 7,
         tasks: [
-          { id: 101, title: 'T1', position: 0 },
-          { id: 102, title: 'T2', position: 1 }
+          makeTask({ id: 101, title: 'T1', position: 0 }),
+          makeTask({ id: 102, title: 'T2', position: 1 })
         ]
-      };
+      });
       await openModalWithMock(issue);
 
       // Setup DOM as if dragged
@@ -2168,7 +2182,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle archive issue failure when not allowed', async () => {
-      const issue = { id: 1, status: 'Open' };
+      const issue = makeIssue({ id: 1, status: 'Open' });
       await openModalWithMock(issue);
 
       vi.mocked(utils.canArchive).mockReturnValue({ allowed: false, reason: 'Reason' });
@@ -2184,7 +2198,8 @@ describe('Modal Component', () => {
     });
 
     it('should handle preventNavigation', () => {
-      const event = { preventDefault: vi.fn(), returnValue: 'abc' };
+      // jsdom cannot construct a BeforeUnloadEvent, and preventNavigation only uses these two members.
+      const event = { preventDefault: vi.fn(), returnValue: 'abc' } as unknown as BeforeUnloadEvent;
       preventNavigation(event);
       expect(event.preventDefault).toHaveBeenCalled();
       expect(event.returnValue).toBe('');
@@ -2366,7 +2381,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle dropdown option clicks', async () => {
-      const issue = { id: 1, label: null, priority: 'Normal' };
+      const issue = makeIssue({ id: 1, label: null, priority: 'Normal' });
       await openModalWithMock(issue);
 
       // Priority option click
@@ -2409,7 +2424,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle task title enter keypress', async () => {
-      const issue = { id: 1, project_id: 7, title: 'Test' };
+      const issue = makeIssue({ id: 1, project_id: 7, title: 'Test' });
       await openModalWithMock(issue);
 
       const input = byId('new-task-title', HTMLInputElement);
@@ -2427,7 +2442,7 @@ describe('Modal Component', () => {
       vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: null, etag: null });
       const modal = document.getElementById('issue-modal');
 
-      await openModal({ id: 999 });
+      await openModal(makeIssue({ id: 999 }));
 
       expect(utils.showNotification).toHaveBeenCalledWith('Issue not found or was deleted', 'error');
       expect(modal.classList.contains('hidden')).toBe(true);
@@ -2437,17 +2452,17 @@ describe('Modal Component', () => {
       vi.mocked(api.fetchIssueById).mockRejectedValue(new Error('Network Error'));
       const modal = document.getElementById('issue-modal');
 
-      await openModal({ id: 999 });
+      await openModal(makeIssue({ id: 999 }));
 
       expect(utils.showNotification).toHaveBeenCalledWith('Failed to load issue', 'error');
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
     it('saves the description only once when ✓ is pressed again while the first save is in flight', async () => {
-      const issue = { id: 1, description: 'Original' };
+      const issue = makeIssue({ id: 1, description: 'Original' });
       await openModalWithMock(issue);
-      let resolveUpdate;
-      vi.mocked(api.updateIssue).mockReturnValueOnce(new Promise(r => { resolveUpdate = r; }));
+      const resolveUpdate = answerByHand();
+      vi.mocked(api.updateIssue).mockImplementationOnce(resolveUpdate.save);
 
       const descEditor = byId('description-editor', HTMLTextAreaElement);
       const saveBtn = document.getElementById('desc-save-btn');
@@ -2458,7 +2473,7 @@ describe('Modal Component', () => {
       expect(descContainer.getAttribute('aria-busy')).toBe('true');
       saveBtn.click();
 
-      resolveUpdate({ issue: {}, etag: '"e2"', conflict: false });
+      resolveUpdate.answer('"e2"');
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
 
@@ -2467,7 +2482,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle cancel description edit', async () => {
-      const issue = { id: 1, description: 'Original' };
+      const issue = makeIssue({ id: 1, description: 'Original' });
       await openModalWithMock(issue);
 
       const descEditor = byId('description-editor', HTMLTextAreaElement);
@@ -2488,7 +2503,7 @@ describe('Modal Component', () => {
 
 
     it('should handle link bubble loop (span inside link)', async () => {
-      const issue = { id: 1, description: '<a href="https://example.com"><span id="inner">Link</span></a>' };
+      const issue = makeIssue({ id: 1, description: '<a href="https://example.com"><span id="inner">Link</span></a>' });
       await openModalWithMock(issue);
 
       const descPreview = document.getElementById('description-preview');
@@ -2504,24 +2519,24 @@ describe('Modal Component', () => {
 
   // docs/frontend.md "Editing Fields"
   describe('Field behaviour', () => {
-    const key = (el, k, opts = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
+    const key = (el: Element, k: string, opts: KeyboardEventInit = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
     const modalHidden = () => document.getElementById('issue-modal').classList.contains('hidden');
     const descContainer = () => document.querySelector('.editor-container');
 
     it('saves the description with Cmd/Ctrl+Enter', async () => {
-      await openModalWithMock({ id: 1, description: 'Old' });
+      await openModalWithMock(makeIssue({ id: 1, description: 'Old' }));
       document.getElementById('description-preview').click();
       const editor = byId('description-editor', HTMLTextAreaElement);
       editor.value = 'New';
       key(editor, 'Enter', { metaKey: true });
       await flush();
 
-      expect(api.updateIssue).toHaveBeenCalledWith(undefined, expect.objectContaining({ description: 'New' }), expect.any(String));
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ description: 'New' }), expect.any(String));
       expect(descContainer().classList.contains('inline-editing')).toBe(false);
     });
 
     it('cancels the description with Escape, asking only when the text was changed', async () => {
-      await openModalWithMock({ id: 1, description: 'Old' });
+      await openModalWithMock(makeIssue({ id: 1, description: 'Old' }));
       const editor = byId('description-editor', HTMLTextAreaElement);
 
       document.getElementById('description-preview').click();
@@ -2541,9 +2556,9 @@ describe('Modal Component', () => {
     });
 
     it('marks the title busy while it saves and ignores Escape meanwhile', async () => {
-      await openModalWithMock({ id: 1, title: 'Old' });
-      let answerSave;
-      vi.mocked(api.updateIssue).mockReturnValueOnce(new Promise(r => { answerSave = r; }));
+      await openModalWithMock(makeIssue({ id: 1, title: 'Old' }));
+      const answerSave = answerByHand();
+      vi.mocked(api.updateIssue).mockImplementationOnce(answerSave.save);
       const title = byId('title', HTMLInputElement);
       const field = title.closest('.title-input-container');
 
@@ -2554,7 +2569,7 @@ describe('Modal Component', () => {
       key(title, 'Escape');
       expect(title.value).toBe('New');
 
-      answerSave({ issue: { id: 1, title: 'New' }, etag: '"e2"', conflict: false });
+      answerSave.answer('"e2"');
       await flush();
       expect(field.hasAttribute('aria-busy')).toBe(false);
       expect(title.classList.contains('inline-editing')).toBe(false);
@@ -2562,7 +2577,7 @@ describe('Modal Component', () => {
     });
 
     it('takes the cleaned-up title from the save response, without fetching the issue again and keeping the tasks', async () => {
-      await openModalWithMock({ id: 1, title: 'Old', tasks: [{ id: 5, title: 'Task' }] });
+      await openModalWithMock(makeIssue({ id: 1, title: 'Old', tasks: [makeTask({ id: 5, title: 'Task' })] }));
       await flush();
       const tasksBefore = state.currentIssue.tasks;
       vi.mocked(api.fetchIssueById).mockClear();
@@ -2582,7 +2597,7 @@ describe('Modal Component', () => {
     });
 
     it('re-renders the views only after the saved issue is applied, so a card never keeps the old updated_at', async () => {
-      await openModalWithMock({ id: 1, title: 'Old', updated_at: 't1' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'Old', updated_at: 't1' }));
       await flush();
       let seen = null;
       rerenderViews.mockImplementation(() => { seen = { ...state.currentIssue }; });
@@ -2599,10 +2614,14 @@ describe('Modal Component', () => {
     });
 
     it('dims only the changed sidebar field until its save is done, also across a second change', async () => {
-      await openModalWithMock({ id: 1, title: 'T', priority: 'Normal', status: 'Todo' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T', priority: 'Normal', status: 'Todo' }));
       await flush();
-      const answers = [];
-      vi.mocked(api.updateIssue).mockImplementation(() => new Promise(r => answers.push(r)));
+      const answers: ((etag: string) => void)[] = [];
+      vi.mocked(api.updateIssue).mockImplementation((projectId, sent) => {
+        const save = answerByHand();
+        answers.push(save.answer);
+        return save.save(projectId, sent);
+      });
       const priority = byId('priority', HTMLInputElement);
       const priorityField = priority.closest('.form-group');
       const statusField = document.getElementById('status').closest('.form-group');
@@ -2615,18 +2634,18 @@ describe('Modal Component', () => {
       expect(priorityField.getAttribute('aria-busy')).toBe('true');
       expect(statusField.hasAttribute('aria-busy')).toBe(false);
 
-      answers.shift()({ issue: {}, etag: '"e2"', conflict: false });
+      answers.shift()('"e2"');
       await flush();
       expect(priorityField.getAttribute('aria-busy')).toBe('true'); // the second change is still saving
 
-      answers.shift()({ issue: {}, etag: '"e3"', conflict: false });
+      answers.shift()('"e3"');
       await flush();
       expect(priorityField.hasAttribute('aria-busy')).toBe(false);
       expect(state.currentIssue.priority).toBe('Low');
     });
 
     it('frees the sidebar field after a failed save', async () => {
-      await openModalWithMock({ id: 1, title: 'T', status: 'Todo' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T', status: 'Todo' }));
       await flush();
       vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('Connection to the server failed'));
       const status = byId('status', HTMLInputElement);
@@ -2638,10 +2657,10 @@ describe('Modal Component', () => {
     });
 
     it('dims the planned dates while a date is saved', async () => {
-      await openModalWithMock({ id: 1, title: 'T', planned_dates: [] });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T', planned_dates: [] }));
       await flush();
-      let answer;
-      vi.mocked(api.updateIssue).mockReturnValueOnce(new Promise(r => { answer = r; }));
+      const answer = answerByHand();
+      vi.mocked(api.updateIssue).mockImplementationOnce(answer.save);
       const field = document.getElementById('planned-dates-container').closest('.form-group');
 
       const picker = byId('planned-date-picker', HTMLInputElement);
@@ -2650,13 +2669,13 @@ describe('Modal Component', () => {
       await flush();
       expect(field.getAttribute('aria-busy')).toBe('true');
 
-      answer({ issue: {}, etag: '"e2"', conflict: false });
+      answer.answer('"e2"');
       await flush();
       expect(field.hasAttribute('aria-busy')).toBe(false);
     });
 
     it('takes the assignee object from the save response without fetching the issue again', async () => {
-      await openModalWithMock({ id: 1, title: 'T', assignee_id: null });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T', assignee_id: null }));
       await flush();
       vi.mocked(api.fetchIssueById).mockClear();
       const assignee = makeUserRef({ id: 1, first_name: 'Test', last_name: 'User' });
@@ -2672,7 +2691,7 @@ describe('Modal Component', () => {
     });
 
     it('asks "Add task?" on Done when the new-task field has text, and adds it', async () => {
-      await openModalWithMock({ id: 1, project_id: 7, title: 'T', tasks: [] });
+      await openModalWithMock(makeIssue({ id: 1, project_id: 7, title: 'T', tasks: [] }));
       vi.mocked(api.createTask).mockResolvedValueOnce(makeTask({ id: 9, title: 'Typed', done: false }));
       byId('new-task-title', HTMLInputElement).value = 'Typed';
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(true);
@@ -2686,7 +2705,7 @@ describe('Modal Component', () => {
     });
 
     it('drops the new-task text on Done when the user discards it', async () => {
-      await openModalWithMock({ id: 1, project_id: 7, title: 'T', tasks: [] });
+      await openModalWithMock(makeIssue({ id: 1, project_id: 7, title: 'T', tasks: [] }));
       byId('new-task-title', HTMLInputElement).value = 'Typed';
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(false);
 
@@ -2699,7 +2718,7 @@ describe('Modal Component', () => {
     });
 
     it('asks "Save comment?" on Done while a comment is open, and keeps the modal open if its save fails', async () => {
-      await openModalWithMock({ id: 1, title: 'T' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T' }));
       const draft = { changed: () => true, save: vi.fn().mockResolvedValue(false), discard: vi.fn() };
       vi.mocked(activity.getOpenCommentDraft).mockReturnValueOnce(draft);
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(true);
@@ -2714,7 +2733,7 @@ describe('Modal Component', () => {
     });
 
     it('discards an unchanged comment on Done without asking', async () => {
-      await openModalWithMock({ id: 1, title: 'T' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T' }));
       const draft = { changed: () => false, save: vi.fn(), discard: vi.fn() };
       vi.mocked(activity.getOpenCommentDraft).mockReturnValueOnce(draft);
 
@@ -2728,7 +2747,7 @@ describe('Modal Component', () => {
 
     it('keeps the leave-page warning after a title edit ends while a comment is still open', async () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
-      await openModalWithMock({ id: 1, title: 'T' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T' }));
       vi.mocked(activity.getOpenCommentDraft).mockReturnValue({ changed: () => true, save: vi.fn(), discard: vi.fn() });
       try {
         const title = document.getElementById('title');
@@ -2744,7 +2763,7 @@ describe('Modal Component', () => {
     it('keeps the leave-page warning while the new-task field has text', async () => {
       const addSpy = vi.spyOn(globalThis, 'addEventListener');
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
-      await openModalWithMock({ id: 1, title: 'T', tasks: [] });
+      await openModalWithMock(makeIssue({ id: 1, title: 'T', tasks: [] }));
       const input = byId('new-task-title', HTMLInputElement);
 
       input.value = 'Typed';
@@ -2758,7 +2777,7 @@ describe('Modal Component', () => {
 
     it('ends the description edit mode and the leave-page warning when the modal closes, e.g. after archiving', async () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
-      await openModalWithMock({ id: 1, description: 'Old' });
+      await openModalWithMock(makeIssue({ id: 1, description: 'Old' }));
       document.getElementById('description-preview').click();
       byId('description-editor', HTMLTextAreaElement).value = 'Typed';
       removeSpy.mockClear();
@@ -2767,15 +2786,15 @@ describe('Modal Component', () => {
       expect(descContainer().classList.contains('inline-editing')).toBe(false);
       expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
 
-      await openModalWithMock({ id: 2, description: 'Other' });
+      await openModalWithMock(makeIssue({ id: 2, description: 'Other' }));
       expect(descContainer().classList.contains('inline-editable')).toBe(true);
       expect(byId('description-editor', HTMLTextAreaElement).value).toBe('Other');
     });
 
     it('re-enables the dates and dropdowns when the next issue is not archived', async () => {
-      await openModalWithMock({ id: 1, title: 'A', status: 'Archive' });
+      await openModalWithMock(makeIssue({ id: 1, title: 'A', status: 'Archive' }));
       closeModal();
-      await openModalWithMock({ id: 2, title: 'B', status: 'Done' });
+      await openModalWithMock(makeIssue({ id: 2, title: 'B', status: 'Done' }));
 
       expect(document.getElementById('deadline').hasAttribute('aria-disabled')).toBe(false);
       document.querySelectorAll<HTMLButtonElement>('.custom-select-trigger').forEach(trigger => expect(trigger.disabled).toBe(false));
@@ -2785,10 +2804,10 @@ describe('Modal Component', () => {
     });
 
     it('moves the issue only after a queued title save, so the next save carries the ETag from the move', async () => {
-      await openModalWithMock({ id: 1, project_id: 1, title: 'Old', priority: 'Normal' });
+      await openModalWithMock(makeIssue({ id: 1, project_id: 1, title: 'Old', priority: 'Normal' }));
       await flush();
-      let answerSave;
-      vi.mocked(api.updateIssue).mockReturnValueOnce(new Promise(r => { answerSave = r; }));
+      const answerSave = answerByHand();
+      vi.mocked(api.updateIssue).mockImplementationOnce(answerSave.save);
       vi.mocked(api.moveIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, project_id: 2, title: 'New', priority: 'Normal' }), etag: '"moved"' });
 
       const title = byId('title', HTMLInputElement);
@@ -2801,7 +2820,7 @@ describe('Modal Component', () => {
       await flush();
       expect(utils.promptAdminPasswordConfirmation).not.toHaveBeenCalled();
 
-      answerSave({ issue: { id: 1, project_id: 1, title: 'New' }, etag: '"before-move"', conflict: false });
+      answerSave.answer('"before-move"');
       await flush();
       expect(api.moveIssue).toHaveBeenCalledTimes(1);
 
@@ -2841,7 +2860,7 @@ describe('Modal Component', () => {
     });
 
     it('should validate task title length', async () => {
-      const issue = { id: 1, tasks: [] };
+      const issue = makeIssue({ id: 1, tasks: [] });
       await openModalWithMock(issue);
       const titleInput = byId('new-task-title', HTMLInputElement);
       titleInput.value = 'a'.repeat(101);
@@ -2854,7 +2873,7 @@ describe('Modal Component', () => {
 
   describe('Conflict Handling and Error Paths', () => {
     it('should handle conflict in saveIssueWithConflictCheck and reload', async () => {
-      const issue = { id: 1, title: 'Old' };
+      const issue = makeIssue({ id: 1, title: 'Old' });
       await openModalWithMock(issue);
 
       vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({ conflict: true });
@@ -2880,7 +2899,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle sidebar save failures', async () => {
-      const issue = { id: 1, title: 'Test' };
+      const issue = makeIssue({ id: 1, title: 'Test' });
       await openModalWithMock(issue);
 
       vi.mocked(api.updateIssue).mockRejectedValue(new Error('Save Failed'));
@@ -2913,7 +2932,7 @@ describe('Modal Component', () => {
     });
 
     it('should handle "Me" assignee selection', async () => {
-      const issue = { id: 1, title: 'Test' };
+      const issue = makeIssue({ id: 1, title: 'Test' });
       const meUser = makeUser({ id: 5, first_name: 'Admin', last_name: 'User' });
       state.currentUser = meUser;
 
@@ -2929,7 +2948,7 @@ describe('Modal Component', () => {
     });
 
     it('should close modal on Done with no title changes', async () => {
-      const issue = { id: 1, title: 'Original' };
+      const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
 
       const titleInput = document.getElementById('title');
@@ -2955,7 +2974,7 @@ describe('Modal Component', () => {
     });
 
     it('should show notification and keep modal open on archive failure', async () => {
-      const issue = { id: 100, title: 'To Archive', status: 'Open' };
+      const issue = makeIssue({ id: 100, title: 'To Archive', status: 'Open' });
       await openModalWithMock(issue);
 
       vi.mocked(utils.canArchive).mockReturnValue({ allowed: true });
@@ -2970,7 +2989,7 @@ describe('Modal Component', () => {
     });
 
     it('should show notification and keep modal open on unarchive failure', async () => {
-      const issue = { id: 101, title: 'To Unarchive', status: 'Archive' };
+      const issue = makeIssue({ id: 101, title: 'To Unarchive', status: 'Archive' });
       await openModalWithMock(issue);
 
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
@@ -2984,14 +3003,14 @@ describe('Modal Component', () => {
     });
 
     it('should show notification when saveTaskOrder fails', async () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
         project_id: 7,
         tasks: [
-          { id: 101, title: 'T1', position: 0 },
-          { id: 102, title: 'T2', position: 1 }
+          makeTask({ id: 101, title: 'T1', position: 0 }),
+          makeTask({ id: 102, title: 'T2', position: 1 })
         ]
-      };
+      });
       await openModalWithMock(issue);
 
       // Set up DOM as if tasks were reordered (positions differ from stored)
@@ -3148,7 +3167,7 @@ describe('renderReleaseOptions', () => {
   });
 
   it('renders one option per release plus the "No Release" option', () => {
-    renderReleaseOptions([{ id: 1, name: 'v1.0' }, { id: 2, name: 'v2.0' }], null);
+    renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' }), makeRelease({ id: 2, name: 'v2.0' })], null);
     const opts = document.querySelectorAll<HTMLElement>('#release-options .custom-option');
     expect(opts).toHaveLength(3);
     expect(opts[1].textContent).toBe('v1.0');
@@ -3156,25 +3175,25 @@ describe('renderReleaseOptions', () => {
   });
 
   it('sets input value and text to the matching release when currentReleaseId is provided', () => {
-    renderReleaseOptions([{ id: 1, name: 'v1.0' }], 1);
+    renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], 1);
     expect(byId('release-select', HTMLInputElement).value).toBe('1');
     expect(document.getElementById('release-text').textContent).toBe('v1.0');
   });
 
   it('sets text to "No Release" when currentReleaseId is not found in the list', () => {
-    renderReleaseOptions([{ id: 1, name: 'v1.0' }], 999);
+    renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], 999);
     expect(byId('release-select', HTMLInputElement).value).toBe('999');
     expect(document.getElementById('release-text').textContent).toBe('No Release');
   });
 
   it('sets input to empty and text to "No Release" when currentReleaseId is null', () => {
-    renderReleaseOptions([{ id: 1, name: 'v1.0' }], null);
+    renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], null);
     expect(byId('release-select', HTMLInputElement).value).toBe('');
     expect(document.getElementById('release-text').textContent).toBe('No Release');
   });
 
   it('selects "No Release" option on click and closes dropdown', () => {
-    renderReleaseOptions([{ id: 1, name: 'v1.0' }], 1);
+    renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], 1);
     const noReleaseOpt = document.querySelector<HTMLElement>('#release-options .custom-option');
     noReleaseOpt.click();
     expect(byId('release-select', HTMLInputElement).value).toBe('');
@@ -3183,7 +3202,7 @@ describe('renderReleaseOptions', () => {
   });
 
   it('selects a specific release option on click', () => {
-    renderReleaseOptions([{ id: 1, name: 'v1.0' }], null);
+    renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], null);
     const opts = document.querySelectorAll<HTMLElement>('#release-options .custom-option');
     opts[1].click(); // v1.0
     expect(byId('release-select', HTMLInputElement).value).toBe('1');

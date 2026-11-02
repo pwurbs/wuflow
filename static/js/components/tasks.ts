@@ -4,14 +4,15 @@ import { updateTask, deleteTask } from '../api.ts'; // Ensure createTask is impo
 import { setDraggedTask } from '../drag.ts';
 import { userCan, ACTION_UPDATE_TASK, ACTION_DELETE_TASK } from '../permissions.ts';
 import { state } from '../state.ts';
+import type { Issue, Task } from '../models.ts';
 
 // Calendar icon plus the short date; without a deadline the icon alone opens the date picker.
-function taskDeadlineHTML(deadline) {
+function taskDeadlineHTML(deadline: string | null) {
   const date = deadline ? new Date(deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' }) : '';
   return `<span class="icon-calendar" aria-hidden="true"></span>${date}`;
 }
 
-interface TaskCallbacks {
+export interface TaskCallbacks {
   readOnly?: boolean;
   onTaskUpdate?: () => void;
   onTaskOrderSave?: () => unknown;
@@ -19,7 +20,7 @@ interface TaskCallbacks {
   onTaskEditEnd?: () => void;
 }
 
-export function renderTasks(tasks, container, currentIssue, callbacks: TaskCallbacks = {}) {
+export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue: Issue, callbacks: TaskCallbacks = {}) {
   container.innerHTML = '';
 
   // Sort tasks by position
@@ -29,7 +30,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks: TaskCallb
     const li = document.createElement('li');
     li.className = `task-item ${task.done ? 'done' : ''}`;
     li.draggable = true;
-    li.dataset.id = task.id;
+    li.dataset.id = String(task.id);
 
     // Coerce task.id to a safe integer before embedding in HTML attributes
     const taskId = Number.isInteger(task.id) ? task.id : Math.trunc(Number(task.id));
@@ -189,8 +190,7 @@ export function renderTasks(tasks, container, currentIssue, callbacks: TaskCallb
       deadlineInput.addEventListener('change', async () => {
         if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
         const prevDeadline = task.deadline;
-        const newDate = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null;
-        task.deadline = newDate;
+        task.deadline = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00').toISOString() : null;
         try {
           await updateTask(currentIssue.project_id, currentIssue.id, task);
           const display = li.querySelector('.task-deadline-display');

@@ -10,61 +10,62 @@ import {
   guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
   isErrorToastShown, setAriaDisabled,
 } from '../utils.ts';
+import { makeIssue, makeRelease, makeTask, makeUserRef } from './fixtures.ts';
 
 describe('getDeadlineStatus', () => {
   it('returns not-late for missing issue or missing deadline', () => {
     expect(getDeadlineStatus(null).late).toBe(false);
-    expect(getDeadlineStatus({}).late).toBe(false);
+    expect(getDeadlineStatus(makeIssue()).late).toBe(false);
   });
 
   it('flags past deadlines as Overdue', () => {
-    const res = getDeadlineStatus({ deadline: '2000-01-01' });
+    const res = getDeadlineStatus(makeIssue({ deadline: '2000-01-01' }));
     expect(res).toEqual({ late: true, reason: 'Overdue!' });
   });
 
   it('flags deadline after the release date', () => {
-    const res = getDeadlineStatus({
+    const res = getDeadlineStatus(makeIssue({
       deadline: '2999-12-31',
-      release: { release_date: '2999-01-01' },
-    });
+      release: makeRelease({ release_date: '2999-01-01' }),
+    }));
     expect(res).toEqual({ late: true, reason: 'Past release date!' });
   });
 
   it('returns not-late for a future deadline before the release date', () => {
-    const res = getDeadlineStatus({
+    const res = getDeadlineStatus(makeIssue({
       deadline: '2999-01-01',
-      release: { release_date: '2999-12-31' },
-    });
+      release: makeRelease({ release_date: '2999-12-31' }),
+    }));
     expect(res.late).toBe(false);
   });
 });
 
 describe('getTaskDeadlineStatus', () => {
   it('returns not-late when no task deadline is set', () => {
-    expect(getTaskDeadlineStatus(null, {}).late).toBe(false);
+    expect(getTaskDeadlineStatus(null, makeIssue()).late).toBe(false);
   });
 
   it('flags a past task deadline as Overdue', () => {
-    expect(getTaskDeadlineStatus('2000-01-01', {})).toEqual({
+    expect(getTaskDeadlineStatus('2000-01-01', makeIssue())).toEqual({
       late: true,
       reason: 'Overdue!',
     });
   });
 
   it('flags a task deadline after the issue deadline', () => {
-    const res = getTaskDeadlineStatus('2999-12-31', { deadline: '2999-01-01' });
+    const res = getTaskDeadlineStatus('2999-12-31', makeIssue({ deadline: '2999-01-01' }));
     expect(res).toEqual({ late: true, reason: 'After issue deadline!' });
   });
 
   it('falls back to release date when issue has no deadline', () => {
-    const res = getTaskDeadlineStatus('2999-12-31', {
-      release: { release_date: '2999-01-01' },
-    });
+    const res = getTaskDeadlineStatus('2999-12-31', makeIssue({
+      release: makeRelease({ release_date: '2999-01-01' }),
+    }));
     expect(res).toEqual({ late: true, reason: 'Past release date!' });
   });
 
   it('returns not-late for a task deadline within bounds', () => {
-    const res = getTaskDeadlineStatus('2999-06-01', { deadline: '2999-12-31' });
+    const res = getTaskDeadlineStatus('2999-06-01', makeIssue({ deadline: '2999-12-31' }));
     expect(res.late).toBe(false);
   });
 });
@@ -208,12 +209,12 @@ describe('debounce', () => {
 
 describe('getUserInitials', () => {
   it('should return initials from first and last name', () => {
-    const user = { first_name: 'John', last_name: 'Doe' };
+    const user = makeUserRef({ first_name: 'John', last_name: 'Doe' });
     expect(getUserInitials(user)).toBe('JD');
   });
 
   it('should return initials from email if name is missing', () => {
-    const user = { email: 'john.doe@example.com' };
+    const user = makeUserRef({ email: 'john.doe@example.com' });
     expect(getUserInitials(user)).toBe('JO');
   });
 
@@ -223,7 +224,7 @@ describe('getUserInitials', () => {
   });
 
   it('should return ?? if both name and email are missing', () => {
-    expect(getUserInitials({})).toBe('??');
+    expect(getUserInitials(makeUserRef({ email: '' }))).toBe('??');
   });
 
   it('should handle single name part (only first name)', () => {
@@ -231,7 +232,7 @@ describe('getUserInitials', () => {
     // otherwise falls back to email. If email missing -> ??
     // But wait, let's check implementation behavior:
     // if (user.first_name && user.last_name) ...
-    const user = { first_name: 'John' };
+    const user = makeUserRef({ first_name: 'John', email: '' });
     expect(getUserInitials(user)).toBe('??');
   });
 });
@@ -282,42 +283,42 @@ describe('canArchive', () => {
   });
 
   it('should return allowed for issue with no tasks and no planned dates', () => {
-    expect(canArchive({}).allowed).toBe(true);
+    expect(canArchive(makeIssue()).allowed).toBe(true);
   });
 
   it('should return allowed when tasks array is empty', () => {
-    expect(canArchive({ tasks: [] }).allowed).toBe(true);
+    expect(canArchive(makeIssue({ tasks: [] })).allowed).toBe(true);
   });
 
   it('should return allowed when planned_dates array is empty', () => {
-    expect(canArchive({ planned_dates: [] }).allowed).toBe(true);
+    expect(canArchive(makeIssue({ planned_dates: [] })).allowed).toBe(true);
   });
 
   it('should return allowed when all tasks are done', () => {
-    const result = canArchive({ tasks: [{ done: true }, { done: true }] });
+    const result = canArchive(makeIssue({ tasks: [makeTask({ done: true }), makeTask({ done: true })] }));
     expect(result.allowed).toBe(true);
   });
 
   it('should return not allowed when any task is open', () => {
-    const result = canArchive({ tasks: [{ done: true }, { done: false }] });
+    const result = canArchive(makeIssue({ tasks: [makeTask({ done: true }), makeTask({ done: false })] }));
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe('Issue has open tasks');
   });
 
   it('should return not allowed when issue has planned dates', () => {
-    const result = canArchive({ planned_dates: ['2024-01-01'] });
+    const result = canArchive(makeIssue({ planned_dates: ['2024-01-01'] }));
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe('Issue has planned dates');
   });
 
   it('should report open tasks before planned dates', () => {
-    const result = canArchive({ tasks: [{ done: false }], planned_dates: ['2024-01-01'] });
+    const result = canArchive(makeIssue({ tasks: [makeTask({ done: false })], planned_dates: ['2024-01-01'] }));
     expect(result.reason).toBe('Issue has open tasks');
   });
 });
 
 describe('showNotification', () => {
-  let toast;
+  let toast: HTMLDivElement;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -389,7 +390,7 @@ describe('showNotification', () => {
 });
 
 describe('showConfirm', () => {
-  let modal, titleEl, messageEl, okBtn, cancelBtn;
+  let modal: HTMLDivElement, titleEl: HTMLDivElement, messageEl: HTMLDivElement, okBtn: HTMLButtonElement, cancelBtn: HTMLButtonElement;
 
   beforeEach(() => {
     modal = document.createElement('div');
@@ -529,7 +530,7 @@ describe('confirmDiscard', () => {
 });
 
 describe('guardSubmit', () => {
-  let field, input;
+  let field: HTMLDivElement, input: HTMLTextAreaElement;
 
   beforeEach(() => {
     field = document.createElement('div');
@@ -538,7 +539,7 @@ describe('guardSubmit', () => {
   });
 
   it('runs a repeated call while the first is in flight only once, sharing its result', async () => {
-    let resolveSave;
+    let resolveSave: (value?: unknown) => void;
     const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
     const submit = guardSubmit(fn, { field });
 
@@ -559,7 +560,7 @@ describe('guardSubmit', () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  const keydown = (key) => {
+  const keydown = (key: string) => {
     const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
     input.dispatchEvent(e);
     return e;
@@ -571,7 +572,7 @@ describe('guardSubmit', () => {
   };
 
   it('marks the field busy only while the call runs', async () => {
-    let resolveSave;
+    let resolveSave: (value?: unknown) => void;
     const submit = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field });
 
     const running = submit();
@@ -585,7 +586,7 @@ describe('guardSubmit', () => {
   it('ignores typing and keys inside the field while busy, except Tab', async () => {
     const onKey = vi.fn();
     input.addEventListener('keydown', onKey);
-    let resolveSave;
+    let resolveSave: (value?: unknown) => void;
     const running = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field })();
 
     expect(beforeinput().defaultPrevented).toBe(true);
@@ -611,7 +612,7 @@ describe('guardSubmit', () => {
 
   it('leaves the input\'s readOnly alone, which editors use for their edit mode', async () => {
     input.readOnly = true;
-    let resolveSave;
+    let resolveSave: (value?: unknown) => void;
     const running = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field })();
     input.readOnly = false; // e.g. the save left read mode
     resolveSave();
@@ -633,7 +634,7 @@ describe('setAriaDisabled', () => {
 describe('markBusy', () => {
   it('keeps the field busy until the last of overlapping saves settles', async () => {
     const field = document.createElement('div');
-    let answerFirst, answerSecond;
+    let answerFirst: (value: unknown) => void, answerSecond: (value: unknown) => void;
     const first = markBusy(field, () => new Promise(r => { answerFirst = r; }));
     const second = markBusy(field, () => new Promise(r => { answerSecond = r; }));
     expect(field.getAttribute('aria-busy')).toBe('true');
@@ -649,7 +650,7 @@ describe('markBusy', () => {
 
   it('ignores key releases except Tab while busy, so Space cannot click a button', async () => {
     const field = document.createElement('div');
-    let finish;
+    let finish: (value?: unknown) => void;
     const save = markBusy(field, () => new Promise(r => { finish = r; }));
 
     const space = new KeyboardEvent('keyup', { key: ' ', cancelable: true });
@@ -675,7 +676,7 @@ describe('markBusy', () => {
 });
 
 describe('onGuardedSubmit', () => {
-  let form, button;
+  let form: HTMLFormElement, button: HTMLButtonElement;
 
   beforeEach(() => {
     form = document.createElement('form');
@@ -685,7 +686,7 @@ describe('onGuardedSubmit', () => {
   });
 
   it('prevents the page submit and saves a repeated submit only once, with the whole form busy', async () => {
-    let resolveSave;
+    let resolveSave: (value?: unknown) => void;
     const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
     onGuardedSubmit(form, fn);
 
@@ -703,7 +704,8 @@ describe('onGuardedSubmit', () => {
 });
 
 describe('promptAdminPasswordConfirmation', () => {
-  let modal, titleEl, messageEl, form, input, errorDiv, okBtn, cancelBtn;
+  let modal: HTMLDivElement, titleEl: HTMLHeadingElement, messageEl: HTMLParagraphElement, form: HTMLFormElement,
+    input: HTMLInputElement, errorDiv: HTMLDivElement, okBtn: HTMLButtonElement, cancelBtn: HTMLButtonElement;
 
   beforeEach(() => {
     modal = document.createElement('div');
@@ -820,7 +822,7 @@ describe('promptAdminPasswordConfirmation', () => {
   });
 
   it('runs the protected action only once when Enter is pressed again while it is in flight', async () => {
-    let resolveConfirm;
+    let resolveConfirm: (value?: unknown) => void;
     const onConfirm = vi.fn(() => new Promise(r => { resolveConfirm = r; }));
     const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
     input.value = 'CorrectPass123!';
@@ -860,7 +862,7 @@ describe('promptAdminPasswordConfirmation', () => {
 });
 
 describe('updateDateInputStyle', () => {
-  let input;
+  let input: HTMLInputElement;
 
   beforeEach(() => {
     input = document.createElement('input');
@@ -949,7 +951,7 @@ describe('updateDateInputStyle', () => {
 });
 
 describe('initCharCounter', () => {
-  let wrapper, input;
+  let wrapper: HTMLDivElement, input: HTMLInputElement;
 
   beforeEach(() => {
     wrapper = document.createElement('div');
@@ -965,14 +967,14 @@ describe('initCharCounter', () => {
 
   it('should insert a counter element after the input', () => {
     initCharCounter(input, 100);
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     expect(counter).not.toBeNull();
     expect(counter.className).toContain('char-counter');
   });
 
   it('should apply a custom className when provided', () => {
     initCharCounter(input, 100, { className: 'my-counter' });
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     expect(counter.classList.contains('char-counter')).toBe(true);
     expect(counter.classList.contains('my-counter')).toBe(true);
   });
@@ -985,7 +987,7 @@ describe('initCharCounter', () => {
 
   it('should show counter and display count on focus', () => {
     initCharCounter(input, 100);
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     input.value = 'hello';
     input.dispatchEvent(new Event('focus'));
     expect(counter.classList.contains('visible')).toBe(true);
@@ -994,7 +996,7 @@ describe('initCharCounter', () => {
 
   it('should hide counter on blur', () => {
     initCharCounter(input, 100);
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     input.dispatchEvent(new Event('focus'));
     input.dispatchEvent(new Event('blur'));
     expect(counter.classList.contains('visible')).toBe(false);
@@ -1002,7 +1004,7 @@ describe('initCharCounter', () => {
 
   it('should update count on input event', () => {
     initCharCounter(input, 100);
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     input.value = 'hi';
     input.dispatchEvent(new Event('input'));
     expect(counter.textContent).toBe('2/100');
@@ -1010,7 +1012,7 @@ describe('initCharCounter', () => {
 
   it('should add at-limit class when count equals maxLength', () => {
     initCharCounter(input, 5);
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     input.value = 'hello';
     input.dispatchEvent(new Event('input'));
     expect(counter.classList.contains('at-limit')).toBe(true);
@@ -1018,7 +1020,7 @@ describe('initCharCounter', () => {
 
   it('should remove at-limit class when count is below maxLength', () => {
     initCharCounter(input, 5);
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     counter.classList.add('at-limit');
     input.value = 'hi';
     input.dispatchEvent(new Event('input'));
@@ -1034,14 +1036,14 @@ describe('initCharCounter', () => {
 
   it('should not add focus/blur listeners in manual mode', () => {
     initCharCounter(input, 100, { manual: true });
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     input.dispatchEvent(new Event('focus'));
     expect(counter.classList.contains('visible')).toBe(false);
   });
 
   it('show() and hide() work correctly in manual mode', () => {
     const { show, hide } = initCharCounter(input, 100, { manual: true });
-    const counter = input.nextSibling;
+    const counter = input.nextElementSibling;
     show();
     expect(counter.classList.contains('visible')).toBe(true);
     hide();

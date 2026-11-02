@@ -6,6 +6,7 @@ import * as card from '../components/card.ts';
 import * as api from '../api.ts';
 import * as dragModule from '../drag.ts';
 import type { CardCallbacks } from '../components/card.ts';
+import type { Issue } from '../models.ts';
 import { makeIssue, makeRelease, makeUser } from './fixtures.ts';
 
 // Mock dependencies
@@ -52,8 +53,8 @@ vi.mock('../components/card.ts', () => ({
 
 vi.mock('../filters.ts', () => ({
   filterIssues: vi.fn(issues => issues),
-  filterByStatus: vi.fn((issues, status) => issues.filter(i => i.status === status)), // Simple implementation for test
-  sortByPosition: vi.fn(issues => issues.sort((a, b) => a.position - b.position))
+  filterByStatus: vi.fn((issues: Issue[], status: string) => issues.filter(i => i.status === status)), // Simple implementation for test
+  sortByPosition: vi.fn((issues: Issue[]) => issues.sort((a, b) => a.position - b.position))
 }));
 
 // Mock Drag module functions but we don't need them for moving logic test essentially, mainly for setup

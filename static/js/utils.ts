@@ -1,21 +1,25 @@
 // Utility Functions
 
 import { state } from './state.ts';
+import type { Issue, UserRef } from './models.ts';
 
-function startOfDay(date) {
+function startOfDay(date: Date | string) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
 }
 
 // Formats a date string as "<locale date> / <locale time>", e.g. for last-login or activity timestamps.
-export function formatDateTime(dateStr) {
+export function formatDateTime(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString(navigator.language) + ' / ' + d.toLocaleTimeString(navigator.language, { hour: '2-digit', minute: '2-digit' });
 }
 
+// What a deadline check reads: an issue, or the issue's deadline from the form before it is saved.
+type DeadlineSource = { deadline: Date | string | null; release: Issue['release'] };
+
 // Returns { late: false } or { late: true, reason: string } for an issue deadline.
-export function getDeadlineStatus(issue) {
+export function getDeadlineStatus(issue: DeadlineSource) {
   if (!issue?.deadline) return { late: false };
   const today = startOfDay(new Date());
   const deadline = startOfDay(issue.deadline);
@@ -27,7 +31,7 @@ export function getDeadlineStatus(issue) {
 }
 
 // Returns { late: false } or { late: true, reason: string } for a task deadline given its parent issue.
-export function getTaskDeadlineStatus(taskDeadline, issue) {
+export function getTaskDeadlineStatus(taskDeadline: Date | string | null, issue: DeadlineSource) {
   if (!taskDeadline) return { late: false };
   const today = startOfDay(new Date());
   const d = startOfDay(taskDeadline);
@@ -50,7 +54,7 @@ export function byId<T extends HTMLElement>(id: string, Type: new () => T): T | 
   throw new TypeError(`#${id} is a ${el.constructor.name}, expected ${Type.name}`);
 }
 
-export function escapeHtml(text) {
+export function escapeHtml(text: string) {
   if (!text) return '';
   return text
     .replaceAll("&", "&amp;")
@@ -60,8 +64,8 @@ export function escapeHtml(text) {
     .replaceAll("'", "&#039;");
 }
 
-let notificationTimeout;
-export function showNotification(message, type = 'success') {
+let notificationTimeout: ReturnType<typeof setTimeout> | undefined;
+export function showNotification(message: string, type = 'success') {
   const notificationToast = document.getElementById('notification-toast');
   if (notificationToast) {
     if (notificationTimeout) clearTimeout(notificationTimeout);
@@ -82,9 +86,9 @@ export function isErrorToastShown() {
 }
 
 // Cancels the confirm dialog that is currently open, if any (see showConfirm).
-let cancelPendingConfirm = null;
+let cancelPendingConfirm: (() => void) | null = null;
 
-export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel', okType = 'danger') {
+export function showConfirm(title: string, message: string, okText = 'OK', cancelText = 'Cancel', okType = 'danger') {
   // All confirms share one dialog. A new one replaces the question of a still-open one,
   // whose caller then gets false (Cancel): otherwise one click would answer both.
   cancelPendingConfirm?.();
@@ -95,7 +99,7 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
   const confirmOkBtn = document.getElementById('confirm-ok-btn');
   const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
 
-  return new Promise((resolve) => {
+  return new Promise<boolean>((resolve) => {
     confirmTitle.textContent = title;
     confirmMessage.textContent = message;
     confirmOkBtn.textContent = okText;
@@ -142,7 +146,7 @@ export function showConfirm(title, message, okText = 'OK', cancelText = 'Cancel'
 
 // ✕ and Escape of a Markdown editor: resolves true if its text may be thrown away,
 // asking first if the user changed it.
-export async function confirmDiscard(changed) {
+export async function confirmDiscard(changed: boolean) {
   return !changed || showConfirm('Unsaved Changes', 'Discard changes?', 'Discard', 'Keep editing');
 }
 
@@ -154,8 +158,8 @@ export async function confirmDiscard(changed) {
 // failure the dialog stays open and shows the error inline, letting the user retry
 // without re-triggering the whole flow. Resolves true once onConfirm succeeds, or
 // false if the user cancels.
-export function promptAdminPasswordConfirmation(title, message, onConfirm, okText = 'Confirm', okType = 'danger') {
-  return new Promise((resolve) => {
+export function promptAdminPasswordConfirmation(title: string, message: string, onConfirm: (password: string) => unknown, okText = 'Confirm', okType = 'danger') {
+  return new Promise<boolean>((resolve) => {
     const modal = document.getElementById('admin-confirm-modal');
     const titleEl = document.getElementById('admin-confirm-title');
     const messageEl = document.getElementById('admin-confirm-message');
@@ -220,7 +224,7 @@ export function promptAdminPasswordConfirmation(title, message, onConfirm, okTex
       resolve(false);
     }
 
-    function onKeydown(e) {
+    function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Enter') void onOk();
     }
 
@@ -230,7 +234,7 @@ export function promptAdminPasswordConfirmation(title, message, onConfirm, okTex
   });
 }
 
-export function updateDateInputStyle(input) {
+export function updateDateInputStyle(input: HTMLInputElement) {
   if (input.value) {
     input.classList.add('has-value');
   } else {
@@ -261,39 +265,39 @@ export function updateDateInputStyle(input) {
 }
 
 // Formats a date as the value of an <input type="date"> (YYYY-MM-DD), '' for none.
-export function toDateInputValue(date) {
+export function toDateInputValue(date: Date | string | null) {
   return date ? new Date(date).toISOString().slice(0, 10) : '';
 }
 
 // Wraps an async function so concurrent calls share the running call's promise
 // instead of starting it again. The next call after it settles starts a new run.
-export function singleFlight(fn) {
-  let inFlight = null;
+export function singleFlight<T>(fn: () => Promise<T>): () => Promise<T> {
+  let inFlight: Promise<T> | null = null;
   return () => (inFlight ??= fn().finally(() => { inFlight = null; }));
 }
 
 // aria-disabled greys an element out and blocks clicks (base/utilities.css).
-export function setAriaDisabled(el, disabled) {
+export function setAriaDisabled(el: Element, disabled: boolean) {
   if (disabled) el.setAttribute('aria-disabled', 'true');
   else el.removeAttribute('aria-disabled');
 }
 
 // Blocks keyup too: a focused button fires its Space click on keyup.
-function blockWhileBusy(e) {
-  if (e.key === 'Tab') return;
+function blockWhileBusy(e: Event) {
+  if ('key' in e && e.key === 'Tab') return;
   e.preventDefault();
   e.stopPropagation();
 }
 
 // Number of saves running per busy field
-const busySaves = new WeakMap();
+const busySaves = new WeakMap<Element, number>();
 
 // Runs the save fn with the field (the element framing the input and its buttons)
 // marked aria-busy, which dims it and blocks clicks (base/utilities.css), and with
 // typing and keys ignored, so a slow save doesn't look like a click that went nowhere.
 // Overlapping saves on one field keep it busy until the last one settles. Resolves to
 // fn's result.
-export async function markBusy(field, fn) {
+export async function markBusy<T>(field: Element | null, fn: () => T | Promise<T>): Promise<T> {
   if (!field) return fn();
   const running = busySaves.get(field) ?? 0;
   busySaves.set(field, running + 1);
@@ -321,14 +325,14 @@ export async function markBusy(field, fn) {
 // runs joins the running save instead of sending it again, and the field is busy
 // until it settles (markBusy), so nothing typed meanwhile is lost when the input is
 // cleared afterwards. Resolves to fn's result.
-export function guardSubmit(fn, { field = null } = {}) {
+export function guardSubmit<T>(fn: () => T | Promise<T>, { field = null }: { field?: Element | null } = {}) {
   return singleFlight(() => markBusy(field, fn));
 }
 
 // Submits the form through guardSubmit: Save and Enter share the in-flight submit
 // instead of saving twice while the first request is still running. The whole form
 // is the busy field.
-export function onGuardedSubmit(form, fn) {
+export function onGuardedSubmit(form: HTMLFormElement, fn: () => unknown) {
   const submit = guardSubmit(fn, { field: form });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -337,9 +341,9 @@ export function onGuardedSubmit(form, fn) {
 }
 
 // Debounce a function call by a specified wait time, needed for search
-export function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
+export function debounce<A extends unknown[]>(func: (...args: A) => void, wait: number) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return function executedFunction(...args: A) {
     const later = () => {
       clearTimeout(timeout);
       func(...args);
@@ -350,12 +354,12 @@ export function debounce(func, wait) {
 }
 
 
-export function countCodepoints(str) {
+export function countCodepoints(str: string) {
   return [...str].length;
 }
 
 // countUtf8Bytes returns the UTF-8 byte length, as the backend's len() counts it.
-export function countUtf8Bytes(str) {
+export function countUtf8Bytes(str: string) {
   return new TextEncoder().encode(str).length;
 }
 
@@ -364,7 +368,7 @@ export function countUtf8Bytes(str) {
 // Shared by the issue-description editor and comment textareas. Returns true
 // if it handled the keypress (caller should already have it prevented via e),
 // false to let the default Enter behavior happen.
-export function continueListOnEnter(textarea, e) {
+export function continueListOnEnter(textarea: HTMLTextAreaElement, e: Event) {
   const start = textarea.selectionStart;
   const value = textarea.value;
   const lineStart = value.lastIndexOf('\n', start - 1) + 1;
@@ -394,7 +398,7 @@ export function continueListOnEnter(textarea, e) {
   return true;
 }
 
-export function initCharCounter(el, maxLength, options: { className?: string, insertAfter?: Element, manual?: boolean } = {}) {
+export function initCharCounter(el: HTMLInputElement | HTMLTextAreaElement, maxLength: number, options: { className?: string, insertAfter?: Element, manual?: boolean } = {}) {
   const counter = document.createElement('span');
   counter.className = 'char-counter';
   if (options.className) counter.classList.add(options.className);
@@ -443,7 +447,7 @@ export function initCharCounter(el, maxLength, options: { className?: string, in
   return { show, hide };
 }
 
-export function canArchive(issue) {
+export function canArchive(issue: Issue) {
   if (!issue) return { allowed: false, reason: 'No issue provided' };
 
   if (issue.tasks?.some(t => !t.done)) {
@@ -457,7 +461,7 @@ export function canArchive(issue) {
   return { allowed: true };
 }
 
-export function getUserInitials(user) {
+export function getUserInitials(user: UserRef) {
   if (!user) return '??';
 
   if (user.first_name && user.last_name) {
@@ -471,7 +475,7 @@ export function getUserInitials(user) {
   return '??';
 }
 
-export function getUnusedColor(usedColors) {
+export function getUnusedColor(usedColors: string[]) {
   const colors = [
     '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
     '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',

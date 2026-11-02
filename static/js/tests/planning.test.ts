@@ -8,7 +8,7 @@ import { state } from '../state.ts'; // Imported from mock
 vi.mock('../utils.ts', () => ({
   showNotification: vi.fn()
 }));
-import { makeIssue } from './fixtures.ts';
+import { makeIssue, makeTask } from './fixtures.ts';
 
 vi.mock('../state.ts', () => ({
   state: {
@@ -50,12 +50,12 @@ describe('planning.ts', () => {
 
   describe('getEffectiveDeadlineInfo', () => {
     it('returns null if no deadline in issue or tasks', () => {
-      const issue = { id: 1, tasks: [] };
+      const issue = makeIssue({ id: 1, tasks: [] });
       expect(getEffectiveDeadlineInfo(issue)).toBeNull();
     });
 
     it('returns issue deadline if no tasks', () => {
-      const issue = { id: 1, deadline: '2023-10-15', tasks: [] };
+      const issue = makeIssue({ id: 1, deadline: '2023-10-15', tasks: [] });
       const result = getEffectiveDeadlineInfo(issue);
       const expected = new Date('2023-10-15');
       expected.setHours(12, 0, 0, 0);
@@ -63,10 +63,10 @@ describe('planning.ts', () => {
     });
 
     it('returns task deadline if issue has no deadline', () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
-        tasks: [{ id: 't1', deadline: '2023-10-12', done: false }]
-      };
+        tasks: [makeTask({ id: 1, deadline: '2023-10-12', done: false })]
+      });
       const result = getEffectiveDeadlineInfo(issue);
       const expected = new Date('2023-10-12');
       expected.setHours(12, 0, 0, 0);
@@ -74,14 +74,14 @@ describe('planning.ts', () => {
     });
 
     it('returns earliest deadline between issue and tasks', () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
         deadline: '2023-10-20',
         tasks: [
-          { id: 't1', deadline: '2023-10-25', done: false }, // Later
-          { id: 't2', deadline: '2023-10-18', done: false }  // Earliest
+          makeTask({ id: 1, deadline: '2023-10-25', done: false }), // Later
+          makeTask({ id: 2, deadline: '2023-10-18', done: false })  // Earliest
         ]
-      };
+      });
       const result = getEffectiveDeadlineInfo(issue);
       const expected = new Date('2023-10-18');
       expected.setHours(12, 0, 0, 0);
@@ -89,13 +89,13 @@ describe('planning.ts', () => {
     });
 
     it('ignores done tasks', () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
         deadline: '2023-10-20',
         tasks: [
-          { id: 't1', deadline: '2023-10-10', done: true } // Overdue but done
+          makeTask({ id: 1, deadline: '2023-10-10', done: true }) // Overdue but done
         ]
-      };
+      });
       const result = getEffectiveDeadlineInfo(issue);
       const expected = new Date('2023-10-20');
       expected.setHours(12, 0, 0, 0);
@@ -105,12 +105,12 @@ describe('planning.ts', () => {
 
   describe('createDeadlineBadge', () => {
     it('returns null if no effective deadline', () => {
-      const issue = { id: 1 };
+      const issue = makeIssue({ id: 1 });
       expect(createDeadlineBadge(issue)).toBeNull();
     });
 
     it('creates standard deadline badge', () => {
-      const issue = { id: 1, deadline: '2023-10-15' };
+      const issue = makeIssue({ id: 1, deadline: '2023-10-15' });
       const badge = createDeadlineBadge(issue);
 
       expect(badge.tagName).toBe('SPAN');
@@ -120,7 +120,7 @@ describe('planning.ts', () => {
     });
 
     it('creates overdue warning badge', () => {
-      const issue = { id: 1, deadline: '2023-10-05' };
+      const issue = makeIssue({ id: 1, deadline: '2023-10-05' });
       const badge = createDeadlineBadge(issue);
 
       expect(badge.textContent).toBe('Oct 5');
@@ -129,21 +129,21 @@ describe('planning.ts', () => {
     });
 
     it('indicates Task Deadline in tooltip', () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
-        tasks: [{ id: 't1', deadline: '2023-10-12', done: false }]
-      };
+        tasks: [makeTask({ id: 1, deadline: '2023-10-12', done: false })]
+      });
       const badge = createDeadlineBadge(issue);
 
       expect(badge.title).toBe('Task Deadline');
     });
 
     it('shows Planned Late warning if planned date > deadline', () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
         deadline: '2023-10-12',
         planned_dates: ['2023-10-15']
-      };
+      });
       const badge = createDeadlineBadge(issue, '2023-10-15');
 
       expect(badge.textContent).toBe('Oct 12');
@@ -152,11 +152,11 @@ describe('planning.ts', () => {
     });
 
     it('uses latest planned date for late warning if no specific date provided', () => {
-      const issue = {
+      const issue = makeIssue({
         id: 1,
         deadline: '2023-10-12',
         planned_dates: ['2023-10-10', '2023-10-15']
-      };
+      });
       // No specificDateStr provided (e.g. general board view summary)
       const badge = createDeadlineBadge(issue);
 

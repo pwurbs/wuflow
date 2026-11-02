@@ -2,14 +2,21 @@ import { updateIssue, updateIssuePositions, archiveIssue } from './api.ts';
 import { state } from './state.ts';
 import { PRIORITY_NORMAL, PRIORITY_HIGH } from './domain-constants.ts';
 import { STATUS_ARCHIVE } from './status-config.ts';
+import type { IssueStatus } from './status-config.ts';
+import type { Issue, Release, User } from './models.ts';
 import { getDraggedCard, getDraggedCardOrigin, getDragAfterElement } from './drag.ts';
 import { showNotification } from './utils.ts';
 
-function createRerenderOrRefresh(rerenderCallback, refreshApp) {
+// The callbacks app.ts hands to each issue view (board, backlog, archive).
+export type RefreshApp = () => unknown;
+export type OpenModal = (issue: Issue) => void;
+export type RerenderView = () => void;
+
+function createRerenderOrRefresh(rerenderCallback?: () => void, refreshApp?: () => unknown) {
   return () => { if (rerenderCallback) rerenderCallback(); else if (refreshApp) refreshApp(); };
 }
 
-export async function handleMoveTop(issue, allIssuesInList, rerenderCallback, refreshCallback) {
+export async function handleMoveTop(issue: Issue, allIssuesInList: Issue[], rerenderCallback?: () => void, refreshCallback?: () => unknown) {
   if (allIssuesInList.length <= 1 || allIssuesInList[0].id === issue.id) return;
 
   // Create a new array without the issue
@@ -24,7 +31,7 @@ export async function handleMoveTop(issue, allIssuesInList, rerenderCallback, re
   }
 }
 
-export async function handleMoveBottom(issue, allIssuesInList, rerenderCallback, refreshCallback) {
+export async function handleMoveBottom(issue: Issue, allIssuesInList: Issue[], rerenderCallback?: () => void, refreshCallback?: () => unknown) {
   if (allIssuesInList.length <= 1 || allIssuesInList[allIssuesInList.length - 1].id === issue.id) return;
 
   // Create a new array without the issue
@@ -45,13 +52,13 @@ export async function handleMoveBottom(issue, allIssuesInList, rerenderCallback,
  * re-rendering moves the cards back right away, even when the server is unreachable. The
  * refresh then shows the actual server state.
  */
-export function showSaveFailure(err, rerenderCallback, refreshCallback) {
+export function showSaveFailure(err: Error, rerenderCallback?: () => void, refreshCallback?: () => unknown) {
   showNotification(err.message, 'error');
   if (rerenderCallback) rerenderCallback();
   if (refreshCallback) refreshCallback();
 }
 
-export async function handleTogglePriority(issue, rerenderCallback) {
+export async function handleTogglePriority(issue: Issue, rerenderCallback?: () => void) {
   const originalPriority = issue.priority;
   issue.priority = issue.priority === PRIORITY_HIGH ? PRIORITY_NORMAL : PRIORITY_HIGH;
   try {
@@ -64,7 +71,7 @@ export async function handleTogglePriority(issue, rerenderCallback) {
   }
 }
 
-export async function handleAssignToMe(issue, currentUser, rerenderCallback) {
+export async function handleAssignToMe(issue: Issue, currentUser: User, rerenderCallback?: () => void) {
   const originalAssigneeId = issue.assignee_id;
   const originalAssignee = issue.assignee;
   issue.assignee_id = currentUser.id;
@@ -80,8 +87,8 @@ export async function handleAssignToMe(issue, currentUser, rerenderCallback) {
   }
 }
 
-export async function updatePositions(orderedIssues, rerenderCallback) {
-  const changes = [];
+export async function updatePositions(orderedIssues: Issue[], rerenderCallback?: () => void) {
+  const changes: OrderChange[] = [];
   orderedIssues.forEach((issue, index) => {
     if (issue.position !== index) {
       changes.push(applyOrderChange(issue, issue.status, index));
@@ -94,18 +101,24 @@ export async function updatePositions(orderedIssues, rerenderCallback) {
   }
 }
 
+// A reorder of one issue, with the values before it so a failed save can restore them.
+export interface OrderChange {
+  issue: Issue;
+  previous: Pick<Issue, 'status' | 'position'>;
+}
+
 /**
  * Sets an issue's new status and position for a reorder and returns the change for
  * saveIssueOrder, including the previous values so a failed save can restore them.
  */
-export function applyOrderChange(issue, status, position) {
-  const change = { issue, previous: { status: issue.status, position: issue.position } };
+export function applyOrderChange(issue: Issue, status: IssueStatus, position: number) {
+  const change: OrderChange = { issue, previous: { status: issue.status, position: issue.position } };
   issue.status = status;
   issue.position = position;
   return change;
 }
 
-function statusChanged({ issue, previous }) {
+function statusChanged({ issue, previous }: OrderChange) {
   return issue.status !== previous.status;
 }
 
@@ -119,7 +132,7 @@ function statusChanged({ issue, previous }) {
  * nothing in that case; a status PUT that already went through is corrected by the
  * caller's refresh.
  */
-export async function saveIssueOrder(changes) {
+export async function saveIssueOrder(changes: OrderChange[]) {
   try {
     await Promise.all(changes
       .filter(statusChanged)
@@ -144,8 +157,8 @@ export async function saveIssueOrder(changes) {
  * `changes` for saveIssueOrder, plus the started archive requests (`archives`) for
  * cards that were dropped into the Archive list.
  */
-export function getListUpdates(listId, targetStatus) {
-  const result: { changes: ReturnType<typeof applyOrderChange>[], archives: Promise<object>[] } = { changes: [], archives: [] };
+export function getListUpdates(listId: string, targetStatus: IssueStatus) {
+  const result: { changes: OrderChange[], archives: Promise<object>[] } = { changes: [], archives: [] };
   const listElement = document.getElementById(listId);
   if (!listElement) return result;
 
@@ -171,8 +184,8 @@ export function getListUpdates(listId, targetStatus) {
 }
 
 interface DropOptions {
-  onDrop?: (issue, targetStatus?) => unknown;
-  onValidate?: (issue, targetStatus) => boolean | Promise<boolean>;
+  onDrop?: (issue: Issue, targetStatus?: IssueStatus) => unknown;
+  onValidate?: (issue: Issue, targetStatus: IssueStatus) => boolean | Promise<boolean>;
   refreshApp?: () => unknown;
   rerenderCallback?: () => void;
   performReorder?: boolean;
@@ -182,7 +195,7 @@ interface DropOptions {
 /**
  * Shared logic for section-level drop zones (e.g., dropping onto the column background)
  */
-export function setupSectionDrop(sectionId, targetStatus, options: DropOptions = {}) {
+export function setupSectionDrop(sectionId: string, targetStatus: IssueStatus, options: DropOptions = {}) {
   const section = document.getElementById(sectionId);
   if (!section) return;
 
@@ -249,7 +262,7 @@ export function setupSectionDrop(sectionId, targetStatus, options: DropOptions =
 /**
  * Shared logic for list-level drag zones (e.g., dropping directly into a list for reordering)
  */
-export function setupListDrag(listId, targetStatus, options: DropOptions = {}) {
+export function setupListDrag(listId: string, targetStatus: IssueStatus, options: DropOptions = {}) {
   const list = document.getElementById(listId);
   if (!list) return;
 
@@ -311,7 +324,7 @@ export function setupListDrag(listId, targetStatus, options: DropOptions = {}) {
   });
 }
 
-export function sortReleasesByDate(releases) {
+export function sortReleasesByDate(releases: Release[]) {
   return releases.slice().sort((a, b) => {
     const da = a.release_date ? new Date(a.release_date) : null;
     const db = b.release_date ? new Date(b.release_date) : null;

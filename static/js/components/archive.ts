@@ -4,15 +4,17 @@ import { STATUS_ARCHIVE, STATUS_DONE } from '../status-config.ts';
 import { ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { createCardElement } from './card.ts';
 import { getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag } from '../list-utils.ts';
+import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
+import type { IssueStatus } from '../status-config.ts';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
 import { canArchive, showConfirm } from '../utils.ts';
 import { userCan, ACTION_ARCHIVE_ISSUE } from '../permissions.ts';
 
-let refreshAppCallback = null;
-let openModalCallback = null;
-let rerenderActiveViewCallback = null;
+let refreshAppCallback: RefreshApp | null = null;
+let openModalCallback: OpenModal | null = null;
+let rerenderActiveViewCallback: RerenderView | null = null;
 
-export async function renderArchive(refreshApp?, openModal?, rerenderActiveView?) {
+export async function renderArchive(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
@@ -86,7 +88,7 @@ function groupByMonth(issues: Issue[]) {
 }
 
 
-async function validateArchiveDrop(issue, targetStatus) {
+async function validateArchiveDrop(issue: Issue, targetStatus: IssueStatus) {
   if (issue.status === STATUS_ARCHIVE && targetStatus !== STATUS_ARCHIVE) {
     return false;
   }
@@ -113,7 +115,7 @@ async function performDropUpdate() {
   void renderArchive();
 }
 
-export function setupArchiveView(refreshApp, openModal, rerenderActiveView) {
+export function setupArchiveView(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;

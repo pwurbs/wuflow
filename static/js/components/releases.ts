@@ -4,13 +4,13 @@ import { sortReleasesByDate } from '../list-utils.ts';
 import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
-import type { Release } from '../models.ts';
+import type { Issue, Release, User } from '../models.ts';
 import { userCan, ACTION_CREATE_RELEASE, ACTION_UPDATE_RELEASE, ACTION_DELETE_RELEASE, ACTION_TRIGGER_RELEASE } from '../permissions.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE, IN_PROGRESS_STATUSES } from '../status-config.ts';
 import { RELEASE_STATUS_OPEN, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import { updateReleaseFilterOptions } from './toolbar.ts';
 
-let editingReleaseId = null;
+let editingReleaseId: number | null = null;
 
 // Issues assigned to a release can change status/release_id as a side effect of a release
 // action on the backend (delete clears release_id, triggering can archive Done issues) —
@@ -19,12 +19,12 @@ async function refreshIssuesAfterReleaseSideEffect() {
   await loadIssues(VIEW_ISSUE_LISTS.releases);
 }
 
-function mergeReleaseIntoState(updated) {
+function mergeReleaseIntoState(updated: Release) {
   const idx = state.releases.findIndex(r => r.id === updated.id);
   if (idx !== -1) state.releases[idx] = updated;
 }
 
-function removeReleaseFromState(id) {
+function removeReleaseFromState(id: number) {
   const idx = state.releases.findIndex(r => r.id === id);
   if (idx !== -1) state.releases.splice(idx, 1);
 }
@@ -33,7 +33,7 @@ export async function setupReleasesView() {
   setupOwnerDropdown();
 
   const cancelBtn = document.getElementById('release-modal-cancel');
-  const form = document.getElementById('release-form');
+  const form = byId('release-form', HTMLFormElement);
   const nameInput = byId('release-modal-name', HTMLInputElement);
   const descInput = byId('release-modal-desc', HTMLTextAreaElement);
 
@@ -41,8 +41,9 @@ export async function setupReleasesView() {
   if (descInput) initCharCounter(descInput, MAX_RELEASE_DESC_LEN);
 
   ['release-modal-start', 'release-modal-date'].forEach(id => {
-    document.getElementById(id)?.addEventListener('change', (e) => {
-      updateDateInputStyle(e.target);
+    const input = byId(id, HTMLInputElement);
+    input?.addEventListener('change', () => {
+      updateDateInputStyle(input);
     });
   });
 
@@ -102,7 +103,7 @@ function setupOwnerDropdown() {
   });
 }
 
-export function renderReleaseOwnerOptions(users) {
+export function renderReleaseOwnerOptions(users: User[]) {
   const container = document.getElementById('release-owner-options');
   if (!container) return;
   container.innerHTML = '';
@@ -133,7 +134,7 @@ export function renderReleaseOwnerOptions(users) {
   });
 }
 
-function selectReleaseOwner(value, text) {
+function selectReleaseOwner(value: string, text: string) {
   const input = byId('release-owner-input', HTMLInputElement);
   const display = document.getElementById('release-owner-text');
   const options = document.getElementById('release-owner-options');
@@ -190,7 +191,7 @@ function groupReleasesByMonth(releases: Release[]) {
   return groups;
 }
 
-function appendReleaseRow(rel, isOpenSection, list) {
+function appendReleaseRow(rel: Release, isOpenSection: boolean, list: Element) {
   const row = buildReleaseRow(rel, isOpenSection);
   if (userCan(state.currentUser, ACTION_UPDATE_RELEASE)) {
     row.querySelector('.release-card-left').classList.add('release-card-left--clickable');
@@ -200,7 +201,7 @@ function appendReleaseRow(rel, isOpenSection, list) {
   list.appendChild(row);
 }
 
-function buildReleasesSection(title, releases, isOpenSection, totalCount) {
+function buildReleasesSection(title: string, releases: Release[], isOpenSection: boolean, totalCount?: number) {
   const section = document.createElement('div');
   section.className = 'backlog-section';
 
@@ -245,7 +246,7 @@ function buildReleasesSection(title, releases, isOpenSection, totalCount) {
   return section;
 }
 
-function applyModalButtons(release, isClosed) {
+function applyModalButtons(release: Release | null, isClosed: boolean) {
   document.getElementById('release-modal-delete')
     ?.classList.toggle('hidden', !release || !userCan(state.currentUser, ACTION_DELETE_RELEASE));
   document.getElementById('release-modal-reopen')
@@ -256,7 +257,7 @@ function applyModalButtons(release, isClosed) {
   if (saveBtn) { saveBtn.classList.remove('hidden'); saveBtn.textContent = isClosed ? 'Done' : 'Save'; }
 }
 
-function applyModalDateFields(release, isClosed) {
+function applyModalDateFields(release: Release | null, isClosed: boolean) {
   const startInput = byId('release-modal-start', HTMLInputElement);
   const dateInput = byId('release-modal-date', HTMLInputElement);
 
@@ -285,7 +286,7 @@ function applyModalDateFields(release, isClosed) {
   }
 }
 
-function openReleaseModal(release) {
+function openReleaseModal(release: Release | null) {
   const overlay = document.getElementById('release-modal-overlay');
   const errorDisplay = document.getElementById('release-modal-error');
   const form = byId('release-form', HTMLFormElement);
@@ -347,7 +348,7 @@ async function handleReleaseSubmit() {
     return;
   }
 
-  const toISO = v => v ? `${v}T00:00:00Z` : null;
+  const toISO = (v: string) => v ? `${v}T00:00:00Z` : null;
   const ownerVal = byId('release-owner-input', HTMLInputElement)?.value;
   const owner_id = ownerVal ? Number.parseInt(ownerVal) : null;
   const payload = { name, description: desc, start_date: toISO(startVal), release_date: toISO(dateVal), owner_id };
@@ -374,7 +375,7 @@ async function handleReleaseSubmit() {
   }
 }
 
-function buildReleaseDateRange(rel) {
+function buildReleaseDateRange(rel: Release) {
   if (rel.status === RELEASE_STATUS_CLOSED && rel.closed_at) {
     return `<span class="release-dates">Released on ${new Date(rel.closed_at).toLocaleDateString(navigator.language)}</span>`;
   }
@@ -388,7 +389,7 @@ function buildReleaseDateRange(rel) {
   return `<span class="release-dates">${startStr} → ${relFormatted}</span>`;
 }
 
-function renderModalStats(release) {
+function renderModalStats(release: Release | null) {
   const statsEl = document.getElementById('release-modal-stats');
   if (!statsEl) return;
   if (!release) {
@@ -403,7 +404,7 @@ function renderModalStats(release) {
   statsEl.classList.remove('hidden');
 }
 
-function buildReleaseRow(rel, isOpen) {
+function buildReleaseRow(rel: Release, isOpen: boolean) {
   const issues = state.issues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === STATUS_DONE || i.status === STATUS_ARCHIVE).length;
@@ -460,7 +461,7 @@ function buildReleaseRow(rel, isOpen) {
   return row;
 }
 
-async function handleDeleteRelease(rel) {
+async function handleDeleteRelease(rel: Release) {
   const confirmed = await promptAdminPasswordConfirmation(
     'Delete Release',
     `Do you really want to delete release "${rel.name}"?\nIssues assigned to this release will keep their data but lose the release assignment. This removal is not recorded in the issue's history log.`,
@@ -478,14 +479,14 @@ async function handleDeleteRelease(rel) {
   void renderReleasesView();
 }
 
-async function handleTriggerReleaseDialog(rel) {
+async function handleTriggerReleaseDialog(rel: Release) {
   await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
   const issues = state.issues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === STATUS_DONE).length;
   const notDone = issues.filter(i => i.status !== STATUS_DONE && i.status !== STATUS_ARCHIVE).length;
 
-  return new Promise(resolve => {
+  return new Promise<boolean>(resolve => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
@@ -550,9 +551,9 @@ async function handleTriggerReleaseDialog(rel) {
 // string[]: it is searched with the keys of Object.entries.
 const STATUS_ORDER: readonly string[] = [STATUS_OPEN, STATUS_TODO, STATUS_STAGE1, STATUS_STAGE2, STATUS_STAGE3, STATUS_STAGE4, STATUS_DONE, STATUS_ARCHIVE];
 
-function buildStatusBreakdown(issues) {
+function buildStatusBreakdown(issues: Issue[]) {
   if (issues.length === 0) return '';
-  const counts = {};
+  const counts: Record<string, number> = {};
   issues.forEach(i => { counts[i.status] = (counts[i.status] ?? 0) + 1; });
   return Object.entries(counts)
     .sort(([a], [b]) => {

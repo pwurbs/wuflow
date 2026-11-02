@@ -9,21 +9,21 @@ import { handleTogglePriority, handleAssignToMe, handleMoveTop, applyOrderChange
 import { showNotification } from '../utils.ts';
 import { state } from '../state.ts';
 import * as api from '../api.ts';
-import { makeIssue } from './fixtures.ts';
+import { makeIssue, makeUser } from './fixtures.ts';
 
 describe('handleTogglePriority', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('toggles High to Normal', async () => {
-    const issue = { id: 1, priority: 'High' };
+    const issue = makeIssue({ id: 1, priority: 'High' });
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
     await handleTogglePriority(issue, vi.fn());
     expect(issue.priority).toBe('Normal');
-    expect(api.updateIssue).toHaveBeenCalledWith(undefined, issue);
+    expect(api.updateIssue).toHaveBeenCalledWith(1, issue);
   });
 
   it('toggles Normal to High', async () => {
-    const issue = { id: 1, priority: 'Normal' };
+    const issue = makeIssue({ id: 1, priority: 'Normal' });
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
     await handleTogglePriority(issue, vi.fn());
     expect(issue.priority).toBe('High');
@@ -32,14 +32,14 @@ describe('handleTogglePriority', () => {
   it('calls refresh on success', async () => {
     const refresh = vi.fn();
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
-    await handleTogglePriority({ id: 1, priority: 'Normal' }, refresh);
+    await handleTogglePriority(makeIssue({ id: 1, priority: 'Normal' }), refresh);
     expect(refresh).toHaveBeenCalled();
   });
 
   it('calls refresh on error', async () => {
     const refresh = vi.fn();
     vi.mocked(api.updateIssue).mockRejectedValue(new Error('fail'));
-    await handleTogglePriority({ id: 1, priority: 'Normal' }, refresh);
+    await handleTogglePriority(makeIssue({ id: 1, priority: 'Normal' }), refresh);
     expect(refresh).toHaveBeenCalled();
   });
 });
@@ -47,10 +47,10 @@ describe('handleTogglePriority', () => {
 describe('handleAssignToMe', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  const currentUser = { id: 42, first_name: 'Alice', last_name: 'Smith' };
+  const currentUser = makeUser({ id: 42, first_name: 'Alice', last_name: 'Smith' });
 
   it('sets assignee_id and assignee on the issue', async () => {
-    const issue = { id: 1, assignee_id: null, assignee: null };
+    const issue = makeIssue({ id: 1, assignee_id: null, assignee: null });
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
     await handleAssignToMe(issue, currentUser, vi.fn());
     expect(issue.assignee_id).toBe(42);
@@ -60,14 +60,14 @@ describe('handleAssignToMe', () => {
   it('calls refresh on success', async () => {
     const refresh = vi.fn();
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
-    await handleAssignToMe({ id: 1 }, currentUser, refresh);
+    await handleAssignToMe(makeIssue({ id: 1 }), currentUser, refresh);
     expect(refresh).toHaveBeenCalled();
   });
 
   it('calls refresh on error', async () => {
     const refresh = vi.fn();
     vi.mocked(api.updateIssue).mockRejectedValue(new Error('fail'));
-    await handleAssignToMe({ id: 1 }, currentUser, refresh);
+    await handleAssignToMe(makeIssue({ id: 1 }), currentUser, refresh);
     expect(refresh).toHaveBeenCalled();
   });
 });
@@ -77,8 +77,8 @@ describe('saveIssueOrder', () => {
 
   it('sends all positions in one positions request', async () => {
     vi.mocked(api.updateIssuePositions).mockResolvedValue();
-    const a = { id: 1, project_id: 5, status: 'Open', position: 0 };
-    const b = { id: 2, project_id: 5, status: 'Open', position: 1 };
+    const a = makeIssue({ id: 1, project_id: 5, status: 'Open', position: 0 });
+    const b = makeIssue({ id: 2, project_id: 5, status: 'Open', position: 1 });
     await saveIssueOrder([applyOrderChange(a, 'Open', 1), applyOrderChange(b, 'Open', 0)]);
     expect(api.updateIssuePositions).toHaveBeenCalledTimes(1);
     expect(api.updateIssuePositions).toHaveBeenCalledWith(5, [{ id: 1, position: 1 }, { id: 2, position: 0 }]);
@@ -86,11 +86,11 @@ describe('saveIssueOrder', () => {
   });
 
   it('saves a status change with the issue PUT first and leaves it out of the positions request', async () => {
-    const calls = [];
+    const calls: string[] = [];
     vi.mocked(api.updateIssue, { partial: true }).mockImplementation(async () => { calls.push('updateIssue'); return {}; });
     vi.mocked(api.updateIssuePositions).mockImplementation(async () => { calls.push('updateIssuePositions'); });
-    const moved = { id: 1, project_id: 5, status: 'Stage1', position: 3 };
-    const shifted = { id: 2, project_id: 5, status: 'Stage2', position: 0 };
+    const moved = makeIssue({ id: 1, project_id: 5, status: 'Stage1', position: 3 });
+    const shifted = makeIssue({ id: 2, project_id: 5, status: 'Stage2', position: 0 });
     await saveIssueOrder([applyOrderChange(moved, 'Stage2', 0), applyOrderChange(shifted, 'Stage2', 1)]);
     expect(calls).toEqual(['updateIssue', 'updateIssuePositions']);
     expect(api.updateIssue).toHaveBeenCalledWith(5, moved);
@@ -99,7 +99,7 @@ describe('saveIssueOrder', () => {
 
   it('skips the positions request when only a status changed', async () => {
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
-    await saveIssueOrder([applyOrderChange({ id: 1, project_id: 5, status: 'Open', position: 0 }, 'Todo', 0)]);
+    await saveIssueOrder([applyOrderChange(makeIssue({ id: 1, project_id: 5, status: 'Open', position: 0 }), 'Todo', 0)]);
     expect(api.updateIssue).toHaveBeenCalledTimes(1);
     expect(api.updateIssuePositions).not.toHaveBeenCalled();
   });
@@ -113,8 +113,8 @@ describe('saveIssueOrder', () => {
   it('restores the old status and positions when the positions request fails', async () => {
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
     vi.mocked(api.updateIssuePositions).mockRejectedValue(new Error('offline'));
-    const moved = { id: 1, project_id: 5, status: 'Stage1', position: 3 };
-    const shifted = { id: 2, project_id: 5, status: 'Stage2', position: 0 };
+    const moved = makeIssue({ id: 1, project_id: 5, status: 'Stage1', position: 3 });
+    const shifted = makeIssue({ id: 2, project_id: 5, status: 'Stage2', position: 0 });
     await expect(saveIssueOrder([
       applyOrderChange(moved, 'Stage2', 0),
       applyOrderChange(shifted, 'Stage2', 1)
@@ -125,8 +125,8 @@ describe('saveIssueOrder', () => {
 
   it('restores the old order and sends no positions when the status PUT fails', async () => {
     vi.mocked(api.updateIssue).mockRejectedValue(new Error('fail'));
-    const moved = { id: 1, project_id: 5, status: 'Open', position: 2 };
-    const shifted = { id: 2, project_id: 5, status: 'Todo', position: 0 };
+    const moved = makeIssue({ id: 1, project_id: 5, status: 'Open', position: 2 });
+    const shifted = makeIssue({ id: 2, project_id: 5, status: 'Todo', position: 0 });
     await expect(saveIssueOrder([
       applyOrderChange(moved, 'Todo', 0),
       applyOrderChange(shifted, 'Todo', 1)
@@ -143,8 +143,8 @@ describe('handleMoveTop error path', () => {
   it('restores the old positions, re-renders and refreshes when the save fails', async () => {
     vi.mocked(api.updateIssuePositions).mockRejectedValue(new Error('offline'));
     const issues = [
-      { id: 1, project_id: 5, status: 'Open', position: 0 },
-      { id: 2, project_id: 5, status: 'Open', position: 1 }
+      makeIssue({ id: 1, project_id: 5, status: 'Open', position: 0 }),
+      makeIssue({ id: 2, project_id: 5, status: 'Open', position: 1 })
     ];
     const rerender = vi.fn();
     const refresh = vi.fn();
@@ -162,7 +162,7 @@ describe('getListUpdates', () => {
     document.body.innerHTML = '';
   });
 
-  function renderList(id, ids) {
+  function renderList(id: string, ids: number[]) {
     const list = document.createElement('div');
     list.id = id;
     ids.forEach(i => {

@@ -82,6 +82,7 @@ import { byId } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as toolbar from '../components/toolbar.ts';
 import { makeIssue, makeRelease, makeUser, makeUserRef } from './fixtures.ts';
+import type { Release } from '../models.ts';
 
 function buildDOM() {
   document.body.innerHTML = `
@@ -164,8 +165,8 @@ describe('releases', () => {
 
     it('renders active users other than the current user', () => {
       const users = [
-        { id: 2, first_name: 'Bob', last_name: 'Jones', active: true },
-        { id: 3, first_name: 'Carol', last_name: 'White', active: false }, // inactive — excluded
+        makeUser({ id: 2, first_name: 'Bob', last_name: 'Jones', active: true }),
+        makeUser({ id: 3, first_name: 'Carol', last_name: 'White', active: false }), // inactive — excluded
       ];
       renderReleaseOwnerOptions(users);
       const opts = document.querySelectorAll<HTMLElement>('#release-owner-options .custom-option');
@@ -174,7 +175,7 @@ describe('releases', () => {
     });
 
     it('excludes the current user from the list of selectable users', () => {
-      const users = [{ id: 1, first_name: 'Alice', last_name: 'Smith', active: true }];
+      const users = [makeUser({ id: 1, first_name: 'Alice', last_name: 'Smith', active: true })];
       renderReleaseOwnerOptions(users);
       const opts = document.querySelectorAll<HTMLElement>('#release-owner-options .custom-option');
       expect(opts).toHaveLength(2); // No Owner + Assign to me; Alice excluded
@@ -197,7 +198,7 @@ describe('releases', () => {
     });
 
     it('sets owner input to the selected user id when a user option is clicked', () => {
-      renderReleaseOwnerOptions([{ id: 2, first_name: 'Bob', last_name: 'Jones', active: true }]);
+      renderReleaseOwnerOptions([makeUser({ id: 2, first_name: 'Bob', last_name: 'Jones', active: true })]);
       const opts = document.querySelectorAll<HTMLElement>('#release-owner-options .custom-option');
       opts[2].click(); // Bob
       expect(byId('release-owner-input', HTMLInputElement).value).toBe('2');
@@ -377,7 +378,7 @@ describe('releases', () => {
     });
 
     it('creates a release only once when submitted again while the first save is in flight, with the form greyed out', async () => {
-      let resolveCreate;
+      let resolveCreate: (release: Release) => void;
       vi.mocked(api.createRelease).mockReturnValue(new Promise(r => { resolveCreate = r; }));
       await setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
@@ -387,7 +388,7 @@ describe('releases', () => {
       expect(form.getAttribute('aria-busy')).toBe('true');
       form.dispatchEvent(new Event('submit'));
 
-      resolveCreate({ id: 99, name: 'v1.0' });
+      resolveCreate(makeRelease({ id: 99, name: 'v1.0' }));
       await new Promise(process.nextTick);
 
       expect(api.createRelease).toHaveBeenCalledTimes(1);

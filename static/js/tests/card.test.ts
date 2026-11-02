@@ -1,17 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { createCardElement } from '../components/card.ts';
+import { makeIssue, makeTask } from './fixtures.ts';
 
-const issue = {
+const issue = makeIssue({
   id: 7,
   title: 'Card Issue',
   status: 'Todo',
   priority: 'Normal',
   deadline: '2030-05-10T00:00:00Z',
   tasks: [
-    { id: 1, title: 'Open task', done: false, deadline: '2030-05-09T00:00:00Z' },
-    { id: 2, title: 'Done task', done: true },
+    makeTask({ id: 1, title: 'Open task', done: false, deadline: '2030-05-09T00:00:00Z' }),
+    makeTask({ id: 2, title: 'Done task', done: true }),
   ],
-};
+});
 
 describe('createCardElement', () => {
   it.each([

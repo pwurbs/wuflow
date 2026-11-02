@@ -8,7 +8,7 @@ import type { StatusConfig } from '../models.ts';
 import { updateLabelFilterOptions } from './toolbar.ts';
 import { renderBoard } from './board.ts';
 
-let projectSettingsContainer = null;
+let projectSettingsContainer: HTMLElement | null = null;
 
 export function setupProjectSettingsView() {
   projectSettingsContainer = document.getElementById('project-settings-view');
@@ -185,7 +185,7 @@ function renderStatusConfigSection() {
   }
 }
 
-async function handleSaveStatusConfig(projectId, previousCfg) {
+async function handleSaveStatusConfig(projectId: number, previousCfg: StatusConfig) {
   const payload: Partial<Omit<StatusConfig, 'project_id'>> = {};
   for (const slot of STATUS_SLOTS) {
     const input = document.querySelector<HTMLInputElement>(`#ps-status-config-content .sc-name-input[data-field="${slot.field}"]`);

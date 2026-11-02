@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-let showCardContextMenu, hideCardContextMenu;
+let showCardContextMenu: typeof import('../context-menu.ts').showCardContextMenu;
+let hideCardContextMenu: typeof import('../context-menu.ts').hideCardContextMenu;
 
 beforeEach(async () => {
   document.body.innerHTML = '';

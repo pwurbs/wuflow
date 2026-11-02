@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 // so it asserts what actually reaches the DOM.
 const { renderMarkdownWithReport } = await import('../markdown.ts');
 
-function render(md) {
+function render(md: string) {
   const { html, strippedHTML } = renderMarkdownWithReport(md);
   const root = document.createElement('div');
   root.innerHTML = html;

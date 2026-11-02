@@ -3,8 +3,9 @@ import { byId } from '../utils.ts';
 import { getStatusOptions, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { fetchLabelsByProject, fetchReleases, fetchStatusConfig } from '../api.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
+import type { Label, Project, Release, User } from '../models.ts';
 
-export function setupCustomDropdown(wrapperId, triggerId, optionsId, inputId, textId) {
+export function setupCustomDropdown(wrapperId: string, triggerId: string, optionsId: string) {
   const trigger = document.getElementById(triggerId);
   const options = document.getElementById(optionsId);
 
@@ -70,7 +71,7 @@ export function renderPriorityOptions() {
   });
 }
 
-export function renderLabelOptions(labels) {
+export function renderLabelOptions(labels: Label[]) {
   const optionsContainer = document.getElementById('label-options');
   optionsContainer.innerHTML = '';
 
@@ -95,7 +96,7 @@ export function renderLabelOptions(labels) {
   });
 }
 
-export function renderReleaseOptions(releases, currentReleaseId) {
+export function renderReleaseOptions(releases: Release[], currentReleaseId: number | null) {
   const optionsContainer = document.getElementById('release-options');
   if (!optionsContainer) return;
   optionsContainer.innerHTML = '';
@@ -132,7 +133,7 @@ export function renderReleaseOptions(releases, currentReleaseId) {
   }
 }
 
-export function renderProjectOptions(projects) {
+export function renderProjectOptions(projects: Project[]) {
   const optionsContainer = document.getElementById('project-options');
   if (!optionsContainer) return;
   optionsContainer.innerHTML = '';
@@ -166,7 +167,7 @@ export function renderProjectOptions(projects) {
   });
 }
 
-export function renderAssigneeOptions(users) {
+export function renderAssigneeOptions(users: User[]) {
   const optionsContainer = document.getElementById('assignee-options');
   optionsContainer.innerHTML = '';
 
@@ -202,13 +203,13 @@ export function renderAssigneeOptions(users) {
   });
 }
 
-function selectOption(inputId, textId, optionsId, value, text) {
+function selectOption(inputId: string, textId: string, optionsId: string, value: string | number, text: string) {
   const input = byId(inputId, HTMLInputElement);
   const textSpan = document.getElementById(textId);
   const options = document.getElementById(optionsId);
 
   if (input.value != value) {
-    input.value = value;
+    input.value = String(value);
     textSpan.textContent = text;
     input.dispatchEvent(new Event('change')); // Trigger immediate save if applicable
   }

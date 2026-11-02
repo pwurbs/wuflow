@@ -4,7 +4,7 @@ import { renderMarkdown } from '../markdown.ts';
 import { getStatusLabel } from '../status-config.ts';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.ts';
 import { state } from '../state.ts';
-import type { Comment, HistoryEntry, Issue } from '../models.ts';
+import type { Comment, HistoryEntry, Issue, UserRef } from '../models.ts';
 
 const MAX_COMMENT_LENGTH = 1000;
 
@@ -55,7 +55,7 @@ const ctx: ActivityContext = {
 // discarded instead of clobbering the fresher render.
 let requestSeq = 0;
 function nextSeq() { return ++requestSeq; }
-function isStale(seq) { return seq !== requestSeq; }
+function isStale(seq: number) { return seq !== requestSeq; }
 
 const els = () => ({
   section: document.getElementById('activity-section'),
@@ -73,8 +73,8 @@ const els = () => ({
 
 // Counter of the new-comment textarea. Kept at module scope because it's driven
 // manually by open/closeNewCommentForm rather than by focus/blur.
-let newCommentCounter = null;
-let submitNewCommentOnce = null;
+let newCommentCounter: ReturnType<typeof initCharCounter> | null = null;
+let submitNewCommentOnce: (() => Promise<boolean>) | null = null;
 
 // setupActivity wires the listeners (tab switching + new-comment form). Call
 // once at app start, like setupModal.
@@ -121,7 +121,7 @@ export function setupActivity() {
 // description, which shows its action bar only in edit mode.
 // Shared by the new-comment form and the comment editor: Ctrl/Cmd+Enter saves,
 // Escape works like ✕, plain Enter on a list line continues the list.
-function handleCommentKeydown(ev, textarea, save, discard) {
+function handleCommentKeydown(ev: KeyboardEvent, textarea: HTMLTextAreaElement, save: () => unknown, discard: () => unknown) {
   if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
     ev.preventDefault();
     void save();
@@ -163,8 +163,8 @@ function openNewCommentForm() {
 // settle after the action bar is unhidden — same trick as the description
 // editor's scroll reset in modal.ts.
 let scrollRaf = 0;
-let lastEditorHeight = null;
-function ensureNewCommentVisible(editor) {
+let lastEditorHeight: number | null = null;
+function ensureNewCommentVisible(editor: HTMLElement | null) {
   if (!editor?.scrollIntoView || scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = 0;
@@ -197,7 +197,7 @@ function closeNewCommentForm({ clear = false } = {}) {
 // Mirrors setOtherCommentsActionsHidden for the other side of the guard: while
 // an existing comment is being edited, the new-comment form is inactive and
 // can't be typed into.
-function setNewCommentFormBlocked(blocked) {
+function setNewCommentFormBlocked(blocked: boolean) {
   const { editor, input } = els();
   if (input) input.readOnly = blocked;
   if (editor) setAriaDisabled(editor, blocked);
@@ -217,7 +217,7 @@ export function closeCommentEditors() {
 
 // loadActivity fetches history + comments for an issue and renders the area.
 // Called from the modal's open flow. Defaults to the Comments tab.
-export async function loadActivity(issue, callbacks: ActivityCallbacks = {}) {
+export async function loadActivity(issue: Issue, callbacks: ActivityCallbacks = {}) {
   const seq = nextSeq();
   ctx.issue = issue;
   ctx.callbacks = callbacks;
@@ -248,7 +248,7 @@ export async function loadActivity(issue, callbacks: ActivityCallbacks = {}) {
   renderAll();
 }
 
-function switchTab(tab) {
+function switchTab(tab: ActivityContext['activeTab']) {
   ctx.activeTab = tab;
   renderAll();
 }
@@ -292,7 +292,7 @@ function renderAll() {
 
 // --- Comments ---------------------------------------------------------------
 
-function authorName(user) {
+function authorName(user: UserRef | undefined) {
   if (!user) return 'Unknown user';
   const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
   return name || user.email || 'Unknown user';
@@ -300,7 +300,7 @@ function authorName(user) {
 
 // buildAvatarBadge/buildAuthorSpan are shared by renderComments and renderHistory
 // so the same initials/title/name logic isn't duplicated per list.
-function buildAvatarBadge(user) {
+function buildAvatarBadge(user: UserRef | undefined) {
   const badge = document.createElement('div');
   badge.className = 'user-badge';
   badge.textContent = getUserInitials(user);
@@ -308,14 +308,14 @@ function buildAvatarBadge(user) {
   return badge;
 }
 
-function buildAuthorSpan(user, className) {
+function buildAuthorSpan(user: UserRef | undefined, className: string) {
   const author = document.createElement('span');
   author.className = className;
   author.textContent = authorName(user);
   return author;
 }
 
-function renderComments(container) {
+function renderComments(container: HTMLElement | null) {
   if (!container) return;
   container.innerHTML = '';
 
@@ -372,7 +372,7 @@ function renderComments(container) {
 const DELETE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
 const EDIT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>';
 
-function buildCommentActions(comment, li, container) {
+function buildCommentActions(comment: Comment, li: HTMLElement, container: HTMLElement) {
   const actions = document.createElement('div');
   actions.className = 'comment-actions';
   // Derived, not patched in afterwards: a re-render while an editor is open
@@ -403,7 +403,7 @@ function buildCommentActions(comment, li, container) {
 // True while some other editor — the new-comment form or a different comment —
 // holds the single-editor guard, i.e. this comment's Edit/Delete must not be
 // offered.
-function isOtherCommentActive(commentId) {
+function isOtherCommentActive(commentId: number) {
   return ctx.activeEditor !== null && ctx.activeEditor !== commentId;
 }
 
@@ -412,15 +412,15 @@ function isOtherCommentActive(commentId) {
 // place — more preventive than corrective. A null activeLi means "no comment
 // is the active one", i.e. hide them all (used while the new-comment form is
 // open). Comments rendered later derive the same state via isOtherCommentActive.
-function setOtherCommentsActionsHidden(container, activeLi) {
-  container?.querySelectorAll('.comment-item').forEach(item => {
+function setOtherCommentsActionsHidden(container: HTMLElement | null, activeLi: HTMLElement | null) {
+  container?.querySelectorAll<HTMLElement>('.comment-item').forEach(item => {
     if (item === activeLi) return;
     const hidden = isOtherCommentActive(Number(item.dataset.id));
     item.querySelector('.comment-actions')?.classList.toggle('actions-hidden', hidden);
   });
 }
 
-function enterCommentEdit(comment, li, container) {
+function enterCommentEdit(comment: Comment, li: HTMLElement, container: HTMLElement) {
   // The other half of the guard: an unconfirmed new comment blocks editing an
   // existing one (its Edit button is hidden while the form is open).
   if (ctx.activeEditor === 'new') {
@@ -522,7 +522,7 @@ function enterCommentEdit(comment, li, container) {
   save.addEventListener('click', saveEdit);
 }
 
-async function removeComment(comment) {
+async function removeComment(comment: Comment) {
   if (!await showConfirm('Delete Comment', 'Delete this comment?', 'Delete')) return;
   try {
     await deleteComment(ctx.issue.project_id, ctx.issue.id, comment.id);
@@ -570,11 +570,11 @@ async function refreshComments() {
 
 // All history lines follow the same "<Item>: <action> ..." rhythm so the type
 // of change (not just its value) is consistent to scan down the timeline.
-const fromTo = (label, action, from, to) => `${label}: ${action} ${from || 'none'} → ${to || 'none'}`;
+const fromTo = (label: string, action: string, from: string | undefined, to: string | undefined) => `${label}: ${action} ${from || 'none'} → ${to || 'none'}`;
 
 // historySentence turns a history entry into a human-readable line. Returns plain
 // text (assigned via textContent), so no escaping is required here.
-function historySentence(entry) {
+function historySentence(entry: HistoryEntry) {
   const d = entry.data || {};
   switch (entry.event) {
     case 'created': return 'Issue: Created';
@@ -589,7 +589,7 @@ function historySentence(entry) {
   }
 }
 
-function updatedSentence(d) {
+function updatedSentence(d: HistoryEntry['data']) {
   switch (d.field) {
     case 'title': return 'Title: Changed';
     case 'description': return 'Description: Changed';
@@ -608,7 +608,7 @@ function updatedSentence(d) {
 // (everything else — field edits, archive/unarchive, move, task
 // complete/reopen/rename). Archive/unarchive/move are state transitions, not
 // creation or deletion of anything, so they fall under "change".
-function historyCategory(entry) {
+function historyCategory(entry: HistoryEntry) {
   if (entry.event === 'created') return 'creation';
   if (entry.event === 'task') {
     const field = entry.data?.field;
@@ -626,7 +626,7 @@ const HISTORY_ICONS = {
   deletion: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>'
 };
 
-function renderHistory(container) {
+function renderHistory(container: HTMLElement | null) {
   if (!container) return;
   container.innerHTML = '';
 

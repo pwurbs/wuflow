@@ -14,7 +14,7 @@ const IDLE_THRESHOLD_MS = 10 * 60 * 1000;
 
 let lastProbeAt = 0;
 let lastInteractionAt = Date.now();
-let pendingReauth = null; // { promise, resolve } while the re-login dialog is open
+let pendingReauth: { promise: Promise<void>; resolve: () => void } | null = null; // while the re-login dialog is open
 
 export function setupSession() {
   setSessionExpiredHandler(showReauthDialog);
@@ -80,8 +80,8 @@ const closeDialogIfSessionValid = singleFlight(async () => {
 export function showReauthDialog() {
   if (pendingReauth) return pendingReauth.promise;
 
-  let resolve;
-  const promise = new Promise(res => { resolve = res; });
+  let resolve: () => void;
+  const promise = new Promise<void>(res => { resolve = res; });
   pendingReauth = { promise, resolve };
 
   const modal = document.getElementById('reauth-modal');
@@ -128,13 +128,13 @@ function finishReauth() {
   resolve();
 }
 
-function setReauthError(message) {
+function setReauthError(message: string) {
   const errorEl = document.getElementById('reauth-error');
   errorEl.textContent = message;
   errorEl.classList.toggle('hidden', !message);
 }
 
 /** Shows the connection banner while the server is unreachable. */
-export function setConnectionState(ok) {
+export function setConnectionState(ok: boolean) {
   document.getElementById('connection-banner')?.classList.toggle('hidden', ok);
 }

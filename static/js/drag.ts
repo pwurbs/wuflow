@@ -1,28 +1,29 @@
 // Shared drag state
-let draggedCard = null;
-let draggedCardOrigin = null;
+let draggedCard: HTMLElement | null = null;
+// Where the card sat before the drag, to put it back when it is dropped outside a list.
+let draggedCardOrigin: { parent: ParentNode; nextSibling: Element | null } | null = null;
 let dragSuccess = false;
 
 export const getDraggedCard = () => draggedCard;
 export const getDraggedCardOrigin = () => draggedCardOrigin;
 export const getDragSuccess = () => dragSuccess;
 
-export function setDragSuccess(success) {
+export function setDragSuccess(success: boolean) {
   dragSuccess = success;
 }
 
-export function setDraggedCard(card) {
+export function setDraggedCard(card: HTMLElement | null) {
   draggedCard = card;
 }
 
-export function setDraggedCardOrigin(origin) {
+export function setDraggedCardOrigin(origin: typeof draggedCardOrigin) {
   draggedCardOrigin = origin;
 }
 
-export function getDragAfterElement(column, y) {
+export function getDragAfterElement(column: Element, y: number) {
   const draggableElements = [...column.querySelectorAll('.card:not(.dragging)')];
 
-  return draggableElements.reduce((closest, child) => {
+  return draggableElements.reduce<{ offset: number; element?: Element }>((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
 
@@ -35,18 +36,18 @@ export function getDragAfterElement(column, y) {
 }
 
 // Task drag helpers
-let draggedTask = null;
+let draggedTask: HTMLElement | null = null;
 
 export const getDraggedTask = () => draggedTask;
 
-export function setDraggedTask(task) {
+export function setDraggedTask(task: HTMLElement | null) {
   draggedTask = task;
 }
 
-export function getDragAfterTaskElement(container, y) {
+export function getDragAfterTaskElement(container: Element, y: number) {
   const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
 
-  return draggableElements.reduce((closest, child) => {
+  return draggableElements.reduce<{ offset: number; element?: Element }>((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
 

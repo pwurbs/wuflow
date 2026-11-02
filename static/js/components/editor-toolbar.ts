@@ -1,21 +1,26 @@
 import { byId, continueListOnEnter, showNotification } from '../utils.ts';
 import { renderMarkdown, renderMarkdownWithReport } from '../markdown.ts';
 
-function needsLeadingNewline(value, pos) {
+function needsLeadingNewline(value: string, pos: number) {
   return pos > 0 && value[pos - 1] !== '\n';
 }
 
-// inlineEditor: the description's inline editing in the edit modal ({ isEditing, save, discard }),
-// which Cmd/Ctrl+Enter saves and Escape discards.
-export function setupEditorToolbar(inlineEditor) {
+// The description's inline editing in the edit modal, which Cmd/Ctrl+Enter saves and Escape discards.
+export interface InlineEditor {
+  isEditing: () => boolean;
+  save: () => unknown;
+  discard: () => unknown;
+}
+
+export function setupEditorToolbar(inlineEditor: InlineEditor) {
   const editor = byId('description-editor', HTMLTextAreaElement);
   const preview = document.getElementById('description-preview');
 
-  function handleEnterKey(e) {
+  function handleEnterKey(e: KeyboardEvent) {
     continueListOnEnter(editor, e);
   }
 
-  function handleTabKey(e) {
+  function handleTabKey(e: KeyboardEvent) {
     e.preventDefault();
     const start = editor.selectionStart;
     const end = editor.selectionEnd;
@@ -96,7 +101,7 @@ export function setupEditorToolbar(inlineEditor) {
     }
   });
 
-  function insertMarkdown(before, after = '') {
+  function insertMarkdown(before: string, after = '') {
     const start = editor.selectionStart;
     const end = editor.selectionEnd;
     const selected = editor.value.slice(start, end);
@@ -107,7 +112,7 @@ export function setupEditorToolbar(inlineEditor) {
     preview.innerHTML = renderMarkdown(editor.value);
   }
 
-  function applyList(type) {
+  function applyList(type: 'ul' | 'ol') {
     const start = editor.selectionStart;
     const lines = editor.value.slice(start, editor.selectionEnd).split('\n');
     const replaced = lines.map((l, i) => type === 'ol' ? `${i + 1}. ` + l : '- ' + l).join('\n');
@@ -116,7 +121,7 @@ export function setupEditorToolbar(inlineEditor) {
     preview.innerHTML = renderMarkdown(editor.value);
   }
 
-  function applyHeading(level) {
+  function applyHeading(level: 1 | 2) {
     const start = editor.selectionStart;
     const lines = editor.value.slice(start, editor.selectionEnd).split('\n');
     const prefix = level === 1 ? '# ' : '## ';
@@ -161,7 +166,7 @@ export function setupEditorToolbar(inlineEditor) {
     preview.innerHTML = renderMarkdown(editor.value);
   }
 
-  function handleMarkdownCommand(cmd) {
+  function handleMarkdownCommand(cmd: string) {
     switch (cmd) {
       case 'ul': applyList('ul'); break;
       case 'ol': applyList('ol'); break;

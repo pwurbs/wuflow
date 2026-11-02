@@ -6,6 +6,7 @@ import * as utils from '../utils.ts';
 import * as permissions from '../permissions.ts';
 import * as stateModule from '../state.ts';
 import { makeIssue, makeLabel, makeStatusConfig } from './fixtures.ts';
+import type { Label } from '../models.ts';
 
 vi.mock('../api.ts', () => ({
   fetchLabelsByProject: vi.fn(),
@@ -107,7 +108,7 @@ describe('project-settings.ts component', () => {
     });
 
     it('creates a label only once when Enter is pressed again while the first add is in flight', async () => {
-      let resolveCreate;
+      let resolveCreate: (label: Label) => void;
       vi.mocked(api.createLabel).mockReturnValue(new Promise(r => { resolveCreate = r; }));
       setupProjectSettingsView();
 
@@ -120,7 +121,7 @@ describe('project-settings.ts component', () => {
       input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
 
-      resolveCreate({ id: 1, name: 'Bug', color: '#EF5350' });
+      resolveCreate(makeLabel({ id: 1, name: 'Bug', color: '#EF5350' }));
       await new Promise(process.nextTick);
 
       expect(api.createLabel).toHaveBeenCalledTimes(1);

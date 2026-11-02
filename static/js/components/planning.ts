@@ -5,19 +5,21 @@ import { showNotification } from '../utils.ts';
 import { getDraggedCard, setDraggedCard } from '../drag.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues } from '../filters.ts';
+import type { Issue } from '../models.ts';
+import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 
-let refreshAppCallback = null;
-let openModalCallback = null;
-let rerenderActiveViewCallback = null;
+let refreshAppCallback: RefreshApp | null = null;
+let openModalCallback: OpenModal | null = null;
+let rerenderActiveViewCallback: RerenderView | null = null;
 
-export function setupPlanningPanel(refreshApp, openModal, rerenderActiveView) {
+export function setupPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 }
 
-export function getEffectiveDeadlineInfo(issue) {
-  let minInfo = null;
+export function getEffectiveDeadlineInfo(issue: Issue) {
+  let minInfo: { date: Date; isTask: boolean } | null = null;
   if (issue.deadline) {
     const d = new Date(issue.deadline);
     d.setHours(12, 0, 0, 0);
@@ -40,7 +42,7 @@ export function getEffectiveDeadlineInfo(issue) {
   return minInfo;
 }
 
-export function renderPlanningPanel(refreshApp?, openModal?, rerenderActiveView?) {
+export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
@@ -53,7 +55,7 @@ export function renderPlanningPanel(refreshApp?, openModal?, rerenderActiveView?
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const getLocalISODate = (d) => {
+  const getLocalISODate = (d: Date) => {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -74,7 +76,7 @@ export function renderPlanningPanel(refreshApp?, openModal?, rerenderActiveView?
     .sort((a, b) => {
       const infoA = getEffectiveDeadlineInfo(a);
       const infoB = getEffectiveDeadlineInfo(b);
-      return (infoA ? infoA.date : 0) - (infoB ? infoB.date : 0);
+      return (infoA ? infoA.date.getTime() : 0) - (infoB ? infoB.date.getTime() : 0);
     }); // Sort by effective deadline, tightest first
 
   if (unscheduledIssues.length > 0) {
@@ -186,7 +188,7 @@ export function renderPlanningPanel(refreshApp?, openModal?, rerenderActiveView?
   });
 }
 
-function createPlanningDayElement(title, idSuffix) {
+function createPlanningDayElement(title: string, idSuffix: string) {
   const div = document.createElement('div');
   div.className = `planning-day ${idSuffix === 'past' ? 'past' : ''}`;
   div.id = `day-${idSuffix}`;
@@ -214,20 +216,7 @@ function createPlanningDayElement(title, idSuffix) {
   return div;
 }
 
-function formatDeadlineBadge(deadline) {
-  const deadlineDate = new Date(deadline);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  deadlineDate.setHours(0, 0, 0, 0);
-
-  const isOverdue = deadlineDate < today;
-  const dateStr = new Date(deadline).toLocaleDateString(navigator.language, { weekday: 'short', month: 'short', day: 'numeric' });
-
-  return { dateStr, isOverdue };
-}
-
-
-export function createDeadlineBadge(issue, specificDateStr?) {
+export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
   const effectiveInfo = getEffectiveDeadlineInfo(issue);
   if (!effectiveInfo) return null;
 
@@ -276,7 +265,7 @@ export function createDeadlineBadge(issue, specificDateStr?) {
   return badge;
 }
 
-function createAssigneeBadgeElement(issue) {
+function createAssigneeBadgeElement(issue: Issue) {
   if (!issue.assignee) return null;
   const initials = (issue.assignee.first_name ? issue.assignee.first_name.charAt(0) : '') +
     (issue.assignee.last_name ? issue.assignee.last_name.charAt(0) : '');
@@ -289,11 +278,11 @@ function createAssigneeBadgeElement(issue) {
   return badge;
 }
 
-function createPlanningItem(issue, dateStr) {
+function createPlanningItem(issue: Issue, dateStr: string) {
   const div = document.createElement('div');
   div.className = `planning-item ${issue.status === STATUS_DONE ? 'done' : ''}`;
   div.draggable = true;
-  div.dataset.id = issue.id;
+  div.dataset.id = String(issue.id);
   // Store the date of this specific instance
   div.dataset.dateInstance = dateStr;
 
@@ -373,7 +362,7 @@ function createPlanningItem(issue, dateStr) {
 
 let isFarTermUnscheduledExpanded = false;
 
-function createUnscheduledSection(issues) {
+function createUnscheduledSection(issues: Issue[]) {
   const section = document.createElement('div');
   section.className = 'planning-section-unscheduled';
   section.id = 'unscheduled-section';
@@ -391,8 +380,8 @@ function createUnscheduledSection(issues) {
   const tenDaysFromNow = new Date(today);
   tenDaysFromNow.setDate(today.getDate() + 10);
 
-  const nearTermIssues = [];
-  const farTermIssues = [];
+  const nearTermIssues: Issue[] = [];
+  const farTermIssues: Issue[] = [];
 
   issues.forEach(issue => {
     const info = getEffectiveDeadlineInfo(issue);
@@ -452,11 +441,11 @@ function createUnscheduledSection(issues) {
   return section;
 }
 
-function createUnscheduledItem(issue) {
+function createUnscheduledItem(issue: Issue) {
   const div = document.createElement('div');
   div.className = 'planning-item unscheduled';
   div.draggable = true;
-  div.dataset.id = issue.id;
+  div.dataset.id = String(issue.id);
 
   // Add Assignee Badge if assigned
   const assigneeBadge = createAssigneeBadgeElement(issue);
@@ -506,7 +495,7 @@ function createUnscheduledItem(issue) {
   return div;
 }
 
-async function handlePlanningDrop(e) {
+async function handlePlanningDrop(this: HTMLElement, e: DragEvent) {
   e.preventDefault();
   e.stopPropagation();
   this.classList.remove('drag-over');
@@ -527,7 +516,7 @@ async function handlePlanningDrop(e) {
   }
 }
 
-export async function processDroppedCard(draggedCard, targetDateStr) {
+export async function processDroppedCard(draggedCard: HTMLElement, targetDateStr: string) {
   const issueId = Number.parseInt(draggedCard.dataset.id);
   const issue = state.issues.find(i => i.id === issueId);
   const sourceDateStr = draggedCard.dataset.dateInstance;

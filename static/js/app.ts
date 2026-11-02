@@ -31,7 +31,7 @@ const sidebar = document.querySelector('.sidebar');
 const filterContainer = document.getElementById('filter-container');
 const projectSelectorContainer = document.getElementById('project-selector-container');
 const toolbar = document.querySelector('.toolbar');
-const searchInput = document.getElementById('search-input');
+const searchInput = byId('search-input', HTMLInputElement);
 const releaseSearchInput = byId('release-search-input', HTMLInputElement);
 
 
@@ -113,7 +113,7 @@ function getVisibleViews() {
 }
 
 // The open/archived issue lists the given view needs on top of the active issues.
-function issueListsFor(visible) {
+function issueListsFor(visible: ReturnType<typeof getVisibleViews>) {
     if (visible.releases) return VIEW_ISSUE_LISTS.releases;
     if (visible.backlog) return VIEW_ISSUE_LISTS.backlog;
     if (visible.archive) return VIEW_ISSUE_LISTS.archive;
@@ -227,16 +227,16 @@ function setupEventListeners() {
 
     // Issue search
     if (searchInput) {
-        searchInput.addEventListener('input', debounce((e) => {
-            setFilterSearch(e.target.value);
+        searchInput.addEventListener('input', debounce(() => {
+            setFilterSearch(searchInput.value);
             rerenderActiveView();
         }, 300));
     }
 
     // Release search
     if (releaseSearchInput) {
-        releaseSearchInput.addEventListener('input', debounce((e) => {
-            setFilterReleaseSearch(e.target.value);
+        releaseSearchInput.addEventListener('input', debounce(() => {
+            setFilterReleaseSearch(releaseSearchInput.value);
             void renderReleasesView();
         }, 300));
     }
@@ -258,7 +258,7 @@ const VIEW_CONFIG = {
     'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  systemSettings: true,  onEnter: () => renderSystemSettingsView() },
 };
 
-function applyReleaseFilterVisibility(isReleases) {
+function applyReleaseFilterVisibility(isReleases: boolean) {
     document.getElementById('label-filter-wrapper')?.classList.toggle('hidden', isReleases);
     document.getElementById('priority-filter-wrapper')?.classList.toggle('hidden', isReleases);
     document.getElementById('release-filter-wrapper')?.classList.toggle('hidden', isReleases);
@@ -266,7 +266,7 @@ function applyReleaseFilterVisibility(isReleases) {
     document.getElementById('release-search-wrapper')?.classList.toggle('hidden', !isReleases);
 }
 
-function switchView(view) {
+function switchView(view: keyof typeof VIEW_CONFIG) {
     const cfg = VIEW_CONFIG[view];
     if (!cfg) return;
 

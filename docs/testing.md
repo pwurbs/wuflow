@@ -43,7 +43,7 @@ Any frontend module containing "decisions" (if/else, state transitions, data map
 All Unit tests are located in the [static/js](../static/js/README.md) directory.
 
 ## Type Check (Frontend)
-The TypeScript compiler checks the frontend sources and their tests (`npm run typecheck` in `static/js`). The build does not check types, so the type check runs as a test suite of its own. Setup: [Frontend → Type Checking](frontend.md#type-checking).
+The TypeScript compiler checks the frontend sources and their tests (`npm run typecheck` in `static/js`). The build checks only the app sources. This suite also covers the tests and the build configs. Setup: [Frontend → Type Checking](frontend.md#type-checking).
 
 
 ## End-to-End (E2E) Tests

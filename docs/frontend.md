@@ -89,7 +89,7 @@ The build runs before every start of the app: in the "Run locally" task, the Pla
 
 ### Type Checking
 
-Vite removes the types when it builds and does not check them. `npm run typecheck` (`tsc -b`) checks them, as one of the required test suites; the image build does not run it. `static/js/tsconfig.json` only references one config per environment:
+Vite removes the types when it builds and does not check them, so `npm run build` first checks the app with `tsc -p tsconfig.app.json`: a type error in the app stops every build, the image build included. `npm run typecheck` (`tsc -b`) checks all three configs below, the tests included, as one of the required test suites. `static/js/tsconfig.json` only references one config per environment:
 
 | Config | Files | Environment |
 |--------|-------|-------------|
@@ -97,7 +97,7 @@ Vite removes the types when it builds and does not check them. `npm run typechec
 | `tsconfig.test.json` | `tests/` | like the app, plus Node types |
 | `tsconfig.node.json` | `vite.config.ts`, `vitest.config.ts` | Node |
 
-`strict` is off for now, so a parameter without a type is `any`. Constants such as statuses and roles are declared `as const`, and their union types (`IssueStatus`, `Role`, `Priority`, …) are derived from them, so each value has one source.
+`noImplicitAny` is on for the app and the tests, so every parameter needs a type. The other `strict` checks are off for now. Constants such as statuses and roles are declared `as const`, and their union types (`IssueStatus`, `Role`, `Priority`, …) are derived from them, so each value has one source.
 
 Where the types live:
 
@@ -105,7 +105,7 @@ Where the types live:
 - **Request bodies** (`IssueWrite`, `UserWrite`, …) in `api.ts`, next to the functions that send them.
 - **Client state and filters** (`State`, `Filter`) in `state.ts`.
 
-Elements are read with `byId(id, HTMLInputElement)` from `utils.ts` instead of a cast: it returns the element typed, `null` if there is none, and throws if the element has another type. Imports name the `.ts` file (`import { state } from './state.ts'`).
+Elements are read with `byId(id, HTMLInputElement)` from `utils.ts` instead of a cast: it returns the element typed, `null` if there is none, and throws if the element has another type. The types are gone once the code is built, so this check is the one that still runs in the browser: a cast only silences the compiler, and a wrong id or a changed element would go unnoticed until a property is missing. Data from the server is not checked against its types at runtime. The backend validates everything it receives. Imports name the `.ts` file (`import { state } from './state.ts'`).
 
 ---
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { byId } from '../utils.ts';
+import { makeUser } from './fixtures.ts';
 
 vi.mock('../api.ts', () => ({
   setSessionExpiredHandler: vi.fn(),
@@ -17,9 +18,9 @@ vi.mock('../state.ts', () => ({
 const flush = () => new Promise(process.nextTick);
 
 describe('Session', () => {
-  let session;
-  let api;
-  let abort;
+  let session: typeof import('../session.ts');
+  let api: typeof import('../api.ts');
+  let abort: AbortController;
 
   beforeEach(async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -49,7 +50,7 @@ describe('Session', () => {
     vi.resetModules();
     api = await import('../api.ts');
     vi.clearAllMocks();
-    api.fetchCurrentUser.mockResolvedValue({ id: 1 });
+    vi.mocked(api.fetchCurrentUser).mockResolvedValue(makeUser({ id: 1 }));
     session = await import('../session.ts');
     session.setupSession();
   });
@@ -76,7 +77,7 @@ describe('Session', () => {
     });
 
     it('resolves after a successful login and closes', async () => {
-      api.reauthenticate.mockResolvedValue(null);
+      vi.mocked(api.reauthenticate).mockResolvedValue(null);
       const done = vi.fn();
       void session.showReauthDialog().then(done);
 
@@ -91,7 +92,7 @@ describe('Session', () => {
     });
 
     it('shows the error inline and stays open on failed login', async () => {
-      api.reauthenticate.mockResolvedValue('Invalid credentials');
+      vi.mocked(api.reauthenticate).mockResolvedValue('Invalid credentials');
       const done = vi.fn();
       void session.showReauthDialog().then(done);
 
@@ -118,8 +119,8 @@ describe('Session', () => {
     });
 
     it('shows "Signing in…" while the login request runs', async () => {
-      let resolveLogin;
-      api.reauthenticate.mockReturnValue(new Promise(res => { resolveLogin = res; }));
+      let resolveLogin: (error: string | null) => void;
+      vi.mocked(api.reauthenticate).mockReturnValue(new Promise(res => { resolveLogin = res; }));
       void session.showReauthDialog();
       const btn = byId('reauth-submit-btn', HTMLButtonElement);
 
@@ -134,7 +135,7 @@ describe('Session', () => {
     });
 
     it('closes by itself when the user logged in again in another tab', async () => {
-      api.hasValidSession.mockResolvedValue(true);
+      vi.mocked(api.hasValidSession).mockResolvedValue(true);
       const done = vi.fn();
       void session.showReauthDialog().then(done);
 
@@ -147,7 +148,7 @@ describe('Session', () => {
     });
 
     it('stays open on focus while the session is still invalid', async () => {
-      api.hasValidSession.mockResolvedValue(false);
+      vi.mocked(api.hasValidSession).mockResolvedValue(false);
       void session.showReauthDialog();
 
       globalThis.dispatchEvent(new Event('focus'));

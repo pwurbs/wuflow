@@ -5,10 +5,13 @@
 // Kept separate from state.ts, which stays free of API calls. See docs/frontend.md (Data Loading).
 import { fetchActiveIssuesByProject, fetchOpenIssuesByProject, fetchArchivedIssuesByProject } from './api.ts';
 import { state, setIssues } from './state.ts';
+import type { Issue } from './models.ts';
 
 // The lists each view needs on top of the active issues (Releases: progress counts every
 // issue of the project).
-export const VIEW_ISSUE_LISTS = {
+export type IssueListKind = keyof typeof LIST_FETCHERS;
+
+export const VIEW_ISSUE_LISTS: Record<'backlog' | 'archive' | 'releases', IssueListKind[]> = {
   backlog: ['open'],
   archive: ['archived'],
   releases: ['open', 'archived'],
@@ -23,10 +26,10 @@ const LIST_FETCHERS = {
 let generation = 0;
 // Resolves once state.issues holds the active issues of the current generation.
 let activeLoad = Promise.resolve();
-// 'open' | 'archived' -> promise of the current generation (in flight or loaded).
-let lists = {};
+// Promise of the current generation per list (in flight or loaded).
+let lists: Partial<Record<IssueListKind, Promise<void>>> = {};
 
-function mergeIntoIssues(issues) {
+function mergeIntoIssues(issues: Issue[]) {
   const existingIds = new Set(state.issues.map(i => i.id));
   for (const issue of issues) {
     if (!existingIds.has(issue.id)) state.issues.push(issue);
@@ -37,7 +40,7 @@ function mergeIntoIssues(issues) {
  * Reloads the active issues and drops the cached open/archived lists. The given lists
  * (e.g. ['open'] for the Backlog) are fetched in the same wave as the active issues.
  */
-export function loadIssues(kinds = []) {
+export function loadIssues(kinds: IssueListKind[] = []) {
   generation++;
   lists = {};
   const gen = generation;
@@ -55,7 +58,7 @@ export function loadIssues(kinds = []) {
  * already loaded cost nothing; lists in flight are joined instead of fetched again.
  * A list that failed to load is fetched again by the next call.
  */
-export function ensureIssueLists(kinds) {
+export function ensureIssueLists(kinds: IssueListKind[]) {
   const gen = generation;
   const base = activeLoad;
   return Promise.all(kinds.map(kind => {

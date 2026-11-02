@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
 import { state, setFilterRelease } from '../state.ts';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
-const _localStore = {};
+const _localStore: Record<string, string> = {};
 vi.stubGlobal('localStorage', {
-  getItem: (key) => _localStore[key] ?? null,
-  setItem: (key, value) => { _localStore[key] = String(value); },
-  removeItem: (key) => { delete _localStore[key]; },
+  getItem: (key: string) => _localStore[key] ?? null,
+  setItem: (key: string, value: unknown) => { _localStore[key] = String(value); },
+  removeItem: (key: string) => { delete _localStore[key]; },
 });
 
 vi.mock('../api.ts', () => ({
@@ -38,8 +39,8 @@ import {
   setupUserMenu,
 } from '../components/toolbar.ts';
 import { byId } from '../utils.ts';
-import { makeIssue, makeLabel, makeProject } from './fixtures.ts';
-import type { Issue } from '../models.ts';
+import { makeIssue, makeLabel, makeProject, makeRelease, makeUser } from './fixtures.ts';
+import type { Issue, User } from '../models.ts';
 import type { Filter } from '../state.ts';
 
 // ─── Shared Fixtures ───────────────────────────────────────────────────────────
@@ -344,7 +345,7 @@ describe('filterIssues project (server-side)', () => {
 // ─── Label Filter (toolbar) ────────────────────────────────────────────────────
 
 describe('Label Filter', () => {
-  let refreshApp;
+  let refreshApp: Mock;
 
   beforeEach(() => {
     state.filter.labelId = null;
@@ -359,7 +360,7 @@ describe('Label Filter', () => {
   });
 
   it('populates "No Label" option plus all label options', () => {
-    updateLabelFilterOptions([{ id: 1, name: 'Bug', color: '#f00' }]);
+    updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
     const opts = document.querySelectorAll<HTMLElement>('#label-filter-options .custom-option');
     expect(opts).toHaveLength(2);
     expect(opts[0].textContent).toBe('No Label');
@@ -376,7 +377,7 @@ describe('Label Filter', () => {
 
   it('shows active label name and clear icon when filter is set', () => {
     state.filter.labelId = 1;
-    updateLabelFilterOptions([{ id: 1, name: 'Bug', color: '#f00' }]);
+    updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
     const btn = document.getElementById('label-filter-btn');
     expect(btn.textContent).toContain('Label: Bug');
     expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
@@ -392,21 +393,21 @@ describe('Label Filter', () => {
 
   it('shows "Unknown" for an unrecognized label id', () => {
     state.filter.labelId = 999;
-    updateLabelFilterOptions([{ id: 1, name: 'Bug', color: '#f00' }]);
+    updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
     const btn = document.getElementById('label-filter-btn');
     expect(btn.textContent).toContain('Label: Unknown');
   });
 
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.labelId = 1;
-    updateLabelFilterOptions([{ id: 1, name: 'Bug', color: '#f00' }]);
+    updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
     document.querySelector<HTMLElement>('#label-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.labelId).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
 
   it('sets filter and hides dropdown when a label option is clicked', () => {
-    updateLabelFilterOptions([{ id: 1, name: 'Bug', color: '#f00' }]);
+    updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
     const bugOption = document.querySelectorAll<HTMLElement>('#label-filter-options .custom-option')[1];
     bugOption.click();
     expect(state.filter.labelId).toBe(1);
@@ -441,7 +442,7 @@ describe('Label Filter', () => {
 // ─── Priority Filter (toolbar) ─────────────────────────────────────────────────
 
 describe('Priority Filter', () => {
-  let refreshApp;
+  let refreshApp: Mock;
 
   beforeEach(() => {
     state.filter.priority = null;
@@ -523,11 +524,11 @@ describe('Priority Filter', () => {
 // ─── User Filter (toolbar) ─────────────────────────────────────────────────────
 
 describe('User Filter', () => {
-  let refreshApp;
+  let refreshApp: Mock;
   const mockUsers = [
-    { id: 1, first_name: 'Alice', last_name: 'Smith', active: true },
-    { id: 2, first_name: 'Bob', last_name: 'Jones', active: false },
-    { id: 3, first_name: 'Carol', last_name: 'White', active: true },
+    makeUser({ id: 1, first_name: 'Alice', last_name: 'Smith', active: true }),
+    makeUser({ id: 2, first_name: 'Bob', last_name: 'Jones', active: false }),
+    makeUser({ id: 3, first_name: 'Carol', last_name: 'White', active: true }),
   ];
 
   beforeEach(() => {
@@ -622,10 +623,10 @@ describe('User Filter', () => {
 // ─── Project Selector (toolbar) ────────────────────────────────────────────────
 
 describe('Project Selector', () => {
-  let onProjectChange;
+  let onProjectChange: Mock;
   const projects = [
-    { id: 1, name: 'Alpha' },
-    { id: 2, name: 'Beta' },
+    makeProject({ id: 1, name: 'Alpha' }),
+    makeProject({ id: 2, name: 'Beta' }),
   ];
 
   beforeEach(() => {
@@ -736,7 +737,7 @@ const TEST_PW_WEAK  = 'weak';
 const TEST_PW_BAD   = 'bad';
 
 describe('User Menu', () => {
-  const mockUser = { email: 'alice@example.com', role: 'admin', first_name: 'Alice', last_name: 'Smith' };
+  const mockUser = makeUser({ email: 'alice@example.com', role: 'admin', first_name: 'Alice', last_name: 'Smith' });
 
   beforeEach(() => {
     document.body.innerHTML = `
@@ -847,7 +848,7 @@ describe('User Menu', () => {
   it('changes the password only once when submitted again while the first save is in flight, with the form greyed out', async () => {
     const { updateCurrentUser } = await import('../api.ts');
     vi.mocked(updateCurrentUser).mockClear();
-    let resolveUpdate;
+    let resolveUpdate: (user: User) => void;
     vi.mocked(updateCurrentUser).mockReturnValueOnce(new Promise(r => { resolveUpdate = r; }));
 
     setupUserMenu(mockUser);
@@ -860,7 +861,7 @@ describe('User Menu', () => {
     expect(form.getAttribute('aria-busy')).toBe('true');
     form.dispatchEvent(new Event('submit'));
 
-    resolveUpdate({});
+    resolveUpdate(makeUser());
     await new Promise(process.nextTick);
 
     expect(updateCurrentUser).toHaveBeenCalledTimes(1);
@@ -923,10 +924,10 @@ describe('User Menu', () => {
 // ─── Release Filter (toolbar) ──────────────────────────────────────────────────
 
 describe('Release Filter', () => {
-  let refreshApp;
+  let refreshApp: Mock;
   const releases = [
-    { id: 1, name: 'v1.0' },
-    { id: 2, name: 'v2.0' },
+    makeRelease({ id: 1, name: 'v1.0' }),
+    makeRelease({ id: 2, name: 'v2.0' }),
   ];
 
   beforeEach(() => {

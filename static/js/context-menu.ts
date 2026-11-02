@@ -1,5 +1,11 @@
-let menuEl = null;
-let currentCleanup = null;
+export interface ContextMenuItem {
+  label: string;
+  disabled?: boolean;
+  action: () => unknown;
+}
+
+let menuEl: HTMLDivElement | null = null;
+let currentCleanup: (() => void) | null = null;
 
 function ensureMenu() {
   if (menuEl) return menuEl;
@@ -9,7 +15,7 @@ function ensureMenu() {
   return menuEl;
 }
 
-export function showCardContextMenu(x, y, items) {
+export function showCardContextMenu(x: number, y: number, items: ContextMenuItem[]) {
   const menu = ensureMenu();
   menu.innerHTML = '';
   for (const item of items) {
@@ -33,8 +39,8 @@ export function showCardContextMenu(x, y, items) {
   menu.style.top  = `${y + h > window.innerHeight ? y - h : y}px`;
 
   if (currentCleanup) currentCleanup();
-  const onOut = (e) => { if (!menu.contains(e.target)) hideCardContextMenu(); };
-  const onKey = (e) => { if (e.key === 'Escape') hideCardContextMenu(); };
+  const onOut = (e: MouseEvent) => { if (!(e.target instanceof Node && menu.contains(e.target))) hideCardContextMenu(); };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') hideCardContextMenu(); };
   // Opening the menu (via right-click on a card far down a long column) can
   // itself require scrolling the target into view. The browser sometimes
   // dispatches that 'scroll' event for the *already-completed* scroll after
@@ -44,10 +50,11 @@ export function showCardContextMenu(x, y, items) {
   // so a stale/duplicate notification for a scroll that already happened is
   // ignored without imposing a blanket delay (which would also swallow a
   // genuine, fast outside click).
-  const knownScrollTops = new WeakMap();
-  const onScroll = (e) => {
+  const knownScrollTops = new WeakMap<EventTarget, number>();
+  const onScroll = (e: Event) => {
     const target = e.target;
-    const top = target?.scrollTop ?? 0;
+    // The document itself has no scrollTop.
+    const top = target instanceof Element ? target.scrollTop : 0;
     if (!knownScrollTops.has(target)) {
       knownScrollTops.set(target, top);
       return;

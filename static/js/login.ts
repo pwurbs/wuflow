@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  function showError(message) {
+  function showError(message: string) {
     errorDisplay.textContent = message;
     errorDisplay.classList.remove('hidden');
   }

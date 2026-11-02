@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setupSystemSettingsView, renderSystemSettingsView, validatePasswordPolicy, isBlacklistedPassword, isLight } from '../components/system-settings.ts';
+import { setupSystemSettingsView, renderSystemSettingsView, validatePasswordPolicy, isBlacklistedPassword } from '../components/system-settings.ts';
 import { byId, getUnusedColor } from '../utils.ts';
 import * as api from '../api.ts';
 import * as utils from '../utils.ts';
 import * as permissions from '../permissions.ts';
 import { state } from '../state.ts';
 import { makeIssue, makeProject, makeUser } from './fixtures.ts';
+import type { Project, User } from '../models.ts';
 
 // Helper to generate random pass
 // Drawn again when the random part happens to contain a blacklisted word (e.g. "m0nd" in
@@ -46,7 +47,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
     countCodepoints: vi.fn(s => [...s].length),
     countUtf8Bytes: actual.countUtf8Bytes,
-    getUnusedColor: (usedColors) => {
+    getUnusedColor: (usedColors: string[]) => {
       const palette = [
         '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',
         '#42A5F5', '#29B6F6', '#26C6DA', '#26A69A', '#66BB6A',
@@ -313,7 +314,7 @@ describe('system-settings.ts component', () => {
       byId('user-last-name', HTMLInputElement).value = 'User';
       byId('user-password', HTMLInputElement).value = generateRandomPassword();
       byId('user-role', HTMLInputElement).value = 'user';
-      let resolveCreate;
+      let resolveCreate: (user: User) => void;
       vi.mocked(api.createUser).mockReturnValue(new Promise(r => { resolveCreate = r; }));
       const form = document.getElementById('user-form');
 
@@ -321,7 +322,7 @@ describe('system-settings.ts component', () => {
       expect(form.getAttribute('aria-busy')).toBe('true');
       form.dispatchEvent(new Event('submit'));
 
-      resolveCreate({ id: 3 });
+      resolveCreate(makeUser({ id: 3 }));
       await new Promise(process.nextTick);
 
       expect(api.createUser).toHaveBeenCalledTimes(1);
@@ -424,15 +425,6 @@ describe('system-settings.ts component', () => {
       expect(document.getElementById('user-role-text').textContent).toBe('Admin');
       expect(document.getElementById('user-role-options').classList.contains('hidden')).toBe(true);
     });
-  });
-});
-
-describe('Utility Functions', () => {
-  it('isLight should correctly identify light colors', () => {
-    expect(isLight('#FFFFFF')).toBe(true); // White
-    expect(isLight('#000000')).toBe(false); // Black
-    expect(isLight('#FFFF00')).toBe(true); // Yellow
-    expect(isLight('#0000FF')).toBe(false); // Blue
   });
 });
 
@@ -620,12 +612,6 @@ describe('Additional Coverage', () => {
       // If all are used, it should still return a color from the list
       const result = getUnusedColor(fullList);
       expect(fullList).toContain(result);
-    });
-
-    it('isLight should handle colors with no # or different case', () => {
-      // isLight(color) uses color.replaceAll('#', '')
-      expect(isLight('FFFFFF')).toBe(true);
-      expect(isLight('#000000')).toBe(false);
     });
   });
 });
@@ -1154,7 +1140,7 @@ describe('Project Management', () => {
     });
 
     it('creates a project only once when submitted again while the first save is in flight, with the form greyed out', async () => {
-      let resolveCreate;
+      let resolveCreate: (project: Project) => void;
       vi.mocked(api.createProject).mockReturnValue(new Promise(r => { resolveCreate = r; }));
       document.getElementById('add-project-btn').click();
       byId('project-name', HTMLInputElement).value = 'New';
@@ -1164,7 +1150,7 @@ describe('Project Management', () => {
       expect(form.getAttribute('aria-busy')).toBe('true');
       form.dispatchEvent(new Event('submit'));
 
-      resolveCreate({ id: 5, name: 'New' });
+      resolveCreate(makeProject({ id: 5, name: 'New' }));
       await new Promise(process.nextTick);
 
       expect(api.createProject).toHaveBeenCalledTimes(1);
@@ -1302,7 +1288,7 @@ describe('Project Management', () => {
 
   describe('renderProjectList', () => {
     it('requests the project and user lists in parallel', async () => {
-      let answerProjects;
+      let answerProjects: (projects: Project[]) => void;
       vi.mocked(api.fetchProjects).mockImplementationOnce(() => new Promise(r => { answerProjects = r; }));
       const render = renderSystemSettingsView();
       await new Promise(process.nextTick);
@@ -1377,7 +1363,7 @@ describe('Project Management', () => {
 });
 
 describe('User deletion', () => {
-  const target = { id: 7, email: 'peter@test.com', first_name: 'Peter', last_name: 'Pan', role: 'user', active: true };
+  const target = makeUser({ id: 7, email: 'peter@test.com', first_name: 'Peter', last_name: 'Pan', role: 'user', active: true });
 
   beforeEach(() => {
     document.body.innerHTML = `
@@ -1397,7 +1383,7 @@ describe('User deletion', () => {
     setupSystemSettingsView();
   });
 
-  async function openEditModalFor(user) {
+  async function openEditModalFor(user: User) {
     vi.mocked(api.fetchUsers).mockResolvedValue([user]);
     await renderSystemSettingsView();
     document.querySelector<HTMLElement>('.settings-entry').click();
