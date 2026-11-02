@@ -18,6 +18,7 @@ vi.mock('../api.ts', () => ({
 
 vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
+  bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
   showNotification: vi.fn(),
   getUserInitials: vi.fn((user) => (user.first_name[0] + user.last_name[0]).toUpperCase()),
@@ -38,7 +39,7 @@ import {
   initProjectSelector, updateProjectSelectorOptions,
   setupUserMenu,
 } from '../components/toolbar.ts';
-import { byId } from '../utils.ts';
+import { byId, bySelector } from '../utils.ts';
 import { makeIssue, makeLabel, makeProject, makeRelease, makeUser } from './fixtures.ts';
 import type { Issue, User } from '../models.ts';
 import type { Filter } from '../state.ts';
@@ -62,19 +63,6 @@ const mockIssues = [
 
 describe('filterIssues', () => {
   describe('edge cases', () => {
-    it('should return empty array for null issues', () => {
-      expect(filterIssues(null, {})).toEqual([]);
-    });
-
-    it('should return empty array for undefined issues', () => {
-      expect(filterIssues(undefined, {})).toEqual([]);
-    });
-
-    it('should return empty array for non-array issues', () => {
-      // @ts-expect-error: tests the runtime guard against input that is not an array
-      expect(filterIssues('not an array', {})).toEqual([]);
-    });
-
     it('should return all issues when filter is empty', () => {
       const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '' };
       expect(filterIssues(mockIssues, filter)).toHaveLength(4);
@@ -155,12 +143,6 @@ describe('filterIssues', () => {
       const result = filterIssues(mockIssues, filter);
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('API Integration');
-    });
-
-    it('should handle issues without description', () => {
-      const issues = [createIssue({ id: 1, title: 'Test', description: null })];
-      const filter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: 'test' };
-      expect(filterIssues(issues, filter)).toHaveLength(1);
     });
 
     it('should search by issue id', () => {
@@ -263,10 +245,6 @@ describe('filterIssues', () => {
 // ─── filterByStatus ────────────────────────────────────────────────────────────
 
 describe('filterByStatus', () => {
-  it('should return empty array for null issues', () => {
-    expect(filterByStatus(null, 'Open')).toEqual([]);
-  });
-
   it('should filter issues by status', () => {
     const result = filterByStatus(mockIssues, 'Open');
     expect(result).toHaveLength(3);
@@ -286,10 +264,6 @@ describe('filterByStatus', () => {
 // ─── sortByPosition ────────────────────────────────────────────────────────────
 
 describe('sortByPosition', () => {
-  it('should return empty array for null issues', () => {
-    expect(sortByPosition(null)).toEqual([]);
-  });
-
   it('should sort issues by position ascending', () => {
     const result = sortByPosition(mockIssues);
     expect(result[0].id).toBe(2); // position 0
@@ -313,7 +287,7 @@ describe('filterIssues project (server-side)', () => {
   const projectIssues = [
     createIssue({ id: 10, project: makeProject({ id: 1 }) }),
     createIssue({ id: 11, project: makeProject({ id: 2 }) }),
-    createIssue({ id: 12, project: null }),
+    createIssue({ id: 12 }),
   ];
   const emptyFilter: Partial<Filter> = { labelId: null, priority: null, assigneeId: null, search: '' };
 
@@ -369,7 +343,7 @@ describe('Label Filter', () => {
 
   it('shows arrow icon and "Label" text when no filter is active', () => {
     updateLabelFilterOptions([]);
-    const btn = document.getElementById('label-filter-btn');
+    const btn = byId('label-filter-btn');
     expect(btn.textContent).toContain('Label');
     expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
@@ -378,7 +352,7 @@ describe('Label Filter', () => {
   it('shows active label name and clear icon when filter is set', () => {
     state.filter.labelId = 1;
     updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
-    const btn = document.getElementById('label-filter-btn');
+    const btn = byId('label-filter-btn');
     expect(btn.textContent).toContain('Label: Bug');
     expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(true);
@@ -387,21 +361,21 @@ describe('Label Filter', () => {
   it('shows "No Label" in button when __no_label__ filter is set', () => {
     state.filter.labelId = '__no_label__';
     updateLabelFilterOptions([]);
-    const btn = document.getElementById('label-filter-btn');
+    const btn = byId('label-filter-btn');
     expect(btn.textContent).toContain('Label: No Label');
   });
 
   it('shows "Unknown" for an unrecognized label id', () => {
     state.filter.labelId = 999;
     updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
-    const btn = document.getElementById('label-filter-btn');
+    const btn = byId('label-filter-btn');
     expect(btn.textContent).toContain('Label: Unknown');
   });
 
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.labelId = 1;
     updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug', color: '#f00' })]);
-    document.querySelector<HTMLElement>('#label-filter-btn .toolbar-icon-clear').click();
+    bySelector(document, '#label-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.labelId).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
@@ -411,19 +385,19 @@ describe('Label Filter', () => {
     const bugOption = document.querySelectorAll<HTMLElement>('#label-filter-options .custom-option')[1];
     bugOption.click();
     expect(state.filter.labelId).toBe(1);
-    expect(document.getElementById('label-filter-options').classList.contains('hidden')).toBe(true);
+    expect(byId('label-filter-options').classList.contains('hidden')).toBe(true);
     expect(refreshApp).toHaveBeenCalled();
   });
 
   it('sets __no_label__ filter when "No Label" option is clicked', () => {
     updateLabelFilterOptions([]);
-    document.querySelector<HTMLElement>('#label-filter-options .custom-option').click();
+    bySelector(document, '#label-filter-options .custom-option').click();
     expect(state.filter.labelId).toBe('__no_label__');
   });
 
   it('toggles dropdown on button click', () => {
-    const optionsDiv = document.getElementById('label-filter-options');
-    const btn = document.getElementById('label-filter-btn');
+    const optionsDiv = byId('label-filter-options');
+    const btn = byId('label-filter-btn');
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
     btn.click();
     expect(optionsDiv.classList.contains('hidden')).toBe(false);
@@ -432,7 +406,7 @@ describe('Label Filter', () => {
   });
 
   it('closes dropdown on outside click', () => {
-    const optionsDiv = document.getElementById('label-filter-options');
+    const optionsDiv = byId('label-filter-options');
     optionsDiv.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
@@ -465,7 +439,7 @@ describe('Priority Filter', () => {
   });
 
   it('shows arrow icon and "Priority" text when no filter is active', () => {
-    const btn = document.getElementById('priority-filter-btn');
+    const btn = byId('priority-filter-btn');
     expect(btn.textContent).toContain('Priority');
     expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
@@ -474,7 +448,7 @@ describe('Priority Filter', () => {
   it('shows active priority and clear icon when filter is set', () => {
     state.filter.priority = 'High';
     updatePriorityFilterOptions();
-    const btn = document.getElementById('priority-filter-btn');
+    const btn = byId('priority-filter-btn');
     expect(btn.textContent).toContain('Priority: High');
     expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(true);
@@ -483,22 +457,22 @@ describe('Priority Filter', () => {
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.priority = 'High';
     updatePriorityFilterOptions();
-    document.querySelector<HTMLElement>('#priority-filter-btn .toolbar-icon-clear').click();
+    bySelector(document, '#priority-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.priority).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
 
   it('sets filter and hides dropdown when an option is clicked', () => {
-    const normalOpt = document.querySelector<HTMLElement>('#priority-filter-options .custom-option');
+    const normalOpt = bySelector(document, '#priority-filter-options .custom-option');
     normalOpt.click();
     expect(state.filter.priority).toBe('Normal');
-    expect(document.getElementById('priority-filter-options').classList.contains('hidden')).toBe(true);
+    expect(byId('priority-filter-options').classList.contains('hidden')).toBe(true);
     expect(refreshApp).toHaveBeenCalled();
   });
 
   it('toggles dropdown on button click', () => {
-    const optionsDiv = document.getElementById('priority-filter-options');
-    const btn = document.getElementById('priority-filter-btn');
+    const optionsDiv = byId('priority-filter-options');
+    const btn = byId('priority-filter-btn');
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
     btn.click();
     expect(optionsDiv.classList.contains('hidden')).toBe(false);
@@ -507,14 +481,14 @@ describe('Priority Filter', () => {
   });
 
   it('closes the label dropdown when priority dropdown is opened', () => {
-    const labelOpts = document.getElementById('label-filter-options');
+    const labelOpts = byId('label-filter-options');
     labelOpts.classList.remove('hidden');
-    document.getElementById('priority-filter-btn').click();
+    byId('priority-filter-btn').click();
     expect(labelOpts.classList.contains('hidden')).toBe(true);
   });
 
   it('closes dropdown on outside click', () => {
-    const optionsDiv = document.getElementById('priority-filter-options');
+    const optionsDiv = byId('priority-filter-options');
     optionsDiv.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
@@ -556,7 +530,7 @@ describe('User Filter', () => {
 
   it('shows arrow icon and "Assignee" text when no filter is active', () => {
     updateUserFilterOptions([]);
-    const btn = document.getElementById('user-filter-btn');
+    const btn = byId('user-filter-btn');
     expect(btn.textContent).toContain('Assignee');
     expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
@@ -565,25 +539,25 @@ describe('User Filter', () => {
   it('shows "Assignee: My Issues" when filter is set to "me"', () => {
     state.filter.assigneeId = 'me';
     updateUserFilterOptions([]);
-    expect(document.getElementById('user-filter-btn').textContent).toContain('Assignee: My Issues');
+    expect(byId('user-filter-btn').textContent).toContain('Assignee: My Issues');
   });
 
   it('shows "Assignee: Unassigned" when filter is set to "unassigned"', () => {
     state.filter.assigneeId = 'unassigned';
     updateUserFilterOptions([]);
-    expect(document.getElementById('user-filter-btn').textContent).toContain('Assignee: Unassigned');
+    expect(byId('user-filter-btn').textContent).toContain('Assignee: Unassigned');
   });
 
   it('shows user full name when filter is set to a user id', () => {
     state.filter.assigneeId = 1;
     updateUserFilterOptions(mockUsers);
-    expect(document.getElementById('user-filter-btn').textContent).toContain('Assignee: Alice Smith');
+    expect(byId('user-filter-btn').textContent).toContain('Assignee: Alice Smith');
   });
 
   it('shows has-selection class and clear icon when filter is active', () => {
     state.filter.assigneeId = 'me';
     updateUserFilterOptions([]);
-    const btn = document.getElementById('user-filter-btn');
+    const btn = byId('user-filter-btn');
     expect(btn.classList.contains('has-selection')).toBe(true);
     expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
   });
@@ -591,29 +565,29 @@ describe('User Filter', () => {
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.assigneeId = 'me';
     updateUserFilterOptions([]);
-    document.querySelector<HTMLElement>('#user-filter-btn .toolbar-icon-clear').click();
+    bySelector(document, '#user-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.assigneeId).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
 
   it('sets filter and hides dropdown when an option is clicked', () => {
     updateUserFilterOptions(mockUsers);
-    document.querySelector<HTMLElement>('#user-filter-options .custom-option').click(); // My Issues
+    bySelector(document, '#user-filter-options .custom-option').click(); // My Issues
     expect(state.filter.assigneeId).toBe('me');
-    expect(document.getElementById('user-filter-options').classList.contains('hidden')).toBe(true);
+    expect(byId('user-filter-options').classList.contains('hidden')).toBe(true);
     expect(refreshApp).toHaveBeenCalled();
   });
 
   it('toggles dropdown on button click', () => {
-    const optionsDiv = document.getElementById('user-filter-options');
-    const btn = document.getElementById('user-filter-btn');
+    const optionsDiv = byId('user-filter-options');
+    const btn = byId('user-filter-btn');
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
     btn.click();
     expect(optionsDiv.classList.contains('hidden')).toBe(false);
   });
 
   it('closes dropdown on outside click', () => {
-    const optionsDiv = document.getElementById('user-filter-options');
+    const optionsDiv = byId('user-filter-options');
     optionsDiv.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
@@ -675,13 +649,13 @@ describe('Project Selector', () => {
   it('updates the button label to match the selected project', () => {
     state.selectedProjectId = 2;
     updateProjectSelectorOptions(projects);
-    expect(document.getElementById('project-selector-text').textContent).toBe('Beta');
+    expect(byId('project-selector-text').textContent).toBe('Beta');
   });
 
   it('shows "Select Project" when no projects are provided', () => {
     state.selectedProjectId = null;
     updateProjectSelectorOptions([]);
-    expect(document.getElementById('project-selector-text').textContent).toBe('Select Project');
+    expect(byId('project-selector-text').textContent).toBe('Select Project');
   });
 
   it('resets to first project when current selection is no longer valid', () => {
@@ -703,20 +677,20 @@ describe('Project Selector', () => {
     const opts = document.querySelectorAll<HTMLElement>('#project-selector-options .custom-option');
     opts[1].click(); // click Beta
     expect(state.selectedProjectId).toBe(2);
-    expect(document.getElementById('project-selector-options').classList.contains('hidden')).toBe(true);
+    expect(byId('project-selector-options').classList.contains('hidden')).toBe(true);
     expect(onProjectChange).toHaveBeenCalled();
   });
 
   it('toggles dropdown on button click', () => {
-    const optionsDiv = document.getElementById('project-selector-options');
-    const btn = document.getElementById('project-selector-btn');
+    const optionsDiv = byId('project-selector-options');
+    const btn = byId('project-selector-btn');
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
     btn.click();
     expect(optionsDiv.classList.contains('hidden')).toBe(false);
   });
 
   it('closes dropdown on outside click', () => {
-    const optionsDiv = document.getElementById('project-selector-options');
+    const optionsDiv = byId('project-selector-options');
     optionsDiv.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
@@ -761,7 +735,7 @@ describe('User Menu', () => {
 
   it('renders user initials badge and email in the menu button', () => {
     setupUserMenu(mockUser);
-    const emailSpan = document.getElementById('current-user-email');
+    const emailSpan = byId('current-user-email');
     expect(emailSpan.querySelector('.user-badge')).not.toBeNull();
     expect(emailSpan.textContent).toContain('alice@example.com');
     expect(emailSpan.textContent).toContain('admin');
@@ -769,8 +743,8 @@ describe('User Menu', () => {
 
   it('toggles dropdown visibility on user menu button click', () => {
     setupUserMenu(mockUser);
-    const btn = document.getElementById('user-menu-btn');
-    const dropdown = document.getElementById('user-menu-dropdown');
+    const btn = byId('user-menu-btn');
+    const dropdown = byId('user-menu-dropdown');
     expect(dropdown.classList.contains('hidden')).toBe(true);
     btn.click();
     expect(dropdown.classList.contains('hidden')).toBe(false);
@@ -780,7 +754,7 @@ describe('User Menu', () => {
 
   it('closes dropdown on outside click', () => {
     setupUserMenu(mockUser);
-    const dropdown = document.getElementById('user-menu-dropdown');
+    const dropdown = byId('user-menu-dropdown');
     dropdown.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(dropdown.classList.contains('hidden')).toBe(true);
@@ -789,34 +763,34 @@ describe('User Menu', () => {
   it('calls logout when logout button is clicked', async () => {
     const { logout } = await import('../api.ts');
     setupUserMenu(mockUser);
-    document.getElementById('user-menu-logout').click();
+    byId('user-menu-logout').click();
     expect(logout).toHaveBeenCalled();
   });
 
   it('hides dropdown and opens password modal when password button is clicked', () => {
     setupUserMenu(mockUser);
-    const dropdown = document.getElementById('user-menu-dropdown');
+    const dropdown = byId('user-menu-dropdown');
     dropdown.classList.remove('hidden');
-    document.getElementById('user-menu-password').click();
+    byId('user-menu-password').click();
     expect(dropdown.classList.contains('hidden')).toBe(true);
-    expect(document.getElementById('password-modal').classList.contains('hidden')).toBe(false);
+    expect(byId('password-modal').classList.contains('hidden')).toBe(false);
   });
 
   it('hides password modal and resets form on cancel', () => {
     setupUserMenu(mockUser);
-    const modal = document.getElementById('password-modal');
+    const modal = byId('password-modal');
     modal.classList.remove('hidden');
-    document.getElementById('password-cancel-btn').click();
+    byId('password-cancel-btn').click();
     expect(modal.classList.contains('hidden')).toBe(true);
   });
 
   it('clears error and shows modal when password modal is opened', () => {
     setupUserMenu(mockUser);
-    const errorDisplay = document.getElementById('password-modal-error');
+    const errorDisplay = byId('password-modal-error');
     errorDisplay.textContent = 'Old error';
     errorDisplay.classList.remove('hidden');
 
-    document.getElementById('user-menu-password').click();
+    byId('user-menu-password').click();
     expect(errorDisplay.textContent).toBe('');
     expect(errorDisplay.classList.contains('hidden')).toBe(true);
   });
@@ -832,12 +806,12 @@ describe('User Menu', () => {
     byId('current-password', HTMLInputElement).value = 'CurrentPass123!';
     byId('new-password', HTMLInputElement).value = TEST_PW_VALID;
     byId('confirm-new-password', HTMLInputElement).value = TEST_PW_VALID;
-    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+    byId('password-form').dispatchEvent(new Event('submit'));
 
     await Promise.resolve(); // flush microtasks so the async handler completes
 
     expect(showNotification).toHaveBeenCalledWith('Password updated successfully. Logging out...');
-    expect(document.getElementById('password-modal').classList.contains('hidden')).toBe(true);
+    expect(byId('password-modal').classList.contains('hidden')).toBe(true);
 
     vi.runAllTimers(); // advance past the 1500 ms timeout
     expect(logout).toHaveBeenCalled();
@@ -848,14 +822,14 @@ describe('User Menu', () => {
   it('changes the password only once when submitted again while the first save is in flight, with the form greyed out', async () => {
     const { updateCurrentUser } = await import('../api.ts');
     vi.mocked(updateCurrentUser).mockClear();
-    let resolveUpdate: (user: User) => void;
-    vi.mocked(updateCurrentUser).mockReturnValueOnce(new Promise(r => { resolveUpdate = r; }));
+    const { promise: pendingUpdate, resolve: resolveUpdate } = Promise.withResolvers<User>();
+    vi.mocked(updateCurrentUser).mockReturnValueOnce(pendingUpdate);
 
     setupUserMenu(mockUser);
     byId('current-password', HTMLInputElement).value = 'CurrentPass123!';
     byId('new-password', HTMLInputElement).value = TEST_PW_VALID;
     byId('confirm-new-password', HTMLInputElement).value = TEST_PW_VALID;
-    const form = document.getElementById('password-form');
+    const form = byId('password-form');
 
     form.dispatchEvent(new Event('submit'));
     expect(form.getAttribute('aria-busy')).toBe('true');
@@ -875,11 +849,11 @@ describe('User Menu', () => {
     setupUserMenu(mockUser);
     byId('new-password', HTMLInputElement).value = TEST_PW_WEAK;
     byId('confirm-new-password', HTMLInputElement).value = TEST_PW_WEAK;
-    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+    byId('password-form').dispatchEvent(new Event('submit'));
 
     await Promise.resolve();
 
-    const errorDisplay = document.getElementById('password-modal-error');
+    const errorDisplay = byId('password-modal-error');
     expect(errorDisplay.textContent).toBe('Password is too weak');
     expect(errorDisplay.classList.contains('hidden')).toBe(false);
   });
@@ -891,11 +865,11 @@ describe('User Menu', () => {
     vi.mocked(showNotification).mockClear();
 
     setupUserMenu(mockUser);
-    document.getElementById('password-modal-error').remove();
+    byId('password-modal-error').remove();
 
     byId('new-password', HTMLInputElement).value = TEST_PW_BAD;
     byId('confirm-new-password', HTMLInputElement).value = TEST_PW_BAD;
-    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+    byId('password-form').dispatchEvent(new Event('submit'));
 
     await Promise.resolve();
 
@@ -910,11 +884,11 @@ describe('User Menu', () => {
     byId('current-password', HTMLInputElement).value = 'CurrentPass123!';
     byId('new-password', HTMLInputElement).value = TEST_PW_VALID;
     byId('confirm-new-password', HTMLInputElement).value = `${TEST_PW_VALID}x`;
-    document.getElementById('password-form').dispatchEvent(new Event('submit'));
+    byId('password-form').dispatchEvent(new Event('submit'));
 
     await Promise.resolve();
 
-    const errorDisplay = document.getElementById('password-modal-error');
+    const errorDisplay = byId('password-modal-error');
     expect(errorDisplay.textContent).toBe('New password and confirmation do not match.');
     expect(errorDisplay.classList.contains('hidden')).toBe(false);
     expect(updateCurrentUser).not.toHaveBeenCalled();
@@ -957,7 +931,7 @@ describe('Release Filter', () => {
 
   it('shows arrow icon and "Release" text when no filter is active', () => {
     updateReleaseFilterOptions([]);
-    const btn = document.getElementById('release-filter-btn');
+    const btn = byId('release-filter-btn');
     expect(btn.textContent).toContain('Release');
     expect(btn.querySelector('.toolbar-icon-arrow')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(false);
@@ -966,7 +940,7 @@ describe('Release Filter', () => {
   it('shows active release name and clear icon when filter is set', () => {
     state.filter.releaseId = 1;
     updateReleaseFilterOptions(releases);
-    const btn = document.getElementById('release-filter-btn');
+    const btn = byId('release-filter-btn');
     expect(btn.textContent).toContain('Release: v1.0');
     expect(btn.querySelector('.toolbar-icon-clear')).not.toBeNull();
     expect(btn.classList.contains('has-selection')).toBe(true);
@@ -975,21 +949,21 @@ describe('Release Filter', () => {
   it('shows "No Release" in button when __no_release__ filter is set', () => {
     state.filter.releaseId = '__no_release__';
     updateReleaseFilterOptions([]);
-    const btn = document.getElementById('release-filter-btn');
+    const btn = byId('release-filter-btn');
     expect(btn.textContent).toContain('Release: No Release');
   });
 
   it('shows "Unknown" for an unrecognized release id', () => {
     state.filter.releaseId = 999;
     updateReleaseFilterOptions(releases);
-    const btn = document.getElementById('release-filter-btn');
+    const btn = byId('release-filter-btn');
     expect(btn.textContent).toContain('Release: Unknown');
   });
 
   it('clears filter and calls refresh when clear icon is clicked', () => {
     state.filter.releaseId = 1;
     updateReleaseFilterOptions(releases);
-    document.querySelector<HTMLElement>('#release-filter-btn .toolbar-icon-clear').click();
+    bySelector(document, '#release-filter-btn .toolbar-icon-clear').click();
     expect(state.filter.releaseId).toBeNull();
     expect(refreshApp).toHaveBeenCalled();
   });
@@ -999,19 +973,19 @@ describe('Release Filter', () => {
     const opts = document.querySelectorAll<HTMLElement>('#release-filter-options .custom-option');
     opts[1].click(); // v1.0
     expect(state.filter.releaseId).toBe(1);
-    expect(document.getElementById('release-filter-options').classList.contains('hidden')).toBe(true);
+    expect(byId('release-filter-options').classList.contains('hidden')).toBe(true);
     expect(refreshApp).toHaveBeenCalled();
   });
 
   it('sets __no_release__ filter when "No Release" option is clicked', () => {
     updateReleaseFilterOptions([]);
-    document.querySelector<HTMLElement>('#release-filter-options .custom-option').click();
+    bySelector(document, '#release-filter-options .custom-option').click();
     expect(state.filter.releaseId).toBe('__no_release__');
   });
 
   it('toggles dropdown on button click', () => {
-    const optionsDiv = document.getElementById('release-filter-options');
-    const btn = document.getElementById('release-filter-btn');
+    const optionsDiv = byId('release-filter-options');
+    const btn = byId('release-filter-btn');
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
     btn.click();
     expect(optionsDiv.classList.contains('hidden')).toBe(false);
@@ -1020,7 +994,7 @@ describe('Release Filter', () => {
   });
 
   it('closes dropdown on outside click', () => {
-    const optionsDiv = document.getElementById('release-filter-options');
+    const optionsDiv = byId('release-filter-options');
     optionsDiv.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);

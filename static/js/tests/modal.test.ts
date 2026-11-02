@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
 import { setupModal, openModal, closeModal, preventNavigation } from '../components/modal.ts';
 import { renderReleaseOptions } from '../components/issue-dropdowns.ts';
 import * as api from '../api.ts';
 import { state, setCurrentIssue } from '../state.ts';
-import { byId } from '../utils.ts';
+import { byId, bySelector } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as tasks from '../components/tasks.ts';
 import * as activity from '../components/activity.ts';
@@ -135,8 +135,7 @@ async function openModalWithMock(issue: Issue | null) {
 // A save of the open issue that the test answers by hand: answer(etag) lets the server answer
 // with the sent fields as the saved issue. It may be called before the save is sent.
 function answerByHand() {
-  let answer: (etag: string) => void;
-  const etag = new Promise<string>(r => { answer = r; });
+  const { promise: etag, resolve: answer } = Promise.withResolvers<string>();
   const save = async (_projectId: number, sent: IssueWrite & { id: number }): Promise<UpdateIssueResult> =>
     ({ issue: savedIssue(sent), etag: await etag, conflict: false });
   return { save, answer: (value: string) => answer(value) };
@@ -289,9 +288,9 @@ describe('Modal Component', () => {
   });
   it('should open modal for new issue', async () => {
     openModal(null);
-    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('modal-title').textContent).toBe('New Issue');
-    expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(false);
+    expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
+    expect(byId('modal-title').textContent).toBe('New Issue');
+    expect(byId('save-issue-btn').classList.contains('hidden')).toBe(false);
     expect(setCurrentIssue).toHaveBeenCalledWith(null);
   });
 
@@ -311,8 +310,8 @@ describe('Modal Component', () => {
 
     await openModal(issue);
 
-    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('modal-title').textContent).toBe('Issue Details #123');
+    expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
+    expect(byId('modal-title').textContent).toBe('Issue Details #123');
     expect(byId('title', HTMLInputElement).value).toBe('Test Issue');
     expect(byId('description-editor', HTMLTextAreaElement).value).toBe('Test Desc');
     expect(setCurrentIssue).toHaveBeenCalledWith(issue);
@@ -323,7 +322,7 @@ describe('Modal Component', () => {
     openModal(null);
     closeModal();
 
-    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     expect(setCurrentIssue).toHaveBeenCalledWith(null);
   });
 
@@ -340,7 +339,7 @@ describe('Modal Component', () => {
     vi.mocked(api.createIssue).mockResolvedValue(makeIssue({ id: 99, title: 'New Title' }));
 
     // Trigger submit
-    const form = document.getElementById('issue-form');
+    const form = byId('issue-form');
     form.dispatchEvent(new Event('submit'));
 
     // Wait for async
@@ -353,16 +352,16 @@ describe('Modal Component', () => {
       priority: 'Normal'
     }));
 
-    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true); // Should close
+    expect(byId('issue-modal').classList.contains('hidden')).toBe(true); // Should close
   });
 
   it('creates a new issue only once while the first submit is in flight, with the form greyed out', async () => {
     openModal(null);
     byId('title', HTMLInputElement).value = 'New Title';
-    let resolveCreate: (issue: Issue) => void;
-    vi.mocked(api.createIssue).mockReturnValue(new Promise(r => { resolveCreate = r; }));
+    const { promise: pendingCreate, resolve: resolveCreate } = Promise.withResolvers<Issue>();
+    vi.mocked(api.createIssue).mockReturnValue(pendingCreate);
 
-    const form = document.getElementById('issue-form');
+    const form = byId('issue-form');
     form.dispatchEvent(new Event('submit'));
     expect(form.getAttribute('aria-busy')).toBe('true');
     // A second submit (e.g. Enter) must not create again.
@@ -403,7 +402,7 @@ describe('Modal Component', () => {
     const historyCallsBeforeAdd = vi.mocked(api.fetchHistory).mock.calls.length;
 
     // Click add
-    document.getElementById('add-task-btn').click();
+    byId('add-task-btn').click();
 
     await new Promise(process.nextTick);
 
@@ -420,12 +419,13 @@ describe('Modal Component', () => {
   it('creates a task only once while the first submit is in flight, with the task form greyed out', async () => {
     const issue = makeIssue({ id: 1, project_id: 7, title: 'Task Parent', tasks: [] });
     await openModalWithMock(issue);
-    let resolveCreate: (task: Task) => void;
-    vi.mocked(api.createTask).mockReturnValue(new Promise(r => { resolveCreate = r; }));
+    const { promise: pendingCreate, resolve: resolveCreate } = Promise.withResolvers<Task>();
+    vi.mocked(api.createTask).mockReturnValue(pendingCreate);
 
     const titleInput = byId('new-task-title', HTMLInputElement);
-    const addBtn = document.getElementById('add-task-btn');
+    const addBtn = byId('add-task-btn');
     const group = addBtn.closest('.input-group');
+    assert(group);
     titleInput.value = 'Subtask 1';
     addBtn.click();
     expect(group.getAttribute('aria-busy')).toBe('true');
@@ -443,12 +443,12 @@ describe('Modal Component', () => {
     const issue = makeIssue({ id: 99, title: 'To Delete' });
     await openModalWithMock(issue);
 
-    document.getElementById('delete-issue-btn').click();
+    byId('delete-issue-btn').click();
     await new Promise(process.nextTick);
 
     expect(utils.promptAdminPasswordConfirmation).toHaveBeenCalled();
     expect(api.deleteIssue).toHaveBeenCalledWith(1, 99, 'AdminPass123!');
-    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
   });
 
   it('should archive issue after confirmation', async () => {
@@ -457,13 +457,13 @@ describe('Modal Component', () => {
 
     vi.mocked(utils.showConfirm).mockResolvedValue(true);
 
-    document.getElementById('archive-issue-btn').click();
+    byId('archive-issue-btn').click();
     await new Promise(process.nextTick);
 
     expect(utils.showConfirm).toHaveBeenCalled();
     expect(api.archiveIssue).toHaveBeenCalledWith(1, 100);
     expect(utils.showNotification).toHaveBeenCalledWith('Issue archived');
-    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
   });
   it.each([
     ['archive', { status: 'Done' }, 'archiveIssue'],
@@ -482,7 +482,7 @@ describe('Modal Component', () => {
     prioritySelect.dispatchEvent(new Event('change'));
     await new Promise(process.nextTick);
 
-    document.getElementById(`${action}-issue-btn`).click();
+    byId(`${action}-issue-btn`).click();
     await new Promise(process.nextTick);
     expect(api[apiFn]).not.toHaveBeenCalled();
 
@@ -492,7 +492,7 @@ describe('Modal Component', () => {
 
     expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ id: 100, priority: 'High' }), expect.any(String));
     expect(api[apiFn]).toHaveBeenCalledWith(1, 100);
-    expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+    expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
   });
 
   it('should drag and drop task', async () => {
@@ -511,7 +511,7 @@ describe('Modal Component', () => {
     vi.mocked(dragModule.getDraggedTask).mockReturnValue(mockTask);
     vi.mocked(dragModule.getDragAfterTaskElement).mockReturnValue(null); // Append to end
 
-    const taskList = document.getElementById('task-list');
+    const taskList = byId('task-list');
 
     // Simulate dragover
     const dragEvent = new Event('dragover');
@@ -526,8 +526,8 @@ describe('Modal Component', () => {
     openModal(null);
 
     // Simulate clicking the status trigger to open dropdown
-    const statusTrigger = document.getElementById('status-trigger');
-    const statusOptions = document.getElementById('status-options');
+    const statusTrigger = byId('status-trigger');
+    const statusOptions = byId('status-options');
     statusTrigger.click();
     expect(statusOptions.classList.contains('hidden')).toBe(false);
 
@@ -535,12 +535,12 @@ describe('Modal Component', () => {
     // We need to find the element containing 'Working' - it's dynamically rendered
     // renderStatusOptions is called in openModal
     const option = Array.from(statusOptions.querySelectorAll<HTMLElement>('.custom-option')).find(c => c.textContent === 'Working');
-    expect(option).toBeTruthy();
+    assert(option);
 
     option.click();
 
     const statusInput = byId('status', HTMLInputElement);
-    const statusText = document.getElementById('status-text');
+    const statusText = byId('status-text');
 
     expect(statusInput.value).toBe('Stage2');
     expect(statusText.textContent).toBe('Working');
@@ -573,7 +573,7 @@ describe('Modal Component', () => {
   it('should update description preview on input', () => {
     openModal(null);
     const editor = byId('description-editor', HTMLTextAreaElement);
-    const preview = document.getElementById('description-preview');
+    const preview = byId('description-preview');
 
     editor.value = '**bold text**';
     editor.dispatchEvent(new InputEvent('input'));
@@ -590,7 +590,7 @@ describe('Modal Component', () => {
     editor.selectionStart = 0;
     editor.selectionEnd = 5;
 
-    const boldBtn = document.querySelector<HTMLButtonElement>('.editor-btn[data-md="bold"]');
+    const boldBtn = bySelector(document, '.editor-btn[data-md="bold"]', HTMLButtonElement);
     boldBtn.click();
 
     expect(editor.value).toBe('**hello**');
@@ -604,7 +604,7 @@ describe('Modal Component', () => {
     editor.value = 'heading';
     editor.selectionStart = 0;
     editor.selectionEnd = 7;
-    const h1Btn = document.querySelector<HTMLElement>('.editor-btn[data-md="h1"]');
+    const h1Btn = bySelector(document, '.editor-btn[data-md="h1"]');
     h1Btn.click();
     expect(editor.value).toBe('# heading');
 
@@ -612,7 +612,7 @@ describe('Modal Component', () => {
     editor.value = 'heading';
     editor.selectionStart = 0;
     editor.selectionEnd = 7;
-    const h2Btn = document.querySelector<HTMLElement>('.editor-btn[data-md="h2"]');
+    const h2Btn = bySelector(document, '.editor-btn[data-md="h2"]');
     h2Btn.click();
     expect(editor.value).toBe('## heading');
   });
@@ -620,7 +620,7 @@ describe('Modal Component', () => {
   it('should handle toolbar button click for code inline vs block', async () => {
     openModal(null);
     const editor = byId('description-editor', HTMLTextAreaElement);
-    const codeBtn = document.querySelector<HTMLElement>('.editor-btn[data-md="code"]');
+    const codeBtn = bySelector(document, '.editor-btn[data-md="code"]');
 
     // Test inline code
     editor.value = 'let x = 1;';
@@ -640,7 +640,7 @@ describe('Modal Component', () => {
   it('should insert table template at start of empty editor', () => {
     openModal(null);
     const editor = byId('description-editor', HTMLTextAreaElement);
-    const tableBtn = document.querySelector<HTMLElement>('.editor-btn[data-md="table"]');
+    const tableBtn = bySelector(document, '.editor-btn[data-md="table"]');
 
     editor.value = '';
     editor.selectionStart = 0;
@@ -657,7 +657,7 @@ describe('Modal Component', () => {
   it('should prepend newline when inserting table after non-newline content', () => {
     openModal(null);
     const editor = byId('description-editor', HTMLTextAreaElement);
-    const tableBtn = document.querySelector<HTMLElement>('.editor-btn[data-md="table"]');
+    const tableBtn = bySelector(document, '.editor-btn[data-md="table"]');
 
     editor.value = 'existing text';
     editor.selectionStart = 13;
@@ -672,7 +672,7 @@ describe('Modal Component', () => {
   it('should not prepend extra newline when cursor is already at a line start', () => {
     openModal(null);
     const editor = byId('description-editor', HTMLTextAreaElement);
-    const tableBtn = document.querySelector<HTMLElement>('.editor-btn[data-md="table"]');
+    const tableBtn = bySelector(document, '.editor-btn[data-md="table"]');
 
     editor.value = 'line one\n';
     editor.selectionStart = 9; // right after the \n
@@ -686,9 +686,9 @@ describe('Modal Component', () => {
 
   it('should update preview after inserting table', () => {
     openModal(null);
-    const preview = document.getElementById('description-preview');
+    const preview = byId('description-preview');
     const editor = byId('description-editor', HTMLTextAreaElement);
-    const tableBtn = document.querySelector<HTMLElement>('.editor-btn[data-md="table"]');
+    const tableBtn = bySelector(document, '.editor-btn[data-md="table"]');
 
     editor.value = '';
     editor.selectionStart = 0;
@@ -701,10 +701,10 @@ describe('Modal Component', () => {
 
   it('should toggle edit and preview modes and disable toolbar', () => {
     openModal(null);
-    const editor = document.getElementById('description-editor');
-    const preview = document.getElementById('description-preview');
-    const toggleBtn = document.getElementById('md-preview-toggle');
-    const boldBtn = document.querySelector<HTMLButtonElement>('.editor-btn[data-md="bold"]');
+    const editor = byId('description-editor');
+    const preview = byId('description-preview');
+    const toggleBtn = byId('md-preview-toggle');
+    const boldBtn = bySelector(document, '.editor-btn[data-md="bold"]', HTMLButtonElement);
 
     // Initially in edit mode
     expect(preview.classList.contains('hidden')).toBe(true);
@@ -743,7 +743,7 @@ describe('Modal Component', () => {
     document.body.appendChild(wrapper);
 
     // Re-run setup to attach listeners to new elements
-    setupModal(undefined, undefined);
+    setupModal(vi.fn(), vi.fn());
 
     wrapper.click();
     expect(input.showPicker).toHaveBeenCalled();
@@ -761,11 +761,11 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       expect(byId('status', HTMLInputElement).value).toBe('Stage2');
-      expect(document.getElementById('status-text').textContent).toBe('Working');
+      expect(byId('status-text').textContent).toBe('Working');
       expect(byId('priority', HTMLInputElement).value).toBe('High');
-      expect(document.getElementById('priority-text').textContent).toBe('High');
+      expect(byId('priority-text').textContent).toBe('High');
       expect(byId('label-select', HTMLInputElement).value).toBe('2');
-      expect(document.getElementById('label-text').textContent).toBe('Feature');
+      expect(byId('label-text').textContent).toBe('Feature');
     });
 
     it('should render modal dropdowns with defaults for new issue', async () => {
@@ -774,11 +774,11 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       expect(byId('status', HTMLInputElement).value).toBe('Open');
-      expect(document.getElementById('status-text').textContent).toBe('Open');
+      expect(byId('status-text').textContent).toBe('Open');
       expect(byId('priority', HTMLInputElement).value).toBe('Normal');
-      expect(document.getElementById('priority-text').textContent).toBe('Normal');
+      expect(byId('priority-text').textContent).toBe('Normal');
       expect(byId('label-select', HTMLInputElement).value).toBe('');
-      expect(document.getElementById('label-text').textContent).toBe('No Label');
+      expect(byId('label-text').textContent).toBe('No Label');
     });
 
     it('should disable project trigger for RoleUser editing an existing issue', async () => {
@@ -808,12 +808,12 @@ describe('Modal Component', () => {
 
       await openModalWithMock(issue);
 
-      expect(document.getElementById('modal-title').textContent).toBe('Issue Details #5');
-      expect(document.getElementById('delete-issue-btn').classList.contains('hidden')).toBe(false);
-      expect(document.getElementById('done-btn').classList.contains('hidden')).toBe(false);
-      expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(true);
-      expect(document.getElementById('archive-issue-btn').classList.contains('hidden')).toBe(false);
-      expect(document.getElementById('unarchive-issue-btn').classList.contains('hidden')).toBe(true);
+      expect(byId('modal-title').textContent).toBe('Issue Details #5');
+      expect(byId('delete-issue-btn').classList.contains('hidden')).toBe(false);
+      expect(byId('done-btn').classList.contains('hidden')).toBe(false);
+      expect(byId('save-issue-btn').classList.contains('hidden')).toBe(true);
+      expect(byId('archive-issue-btn').classList.contains('hidden')).toBe(false);
+      expect(byId('unarchive-issue-btn').classList.contains('hidden')).toBe(true);
     });
 
     it('should show unarchive button when issue is already archived', async () => {
@@ -826,8 +826,8 @@ describe('Modal Component', () => {
 
       await openModalWithMock(issue);
 
-      expect(document.getElementById('archive-issue-btn').classList.contains('hidden')).toBe(true);
-      expect(document.getElementById('unarchive-issue-btn').classList.contains('hidden')).toBe(false);
+      expect(byId('archive-issue-btn').classList.contains('hidden')).toBe(true);
+      expect(byId('unarchive-issue-btn').classList.contains('hidden')).toBe(false);
     });
 
     it('should unarchive issue after confirmation', async () => {
@@ -836,13 +836,13 @@ describe('Modal Component', () => {
 
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
 
-      document.getElementById('unarchive-issue-btn').click();
+      byId('unarchive-issue-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).toHaveBeenCalled();
       expect(api.unarchiveIssue).toHaveBeenCalledWith(1, 101);
       expect(utils.showNotification).toHaveBeenCalledWith('Issue unarchived');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should set read-only mode for archived issues', async () => {
@@ -855,11 +855,11 @@ describe('Modal Component', () => {
 
       await openModalWithMock(issue);
 
-      expect(document.getElementById('modal-title').textContent).toBe('Archived Issue #102');
+      expect(byId('modal-title').textContent).toBe('Archived Issue #102');
 
-      const titleInput = document.getElementById('title');
-      const descEditor = document.getElementById('description-editor');
-      const taskForm = document.getElementById('task-form-container');
+      const titleInput = byId('title');
+      const descEditor = byId('description-editor');
+      const taskForm = byId('task-form-container');
 
       // Attempt to Enter Title Edit
       titleInput.click();
@@ -867,7 +867,7 @@ describe('Modal Component', () => {
 
       // Attempt to Enter Desc Edit
       descEditor.click();
-      const descContainer = document.querySelector('.editor-container');
+      const descContainer = bySelector(document, '.editor-container');
       expect(descContainer.classList.contains('inline-editing')).toBe(false);
 
       // Task Form Hidden
@@ -881,18 +881,18 @@ describe('Modal Component', () => {
       expect(descContainer.getAttribute('aria-disabled')).toBe('true');
 
       // Dates and dropdowns are inactive
-      expect(document.getElementById('deadline').getAttribute('aria-disabled')).toBe('true');
+      expect(byId('deadline').getAttribute('aria-disabled')).toBe('true');
       document.querySelectorAll<HTMLButtonElement>('.custom-select-trigger').forEach(trigger => expect(trigger.disabled).toBe(true));
     });
 
     it('should setup new modal with correct button visibility', () => {
       openModal(null);
 
-      expect(document.getElementById('modal-title').textContent).toBe('New Issue');
-      expect(document.getElementById('delete-issue-btn').classList.contains('hidden')).toBe(true);
-      expect(document.getElementById('save-issue-btn').classList.contains('hidden')).toBe(false);
-      expect(document.getElementById('done-btn').classList.contains('hidden')).toBe(true);
-      expect(document.getElementById('tasks-section').classList.contains('hidden')).toBe(true);
+      expect(byId('modal-title').textContent).toBe('New Issue');
+      expect(byId('delete-issue-btn').classList.contains('hidden')).toBe(true);
+      expect(byId('save-issue-btn').classList.contains('hidden')).toBe(false);
+      expect(byId('done-btn').classList.contains('hidden')).toBe(true);
+      expect(byId('tasks-section').classList.contains('hidden')).toBe(true);
     });
 
     it('should toggle inline edit mode on', async () => {
@@ -900,8 +900,8 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       const titleInput = byId('title', HTMLInputElement);
-      const descEditor = document.getElementById('description-editor');
-      const descContainer = document.querySelector('.editor-container');
+      const descEditor = byId('description-editor');
+      const descContainer = bySelector(document, '.editor-container');
 
       expect(titleInput.classList.contains('inline-editable')).toBe(true);
       expect(titleInput.readOnly).toBe(true);
@@ -913,28 +913,13 @@ describe('Modal Component', () => {
       openModal(null);
 
       const titleInput = byId('title', HTMLInputElement);
-      const descEditor = document.getElementById('description-editor');
-      const descContainer = document.querySelector('.editor-container');
+      const descEditor = byId('description-editor');
+      const descContainer = bySelector(document, '.editor-container');
 
       expect(titleInput.classList.contains('inline-editable')).toBe(false);
       expect(titleInput.readOnly).toBe(false);
       expect(descContainer.classList.contains('inline-editable')).toBe(false);
       expect(descEditor.classList.contains('hidden')).toBe(false);
-    });
-
-    it('should handle issue with null priority gracefully', async () => {
-      const issue = makeIssue({
-        id: 7,
-        title: 'No Priority',
-        status: 'Todo',
-        priority: null,
-        tasks: []
-      });
-
-      await openModalWithMock(issue);
-
-      expect(byId('priority', HTMLInputElement).value).toBe('Normal');
-      expect(document.getElementById('priority-text').textContent).toBe('Normal');
     });
 
     it('should handle issue with null label gracefully', async () => {
@@ -949,7 +934,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       expect(byId('label-select', HTMLInputElement).value).toBe('');
-      expect(document.getElementById('label-text').textContent).toBe('No Label');
+      expect(byId('label-text').textContent).toBe('No Label');
     });
 
     it('should render tasks section for edit modal', async () => {
@@ -962,7 +947,7 @@ describe('Modal Component', () => {
 
       await openModalWithMock(issue);
 
-      expect(document.getElementById('tasks-section').classList.contains('hidden')).toBe(false);
+      expect(byId('tasks-section').classList.contains('hidden')).toBe(false);
       expect(tasks.renderTasks).toHaveBeenCalledWith(
         issue.tasks,
         expect.any(Object),
@@ -986,9 +971,9 @@ describe('Modal Component', () => {
 
       await openModalWithMock(issue);
 
-      const container = document.getElementById('planned-dates-container');
+      const container = byId('planned-dates-container');
       expect(container.querySelectorAll('.date-chip')).toHaveLength(1);
-      expect(container.querySelector<HTMLElement>('.date-chip').dataset.date).toBe('2024-02-01');
+      expect(bySelector(container, '.date-chip').dataset.date).toBe('2024-02-01');
       expect(byId('deadline', HTMLInputElement).value).toBe('2024-02-15');
       expect(utils.updateDateInputStyle).toHaveBeenCalled();
     });
@@ -1007,7 +992,7 @@ describe('Modal Component', () => {
 
       expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
       expect(prioritySelect.value).toBe('Normal');
-      expect(document.getElementById('priority-text').textContent).toBe('Normal');
+      expect(byId('priority-text').textContent).toBe('Normal');
     });
 
     it('should revert the status control when the save fails', async () => {
@@ -1088,7 +1073,7 @@ describe('Modal Component', () => {
 
       expect(api.updateIssue).toHaveBeenLastCalledWith(1,
         expect.objectContaining({ planned_dates: ['2025-05-20', '2025-05-21'] }), '"etag-2"');
-      expect(state.currentIssue.planned_dates).toEqual(['2025-05-20', '2025-05-21']);
+      expect(state.currentIssue?.planned_dates).toEqual(['2025-05-20', '2025-05-21']);
     });
 
     it('drops a queued field save when another issue is opened before it runs', async () => {
@@ -1106,7 +1091,7 @@ describe('Modal Component', () => {
       statusSelect.dispatchEvent(new Event('change')); // queued behind the priority save
       await flush();
 
-      document.getElementById('cancel-btn').click();
+      byId('cancel-btn').click();
       await openModalWithMock(makeIssue({ id: 2, priority: 'Normal', status: 'Todo' }));
       answerFirst.answer('"etag-2"');
       await flush();
@@ -1152,7 +1137,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       // Seed a task item so refreshTaskDeadlineStyles' forEach has something to iterate.
-      const taskList = document.getElementById('task-list');
+      const taskList = byId('task-list');
       taskList.innerHTML = `
         <li class="task-item">
           <div class="task-deadline-container">
@@ -1170,7 +1155,7 @@ describe('Modal Component', () => {
 
       // The forEach reached the task item — its container's title is updated
       // by refreshTaskDeadlineStyles regardless of overdue status.
-      const container = taskList.querySelector<HTMLElement>('.task-deadline-container');
+      const container = bySelector(taskList, '.task-deadline-container');
       expect(container.title).toBeTruthy();
       expect(api.updateIssue).toHaveBeenCalled();
     });
@@ -1198,7 +1183,7 @@ describe('Modal Component', () => {
       const issue = makeIssue({ id: 1, title: 'Test' });
       await openModalWithMock(issue);
 
-      const titleInput = document.getElementById('title');
+      const titleInput = byId('title');
       titleInput.click();
 
       expect(addSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
@@ -1209,7 +1194,7 @@ describe('Modal Component', () => {
       const issue = makeIssue({ id: 1, title: 'Test' });
       await openModalWithMock(issue);
 
-      const titleInput = document.getElementById('title');
+      const titleInput = byId('title');
       titleInput.click();
 
       titleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -1220,8 +1205,8 @@ describe('Modal Component', () => {
 
   describe('Scroll Cue', () => {
     it('is hidden when the content does not overflow', () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue-down');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
+      const cue = bySelector(document, '.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 200, clientHeight: 200, scrollTop: 0 });
 
       scrollEl.dispatchEvent(new Event('scroll'));
@@ -1230,8 +1215,8 @@ describe('Modal Component', () => {
     });
 
     it('becomes visible once there is more content below the fold', () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue-down');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
+      const cue = bySelector(document, '.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
 
       scrollEl.dispatchEvent(new Event('scroll'));
@@ -1240,8 +1225,8 @@ describe('Modal Component', () => {
     });
 
     it('hides again once scrolled down to the bottom', () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue-down');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
+      const cue = bySelector(document, '.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
       scrollEl.dispatchEvent(new Event('scroll'));
       expect(cue.classList.contains('visible')).toBe(true);
@@ -1253,8 +1238,8 @@ describe('Modal Component', () => {
     });
 
     it('re-evaluates when content is added dynamically (e.g. a loaded comment)', async () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector('.scroll-cue-down');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
+      const cue = bySelector(document, '.scroll-cue-down');
       setScrollMetrics(scrollEl, { scrollHeight: 200, clientHeight: 200, scrollTop: 0 });
       scrollEl.dispatchEvent(new Event('scroll'));
       expect(cue.classList.contains('visible')).toBe(false);
@@ -1269,15 +1254,15 @@ describe('Modal Component', () => {
     });
 
     it('is a plain button so clicking it cannot submit the issue form', () => {
-      const cue = document.querySelector<HTMLButtonElement>('.scroll-cue-down');
+      const cue = bySelector(document, '.scroll-cue-down', HTMLButtonElement);
 
       expect(cue.tagName).toBe('BUTTON');
       expect(cue.type).toBe('button');
     });
 
     it('jumps to the bottom of the main column when clicked', () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
-      const cue = document.querySelector<HTMLButtonElement>('.scroll-cue-down');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
+      const cue = bySelector(document, '.scroll-cue-down', HTMLButtonElement);
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
       // jsdom does not implement scrollTo.
       scrollEl.scrollTo = vi.fn();
@@ -1288,8 +1273,8 @@ describe('Modal Component', () => {
     });
 
     it('top marker is hidden at the top and shown once scrolled down', () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
-      const up = document.querySelector('.scroll-cue-up');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
+      const up = bySelector(document, '.scroll-cue-up');
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 0 });
       scrollEl.dispatchEvent(new Event('scroll'));
       expect(up.classList.contains('visible')).toBe(false);
@@ -1300,8 +1285,8 @@ describe('Modal Component', () => {
     });
 
     it('top marker is a plain button and jumps to the top of the main column when clicked', () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
-      const up = document.querySelector<HTMLButtonElement>('.scroll-cue-up');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
+      const up = bySelector(document, '.scroll-cue-up', HTMLButtonElement);
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 400 });
       scrollEl.scrollTo = vi.fn();
 
@@ -1312,17 +1297,17 @@ describe('Modal Component', () => {
     });
 
     it('both markers can be visible at the same time in the middle of a long issue', () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
       setScrollMetrics(scrollEl, { scrollHeight: 600, clientHeight: 200, scrollTop: 150 });
 
       scrollEl.dispatchEvent(new Event('scroll'));
 
-      expect(document.querySelector('.scroll-cue-up').classList.contains('visible')).toBe(true);
-      expect(document.querySelector('.scroll-cue-down').classList.contains('visible')).toBe(true);
+      expect(bySelector(document, '.scroll-cue-up').classList.contains('visible')).toBe(true);
+      expect(bySelector(document, '.scroll-cue-down').classList.contains('visible')).toBe(true);
     });
 
     it('opening an issue starts at the top, not where the previous issue was left', async () => {
-      const scrollEl = document.querySelector('.modal-main-scroll');
+      const scrollEl = bySelector(document, '.modal-main-scroll');
       scrollEl.scrollTop = 300;
 
       await openModalWithMock(makeIssue({ id: 2, title: 'Another long issue' }));
@@ -1370,7 +1355,7 @@ describe('Modal Component', () => {
       titleInput.click();
       titleInput.value = '';
 
-      const doneBtn = document.getElementById('done-btn');
+      const doneBtn = byId('done-btn');
       doneBtn.click();
 
       await new Promise(process.nextTick);
@@ -1378,7 +1363,7 @@ describe('Modal Component', () => {
       expect(titleInput.value).toBe('Original'); // Reverted
       expect(api.updateIssue).not.toHaveBeenCalled();
       // Modal should close after revert
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should auto-save title on blur', async () => {
@@ -1407,7 +1392,7 @@ describe('Modal Component', () => {
       titleInput.click();
       titleInput.value = 'Changed';
 
-      const doneBtn = document.getElementById('done-btn');
+      const doneBtn = byId('done-btn');
       doneBtn.click();
 
       await new Promise(process.nextTick);
@@ -1442,7 +1427,7 @@ describe('Modal Component', () => {
         const title = byId('title', HTMLInputElement);
         title.click();
         title.value = typed;
-        document.getElementById('done-btn').click();
+        byId('done-btn').click();
         await flush();
       }
 
@@ -1466,13 +1451,13 @@ describe('Modal Component', () => {
 
       // Enter description edit mode by clicking the preview
       const descEditor = byId('description-editor', HTMLTextAreaElement);
-      const descPreview = document.getElementById('description-preview');
+      const descPreview = byId('description-preview');
       descPreview.click();
       descEditor.value = 'Changed Desc';
 
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
 
-      const doneBtn = document.getElementById('done-btn');
+      const doneBtn = byId('done-btn');
       doneBtn.click();
 
       await new Promise(process.nextTick);
@@ -1490,17 +1475,17 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
       vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('Connection to the server failed'));
 
-      document.getElementById('description-preview').click();
+      byId('description-preview').click();
       const descEditor = byId('description-editor', HTMLTextAreaElement);
       descEditor.value = 'Typed while offline';
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
-      expect(document.querySelector('.editor-container').classList.contains('inline-editing')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(bySelector(document, '.editor-container').classList.contains('inline-editing')).toBe(true);
       expect(descEditor.value).toBe('Typed while offline');
     });
 
@@ -1512,40 +1497,40 @@ describe('Modal Component', () => {
       titleInput.click();
       titleInput.value = 'Typed while offline';
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(utils.showNotification).toHaveBeenCalledWith('Connection to the server failed', 'error');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
       expect(titleInput.classList.contains('inline-editing')).toBe(true);
       expect(titleInput.value).toBe('Typed while offline');
     });
 
     it('should close on Done without asking when the open description is unchanged', async () => {
       await openModalWithMock(makeIssue({ id: 1, title: 'T', description: 'Desc' }));
-      document.getElementById('description-preview').click();
+      byId('description-preview').click();
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
       expect(api.updateIssue).not.toHaveBeenCalled();
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should discard the description edit and close on Done when the user chooses Discard', async () => {
       await openModalWithMock(makeIssue({ id: 1, title: 'T', description: 'Desc' }));
-      document.getElementById('description-preview').click();
+      byId('description-preview').click();
       const descEditor = byId('description-editor', HTMLTextAreaElement);
       descEditor.value = 'Changed';
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(false);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(api.updateIssue).not.toHaveBeenCalled();
       expect(descEditor.value).toBe('Desc');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should auto-save title on Enter key', async () => {
@@ -1591,24 +1576,24 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       // Enter edit mode but don't change anything
-      document.getElementById('title').click();
+      byId('title').click();
 
-      const doneBtn = document.getElementById('done-btn');
+      const doneBtn = byId('done-btn');
       doneBtn.click();
 
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
       expect(api.updateIssue).not.toHaveBeenCalled();
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     });
     it('should enter description inline edit on click', async () => {
       const issue = makeIssue({ id: 1, description: 'Desc' });
       await openModalWithMock(issue);
 
-      const descContainer = document.querySelector('.editor-container');
-      const descEditor = document.getElementById('description-editor');
-      const descPreview = document.getElementById('description-preview');
+      const descContainer = bySelector(document, '.editor-container');
+      const descEditor = byId('description-editor');
+      const descPreview = byId('description-preview');
 
       descPreview.click();
 
@@ -1620,7 +1605,7 @@ describe('Modal Component', () => {
       const issue = makeIssue({ id: 1, description: '<a href="https://example.com" id="test-link">Link</a>' });
       await openModalWithMock(issue);
 
-      const link = document.getElementById('test-link');
+      const link = byId('test-link');
 
       // Mock globalThis.open
       const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => null);
@@ -1634,11 +1619,7 @@ describe('Modal Component', () => {
   });
   describe('Instant render and background revalidation', () => {
     // A promise the test resolves by hand, to control when GET /issues/{id} "returns".
-    const deferred = () => {
-      let resolve: (value: Awaited<ReturnType<typeof api.fetchIssueById>>) => void;
-      const promise = new Promise<Awaited<ReturnType<typeof api.fetchIssueById>>>(r => { resolve = r; });
-      return { promise, resolve };
-    };
+    const deferred = () => Promise.withResolvers<Awaited<ReturnType<typeof api.fetchIssueById>>>();
     const changePriority = (value: string) => {
       const prioritySelect = byId('priority', HTMLInputElement);
       prioritySelect.value = value;
@@ -1656,7 +1637,7 @@ describe('Modal Component', () => {
 
       expect(byId('title', HTMLInputElement).value).toBe('From Board');
       expect(byId('description-editor', HTMLTextAreaElement).value).toBe('Board desc');
-      expect(document.getElementById('modal-title').textContent).toBe('Issue Details #5');
+      expect(byId('modal-title').textContent).toBe('Issue Details #5');
     });
 
     it('does not mutate the caller\'s issue object', () => {
@@ -1693,7 +1674,7 @@ describe('Modal Component', () => {
       await flush();
 
       expect(byId('title', HTMLInputElement).value).toBe('Changed Elsewhere');
-      expect(state.currentIssue.title).toBe('Changed Elsewhere');
+      expect(state.currentIssue?.title).toBe('Changed Elsewhere');
 
       changePriority('High');
       await flush();
@@ -1763,7 +1744,7 @@ describe('Modal Component', () => {
       await flush();
 
       expect(utils.showNotification).not.toHaveBeenCalledWith('Issue not found or was deleted', 'error');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
       expect(byId('title', HTMLInputElement).value).toBe('Issue B');
     });
 
@@ -1791,8 +1772,8 @@ describe('Modal Component', () => {
       expect(api.fetchLabelsByProject).not.toHaveBeenCalled();
       expect(api.fetchUsers).not.toHaveBeenCalled();
       expect(api.fetchProjects).not.toHaveBeenCalled();
-      expect(document.getElementById('label-options').textContent).toContain('Cached Label');
-      expect(document.getElementById('assignee-options').textContent).toContain('Cached User');
+      expect(byId('label-options').textContent).toContain('Cached Label');
+      expect(byId('assignee-options').textContent).toContain('Cached User');
     });
 
     it('fetches labels for an issue from a project other than the cached one', () => {
@@ -1818,10 +1799,10 @@ describe('Modal Component', () => {
       await new Promise(process.nextTick);
 
       // The modal works on a copy of the passed issue (state.currentIssue)
-      expect(state.currentIssue.planned_dates).toContain('2025-05-20');
+      expect(state.currentIssue?.planned_dates).toContain('2025-05-20');
       expect(api.updateIssue).toHaveBeenCalled();
 
-      const container = document.getElementById('planned-dates-container');
+      const container = byId('planned-dates-container');
       expect(container.querySelectorAll('.date-chip')).toHaveLength(1);
     });
 
@@ -1829,14 +1810,14 @@ describe('Modal Component', () => {
       const issue = makeIssue({ id: 1, planned_dates: ['2025-05-20'] });
       await openModalWithMock(issue);
 
-      const container = document.getElementById('planned-dates-container');
-      const chip = container.querySelector('.date-chip');
-      const removeBtn = chip.querySelector<HTMLElement>('.remove');
+      const container = byId('planned-dates-container');
+      const chip = bySelector(container, '.date-chip');
+      const removeBtn = bySelector(chip, '.remove');
 
       await removeBtn.click();
       await new Promise(process.nextTick);
 
-      expect(state.currentIssue.planned_dates).not.toContain('2025-05-20');
+      expect(state.currentIssue?.planned_dates).not.toContain('2025-05-20');
       expect(api.updateIssue).toHaveBeenCalled();
       expect(container.querySelectorAll('.date-chip')).toHaveLength(0);
     });
@@ -1848,13 +1829,13 @@ describe('Modal Component', () => {
       picker.value = '2025-06-01';
       picker.dispatchEvent(new Event('change'));
 
-      const container = document.getElementById('planned-dates-container');
+      const container = byId('planned-dates-container');
       expect(container.querySelectorAll('.date-chip')).toHaveLength(1);
 
-      const chip = container.querySelector<HTMLElement>('.date-chip');
+      const chip = bySelector(container, '.date-chip');
       expect(chip.dataset.date).toBe('2025-06-01');
 
-      const removeBtn = chip.querySelector<HTMLElement>('.remove');
+      const removeBtn = bySelector(chip, '.remove');
       await removeBtn.click();
 
       expect(container.querySelectorAll('.date-chip')).toHaveLength(0);
@@ -1890,7 +1871,7 @@ describe('Modal Component', () => {
       );
 
       // Modal should stay open after reload
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
 
       // Verify fresh data was fetched and modal was updated
       expect(api.fetchIssueById).toHaveBeenCalledWith(1, 1);
@@ -1907,13 +1888,13 @@ describe('Modal Component', () => {
       vi.mocked(api.updateIssue).mockResolvedValue({ issue: null, etag: null, conflict: true });
       vi.mocked(utils.showConfirm).mockResolvedValue(false); // User keeps the current data
 
-      document.getElementById('issue-form').dispatchEvent(new Event('submit'));
+      byId('issue-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
 
       expect(api.updateIssue).toHaveBeenCalledTimes(1);
       expect(utils.showConfirm).toHaveBeenCalledWith('Conflict Detected', expect.any(String), 'Reload', 'Cancel', 'primary');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
     });
 
     it('should queue a form submit behind a pending field save and send it with that save\'s ETag', async () => {
@@ -1931,7 +1912,7 @@ describe('Modal Component', () => {
       prioritySelect.value = 'High';
       prioritySelect.dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
-      document.getElementById('issue-form').dispatchEvent(new Event('submit'));
+      byId('issue-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
 
       expect(api.updateIssue).toHaveBeenCalledTimes(1); // the submit waits for the field save
@@ -1942,7 +1923,7 @@ describe('Modal Component', () => {
 
       expect(api.updateIssue).toHaveBeenCalledTimes(2);
       expect(vi.mocked(api.updateIssue).mock.calls[1][2]).toBe('"after-field-save"');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should keep modal open when user cancels conflict reload', async () => {
@@ -1960,7 +1941,7 @@ describe('Modal Component', () => {
 
       expect(utils.showConfirm).toHaveBeenCalled();
       // Modal stays open when user cancels
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
     });
   });
 
@@ -1969,12 +1950,12 @@ describe('Modal Component', () => {
       const issue = makeIssue({ id: 1, description: '<a id="test-link" href="https://example.com">Link</a>' });
       await openModalWithMock(issue);
 
-      const descPreview = document.getElementById('description-preview');
-      const link = descPreview.querySelector('a'); // link is rendered into the preview pane
+      const descPreview = byId('description-preview');
+      const link = bySelector(descPreview, 'a'); // link is rendered into the preview pane
       const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => null);
 
       // Ensure we are NOT in edit mode yet
-      const descContainer = document.querySelector('.editor-container');
+      const descContainer = bySelector(document, '.editor-container');
       descContainer.classList.add('inline-editable');
 
       // Prevent JSDOM navigation error by preventing default in the test
@@ -2009,16 +1990,17 @@ describe('Modal Component', () => {
       // Simulate a task entering edit mode: renderTasks hands its save() to the modal
       vi.mocked(tasks.renderTasks).mockImplementation((_taskList, container, _issue, callbacks) => {
         container.innerHTML = '<li class="task-item editing" data-id="101"><input class="task-title-input" value="Changed Task"></li>';
+        assert(callbacks?.onTaskEditStart);
         callbacks.onTaskEditStart(saveTask);
       });
       await openModalWithMock(issue);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
       expect(saveTask).toHaveBeenCalled();
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
       vi.mocked(tasks.renderTasks).mockReset();
     });
 
@@ -2027,15 +2009,16 @@ describe('Modal Component', () => {
       const saveTask = vi.fn().mockResolvedValue(false);
       vi.mocked(tasks.renderTasks).mockImplementation((_taskList, container, _issue, callbacks) => {
         container.innerHTML = '<li class="task-item editing" data-id="101"><input class="task-title-input" value="Changed Task"></li>';
+        assert(callbacks?.onTaskEditStart);
         callbacks.onTaskEditStart(saveTask);
       });
       await openModalWithMock(issue);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await new Promise(process.nextTick);
 
       expect(saveTask).toHaveBeenCalled();
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
       vi.mocked(tasks.renderTasks).mockReset();
     });
 
@@ -2043,6 +2026,7 @@ describe('Modal Component', () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
       const saveTask = vi.fn().mockResolvedValue(true);
       vi.mocked(tasks.renderTasks).mockImplementation((_taskList, _container, _issue, callbacks) => {
+        assert(callbacks?.onTaskEditStart && callbacks.onTaskEditEnd);
         callbacks.onTaskEditStart(saveTask);
         callbacks.onTaskEditEnd();
       });
@@ -2050,11 +2034,11 @@ describe('Modal Component', () => {
 
       expect(removeSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(saveTask).not.toHaveBeenCalled();
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
       vi.mocked(tasks.renderTasks).mockReset();
     });
 
@@ -2063,7 +2047,8 @@ describe('Modal Component', () => {
       setupModal(vi.fn(), rerenderViews);
       await openModalWithMock(makeIssue({ id: 1, tasks: [] }));
 
-      const callbacks = vi.mocked(tasks.renderTasks).mock.lastCall[3];
+      const callbacks = vi.mocked(tasks.renderTasks).mock.lastCall?.[3];
+      assert(callbacks?.onTaskUpdate);
       callbacks.onTaskUpdate();
 
       expect(rerenderViews).toHaveBeenCalled();
@@ -2076,7 +2061,8 @@ describe('Modal Component', () => {
       await openModalWithMock(makeIssue({ id: 1, title: 'T' }));
 
       // The callbacks look at the actual editor state: open while onEditStart runs, closed after.
-      const { onEditStart, onEditEnd } = vi.mocked(activity.loadActivity).mock.lastCall[1];
+      const { onEditStart, onEditEnd } = vi.mocked(activity.loadActivity).mock.lastCall?.[1] ?? {};
+      assert(onEditStart && onEditEnd);
       vi.mocked(activity.getOpenCommentDraft).mockReturnValueOnce({ changed: () => false, save: vi.fn(), discard: vi.fn() });
       onEditStart();
       expect(addSpy).toHaveBeenCalledWith('beforeunload', preventNavigation);
@@ -2096,7 +2082,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       // Setup DOM as if dragged
-      const taskList = document.getElementById('task-list');
+      const taskList = byId('task-list');
       taskList.innerHTML = `
           <li class="task-item" data-id="102"></li>
           <li class="task-item" data-id="101"></li>
@@ -2104,13 +2090,14 @@ describe('Modal Component', () => {
 
       // We need to trigger the saveTaskOrder somehow. It's internal but used in renderTasks callback
       // We can manually call it if we can access it, or trigger the callback.
-      const taskOrderCallback = vi.mocked(tasks.renderTasks).mock.calls[0][3].onTaskOrderSave;
+      const taskOrderCallback = vi.mocked(tasks.renderTasks).mock.calls[0][3]?.onTaskOrderSave;
+      assert(taskOrderCallback);
       await taskOrderCallback();
 
       // One request carrying the whole new order, not one PUT per task
       expect(api.updateTaskPositions).toHaveBeenCalledTimes(1);
       expect(api.updateTaskPositions).toHaveBeenCalledWith(7, 1, [{ id: 102, position: 0 }, { id: 101, position: 1 }]);
-      expect(state.currentIssue.tasks[0].id).toBe(102);
+      expect(state.currentIssue?.tasks?.[0].id).toBe(102);
     });
 
     it('should insert ordered list via toolbar button', async () => {
@@ -2136,7 +2123,7 @@ describe('Modal Component', () => {
       editor.selectionStart = 0;
       editor.selectionEnd = 19;
 
-      const linkBtn = document.querySelector<HTMLElement>('.editor-btn[data-md="link"]');
+      const linkBtn = bySelector(document, '.editor-btn[data-md="link"]');
       linkBtn.click();
 
       expect(editor.value).toBe('[https://example.com](https://example.com)');
@@ -2150,7 +2137,7 @@ describe('Modal Component', () => {
       editor.selectionStart = 0;
       editor.selectionEnd = 10;
 
-      const linkBtn = document.querySelector<HTMLElement>('.editor-btn[data-md="link"]');
+      const linkBtn = bySelector(document, '.editor-btn[data-md="link"]');
       linkBtn.click();
 
       // Non-URL selection becomes link text; URL is a safe https:// placeholder
@@ -2160,7 +2147,7 @@ describe('Modal Component', () => {
 
     it('should handle planned date chip add button click', () => {
       openModal(null);
-      const addBtn = document.querySelector<HTMLElement>('.date-chip-add');
+      const addBtn = bySelector(document, '.date-chip-add');
       const picker = byId('planned-date-picker', HTMLInputElement);
       picker.showPicker = vi.fn();
 
@@ -2170,8 +2157,8 @@ describe('Modal Component', () => {
 
     it('should close other dropdowns when opening one', () => {
       openModal(null);
-      const statusTrigger = document.getElementById('status-trigger');
-      const priorityOptions = document.getElementById('priority-options');
+      const statusTrigger = byId('status-trigger');
+      const priorityOptions = byId('priority-options');
 
       // Open priority first
       priorityOptions.classList.remove('hidden');
@@ -2189,7 +2176,7 @@ describe('Modal Component', () => {
       vi.mocked(utils.canArchive).mockReturnValue({ allowed: false, reason: 'Reason' });
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
 
-      const archiveBtn = document.getElementById('archive-issue-btn');
+      const archiveBtn = byId('archive-issue-btn');
       archiveBtn.click();
 
       await new Promise(process.nextTick);
@@ -2209,8 +2196,8 @@ describe('Modal Component', () => {
     it('should toggle preview in new-issue mode', () => {
       openModal(null);
       const editor = byId('description-editor', HTMLTextAreaElement);
-      const preview = document.getElementById('description-preview');
-      const previewToggle = document.getElementById('md-preview-toggle');
+      const preview = byId('description-preview');
+      const previewToggle = byId('md-preview-toggle');
 
       // In new-issue mode: editor visible, preview hidden
       expect(editor.classList.contains('hidden')).toBe(false);
@@ -2386,37 +2373,42 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       // Priority option click
-      const priorityOptions = document.getElementById('priority-options');
+      const priorityOptions = byId('priority-options');
       const highOption = Array.from(priorityOptions.querySelectorAll<HTMLElement>('.custom-option')).find(c => c.textContent === 'High');
+      assert(highOption);
       highOption.click();
       expect(byId('priority', HTMLInputElement).value).toBe('High');
 
       // Label "No Label" click
-      const labelOptions = document.getElementById('label-options');
+      const labelOptions = byId('label-options');
       const noLabelOption = Array.from(labelOptions.querySelectorAll<HTMLElement>('.custom-option')).find(c => c.textContent === 'No Label');
+      assert(noLabelOption);
       noLabelOption.click();
       expect(byId('label-select', HTMLInputElement).value).toBe('');
 
       // Label specific option click
       const bugOption = Array.from(labelOptions.querySelectorAll<HTMLElement>('.custom-option')).find(c => c.textContent === 'Bug');
+      assert(bugOption);
       bugOption.click();
       expect(byId('label-select', HTMLInputElement).value).toBe('1');
 
       // Assignee option clicks
-      const assigneeOptions = document.getElementById('assignee-options');
+      const assigneeOptions = byId('assignee-options');
       const unassignedOption = Array.from(assigneeOptions.querySelectorAll<HTMLElement>('.custom-option')).find(c => c.textContent === 'Unassigned');
+      assert(unassignedOption);
       unassignedOption.click();
       expect(byId('assignee-select', HTMLInputElement).value).toBe('');
 
       const userOption = Array.from(assigneeOptions.querySelectorAll<HTMLElement>('.custom-option')).find(c => c.textContent === 'Test User');
+      assert(userOption);
       userOption.click();
       expect(byId('assignee-select', HTMLInputElement).value).toBe('1');
     });
 
     it('should handle setupCustomDropdown else branch (closing)', async () => {
       openModal(null);
-      const trigger = document.getElementById('status-trigger');
-      const options = document.getElementById('status-options');
+      const trigger = byId('status-trigger');
+      const options = byId('status-options');
 
       trigger.click(); // Open
       trigger.click(); // Close
@@ -2441,7 +2433,7 @@ describe('Modal Component', () => {
 
     it('should handle modal open failure - issue not found', async () => {
       vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: null, etag: null });
-      const modal = document.getElementById('issue-modal');
+      const modal = byId('issue-modal');
 
       await openModal(makeIssue({ id: 999 }));
 
@@ -2451,7 +2443,7 @@ describe('Modal Component', () => {
 
     it('should handle modal open failure - fetch error', async () => {
       vi.mocked(api.fetchIssueById).mockRejectedValue(new Error('Network Error'));
-      const modal = document.getElementById('issue-modal');
+      const modal = byId('issue-modal');
 
       await openModal(makeIssue({ id: 999 }));
 
@@ -2466,10 +2458,10 @@ describe('Modal Component', () => {
       vi.mocked(api.updateIssue).mockImplementationOnce(resolveUpdate.save);
 
       const descEditor = byId('description-editor', HTMLTextAreaElement);
-      const saveBtn = document.getElementById('desc-save-btn');
-      document.getElementById('description-preview').click();
+      const saveBtn = byId('desc-save-btn');
+      byId('description-preview').click();
       descEditor.value = 'Changed';
-      const descContainer = document.querySelector('.editor-container');
+      const descContainer = bySelector(document, '.editor-container');
       saveBtn.click();
       expect(descContainer.getAttribute('aria-busy')).toBe('true');
       saveBtn.click();
@@ -2487,13 +2479,13 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       const descEditor = byId('description-editor', HTMLTextAreaElement);
-      const descPreview = document.getElementById('description-preview');
-      const descContainer = document.querySelector('.editor-container');
+      const descPreview = byId('description-preview');
+      const descContainer = bySelector(document, '.editor-container');
 
       descPreview.click(); // Enter edit mode via preview click
       descEditor.value = 'Changed';
 
-      const cancelBtn = document.getElementById('desc-cancel-btn');
+      const cancelBtn = byId('desc-cancel-btn');
       cancelBtn.click();
       await new Promise(process.nextTick); // ✕ asks before discarding changed text
 
@@ -2507,8 +2499,8 @@ describe('Modal Component', () => {
       const issue = makeIssue({ id: 1, description: '<a href="https://example.com"><span id="inner">Link</span></a>' });
       await openModalWithMock(issue);
 
-      const descPreview = document.getElementById('description-preview');
-      const inner = descPreview.querySelector('span'); // link is rendered into the preview pane
+      const descPreview = byId('description-preview');
+      const inner = bySelector(descPreview, 'span'); // link is rendered into the preview pane
       const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => null);
 
       inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -2521,12 +2513,12 @@ describe('Modal Component', () => {
   // docs/frontend.md "Editing Fields"
   describe('Field behaviour', () => {
     const key = (el: Element, k: string, opts: KeyboardEventInit = {}) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...opts }));
-    const modalHidden = () => document.getElementById('issue-modal').classList.contains('hidden');
-    const descContainer = () => document.querySelector('.editor-container');
+    const modalHidden = () => byId('issue-modal').classList.contains('hidden');
+    const descContainer = () => bySelector(document, '.editor-container');
 
     it('saves the description with Cmd/Ctrl+Enter', async () => {
       await openModalWithMock(makeIssue({ id: 1, description: 'Old' }));
-      document.getElementById('description-preview').click();
+      byId('description-preview').click();
       const editor = byId('description-editor', HTMLTextAreaElement);
       editor.value = 'New';
       key(editor, 'Enter', { metaKey: true });
@@ -2540,13 +2532,13 @@ describe('Modal Component', () => {
       await openModalWithMock(makeIssue({ id: 1, description: 'Old' }));
       const editor = byId('description-editor', HTMLTextAreaElement);
 
-      document.getElementById('description-preview').click();
+      byId('description-preview').click();
       key(editor, 'Escape');
       await flush();
       expect(utils.confirmDiscard).toHaveBeenLastCalledWith(false);
       expect(descContainer().classList.contains('inline-editing')).toBe(false);
 
-      document.getElementById('description-preview').click();
+      byId('description-preview').click();
       editor.value = 'Typed';
       vi.mocked(utils.confirmDiscard).mockResolvedValueOnce(false); // Keep editing
       key(editor, 'Escape');
@@ -2562,6 +2554,7 @@ describe('Modal Component', () => {
       vi.mocked(api.updateIssue).mockImplementationOnce(answerSave.save);
       const title = byId('title', HTMLInputElement);
       const field = title.closest('.title-input-container');
+      assert(field);
 
       title.click();
       title.value = 'New';
@@ -2580,7 +2573,7 @@ describe('Modal Component', () => {
     it('takes the cleaned-up title from the save response, without fetching the issue again and keeping the tasks', async () => {
       await openModalWithMock(makeIssue({ id: 1, title: 'Old', tasks: [makeTask({ id: 5, title: 'Task' })] }));
       await flush();
-      const tasksBefore = state.currentIssue.tasks;
+      const tasksBefore = state.currentIssue?.tasks;
       vi.mocked(api.fetchIssueById).mockClear();
       vi.mocked(api.updateIssue).mockResolvedValueOnce({ issue: makeIssue({ id: 1, title: 'Clean', tasks: [] }), etag: '"e2"', conflict: false });
 
@@ -2592,8 +2585,8 @@ describe('Modal Component', () => {
 
       expect(api.fetchIssueById).not.toHaveBeenCalled();
       expect(title.value).toBe('Clean');
-      expect(state.currentIssue.title).toBe('Clean');
-      expect(state.currentIssue.tasks).toBe(tasksBefore);
+      expect(state.currentIssue?.title).toBe('Clean');
+      expect(state.currentIssue?.tasks).toBe(tasksBefore);
       expect(utils.showNotification).toHaveBeenCalledWith('Unsupported HTML tags are not rendered for security.', 'error');
     });
 
@@ -2625,7 +2618,9 @@ describe('Modal Component', () => {
       });
       const priority = byId('priority', HTMLInputElement);
       const priorityField = priority.closest('.form-group');
-      const statusField = document.getElementById('status').closest('.form-group');
+      assert(priorityField);
+      const statusField = byId('status').closest('.form-group');
+      assert(statusField);
 
       priority.value = 'High';
       priority.dispatchEvent(new Event('change'));
@@ -2635,14 +2630,14 @@ describe('Modal Component', () => {
       expect(priorityField.getAttribute('aria-busy')).toBe('true');
       expect(statusField.hasAttribute('aria-busy')).toBe(false);
 
-      answers.shift()('"e2"');
+      answers[0]('"e2"');
       await flush();
       expect(priorityField.getAttribute('aria-busy')).toBe('true'); // the second change is still saving
 
-      answers.shift()('"e3"');
+      answers[1]('"e3"');
       await flush();
       expect(priorityField.hasAttribute('aria-busy')).toBe(false);
-      expect(state.currentIssue.priority).toBe('Low');
+      expect(state.currentIssue?.priority).toBe('Low');
     });
 
     it('frees the sidebar field after a failed save', async () => {
@@ -2653,7 +2648,7 @@ describe('Modal Component', () => {
       status.value = 'Done';
       status.dispatchEvent(new Event('change'));
       await flush();
-      expect(status.closest('.form-group').hasAttribute('aria-busy')).toBe(false);
+      expect(status.closest('.form-group')?.hasAttribute('aria-busy')).toBe(false);
       expect(status.value).toBe('Todo');
     });
 
@@ -2662,7 +2657,8 @@ describe('Modal Component', () => {
       await flush();
       const answer = answerByHand();
       vi.mocked(api.updateIssue).mockImplementationOnce(answer.save);
-      const field = document.getElementById('planned-dates-container').closest('.form-group');
+      const field = byId('planned-dates-container').closest('.form-group');
+      assert(field);
 
       const picker = byId('planned-date-picker', HTMLInputElement);
       picker.value = '2025-05-20';
@@ -2688,7 +2684,7 @@ describe('Modal Component', () => {
       await flush();
 
       expect(api.fetchIssueById).not.toHaveBeenCalled();
-      expect(state.currentIssue.assignee).toEqual(assignee);
+      expect(state.currentIssue?.assignee).toEqual(assignee);
     });
 
     it('asks "Add task?" on Done when the new-task field has text, and adds it', async () => {
@@ -2697,7 +2693,7 @@ describe('Modal Component', () => {
       byId('new-task-title', HTMLInputElement).value = 'Typed';
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(true);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(utils.showConfirm).toHaveBeenCalledWith('Unsaved Changes', 'Add task?', 'Add', 'Discard', 'primary');
@@ -2710,7 +2706,7 @@ describe('Modal Component', () => {
       byId('new-task-title', HTMLInputElement).value = 'Typed';
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(false);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(api.createTask).not.toHaveBeenCalled();
@@ -2724,7 +2720,7 @@ describe('Modal Component', () => {
       vi.mocked(activity.getOpenCommentDraft).mockReturnValueOnce(draft);
       vi.mocked(utils.showConfirm).mockResolvedValueOnce(true);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(utils.showConfirm).toHaveBeenCalledWith('Unsaved Changes', 'Save comment?', 'Save', 'Discard', 'primary');
@@ -2738,7 +2734,7 @@ describe('Modal Component', () => {
       const draft = { changed: () => false, save: vi.fn(), discard: vi.fn() };
       vi.mocked(activity.getOpenCommentDraft).mockReturnValueOnce(draft);
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await flush();
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
@@ -2751,7 +2747,7 @@ describe('Modal Component', () => {
       await openModalWithMock(makeIssue({ id: 1, title: 'T' }));
       vi.mocked(activity.getOpenCommentDraft).mockReturnValue({ changed: () => true, save: vi.fn(), discard: vi.fn() });
       try {
-        const title = document.getElementById('title');
+        const title = byId('title');
         title.click();
         removeSpy.mockClear();
         key(title, 'Escape');
@@ -2779,7 +2775,7 @@ describe('Modal Component', () => {
     it('ends the description edit mode and the leave-page warning when the modal closes, e.g. after archiving', async () => {
       const removeSpy = vi.spyOn(globalThis, 'removeEventListener');
       await openModalWithMock(makeIssue({ id: 1, description: 'Old' }));
-      document.getElementById('description-preview').click();
+      byId('description-preview').click();
       byId('description-editor', HTMLTextAreaElement).value = 'Typed';
       removeSpy.mockClear();
 
@@ -2797,11 +2793,11 @@ describe('Modal Component', () => {
       closeModal();
       await openModalWithMock(makeIssue({ id: 2, title: 'B', status: 'Done' }));
 
-      expect(document.getElementById('deadline').hasAttribute('aria-disabled')).toBe(false);
+      expect(byId('deadline').hasAttribute('aria-disabled')).toBe(false);
       document.querySelectorAll<HTMLButtonElement>('.custom-select-trigger').forEach(trigger => expect(trigger.disabled).toBe(false));
-      expect(document.getElementById('title').classList.contains('read-only-text')).toBe(false);
-      expect(document.getElementById('title').hasAttribute('aria-disabled')).toBe(false);
-      expect(document.querySelector('.editor-container').hasAttribute('aria-disabled')).toBe(false);
+      expect(byId('title').classList.contains('read-only-text')).toBe(false);
+      expect(byId('title').hasAttribute('aria-disabled')).toBe(false);
+      expect(bySelector(document, '.editor-container').hasAttribute('aria-disabled')).toBe(false);
     });
 
     it('moves the issue only after a queued title save, so the next save carries the ETag from the move', async () => {
@@ -2838,7 +2834,7 @@ describe('Modal Component', () => {
     it('should validate title length before submit', async () => {
       await openModalWithMock(null);
       byId('title', HTMLInputElement).value = 'a'.repeat(101);
-      document.getElementById('save-issue-btn').click();
+      byId('save-issue-btn').click();
 
       await new Promise(process.nextTick);
 
@@ -2852,7 +2848,7 @@ describe('Modal Component', () => {
       const longDesc = 'a'.repeat(5001);
       byId('description-editor', HTMLTextAreaElement).value = longDesc;
 
-      document.getElementById('save-issue-btn').click();
+      byId('save-issue-btn').click();
 
       await new Promise(process.nextTick);
 
@@ -2865,7 +2861,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
       const titleInput = byId('new-task-title', HTMLInputElement);
       titleInput.value = 'a'.repeat(101);
-      document.getElementById('add-task-btn').click();
+      byId('add-task-btn').click();
 
       expect(api.createTask).not.toHaveBeenCalled();
       expect(utils.showNotification).toHaveBeenCalledWith('Task title must not exceed 100 characters.', 'error');
@@ -2896,7 +2892,7 @@ describe('Modal Component', () => {
         'Cancel',
         'primary'
       );
-      expect(document.getElementById('modal-title').textContent).toContain('Issue Details #1');
+      expect(byId('modal-title').textContent).toContain('Issue Details #1');
     });
 
     it('should handle sidebar save failures', async () => {
@@ -2906,28 +2902,28 @@ describe('Modal Component', () => {
       vi.mocked(api.updateIssue).mockRejectedValue(new Error('Save Failed'));
 
       // Test Priority failure
-      document.getElementById('priority').dispatchEvent(new Event('change'));
+      byId('priority').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Status failure
-      document.getElementById('status').dispatchEvent(new Event('change'));
+      byId('status').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Deadline failure
       byId('deadline', HTMLInputElement).value = '2023-01-01';
-      document.getElementById('deadline').dispatchEvent(new Event('change'));
+      byId('deadline').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Assignee failure
-      document.getElementById('assignee-select').dispatchEvent(new Event('change'));
+      byId('assignee-select').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
 
       // Test Label failure
-      document.getElementById('label-select').dispatchEvent(new Event('change'));
+      byId('label-select').dispatchEvent(new Event('change'));
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Save Failed', 'error');
     });
@@ -2939,10 +2935,10 @@ describe('Modal Component', () => {
 
       await openModalWithMock(issue);
 
-      const assigneeOptions = document.getElementById('assignee-options');
+      const assigneeOptions = byId('assignee-options');
       const meOption = [...assigneeOptions.querySelectorAll<HTMLElement>('.custom-option')].find(o => o.textContent === 'Assign to me');
 
-      expect(meOption).toBeDefined();
+      assert(meOption);
       meOption.click();
 
       expect(byId('assignee-select', HTMLInputElement).value).toBe('5');
@@ -2952,20 +2948,20 @@ describe('Modal Component', () => {
       const issue = makeIssue({ id: 1, title: 'Original' });
       await openModalWithMock(issue);
 
-      const titleInput = document.getElementById('title');
+      const titleInput = byId('title');
       titleInput.click(); // Enter editing (no changes)
 
-      document.getElementById('done-btn').click();
+      byId('done-btn').click();
       await new Promise(process.nextTick);
 
       expect(api.updateIssue).not.toHaveBeenCalled();
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('should handle dropdown trigger click and options click', async () => {
       await openModalWithMock(null);
-      const statusTrigger = document.getElementById('status-trigger');
-      const statusOptions = document.getElementById('status-options');
+      const statusTrigger = byId('status-trigger');
+      const statusOptions = byId('status-options');
 
       statusTrigger.click();
       expect(statusOptions.classList.contains('hidden')).toBe(false);
@@ -2982,11 +2978,11 @@ describe('Modal Component', () => {
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       vi.mocked(api.archiveIssue).mockRejectedValue(new Error('Archive failed'));
 
-      document.getElementById('archive-issue-btn').click();
+      byId('archive-issue-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith('Archive failed', 'error');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
     });
 
     it('should show notification and keep modal open on unarchive failure', async () => {
@@ -2996,11 +2992,11 @@ describe('Modal Component', () => {
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       vi.mocked(api.unarchiveIssue).mockRejectedValue(new Error('Unarchive failed'));
 
-      document.getElementById('unarchive-issue-btn').click();
+      byId('unarchive-issue-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith('Unarchive failed', 'error');
-      expect(document.getElementById('issue-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
     });
 
     it('should show notification when saveTaskOrder fails', async () => {
@@ -3015,7 +3011,7 @@ describe('Modal Component', () => {
       await openModalWithMock(issue);
 
       // Set up DOM as if tasks were reordered (positions differ from stored)
-      const taskList = document.getElementById('task-list');
+      const taskList = byId('task-list');
       taskList.innerHTML = `
         <li class="task-item" data-id="102"></li>
         <li class="task-item" data-id="101"></li>
@@ -3024,13 +3020,14 @@ describe('Modal Component', () => {
       vi.mocked(api.updateTaskPositions).mockRejectedValue(new Error('Order save failed'));
 
       // Invoke onTaskOrderSave via the captured callback
-      const onTaskOrderSave = vi.mocked(tasks.renderTasks).mock.calls[vi.mocked(tasks.renderTasks).mock.calls.length - 1][3].onTaskOrderSave;
+      const onTaskOrderSave = vi.mocked(tasks.renderTasks).mock.lastCall?.[3]?.onTaskOrderSave;
+      assert(onTaskOrderSave);
       const renderCountBefore = vi.mocked(tasks.renderTasks).mock.calls.length;
       await onTaskOrderSave();
 
       expect(utils.showNotification).toHaveBeenCalledWith('Order save failed', 'error');
       // The old positions are restored and the task list is re-rendered in the old order
-      expect(state.currentIssue.tasks.map(t => [t.id, t.position])).toEqual([[101, 0], [102, 1]]);
+      expect(state.currentIssue?.tasks?.map(t => [t.id, t.position])).toEqual([[101, 0], [102, 1]]);
       expect(vi.mocked(tasks.renderTasks).mock.calls.length).toBe(renderCountBefore + 1);
     });
   });
@@ -3042,7 +3039,7 @@ describe('Project Selector Coverage', () => {
     vi.mocked(api.updateIssue).mockImplementation(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"test-etag"', conflict: false }));
     state.currentIssue = null;
     vi.mocked(setCurrentIssue).mockImplementation((val) => { state.currentIssue = val; });
-    setupModal(vi.fn(), undefined);
+    setupModal(vi.fn(), vi.fn());
   });
 
   it('should update project-text after fetchProjects resolves with a matching project (lines 198-199)', async () => {
@@ -3056,7 +3053,7 @@ describe('Project Selector Coverage', () => {
     await openModal(issue);
     await new Promise(process.nextTick);
 
-    expect(document.getElementById('project-text').textContent).toBe('My Project');
+    expect(byId('project-text').textContent).toBe('My Project');
   });
 
   it('should not update project-text when project_id is not found in fetched projects (line 198 branch false)', async () => {
@@ -3068,7 +3065,7 @@ describe('Project Selector Coverage', () => {
     await new Promise(process.nextTick);
 
     // Initial value set from issue?.project?.name ?? 'default' (no project object)
-    expect(document.getElementById('project-text').textContent).toBe('default');
+    expect(byId('project-text').textContent).toBe('default');
   });
 
   it('should move issue when project-select changes with currentIssue set', async () => {
@@ -3082,7 +3079,7 @@ describe('Project Selector Coverage', () => {
     await new Promise(process.nextTick);
 
     expect(api.moveIssue).toHaveBeenCalledWith(1, 1, 2, 'AdminPass123!');
-    expect(state.currentIssue.project_id).toBe(2);
+    expect(state.currentIssue?.project_id).toBe(2);
   });
 
   it('should not call moveIssue and revert dropdown when user cancels confirmation', async () => {
@@ -3097,7 +3094,7 @@ describe('Project Selector Coverage', () => {
 
     expect(api.moveIssue).not.toHaveBeenCalled();
     expect(projectSelect.value).toBe('1');
-    expect(document.getElementById('project-text').textContent).toBe('Default');
+    expect(byId('project-text').textContent).toBe('Default');
   });
 
   it('should not call moveIssue when project-select changes without currentIssue', async () => {
@@ -3126,7 +3123,7 @@ describe('Project Selector Coverage', () => {
 
     expect(api.fetchLabelsByProject).toHaveBeenCalledWith(2);
     expect(byId('label-select', HTMLInputElement).value).toBe('');
-    expect(document.getElementById('label-text').textContent).toBe('No Label');
+    expect(byId('label-text').textContent).toBe('No Label');
   });
 
   it('should log error when fetchLabelsByProject fails on project option click (line 1299)', async () => {
@@ -3178,28 +3175,28 @@ describe('renderReleaseOptions', () => {
   it('sets input value and text to the matching release when currentReleaseId is provided', () => {
     renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], 1);
     expect(byId('release-select', HTMLInputElement).value).toBe('1');
-    expect(document.getElementById('release-text').textContent).toBe('v1.0');
+    expect(byId('release-text').textContent).toBe('v1.0');
   });
 
   it('sets text to "No Release" when currentReleaseId is not found in the list', () => {
     renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], 999);
     expect(byId('release-select', HTMLInputElement).value).toBe('999');
-    expect(document.getElementById('release-text').textContent).toBe('No Release');
+    expect(byId('release-text').textContent).toBe('No Release');
   });
 
   it('sets input to empty and text to "No Release" when currentReleaseId is null', () => {
     renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], null);
     expect(byId('release-select', HTMLInputElement).value).toBe('');
-    expect(document.getElementById('release-text').textContent).toBe('No Release');
+    expect(byId('release-text').textContent).toBe('No Release');
   });
 
   it('selects "No Release" option on click and closes dropdown', () => {
     renderReleaseOptions([makeRelease({ id: 1, name: 'v1.0' })], 1);
-    const noReleaseOpt = document.querySelector<HTMLElement>('#release-options .custom-option');
+    const noReleaseOpt = bySelector(document, '#release-options .custom-option');
     noReleaseOpt.click();
     expect(byId('release-select', HTMLInputElement).value).toBe('');
-    expect(document.getElementById('release-text').textContent).toBe('No Release');
-    expect(document.getElementById('release-options').classList.contains('hidden')).toBe(true);
+    expect(byId('release-text').textContent).toBe('No Release');
+    expect(byId('release-options').classList.contains('hidden')).toBe(true);
   });
 
   it('selects a specific release option on click', () => {
@@ -3207,11 +3204,11 @@ describe('renderReleaseOptions', () => {
     const opts = document.querySelectorAll<HTMLElement>('#release-options .custom-option');
     opts[1].click(); // v1.0
     expect(byId('release-select', HTMLInputElement).value).toBe('1');
-    expect(document.getElementById('release-text').textContent).toBe('v1.0');
+    expect(byId('release-text').textContent).toBe('v1.0');
   });
 
   it('returns early when the options container is absent', () => {
-    document.getElementById('release-options').remove();
+    byId('release-options').remove();
     expect(() => renderReleaseOptions([], null)).not.toThrow();
   });
 });
@@ -3311,7 +3308,7 @@ describe('release-select change handler', () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
     HTMLInputElement.prototype.reportValidity = vi.fn();
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    setupModal(vi.fn(), undefined);
+    setupModal(vi.fn(), vi.fn());
   });
 
   it('calls updateIssue with new release_id when release-select changes to a release', async () => {

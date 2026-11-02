@@ -1,5 +1,5 @@
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
 import { renderBoard, setupBoardView } from '../components/board.ts';
 import * as state from '../state.ts';
 import * as card from '../components/card.ts';
@@ -9,6 +9,14 @@ import * as api from '../api.ts';
 import * as listUtils from '../list-utils.ts';
 import * as utils from '../utils.ts';
 import { makeIssue, makeUser } from './fixtures.ts';
+import { bySelector } from '../utils.ts';
+
+// The callbacks renderBoard passed to createCardElement for the issue with this id.
+function cardOptions(id: number) {
+  const options = vi.mocked(card.createCardElement).mock.calls.find(c => c[0].id === id)?.[2];
+  assert(options);
+  return options;
+}
 
 // Mock dependencies
 vi.mock('../state.ts', () => ({
@@ -102,10 +110,10 @@ describe('Board Component', () => {
 
       renderBoard();
 
-      expect(document.querySelector('.column[data-status="Todo"] .column-content').children).toHaveLength(1);
-      expect(document.querySelector('.column[data-status="Stage1"] .column-content').children).toHaveLength(0);
-      expect(document.querySelector('.column[data-status="Stage2"] .column-content').children).toHaveLength(1);
-      expect(document.querySelector('.column[data-status="Done"] .column-content').children).toHaveLength(1);
+      expect(bySelector(document, '.column[data-status="Todo"] .column-content').children).toHaveLength(1);
+      expect(bySelector(document, '.column[data-status="Stage1"] .column-content').children).toHaveLength(0);
+      expect(bySelector(document, '.column[data-status="Stage2"] .column-content').children).toHaveLength(1);
+      expect(bySelector(document, '.column[data-status="Done"] .column-content').children).toHaveLength(1);
 
       expect(card.createCardElement).toHaveBeenCalledTimes(3);
     });
@@ -121,10 +129,10 @@ describe('Board Component', () => {
 
       renderBoard();
 
-      const todoCount = document.querySelector('.column[data-status="Todo"] .count');
+      const todoCount = bySelector(document, '.column[data-status="Todo"] .count');
       expect(todoCount.textContent).toBe('2');
 
-      const pendingCount = document.querySelector('.column[data-status="Stage1"] .count');
+      const pendingCount = bySelector(document, '.column[data-status="Stage1"] .count');
       expect(pendingCount.textContent).toBe('0');
     });
 
@@ -136,7 +144,7 @@ describe('Board Component', () => {
 
       renderBoard();
 
-      expect(document.querySelector('.column[data-status="Todo"] .column-content').children).toHaveLength(0);
+      expect(bySelector(document, '.column[data-status="Todo"] .column-content').children).toHaveLength(0);
       expect(filters.filterIssues).toHaveBeenCalled();
     });
   });
@@ -167,7 +175,7 @@ describe('Board Component', () => {
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockCard);
       vi.mocked(drag.getDragAfterElement).mockReturnValue(nextSibling); // Same as current next sibling
 
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
       colContent.appendChild(mockCard);
       colContent.appendChild(nextSibling);
 
@@ -184,6 +192,24 @@ describe('Board Component', () => {
       expect(insertSpy).not.toHaveBeenCalled();
     });
 
+    it('should not move the last card of a column while it stays at the end during dragover', async () => {
+      const actualDrag = await vi.importActual<typeof import('../drag.ts')>('../drag.ts');
+      vi.mocked(drag.getDragAfterElement).mockImplementationOnce(actualDrag.getDragAfterElement);
+      setupBoardView(vi.fn(), vi.fn(), undefined);
+      renderBoard();
+
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
+      const draggedCard = document.createElement('div');
+      draggedCard.classList.add('card', 'dragging');
+      colContent.appendChild(draggedCard);
+      vi.mocked(drag.getDraggedCard).mockReturnValue(draggedCard);
+      const appendSpy = vi.spyOn(colContent, 'appendChild');
+
+      colContent.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }));
+
+      expect(appendSpy).not.toHaveBeenCalled();
+    });
+
     it('should revert card if drag was not successful', () => {
       setupBoardView(vi.fn(), vi.fn(), undefined);
 
@@ -196,10 +222,8 @@ describe('Board Component', () => {
 
       // Capture the options passed to createCardElement
       // The last call to createCardElement should have the options as 3rd arg
-      const lastCall = vi.mocked(card.createCardElement).mock.lastCall;
-      const options = lastCall[2];
-
-      expect(options.onDragEnd).toBeDefined();
+      const options = vi.mocked(card.createCardElement).mock.lastCall?.[2];
+      assert(options?.onDragEnd);
 
       // Simulate drag end with failure
       vi.mocked(drag.getDragSuccess).mockReturnValue(false);
@@ -240,7 +264,7 @@ describe('Board Component', () => {
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockCard);
       vi.mocked(drag.getDragAfterElement).mockReturnValue(null); // Should append to end
 
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
       colContent.appendChild(otherCard); // Not empty, and mockCard.nextElementSibling is null
 
       const appendSpy = vi.spyOn(colContent, 'appendChild');
@@ -263,7 +287,7 @@ describe('Board Component', () => {
       const someOtherCard = document.createElement('div');
       someOtherCard.classList.add('card');
 
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
       colContent.appendChild(someOtherCard);
       colContent.appendChild(afterElement);
 
@@ -296,7 +320,7 @@ describe('Board Component', () => {
         nextSibling: mockSibling
       });
 
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
       const beforeSpy = vi.spyOn(mockSibling, 'before');
 
       //relatedTarget is null/outside
@@ -328,7 +352,7 @@ describe('Board Component', () => {
       vi.mocked(drag.setDragSuccess).mockImplementation(() => { });
       vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
 
-      const workingContent = document.querySelector('.column[data-status="Stage2"] .column-content');
+      const workingContent = bySelector(document, '.column[data-status="Stage2"] .column-content');
       workingContent.appendChild(mockCard);
 
       const event = new Event('drop', { bubbles: true, cancelable: true });
@@ -358,8 +382,8 @@ describe('Board Component', () => {
       renderBoard();
 
       // Get the card rendered by renderBoard
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
-      const renderedCard = colContent.querySelector<HTMLElement>('.card');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
+      const renderedCard = bySelector(colContent, '.card');
 
       vi.mocked(drag.getDraggedCard).mockReturnValue(renderedCard);
       // Drop in the same column — status and position unchanged
@@ -387,15 +411,14 @@ describe('Board Component', () => {
 
       renderBoard(vi.fn(), vi.fn(), vi.fn());
 
-      const calls = vi.mocked(card.createCardElement).mock.calls;
-      const optionsFirst  = calls.find(c => c[0].id === 1)[2];
-      const optionsSecond = calls.find(c => c[0].id === 2)[2];
+      const optionsFirst  = cardOptions(1);
+      const optionsSecond = cardOptions(2);
 
       expect(optionsFirst.onMoveTop).toBeNull();
-      expect(optionsSecond.onMoveTop).toBeDefined();
+      assert(optionsSecond.onMoveTop);
       expect(optionsSecond.onMoveBottom).toBeNull();
-      expect(optionsFirst.onMoveBottom).toBeDefined();
-      expect(optionsFirst.onTogglePriority).toBeDefined();
+      assert(optionsFirst.onMoveBottom);
+      assert(optionsFirst.onTogglePriority);
 
       optionsSecond.onMoveTop();
       expect(listUtils.handleMoveTop).toHaveBeenCalledWith(issues[1], issues, expect.any(Function), expect.any(Function));
@@ -419,12 +442,11 @@ describe('Board Component', () => {
 
       renderBoard();
 
-      const calls = vi.mocked(card.createCardElement).mock.calls;
-      const optionsAssigned   = calls.find(c => c[0].id === 1)[2];
-      const optionsUnassigned = calls.find(c => c[0].id === 2)[2];
+      const optionsAssigned   = cardOptions(1);
+      const optionsUnassigned = cardOptions(2);
 
       expect(optionsAssigned.onAssignToMe).toBeUndefined();
-      expect(optionsUnassigned.onAssignToMe).toBeDefined();
+      assert(optionsUnassigned.onAssignToMe);
 
       optionsUnassigned.onAssignToMe();
       expect(listUtils.handleAssignToMe).toHaveBeenCalledWith(issues[1], state.state.currentUser, expect.any(Function));
@@ -437,7 +459,7 @@ describe('Board Component', () => {
       const mockDiv = document.createElement('div');
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockDiv);
 
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
       const event = new Event('dragover', { bubbles: true, cancelable: true });
 
       colContent.dispatchEvent(event);
@@ -459,7 +481,7 @@ describe('Board Component', () => {
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockCard);
       vi.mocked(drag.getDraggedCardOrigin).mockReturnValue({ parent, nextSibling: sibling });
 
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
       const outsideEl = document.createElement('div');
       document.body.appendChild(outsideEl);
 
@@ -479,7 +501,7 @@ describe('Board Component', () => {
       mockCard.classList.add('card');
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockCard);
 
-      const colContent = document.querySelector('.column[data-status="Todo"] .column-content');
+      const colContent = bySelector(document, '.column[data-status="Todo"] .column-content');
       const event = new Event('drop', { bubbles: true, cancelable: true });
       colContent.dispatchEvent(event);
 
@@ -504,7 +526,7 @@ describe('Board Component', () => {
       vi.mocked(drag.getDraggedCard).mockReturnValue(mockCard);
       vi.mocked(api.updateIssue).mockRejectedValue(new Error('Network error'));
 
-      const workingContent = document.querySelector('.column[data-status="Stage2"] .column-content');
+      const workingContent = bySelector(document, '.column[data-status="Stage2"] .column-content');
       workingContent.appendChild(mockCard);
 
       const event = new Event('drop', { bubbles: true, cancelable: true });
@@ -526,11 +548,11 @@ describe('Board Component', () => {
       ];
       renderBoard();
 
-      const card = document.querySelector<HTMLElement>('.card[data-id="1"]');
+      const card = bySelector(document, '.card[data-id="1"]');
       vi.mocked(drag.getDraggedCard).mockReturnValue(card);
       vi.mocked(api.updateIssue).mockRejectedValue(new Error('Connection to the server failed. The change was not saved.'));
 
-      const targetContent = document.querySelector('.column[data-status="Stage2"] .column-content');
+      const targetContent = bySelector(document, '.column[data-status="Stage2"] .column-content');
       targetContent.appendChild(card);
       targetContent.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
 
@@ -553,8 +575,8 @@ describe('Board Component', () => {
       ];
       renderBoard();
 
-      const column = document.querySelector('.column[data-status="Stage1"] .column-content');
-      const card2 = column.querySelector<HTMLElement>('.card[data-id="2"]');
+      const column = bySelector(document, '.column[data-status="Stage1"] .column-content');
+      const card2 = bySelector(column, '.card[data-id="2"]');
       vi.mocked(drag.getDraggedCard).mockReturnValue(card2);
       vi.mocked(api.updateIssuePositions).mockRejectedValue(new Error('Connection to the server failed. The change was not saved.'));
 
@@ -567,7 +589,7 @@ describe('Board Component', () => {
       expect(api.updateIssuePositions).toHaveBeenCalledWith(1, [{ id: 2, position: 0 }, { id: 1, position: 1 }]);
       expect(state.state.issues.map(i => [i.id, i.position])).toEqual([[1, 0], [2, 1]]);
       // renderBoard rebuilds the columns, so query the re-rendered one
-      const rendered = document.querySelector('.column[data-status="Stage1"] .column-content');
+      const rendered = bySelector(document, '.column[data-status="Stage1"] .column-content');
       expect([...rendered.querySelectorAll<HTMLElement>('.card')].map(c => c.dataset.id)).toEqual(['1', '2']);
       expect(refreshApp).toHaveBeenCalled();
     });

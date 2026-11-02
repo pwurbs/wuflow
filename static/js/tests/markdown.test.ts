@@ -21,9 +21,8 @@ vi.mock('dompurify', () => ({
 
 const { renderMarkdown, renderMarkdownWithReport } = await import('../markdown.ts');
 
-// A captured DOMPurify hook as the tests call it: without a node and with only the event
-// fields markdown.ts reads.
-type TestHook = (node: null, data: object) => void;
+// A captured DOMPurify hook as the tests call it: with only the event fields markdown.ts reads.
+type TestHook = (node: Element, data: object) => void;
 
 // Helpers: configure addHook to capture the callback, then make sanitize
 // invoke it with controlled data — mirrors how real DOMPurify calls hooks.
@@ -34,7 +33,7 @@ function withElementHookTrigger(tagName: string, allowedTags: Record<string, boo
     if (event === 'uponSanitizeElement') hook = fn as TestHook;
   });
   vi.mocked(DOMPurify.sanitize).mockImplementation((html) => {
-    hook?.(null, { tagName, allowedTags });
+    hook?.(document.body,{ tagName, allowedTags });
     return String(html);
   });
 }
@@ -46,7 +45,7 @@ function withAttrHookTrigger(attrName: string, allowedAttributes: Record<string,
     if (event === 'uponSanitizeAttribute') hook = fn as TestHook;
   });
   vi.mocked(DOMPurify.sanitize).mockImplementation((html) => {
-    hook?.(null, { attrName, allowedAttributes, attrValue });
+    hook?.(document.body,{ attrName, allowedAttributes, attrValue });
     return String(html);
   });
 }
@@ -60,20 +59,11 @@ beforeEach(() => {
 
 describe('renderMarkdown', () => {
   describe('falsy input', () => {
-    it('returns empty string for null', () => {
-      expect(renderMarkdown(null)).toBe('');
-    });
-
-    it('returns empty string for undefined', () => {
-      expect(renderMarkdown(undefined)).toBe('');
-    });
-
     it('returns empty string for empty string', () => {
       expect(renderMarkdown('')).toBe('');
     });
 
     it('returns { html: "", strippedHTML: false } for falsy input with a report', () => {
-      expect(renderMarkdownWithReport(null)).toEqual({ html: '', strippedHTML: false });
       expect(renderMarkdownWithReport('')).toEqual({ html: '', strippedHTML: false });
     });
   });
@@ -107,9 +97,9 @@ describe('renderMarkdown', () => {
         if (event === 'uponSanitizeElement') hook = fn as TestHook;
       });
       vi.mocked(DOMPurify.sanitize).mockImplementation((html) => {
-        hook?.(null, { tagName: 'body', allowedTags: {} });
-        hook?.(null, { tagName: '#text', allowedTags: {} });
-        hook?.(null, { tagName: '#comment', allowedTags: {} });
+        hook?.(document.body,{ tagName: 'body', allowedTags: {} });
+        hook?.(document.body,{ tagName: '#text', allowedTags: {} });
+        hook?.(document.body,{ tagName: '#comment', allowedTags: {} });
         return String(html);
       });
       expect(renderMarkdownWithReport('hello').strippedHTML).toBe(false);

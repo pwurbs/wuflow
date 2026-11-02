@@ -12,11 +12,7 @@ vi.mock('../api.ts', () => ({
 }));
 
 // A promise the test resolves by hand, to control the order in which responses arrive.
-function deferred() {
-  let resolve: (issues: Issue[]) => void;
-  const promise = new Promise<Issue[]>(r => { resolve = r; });
-  return { promise, resolve };
-}
+const deferred = () => Promise.withResolvers<Issue[]>();
 
 const ids = () => state.issues.map(i => i.id).sort((a, b) => a - b);
 

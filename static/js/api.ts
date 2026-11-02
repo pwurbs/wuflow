@@ -72,7 +72,7 @@ let connectionListener: ((ok: boolean) => void) | null = null;
  * It must return a promise that resolves once the user is logged in again;
  * the failed request is then replayed. Without a handler the app redirects to /login.
  */
-export function setSessionExpiredHandler(handler: () => Promise<void>) {
+export function setSessionExpiredHandler(handler: (() => Promise<void>) | null) {
   sessionExpiredHandler = handler;
 }
 
@@ -80,7 +80,7 @@ export function setSessionExpiredHandler(handler: () => Promise<void>) {
  * Registers a listener called with true/false whenever a request reached / failed to
  * reach the server, so the UI can show or hide a connection banner.
  */
-export function setConnectionListener(listener: (ok: boolean) => void) {
+export function setConnectionListener(listener: ((ok: boolean) => void) | null) {
   connectionListener = listener;
 }
 

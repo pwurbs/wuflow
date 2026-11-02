@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
 import {
   byId, bySelector, escapeHtml, debounce, getUserInitials,
   countCodepoints, countUtf8Bytes, canArchive,
@@ -13,8 +13,7 @@ import {
 import { makeIssue, makeRelease, makeTask, makeUserRef } from './fixtures.ts';
 
 describe('getDeadlineStatus', () => {
-  it('returns not-late for missing issue or missing deadline', () => {
-    expect(getDeadlineStatus(null).late).toBe(false);
+  it('returns not-late for missing deadline', () => {
     expect(getDeadlineStatus(makeIssue()).late).toBe(false);
   });
 
@@ -125,14 +124,6 @@ describe('bySelector', () => {
 });
 
 describe('escapeHtml', () => {
-  it('should return empty string for null input', () => {
-    expect(escapeHtml(null)).toBe('');
-  });
-
-  it('should return empty string for undefined input', () => {
-    expect(escapeHtml(undefined)).toBe('');
-  });
-
   it('should return empty string for empty input', () => {
     expect(escapeHtml('')).toBe('');
   });
@@ -299,17 +290,6 @@ describe('countUtf8Bytes', () => {
 });
 
 describe('canArchive', () => {
-  it('should return not allowed for null', () => {
-    const result = canArchive(null);
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toBe('No issue provided');
-  });
-
-  it('should return not allowed for undefined', () => {
-    const result = canArchive(undefined);
-    expect(result.allowed).toBe(false);
-  });
-
   it('should return allowed for issue with no tasks and no planned dates', () => {
     expect(canArchive(makeIssue()).allowed).toBe(true);
   });
@@ -540,19 +520,19 @@ describe('confirmDiscard', () => {
 
   it('discards unchanged text without asking', async () => {
     expect(await confirmDiscard(false)).toBe(true);
-    expect(document.getElementById('confirm-modal').classList.contains('hidden')).toBe(true);
+    expect(byId('confirm-modal').classList.contains('hidden')).toBe(true);
   });
 
   it('asks before discarding changed text and follows the answer', async () => {
     const discard = confirmDiscard(true);
     await Promise.resolve();
-    expect(document.getElementById('confirm-message').textContent).toBe('Discard changes?');
-    document.getElementById('confirm-cancel-btn').click(); // Keep editing
+    expect(byId('confirm-message').textContent).toBe('Discard changes?');
+    byId('confirm-cancel-btn').click(); // Keep editing
     expect(await discard).toBe(false);
 
     const second = confirmDiscard(true);
     await Promise.resolve();
-    document.getElementById('confirm-ok-btn').click(); // Discard
+    byId('confirm-ok-btn').click(); // Discard
     expect(await second).toBe(true);
   });
 });
@@ -567,8 +547,8 @@ describe('guardSubmit', () => {
   });
 
   it('runs a repeated call while the first is in flight only once, sharing its result', async () => {
-    let resolveSave: (value?: unknown) => void;
-    const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
+    const { promise: pendingSave, resolve: resolveSave } = Promise.withResolvers<string>();
+    const fn = vi.fn(() => pendingSave);
     const submit = guardSubmit(fn, { field });
 
     const first = submit();
@@ -600,8 +580,8 @@ describe('guardSubmit', () => {
   };
 
   it('marks the field busy only while the call runs', async () => {
-    let resolveSave: (value?: unknown) => void;
-    const submit = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field });
+    const { promise: pendingSave, resolve: resolveSave } = Promise.withResolvers<void>();
+    const submit = guardSubmit(() => pendingSave, { field });
 
     const running = submit();
     expect(field.getAttribute('aria-busy')).toBe('true');
@@ -614,8 +594,8 @@ describe('guardSubmit', () => {
   it('ignores typing and keys inside the field while busy, except Tab', async () => {
     const onKey = vi.fn();
     input.addEventListener('keydown', onKey);
-    let resolveSave: (value?: unknown) => void;
-    const running = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field })();
+    const { promise: pendingSave, resolve: resolveSave } = Promise.withResolvers<void>();
+    const running = guardSubmit(() => pendingSave, { field })();
 
     expect(beforeinput().defaultPrevented).toBe(true);
     expect(keydown('Escape').defaultPrevented).toBe(true);
@@ -640,8 +620,8 @@ describe('guardSubmit', () => {
 
   it('leaves the input\'s readOnly alone, which editors use for their edit mode', async () => {
     input.readOnly = true;
-    let resolveSave: (value?: unknown) => void;
-    const running = guardSubmit(() => new Promise(r => { resolveSave = r; }), { field })();
+    const { promise: pendingSave, resolve: resolveSave } = Promise.withResolvers<void>();
+    const running = guardSubmit(() => pendingSave, { field })();
     input.readOnly = false; // e.g. the save left read mode
     resolveSave();
     await running;
@@ -662,9 +642,10 @@ describe('setAriaDisabled', () => {
 describe('markBusy', () => {
   it('keeps the field busy until the last of overlapping saves settles', async () => {
     const field = document.createElement('div');
-    let answerFirst: (value: unknown) => void, answerSecond: (value: unknown) => void;
-    const first = markBusy(field, () => new Promise(r => { answerFirst = r; }));
-    const second = markBusy(field, () => new Promise(r => { answerSecond = r; }));
+    const { promise: pendingFirst, resolve: answerFirst } = Promise.withResolvers<string>();
+    const { promise: pendingSecond, resolve: answerSecond } = Promise.withResolvers<string>();
+    const first = markBusy(field, () => pendingFirst);
+    const second = markBusy(field, () => pendingSecond);
     expect(field.getAttribute('aria-busy')).toBe('true');
 
     answerFirst('a');
@@ -678,8 +659,8 @@ describe('markBusy', () => {
 
   it('ignores key releases except Tab while busy, so Space cannot click a button', async () => {
     const field = document.createElement('div');
-    let finish: (value?: unknown) => void;
-    const save = markBusy(field, () => new Promise(r => { finish = r; }));
+    const { promise: pendingFinish, resolve: finish } = Promise.withResolvers<void>();
+    const save = markBusy(field, () => pendingFinish);
 
     const space = new KeyboardEvent('keyup', { key: ' ', cancelable: true });
     const tab = new KeyboardEvent('keyup', { key: 'Tab', cancelable: true });
@@ -714,8 +695,8 @@ describe('onGuardedSubmit', () => {
   });
 
   it('prevents the page submit and saves a repeated submit only once, with the whole form busy', async () => {
-    let resolveSave: (value?: unknown) => void;
-    const fn = vi.fn(() => new Promise(r => { resolveSave = r; }));
+    const { promise: pendingSave, resolve: resolveSave } = Promise.withResolvers<void>();
+    const fn = vi.fn(() => pendingSave);
     onGuardedSubmit(form, fn);
 
     const first = new Event('submit', { cancelable: true });
@@ -850,8 +831,8 @@ describe('promptAdminPasswordConfirmation', () => {
   });
 
   it('runs the protected action only once when Enter is pressed again while it is in flight', async () => {
-    let resolveConfirm: (value?: unknown) => void;
-    const onConfirm = vi.fn(() => new Promise(r => { resolveConfirm = r; }));
+    const { promise: pendingConfirm, resolve: resolveConfirm } = Promise.withResolvers<void>();
+    const onConfirm = vi.fn(() => pendingConfirm);
     const promise = promptAdminPasswordConfirmation('T', 'M', onConfirm);
     input.value = 'CorrectPass123!';
 
@@ -996,6 +977,7 @@ describe('initCharCounter', () => {
   it('should insert a counter element after the input', () => {
     initCharCounter(input, 100);
     const counter = input.nextElementSibling;
+    assert(counter);
     expect(counter).not.toBeNull();
     expect(counter.className).toContain('char-counter');
   });
@@ -1003,6 +985,7 @@ describe('initCharCounter', () => {
   it('should apply a custom className when provided', () => {
     initCharCounter(input, 100, { className: 'my-counter' });
     const counter = input.nextElementSibling;
+    assert(counter);
     expect(counter.classList.contains('char-counter')).toBe(true);
     expect(counter.classList.contains('my-counter')).toBe(true);
   });
@@ -1016,6 +999,7 @@ describe('initCharCounter', () => {
   it('should show counter and display count on focus', () => {
     initCharCounter(input, 100);
     const counter = input.nextElementSibling;
+    assert(counter);
     input.value = 'hello';
     input.dispatchEvent(new Event('focus'));
     expect(counter.classList.contains('visible')).toBe(true);
@@ -1025,6 +1009,7 @@ describe('initCharCounter', () => {
   it('should hide counter on blur', () => {
     initCharCounter(input, 100);
     const counter = input.nextElementSibling;
+    assert(counter);
     input.dispatchEvent(new Event('focus'));
     input.dispatchEvent(new Event('blur'));
     expect(counter.classList.contains('visible')).toBe(false);
@@ -1033,6 +1018,7 @@ describe('initCharCounter', () => {
   it('should update count on input event', () => {
     initCharCounter(input, 100);
     const counter = input.nextElementSibling;
+    assert(counter);
     input.value = 'hi';
     input.dispatchEvent(new Event('input'));
     expect(counter.textContent).toBe('2/100');
@@ -1041,6 +1027,7 @@ describe('initCharCounter', () => {
   it('should add at-limit class when count equals maxLength', () => {
     initCharCounter(input, 5);
     const counter = input.nextElementSibling;
+    assert(counter);
     input.value = 'hello';
     input.dispatchEvent(new Event('input'));
     expect(counter.classList.contains('at-limit')).toBe(true);
@@ -1049,6 +1036,7 @@ describe('initCharCounter', () => {
   it('should remove at-limit class when count is below maxLength', () => {
     initCharCounter(input, 5);
     const counter = input.nextElementSibling;
+    assert(counter);
     counter.classList.add('at-limit');
     input.value = 'hi';
     input.dispatchEvent(new Event('input'));
@@ -1065,6 +1053,7 @@ describe('initCharCounter', () => {
   it('should not add focus/blur listeners in manual mode', () => {
     initCharCounter(input, 100, { manual: true });
     const counter = input.nextElementSibling;
+    assert(counter);
     input.dispatchEvent(new Event('focus'));
     expect(counter.classList.contains('visible')).toBe(false);
   });
@@ -1072,6 +1061,7 @@ describe('initCharCounter', () => {
   it('show() and hide() work correctly in manual mode', () => {
     const { show, hide } = initCharCounter(input, 100, { manual: true });
     const counter = input.nextElementSibling;
+    assert(counter);
     show();
     expect(counter.classList.contains('visible')).toBe(true);
     hide();

@@ -15,10 +15,6 @@ import type { IssueStatus } from './status-config.ts';
  * @returns Filtered issues
  */
 export function filterIssues(issues: Issue[], filter: Partial<Filter>, currentUserId?: number | null): Issue[] {
-  if (!issues || !Array.isArray(issues)) {
-    return [];
-  }
-
   let result = issues;
 
   // Label filter
@@ -67,7 +63,7 @@ export function filterIssues(issues: Issue[], filter: Partial<Filter>, currentUs
       result = result.filter(issue =>
         String(issue.id).includes(term) ||
         issue.title.toLowerCase().includes(term) ||
-        issue.description?.toLowerCase().includes(term)
+        issue.description.toLowerCase().includes(term)
       );
     }
   }
@@ -91,9 +87,6 @@ function matchesReleaseIds(issue: Issue, releaseFilterIds: Filter['releaseFilter
  * @returns Issues matching the status
  */
 export function filterByStatus(issues: Issue[], status: IssueStatus): Issue[] {
-  if (!issues || !Array.isArray(issues)) {
-    return [];
-  }
   return issues.filter(issue => issue.status === status);
 }
 
@@ -103,8 +96,5 @@ export function filterByStatus(issues: Issue[], status: IssueStatus): Issue[] {
  * @returns Sorted issues (does not mutate original)
  */
 export function sortByPosition(issues: Issue[]): Issue[] {
-  if (!issues || !Array.isArray(issues)) {
-    return [];
-  }
   return [...issues].sort((a, b) => a.position - b.position);
 }

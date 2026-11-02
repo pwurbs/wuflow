@@ -94,10 +94,10 @@ Vite removes the types when it builds and does not check them, so `npm run build
 | Config | Files | Environment |
 |--------|-------|-------------|
 | `tsconfig.app.json` | the modules in `static/js/` and `components/` | browser (DOM types) |
-| `tsconfig.test.json` | `tests/` | like the app, plus Node types |
+| `tsconfig.test.json` | `tests/` | like the app, plus Node types and `Promise.withResolvers` (ES2024) |
 | `tsconfig.node.json` | `vite.config.ts`, `vitest.config.ts` | Node |
 
-`noImplicitAny` is on for the app and the tests, so every parameter needs a type. `strictNullChecks` is on for the app (not yet for the tests), so a value that can be `null` or `undefined` must be checked before it is used. The other `strict` checks are off for now. Constants such as statuses and roles are declared `as const`, and their union types (`IssueStatus`, `Role`, `Priority`, …) are derived from them, so each value has one source.
+`noImplicitAny` is on for the app and the tests, so every parameter needs a type. `strictNullChecks` is on for the app and the tests, so a value that can be `null` or `undefined` must be checked before it is used. The other `strict` checks are off for now. Constants such as statuses and roles are declared `as const`, and their union types (`IssueStatus`, `Role`, `Priority`, …) are derived from them, so each value has one source.
 
 Where the types live:
 

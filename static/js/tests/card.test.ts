@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createCardElement } from '../components/card.ts';
 import { makeIssue, makeTask } from './fixtures.ts';
+import { bySelector } from '../utils.ts';
 
 const issue = makeIssue({
   id: 7,
@@ -22,9 +23,9 @@ describe('createCardElement', () => {
     const card = createCardElement(issue, isBoard);
 
     expect(card.textContent).not.toMatch(/📅|☐/u);
-    expect(card.querySelector('.board-task-icon').textContent).toBe('');
-    expect(card.querySelector('.board-task-icon').getAttribute('aria-hidden')).toBe('true');
-    expect(card.querySelector('.tooltip-icon').textContent).toBe('');
-    expect(card.querySelector('.tooltip-deadline').textContent.trim()).not.toBe('');
+    expect(bySelector(card, '.board-task-icon').textContent).toBe('');
+    expect(bySelector(card, '.board-task-icon').getAttribute('aria-hidden')).toBe('true');
+    expect(bySelector(card, '.tooltip-icon').textContent).toBe('');
+    expect(bySelector(card, '.tooltip-deadline').textContent.trim()).not.toBe('');
   });
 });

@@ -71,7 +71,7 @@ describe('Session', () => {
     it('opens with the current email pre-filled and read-only', () => {
       void session.showReauthDialog();
 
-      expect(document.getElementById('reauth-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('reauth-modal').classList.contains('hidden')).toBe(false);
       expect(byId('reauth-email', HTMLInputElement).value).toBe('me@example.com');
       expect(byId('reauth-email', HTMLInputElement).readOnly).toBe(true);
     });
@@ -82,12 +82,12 @@ describe('Session', () => {
       void session.showReauthDialog().then(done);
 
       byId('reauth-password', HTMLInputElement).value = 'secret';
-      document.getElementById('reauth-form').dispatchEvent(new Event('submit', { cancelable: true }));
+      byId('reauth-form').dispatchEvent(new Event('submit', { cancelable: true }));
       await flush();
 
       expect(api.reauthenticate).toHaveBeenCalledWith('me@example.com', 'secret');
       expect(done).toHaveBeenCalled();
-      expect(document.getElementById('reauth-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('reauth-modal').classList.contains('hidden')).toBe(true);
       expect(byId('reauth-password', HTMLInputElement).value).toBe('');
     });
 
@@ -96,12 +96,12 @@ describe('Session', () => {
       const done = vi.fn();
       void session.showReauthDialog().then(done);
 
-      document.getElementById('reauth-form').dispatchEvent(new Event('submit', { cancelable: true }));
+      byId('reauth-form').dispatchEvent(new Event('submit', { cancelable: true }));
       await flush();
 
       expect(done).not.toHaveBeenCalled();
-      expect(document.getElementById('reauth-modal').classList.contains('hidden')).toBe(false);
-      const error = document.getElementById('reauth-error');
+      expect(byId('reauth-modal').classList.contains('hidden')).toBe(false);
+      const error = byId('reauth-error');
       expect(error.textContent).toBe('Invalid credentials');
       expect(error.classList.contains('hidden')).toBe(false);
     });
@@ -114,17 +114,17 @@ describe('Session', () => {
 
     it('logs out like the user menu on "Log Out"', () => {
       void session.showReauthDialog();
-      document.getElementById('reauth-logout-btn').click();
+      byId('reauth-logout-btn').click();
       expect(api.logout).toHaveBeenCalled();
     });
 
     it('shows "Signing in…" while the login request runs', async () => {
-      let resolveLogin: (error: string | null) => void;
-      vi.mocked(api.reauthenticate).mockReturnValue(new Promise(res => { resolveLogin = res; }));
+      const { promise: pendingLogin, resolve: resolveLogin } = Promise.withResolvers<string | null>();
+      vi.mocked(api.reauthenticate).mockReturnValue(pendingLogin);
       void session.showReauthDialog();
       const btn = byId('reauth-submit-btn', HTMLButtonElement);
 
-      document.getElementById('reauth-form').dispatchEvent(new Event('submit', { cancelable: true }));
+      byId('reauth-form').dispatchEvent(new Event('submit', { cancelable: true }));
       expect(btn.textContent).toBe('Signing in…');
       expect(btn.disabled).toBe(true);
 
@@ -144,7 +144,7 @@ describe('Session', () => {
 
       expect(api.hasValidSession).toHaveBeenCalled();
       expect(done).toHaveBeenCalled();
-      expect(document.getElementById('reauth-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('reauth-modal').classList.contains('hidden')).toBe(true);
     });
 
     it('stays open on focus while the session is still invalid', async () => {
@@ -154,7 +154,7 @@ describe('Session', () => {
       globalThis.dispatchEvent(new Event('focus'));
       await flush();
 
-      expect(document.getElementById('reauth-modal').classList.contains('hidden')).toBe(false);
+      expect(byId('reauth-modal').classList.contains('hidden')).toBe(false);
       expect(api.fetchCurrentUser).not.toHaveBeenCalled();
     });
   });
@@ -200,7 +200,7 @@ describe('Session', () => {
 
   describe('connection banner', () => {
     it('shows the banner when offline and hides it when the connection is back', () => {
-      const banner = document.getElementById('connection-banner');
+      const banner = byId('connection-banner');
 
       globalThis.dispatchEvent(new Event('offline'));
       expect(banner.classList.contains('hidden')).toBe(false);

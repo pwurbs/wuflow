@@ -98,10 +98,6 @@ describe('can()', () => {
         expect(can(null, ACTION_DELETE_ISSUE)).toBe(false);
     });
 
-    it('returns false for undefined role', () => {
-        expect(can(undefined, ACTION_DELETE_ISSUE)).toBe(false);
-    });
-
     it('returns false for unknown role', () => {
         // @ts-expect-error: tests the runtime guard against a role outside the type
         expect(can('superadmin', ACTION_DELETE_ISSUE)).toBe(false);
@@ -153,9 +149,5 @@ describe('userCan()', () => {
 
     it('returns false for user without role', () => {
         expect(userCan({}, ACTION_DELETE_ISSUE)).toBe(false);
-    });
-
-    it('returns false for undefined user', () => {
-        expect(userCan(undefined, ACTION_DELETE_ISSUE)).toBe(false);
     });
 });

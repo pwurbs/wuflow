@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
 import { renderBacklog, setupBacklogView } from '../components/backlog.ts';
 import { resetIssueLists } from '../issue-lists.ts';
 import * as state from '../state.ts';
@@ -8,6 +8,7 @@ import * as dragModule from '../drag.ts';
 import type { CardCallbacks } from '../components/card.ts';
 import type { Issue } from '../models.ts';
 import { makeIssue, makeRelease, makeUser } from './fixtures.ts';
+import { byId, bySelector } from '../utils.ts';
 
 // Mock dependencies
 vi.mock('../state.ts', () => ({
@@ -96,7 +97,7 @@ describe('Backlog Component', () => {
 
       await renderBacklog(refreshApp, openModal);
 
-      const backlogList = document.getElementById('backlog-list');
+      const backlogList = byId('backlog-list');
       expect(backlogList.children).toHaveLength(2);
 
       // Check if createCardElement was called with move callbacks
@@ -104,11 +105,9 @@ describe('Backlog Component', () => {
       const calls = vi.mocked(card.createCardElement).mock.calls;
       expect(calls).toHaveLength(3);
 
-      // Check for callbacks existence
-      calls.forEach(call => {
-        expect(call[2].onMoveTop).toBeDefined();
-        expect(call[2].onMoveBottom).toBeDefined();
-      });
+      // The first card of each list cannot move to the top, the last cannot move to the bottom.
+      const moves = calls.map(([issue, , callbacks]) => [issue.id, Boolean(callbacks?.onMoveTop), Boolean(callbacks?.onMoveBottom)]);
+      expect(moves).toEqual([[1, false, true], [2, true, false], [3, false, false]]);
     });
 
     it('handleMoveTop should save the new order in one positions request', async () => {
@@ -123,11 +122,12 @@ describe('Backlog Component', () => {
       const rerenderActiveView = vi.fn();
       await renderBacklog(refreshApp, vi.fn(), rerenderActiveView);
 
-      const backlogList = document.getElementById('backlog-list');
+      const backlogList = byId('backlog-list');
       const card3 = backlogList.children[2]; // Item 3
 
       // Trigger move top on Item 3
-      const onMoveTop = cardCallbacks.get(card3).onMoveTop;
+      const onMoveTop = cardCallbacks.get(card3)?.onMoveTop;
+      assert(onMoveTop);
       await onMoveTop();
 
       // Item 3 moves to pos 0. Item 1 to 1, Item 2 to 2.
@@ -151,9 +151,9 @@ describe('Backlog Component', () => {
       state.state.issues = structuredClone(issues);
 
       await renderBacklog(vi.fn(), vi.fn());
-      const card1 = document.getElementById('backlog-list').children[0];
+      const card1 = byId('backlog-list').children[0];
 
-      expect(cardCallbacks.get(card1).onMoveTop).toBeNull();
+      expect(cardCallbacks.get(card1)?.onMoveTop).toBeNull();
       expect(api.updateIssue).not.toHaveBeenCalled();
     });
 
@@ -169,11 +169,12 @@ describe('Backlog Component', () => {
       const rerenderActiveView = vi.fn();
       await renderBacklog(refreshApp, vi.fn(), rerenderActiveView);
 
-      const backlogList = document.getElementById('backlog-list');
+      const backlogList = byId('backlog-list');
       const card1 = backlogList.children[0]; // Item 1
 
       // Trigger move bottom on Item 1
-      const onMoveBottom = cardCallbacks.get(card1).onMoveBottom;
+      const onMoveBottom = cardCallbacks.get(card1)?.onMoveBottom;
+      assert(onMoveBottom);
       await onMoveBottom();
 
       // Item 1 moves to end (pos 2).
@@ -215,9 +216,9 @@ describe('Backlog Component', () => {
       state.state.issues = structuredClone(issues);
 
       await renderBacklog(vi.fn(), vi.fn());
-      const card2 = document.getElementById('backlog-list').children[1];
+      const card2 = byId('backlog-list').children[1];
 
-      expect(cardCallbacks.get(card2).onMoveBottom).toBeNull();
+      expect(cardCallbacks.get(card2)?.onMoveBottom).toBeNull();
       expect(api.updateIssue).not.toHaveBeenCalled();
     });
 
@@ -228,8 +229,10 @@ describe('Backlog Component', () => {
       const rerenderActiveView = vi.fn();
       await renderBacklog(vi.fn(), vi.fn(), rerenderActiveView);
 
-      const card1 = document.getElementById('backlog-list').children[0];
-      await cardCallbacks.get(card1).onTogglePriority();
+      const card1 = byId('backlog-list').children[0];
+      const onTogglePriority = cardCallbacks.get(card1)?.onTogglePriority;
+      assert(onTogglePriority);
+      await onTogglePriority();
 
       expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }));
       expect(rerenderActiveView).toHaveBeenCalled();
@@ -243,9 +246,10 @@ describe('Backlog Component', () => {
       const rerenderActiveView = vi.fn();
       await renderBacklog(vi.fn(), vi.fn(), rerenderActiveView);
 
-      const card1 = document.getElementById('backlog-list').children[0];
-      expect(cardCallbacks.get(card1).onAssignToMe).toBeDefined();
-      await cardCallbacks.get(card1).onAssignToMe();
+      const card1 = byId('backlog-list').children[0];
+      const onAssignToMe = cardCallbacks.get(card1)?.onAssignToMe;
+      assert(onAssignToMe);
+      await onAssignToMe();
 
       expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ assignee_id: 5 }));
       expect(rerenderActiveView).toHaveBeenCalled();
@@ -256,7 +260,7 @@ describe('Backlog Component', () => {
     it('should hide the container when there are no open releases', async () => {
       state.state.releases = [];
       await renderBacklog(vi.fn(), vi.fn());
-      const container = document.getElementById('backlog-release-lanes');
+      const container = byId('backlog-release-lanes');
       expect(container.classList.contains('hidden')).toBe(true);
     });
 
@@ -268,7 +272,7 @@ describe('Backlog Component', () => {
       ];
       state.state.issues = [];
       await renderBacklog(vi.fn(), vi.fn());
-      const container = document.getElementById('backlog-release-lanes');
+      const container = byId('backlog-release-lanes');
       expect(container.classList.contains('hidden')).toBe(false);
       const cards = container.querySelectorAll('.release-lane-card');
       // 2 open releases + No Release card
@@ -298,8 +302,8 @@ describe('Backlog Component', () => {
       await renderBacklog(vi.fn(), vi.fn());
       const cards = document.querySelectorAll('.release-lane-card');
       // v1.0 card: 2 issues (Open + Board), No Release card: 1 issue
-      expect(cards[0].querySelector('.release-lane-count').textContent).toBe('2');
-      expect(cards[1].querySelector('.release-lane-count').textContent).toBe('1');
+      expect(bySelector(cards[0], '.release-lane-count').textContent).toBe('2');
+      expect(bySelector(cards[1], '.release-lane-count').textContent).toBe('1');
     });
 
     it('should sort open releases by release_date ascending', async () => {
@@ -320,7 +324,7 @@ describe('Backlog Component', () => {
       ];
       state.state.issues = [];
       await renderBacklog(vi.fn(), vi.fn());
-      const card = document.querySelector<HTMLElement>('.release-lane-card');
+      const card = bySelector(document, '.release-lane-card');
       card.click();
       expect(state.toggleBacklogReleaseFilter).toHaveBeenCalledWith(1);
     });
@@ -341,7 +345,7 @@ describe('Backlog Component', () => {
 
       await renderBacklog(vi.fn(), vi.fn());
 
-      const laneCard = document.querySelector('.release-lane-card');
+      const laneCard = bySelector(document, '.release-lane-card');
       const dropEvent = new Event('drop', { bubbles: false, cancelable: true });
       laneCard.dispatchEvent(dropEvent);
 
@@ -363,7 +367,7 @@ describe('Backlog Component', () => {
 
       await renderBacklog(vi.fn(), vi.fn());
 
-      const laneCard = document.querySelector('.release-lane-card');
+      const laneCard = bySelector(document, '.release-lane-card');
       const dragoverEvent = new Event('dragover', { bubbles: false, cancelable: true });
       laneCard.dispatchEvent(dragoverEvent);
 
@@ -382,8 +386,8 @@ describe('Backlog Component', () => {
       await renderBacklog(vi.fn(), vi.fn());
 
       // filterIssues mock is pass-through, so filtered == total — counts render as "n/n".
-      expect(document.getElementById('backlog-count').textContent).toBe('2/2');
-      expect(document.getElementById('todo-count').textContent).toBe('1/1');
+      expect(byId('backlog-count').textContent).toBe('2/2');
+      expect(byId('todo-count').textContent).toBe('1/1');
     });
 
     it('should not call updateIssue if issue already has the target release', async () => {
@@ -401,7 +405,7 @@ describe('Backlog Component', () => {
 
       await renderBacklog(vi.fn(), vi.fn());
 
-      const laneCard = document.querySelector('.release-lane-card');
+      const laneCard = bySelector(document, '.release-lane-card');
       const dropEvent = new Event('drop', { bubbles: false, cancelable: true });
       laneCard.dispatchEvent(dropEvent);
 
@@ -414,8 +418,8 @@ describe('Backlog Component', () => {
   describe('setupBacklogView', () => {
     it('should setup event listeners including drag and drop', () => {
       // Create elements that setupBacklogView expects
-      const backlogList = document.getElementById('backlog-list');
-      const openSection = document.getElementById('backlog-open-section');
+      const backlogList = byId('backlog-list');
+      const openSection = byId('backlog-open-section');
 
       // Add spies for addEventListener
       const backlogListSpy = vi.spyOn(backlogList, 'addEventListener');
@@ -433,7 +437,7 @@ describe('Backlog Component', () => {
       const rerenderActiveView = vi.fn();
       setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
 
-      const todoSection = document.getElementById('backlog-todo-section');
+      const todoSection = byId('backlog-todo-section');
       const issue = makeIssue({ id: 7, title: 'Open item', status: 'Open', position: 0, planned_dates: ['2026-10-12'] });
       state.state.issues = [issue];
       const card = document.createElement('div');
@@ -458,7 +462,7 @@ describe('Backlog Component', () => {
       const rerenderActiveView = vi.fn();
       setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
 
-      const openSection = document.getElementById('backlog-open-section');
+      const openSection = byId('backlog-open-section');
       const issue = makeIssue({ id: 99, title: 'Todo item', status: 'Todo', planned_dates: ['2026-10-20'] });
       state.state.issues = [issue];
 
@@ -489,7 +493,7 @@ describe('Backlog Component', () => {
     it('should ignore a planning item dropped on a section (the planning sidebar is not shown here)', async () => {
       setupBacklogView(vi.fn(), vi.fn(), vi.fn());
 
-      const openSection = document.getElementById('backlog-open-section');
+      const openSection = byId('backlog-open-section');
       state.state.issues = [makeIssue({ id: 98, title: 'Plan Item', status: 'Todo', planned_dates: ['2026-10-20'] })];
       const item = document.createElement('div');
       item.classList.add('planning-item');
@@ -512,7 +516,7 @@ describe('Backlog Component', () => {
       const refreshApp = vi.fn();
       setupBacklogView(refreshApp, vi.fn(), undefined);
 
-      const backlogList = document.getElementById('backlog-list');
+      const backlogList = byId('backlog-list');
 
       // Mock state with 2 items
       state.state.issues = [
@@ -558,7 +562,7 @@ describe('Backlog Component', () => {
       const rerenderActiveView = vi.fn();
       setupBacklogView(refreshApp, vi.fn(), rerenderActiveView);
 
-      const backlogList = document.getElementById('backlog-list');
+      const backlogList = byId('backlog-list');
       state.state.issues = [
         makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),
         makeIssue({ id: 2, title: 'Item 2', status: 'Open', position: 1 })

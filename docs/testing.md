@@ -40,6 +40,10 @@ Any frontend module containing "decisions" (if/else, state transitions, data map
 * **Requirement:** Decouple state logic from the DOM.
 * **Tool:** Vitest (preferred for speed).
 * **Why:** Testing state transitions in a unit test is ~100x faster than in a browser.
+* **Values that may be missing:** elements are read with `byId`/`bySelector` like in the app, so a missing element fails with its id or selector. Inside `expect(...)` use `?.`, the assertion fails on a missing value. Before calling or reusing a value that may be missing, check it with `assert(value)` from Vitest.
+* **Promises resolved by the test:** `Promise.withResolvers()`.
+* **Inputs the types rule out** are not tested, except data the backend may send outside its type (such as an unknown event name), with `@ts-expect-error` and the reason.
+
 All Unit tests are located in the [static/js](../static/js/README.md) directory.
 
 ## Type Check (Frontend)

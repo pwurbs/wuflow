@@ -20,7 +20,7 @@ export function setDraggedCardOrigin(origin: typeof draggedCardOrigin) {
   draggedCardOrigin = origin;
 }
 
-export function getDragAfterElement(column: Element, y: number) {
+export function getDragAfterElement(column: Element, y: number): Element | null {
   const draggableElements = [...column.querySelectorAll('.card:not(.dragging)')];
 
   return draggableElements.reduce<{ offset: number; element?: Element }>((closest, child) => {
@@ -32,7 +32,7 @@ export function getDragAfterElement(column: Element, y: number) {
     } else {
       return closest;
     }
-  }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }, { offset: Number.NEGATIVE_INFINITY }).element ?? null;
 }
 
 // Task drag helpers
@@ -44,7 +44,7 @@ export function setDraggedTask(task: HTMLElement | null) {
   draggedTask = task;
 }
 
-export function getDragAfterTaskElement(container: Element, y: number) {
+export function getDragAfterTaskElement(container: Element, y: number): Element | null {
   const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
 
   return draggableElements.reduce<{ offset: number; element?: Element }>((closest, child) => {
@@ -56,5 +56,5 @@ export function getDragAfterTaskElement(container: Element, y: number) {
     } else {
       return closest;
     }
-  }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }, { offset: Number.NEGATIVE_INFINITY }).element ?? null;
 }

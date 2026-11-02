@@ -5,6 +5,7 @@ import type { Issue, Task } from '../models.ts';
 import { makeIssue, makeTask } from './fixtures.ts';
 import * as api from '../api.ts';
 import * as utils from '../utils.ts';
+import { bySelector } from '../utils.ts';
 
 vi.mock('../api.ts', () => ({
   updateTask: vi.fn(),
@@ -44,18 +45,20 @@ vi.mock('../permissions.ts', () => ({
 
 describe('Tasks Component', () => {
   let container: HTMLUListElement;
+  let tasks: Task[];
   let issue: Issue;
   let callbacks: TaskCallbacks;
 
   beforeEach(() => {
     container = document.createElement('ul');
+    tasks = [
+      makeTask({ id: 10, title: 'Task A', done: false, position: 0 }),
+      makeTask({ id: 11, title: 'Task B', done: true, position: 1 })
+    ];
     issue = makeIssue({
       id: 1,
       project_id: 7,
-      tasks: [
-        makeTask({ id: 10, title: 'Task A', done: false, position: 0 }),
-        makeTask({ id: 11, title: 'Task B', done: true, position: 1 })
-      ]
+      tasks
     });
     callbacks = {
       onTaskUpdate: vi.fn(),
@@ -66,43 +69,43 @@ describe('Tasks Component', () => {
 
   it('should render tasks sorted by position', () => {
     // Swap positions to test sorting
-    issue.tasks[0].position = 1;
-    issue.tasks[1].position = 0;
+    tasks[0].position = 1;
+    tasks[1].position = 0;
 
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
     const items = container.querySelectorAll<HTMLLIElement>('.task-item');
     expect(items).toHaveLength(2);
 
     // Task B should be first (pos 0)
-    expect(items[0].querySelector<HTMLInputElement>('.task-title-input').value).toBe('Task B');
+    expect(bySelector(items[0], '.task-title-input', HTMLInputElement).value).toBe('Task B');
     expect(items[0].classList.contains('done')).toBe(true);
-    expect(items[0].querySelector<HTMLInputElement>('input[type="checkbox"]').checked).toBe(true);
+    expect(bySelector(items[0], 'input[type="checkbox"]', HTMLInputElement).checked).toBe(true);
 
     // Task A should be second (pos 1)
-    expect(items[1].querySelector<HTMLInputElement>('.task-title-input').value).toBe('Task A');
+    expect(bySelector(items[1], '.task-title-input', HTMLInputElement).value).toBe('Task A');
     expect(items[1].classList.contains('done')).toBe(false);
   });
 
   it('should handle readOnly mode', () => {
     callbacks.readOnly = true;
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const checkbox = item.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const checkbox = bySelector(item, 'input[type="checkbox"]', HTMLInputElement);
     expect(checkbox.disabled).toBe(true);
     expect(item.draggable).toBe(false);
-    expect(item.querySelector<HTMLElement>('.delete-task-btn').classList.contains('hidden')).toBe(true);
-    expect(item.querySelector<HTMLElement>('.task-drag-handle').classList.contains('hidden')).toBe(true);
-    expect(item.querySelector<HTMLElement>('.task-deadline-container').getAttribute('aria-disabled')).toBe('true');
+    expect(bySelector(item, '.delete-task-btn').classList.contains('hidden')).toBe(true);
+    expect(bySelector(item, '.task-drag-handle').classList.contains('hidden')).toBe(true);
+    expect(bySelector(item, '.task-deadline-container').getAttribute('aria-disabled')).toBe('true');
   });
 
   it('marks the task row busy while its title saves and ignores Escape meanwhile', async () => {
-    let answerSave: (task: Task) => void;
-    vi.mocked(api.updateTask).mockReturnValueOnce(new Promise(r => { answerSave = r; }));
-    renderTasks(issue.tasks, container, issue, callbacks);
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const titleInput = item.querySelector<HTMLInputElement>('.task-title-input');
+    const { promise: pendingSave, resolve: answerSave } = Promise.withResolvers<Task>();
+    vi.mocked(api.updateTask).mockReturnValueOnce(pendingSave);
+    renderTasks(tasks, container, issue, callbacks);
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const titleInput = bySelector(item, '.task-title-input', HTMLInputElement);
 
     titleInput.click();
     titleInput.value = 'Renamed';
@@ -120,9 +123,9 @@ describe('Tasks Component', () => {
   });
 
   it('should toggle task status', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const checkbox = container.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    const checkbox = bySelector(container, 'input[type="checkbox"]', HTMLInputElement);
     checkbox.checked = !checkbox.checked;
     checkbox.dispatchEvent(new Event('change'));
 
@@ -137,11 +140,11 @@ describe('Tasks Component', () => {
   });
 
   it('should delete task', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
     vi.mocked(utils.showConfirm).mockResolvedValue(true);
 
-    const deleteBtn = container.querySelector<HTMLElement>('.delete-task-btn');
+    const deleteBtn = bySelector(container, '.delete-task-btn');
     deleteBtn.click();
 
     await new Promise(process.nextTick);
@@ -152,10 +155,10 @@ describe('Tasks Component', () => {
   });
 
   it('should edit task title inline', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Enter edit mode
     input.click();
@@ -175,9 +178,9 @@ describe('Tasks Component', () => {
   });
 
   it('should cancel edit on empty title', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    renderTasks(tasks, container, issue, callbacks);
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     input.click();
     input.value = '';
@@ -190,9 +193,9 @@ describe('Tasks Component', () => {
   });
 
   it('should update task deadline', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const deadlineInput = container.querySelector<HTMLInputElement>('.task-deadline-input');
+    const deadlineInput = bySelector(container, '.task-deadline-input', HTMLInputElement);
     deadlineInput.value = '2023-10-10';
     deadlineInput.dispatchEvent(new Event('change'));
 
@@ -203,27 +206,27 @@ describe('Tasks Component', () => {
   });
 
   it('shows the deadline with a calendar icon instead of an emoji', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
-    const display = container.querySelector<HTMLElement>('.task-deadline-display');
+    renderTasks(tasks, container, issue, callbacks);
+    const display = bySelector(container, '.task-deadline-display');
 
     // No deadline: the icon alone is the trigger for the date picker
-    expect(display.querySelector<HTMLElement>('.icon-calendar')).not.toBeNull();
+    expect(display.querySelector('.icon-calendar')).not.toBeNull();
     expect(display.textContent.trim()).toBe('');
 
-    const deadlineInput = container.querySelector<HTMLInputElement>('.task-deadline-input');
+    const deadlineInput = bySelector(container, '.task-deadline-input', HTMLInputElement);
     deadlineInput.value = '2023-10-10';
     deadlineInput.dispatchEvent(new Event('change'));
     await new Promise(process.nextTick);
 
-    expect(display.querySelector<HTMLElement>('.icon-calendar')).not.toBeNull();
+    expect(display.querySelector('.icon-calendar')).not.toBeNull();
     expect(display.textContent).toBe('Oct 10');
     expect(display.textContent).not.toMatch(/📅/u);
   });
 
   it('should handle keyboard navigation in edit mode', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    renderTasks(tasks, container, issue, callbacks);
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     input.click();
     input.value = 'Keyboard Update';
@@ -242,8 +245,8 @@ describe('Tasks Component', () => {
   });
 
   it('should handle drag events', () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
-    const item = container.querySelector<HTMLLIElement>('.task-item');
+    renderTasks(tasks, container, issue, callbacks);
+    const item = bySelector(container, '.task-item', HTMLLIElement);
 
     const dragStartEvent = new Event('dragstart');
     Object.assign(dragStartEvent, { dataTransfer: { effectAllowed: '' } });
@@ -257,10 +260,10 @@ describe('Tasks Component', () => {
 
   it('should call onTaskEditStart when entering edit mode', () => {
     callbacks.onTaskEditStart = vi.fn();
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Enter edit mode
     input.click();
@@ -270,10 +273,10 @@ describe('Tasks Component', () => {
 
   it('should call onTaskEditEnd when exiting edit mode via Escape key', () => {
     callbacks.onTaskEditEnd = vi.fn();
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Enter edit mode
     input.click();
@@ -286,10 +289,10 @@ describe('Tasks Component', () => {
 
   it('should call onTaskEditEnd when exiting edit mode via Enter key', async () => {
     callbacks.onTaskEditEnd = vi.fn();
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Enter edit mode
     input.click();
@@ -304,10 +307,10 @@ describe('Tasks Component', () => {
   });
 
   it('should expose originalTitle in dataset when entering edit mode', () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Should not have dataset before edit mode
     expect(input.dataset.originalTitle).toBeUndefined();
@@ -320,10 +323,10 @@ describe('Tasks Component', () => {
   });
 
   it('should remove originalTitle from dataset when exiting edit mode', () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Enter edit mode
     input.click();
@@ -337,10 +340,10 @@ describe('Tasks Component', () => {
   });
 
   it('should auto-save on blur when value changed', async () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Enter edit mode
     input.click();
@@ -359,10 +362,10 @@ describe('Tasks Component', () => {
   });
 
   it('should exit edit mode on blur if value unchanged', () => {
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const item = container.querySelector<HTMLLIElement>('.task-item');
-    const input = item.querySelector<HTMLInputElement>('.task-title-input');
+    const item = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(item, '.task-title-input', HTMLInputElement);
 
     // Enter edit mode
     input.click();
@@ -379,17 +382,17 @@ describe('Tasks Component', () => {
 
   it('should revert checkbox state and show notification on toggle failure', async () => {
     vi.mocked(api.updateTask).mockRejectedValue(new Error('Server error'));
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const li = container.querySelector<HTMLLIElement>('.task-item');
-    const checkbox = li.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    const li = bySelector(container, '.task-item', HTMLLIElement);
+    const checkbox = bySelector(li, 'input[type="checkbox"]', HTMLInputElement);
     // Task A starts as done: false; simulate checking it
     checkbox.checked = true;
     checkbox.dispatchEvent(new Event('change'));
 
     await new Promise(process.nextTick);
 
-    expect(issue.tasks[0].done).toBe(false); // reverted in local state
+    expect(issue.tasks?.[0].done).toBe(false); // reverted in local state
     expect(checkbox.checked).toBe(false); // reverted in DOM
     expect(utils.showNotification).toHaveBeenCalledWith('Server error', 'error');
     expect(callbacks.onTaskUpdate).not.toHaveBeenCalled();
@@ -398,9 +401,9 @@ describe('Tasks Component', () => {
   it('should show notification and not remove task on delete failure', async () => {
     vi.mocked(api.deleteTask).mockRejectedValue(new Error('Delete failed'));
     vi.mocked(utils.showConfirm).mockResolvedValue(true);
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const deleteBtn = container.querySelector<HTMLElement>('.delete-task-btn');
+    const deleteBtn = bySelector(container, '.delete-task-btn');
     deleteBtn.click();
 
     await new Promise(process.nextTick);
@@ -413,10 +416,10 @@ describe('Tasks Component', () => {
 
   it('should keep the typed title and edit mode open on save failure', async () => {
     vi.mocked(api.updateTask).mockRejectedValue(new Error('Save failed'));
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const li = container.querySelector<HTMLLIElement>('.task-item');
-    const input = li.querySelector<HTMLInputElement>('.task-title-input');
+    const li = bySelector(container, '.task-item', HTMLLIElement);
+    const input = bySelector(li, '.task-title-input', HTMLInputElement);
 
     input.click(); // enter edit mode
     input.value = 'New Title';
@@ -424,19 +427,19 @@ describe('Tasks Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(issue.tasks[0].title).toBe('Task A'); // reverted in local state
+    expect(issue.tasks?.[0].title).toBe('Task A'); // reverted in local state
     expect(input.value).toBe('New Title'); // typed text kept so the user can retry
     expect(utils.showNotification).toHaveBeenCalledWith('Save failed', 'error');
     expect(li.classList.contains('editing')).toBe(true); // stays in edit mode so user can retry
   });
 
   it('should hand its save to onTaskEditStart and share an in-flight save', async () => {
-    let resolveUpdate: (task: Task) => void;
-    vi.mocked(api.updateTask).mockReturnValue(new Promise(res => { resolveUpdate = res; }));
+    const { promise: pendingUpdate, resolve: resolveUpdate } = Promise.withResolvers<Task>();
+    vi.mocked(api.updateTask).mockReturnValue(pendingUpdate);
     const onTaskEditStart = vi.fn();
-    renderTasks(issue.tasks, container, issue, { ...callbacks, onTaskEditStart });
+    renderTasks(tasks, container, issue, { ...callbacks, onTaskEditStart });
 
-    const input = container.querySelector<HTMLInputElement>('.task-title-input');
+    const input = bySelector(container, '.task-title-input', HTMLInputElement);
     input.click(); // enter edit mode
     const save = onTaskEditStart.mock.calls[0][0];
     input.value = 'New Title';
@@ -452,9 +455,9 @@ describe('Tasks Component', () => {
   it('should report a failed save as false', async () => {
     vi.mocked(api.updateTask).mockRejectedValue(new Error('Save failed'));
     const onTaskEditStart = vi.fn();
-    renderTasks(issue.tasks, container, issue, { ...callbacks, onTaskEditStart });
+    renderTasks(tasks, container, issue, { ...callbacks, onTaskEditStart });
 
-    const input = container.querySelector<HTMLInputElement>('.task-title-input');
+    const input = bySelector(container, '.task-title-input', HTMLInputElement);
     input.click();
     input.value = 'New Title';
 
@@ -463,9 +466,9 @@ describe('Tasks Component', () => {
 
   it('should revert deadline and show notification on deadline update failure', async () => {
     vi.mocked(api.updateTask).mockRejectedValue(new Error('Deadline error'));
-    renderTasks(issue.tasks, container, issue, callbacks);
+    renderTasks(tasks, container, issue, callbacks);
 
-    const deadlineInput = container.querySelector<HTMLInputElement>('.task-deadline-input');
+    const deadlineInput = bySelector(container, '.task-deadline-input', HTMLInputElement);
     deadlineInput.value = '2025-01-15';
     deadlineInput.dispatchEvent(new Event('change'));
 

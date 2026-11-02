@@ -79,7 +79,7 @@ vi.mock('../status-config.ts', () => ({
 
 import { state } from '../state.ts';
 import * as api from '../api.ts';
-import { byId } from '../utils.ts';
+import { byId, bySelector } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as toolbar from '../components/toolbar.ts';
 import { makeIssue, makeRelease, makeUser, makeUserRef } from './fixtures.ts';
@@ -184,10 +184,10 @@ describe('releases', () => {
 
     it('clears owner input and sets "No Owner" text when "No Owner" is clicked', () => {
       renderReleaseOwnerOptions([]);
-      document.querySelector<HTMLElement>('#release-owner-options .custom-option').click();
+      bySelector(document, '#release-owner-options .custom-option').click();
       expect(byId('release-owner-input', HTMLInputElement).value).toBe('');
-      expect(document.getElementById('release-owner-text').textContent).toBe('No Owner');
-      expect(document.getElementById('release-owner-options').classList.contains('hidden')).toBe(true);
+      expect(byId('release-owner-text').textContent).toBe('No Owner');
+      expect(byId('release-owner-options').classList.contains('hidden')).toBe(true);
     });
 
     it('sets owner input to current user id when "Assign to me" is clicked', () => {
@@ -195,7 +195,7 @@ describe('releases', () => {
       const opts = document.querySelectorAll<HTMLElement>('#release-owner-options .custom-option');
       opts[1].click();
       expect(byId('release-owner-input', HTMLInputElement).value).toBe('1');
-      expect(document.getElementById('release-owner-text').textContent).toBe('Alice Smith');
+      expect(byId('release-owner-text').textContent).toBe('Alice Smith');
     });
 
     it('sets owner input to the selected user id when a user option is clicked', () => {
@@ -203,19 +203,19 @@ describe('releases', () => {
       const opts = document.querySelectorAll<HTMLElement>('#release-owner-options .custom-option');
       opts[2].click(); // Bob
       expect(byId('release-owner-input', HTMLInputElement).value).toBe('2');
-      expect(document.getElementById('release-owner-text').textContent).toBe('Bob Jones');
+      expect(byId('release-owner-text').textContent).toBe('Bob Jones');
     });
 
     it('returns early without throwing when the container element is absent', () => {
-      document.getElementById('release-owner-options').remove();
+      byId('release-owner-options').remove();
       expect(() => renderReleaseOwnerOptions([])).not.toThrow();
     });
 
     it('toggles the dropdown when the trigger is clicked', async () => {
       await setupReleasesView(); // registers the click listener on the trigger
       renderReleaseOwnerOptions([]);
-      const options = document.getElementById('release-owner-options');
-      const trigger = document.getElementById('release-owner-trigger');
+      const options = byId('release-owner-options');
+      const trigger = byId('release-owner-trigger');
       options.classList.add('hidden');
       trigger.click();
       expect(options.classList.contains('hidden')).toBe(false);
@@ -224,7 +224,7 @@ describe('releases', () => {
     it('closes the dropdown on outside click', async () => {
       await setupReleasesView(); // registers the document-level outside-click listener
       renderReleaseOwnerOptions([]);
-      const options = document.getElementById('release-owner-options');
+      const options = byId('release-owner-options');
       options.classList.remove('hidden');
       document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       expect(options.classList.contains('hidden')).toBe(true);
@@ -235,43 +235,43 @@ describe('releases', () => {
 
   describe('renderReleasesView', () => {
     it('returns early without throwing when the container is absent', async () => {
-      document.getElementById('releases-view').remove();
+      byId('releases-view').remove();
       await expect(renderReleasesView()).resolves.not.toThrow();
     });
 
     it('renders "Open Releases" section with empty state text when there are no releases', async () => {
       await renderReleasesView();
-      const container = document.getElementById('releases-view');
+      const container = byId('releases-view');
       expect(container.innerHTML).toContain('Open Releases');
       expect(container.innerHTML).toContain('No releases.');
     });
 
     it('renders an open release row', async () => {
-      state.releases = [makeRelease({ id: 1, name: 'v1.0', status: 'open', description: 'First', owner: null })];
+      state.releases = [makeRelease({ id: 1, name: 'v1.0', status: 'open', description: 'First' })];
       await renderReleasesView();
-      expect(document.getElementById('releases-view').innerHTML).toContain('v1.0');
+      expect(byId('releases-view').innerHTML).toContain('v1.0');
     });
 
     it('renders a closed releases section with a divider when closed releases exist', async () => {
       state.releases = [
-        makeRelease({ id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '' }),
       ];
       await renderReleasesView();
-      const container = document.getElementById('releases-view');
+      const container = byId('releases-view');
       expect(container.innerHTML).toContain('Closed Releases');
       expect(container.querySelector('.releases-divider')).not.toBeNull();
     });
 
     it('suppresses the "view on board" nav icon for closed releases, since their issues are mostly archived', async () => {
       state.releases = [
-        makeRelease({ id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 1, name: 'v1.0', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '' }),
       ];
       await renderReleasesView();
       expect(document.querySelector('.release-stats-nav-icon')).toBeNull();
     });
 
     it('still shows the "view on board" nav icon for open releases', async () => {
-      state.releases = [makeRelease({ id: 1, name: 'v1.0', status: 'open', description: '', owner: null })];
+      state.releases = [makeRelease({ id: 1, name: 'v1.0', status: 'open', description: '' })];
       await renderReleasesView();
       expect(document.querySelector('.release-stats-nav-icon')).not.toBeNull();
     });
@@ -279,11 +279,11 @@ describe('releases', () => {
     it('filters releases by owner "me"', async () => {
       state.filter.releaseOwnerFilter = 'me';
       state.releases = [
-        makeRelease({ id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '', owner: null }),
-        makeRelease({ id: 2, name: 'Others', status: 'open', owner_id: 2, description: '', owner: null }),
+        makeRelease({ id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '' }),
+        makeRelease({ id: 2, name: 'Others', status: 'open', owner_id: 2, description: '' }),
       ];
       await renderReleasesView();
-      const html = document.getElementById('releases-view').innerHTML;
+      const html = byId('releases-view').innerHTML;
       expect(html).toContain('Mine');
       expect(html).not.toContain('Others');
     });
@@ -291,11 +291,11 @@ describe('releases', () => {
     it('filters releases by owner "unassigned"', async () => {
       state.filter.releaseOwnerFilter = 'unassigned';
       state.releases = [
-        makeRelease({ id: 1, name: 'Unowned', status: 'open', owner_id: null, description: '', owner: null }),
-        makeRelease({ id: 2, name: 'Owned', status: 'open', owner_id: 2, description: '', owner: null }),
+        makeRelease({ id: 1, name: 'Unowned', status: 'open', owner_id: null, description: '' }),
+        makeRelease({ id: 2, name: 'Owned', status: 'open', owner_id: 2, description: '' }),
       ];
       await renderReleasesView();
-      const html = document.getElementById('releases-view').innerHTML;
+      const html = byId('releases-view').innerHTML;
       expect(html).toContain('Unowned');
       expect(html).not.toContain('Owned');
     });
@@ -303,11 +303,11 @@ describe('releases', () => {
     it('filters releases by a specific owner id', async () => {
       state.filter.releaseOwnerFilter = 2;
       state.releases = [
-        makeRelease({ id: 1, name: 'ByTwo', status: 'open', owner_id: 2, description: '', owner: null }),
-        makeRelease({ id: 2, name: 'ByOne', status: 'open', owner_id: 1, description: '', owner: null }),
+        makeRelease({ id: 1, name: 'ByTwo', status: 'open', owner_id: 2, description: '' }),
+        makeRelease({ id: 2, name: 'ByOne', status: 'open', owner_id: 1, description: '' }),
       ];
       await renderReleasesView();
-      const html = document.getElementById('releases-view').innerHTML;
+      const html = byId('releases-view').innerHTML;
       expect(html).toContain('ByTwo');
       expect(html).not.toContain('ByOne');
     });
@@ -315,11 +315,11 @@ describe('releases', () => {
     it('filters releases by search term (name match)', async () => {
       state.filter.releaseSearch = 'beta';
       state.releases = [
-        makeRelease({ id: 1, name: 'v1.0-beta', status: 'open', owner_id: null, description: '', owner: null }),
-        makeRelease({ id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '', owner: null }),
+        makeRelease({ id: 1, name: 'v1.0-beta', status: 'open', owner_id: null, description: '' }),
+        makeRelease({ id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '' }),
       ];
       await renderReleasesView();
-      const html = document.getElementById('releases-view').innerHTML;
+      const html = byId('releases-view').innerHTML;
       expect(html).toContain('v1.0-beta');
       expect(html).not.toContain('v2.0');
     });
@@ -327,11 +327,11 @@ describe('releases', () => {
     it('filters releases by search term (description match)', async () => {
       state.filter.releaseSearch = 'hotfix';
       state.releases = [
-        makeRelease({ id: 1, name: 'v1.1', status: 'open', owner_id: null, description: 'hotfix release', owner: null }),
-        makeRelease({ id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '', owner: null }),
+        makeRelease({ id: 1, name: 'v1.1', status: 'open', owner_id: null, description: 'hotfix release' }),
+        makeRelease({ id: 2, name: 'v2.0', status: 'open', owner_id: null, description: '' }),
       ];
       await renderReleasesView();
-      const html = document.getElementById('releases-view').innerHTML;
+      const html = byId('releases-view').innerHTML;
       expect(html).toContain('v1.1');
       expect(html).not.toContain('v2.0');
     });
@@ -339,11 +339,11 @@ describe('releases', () => {
     it('shows filtered count when some releases are hidden by filter', async () => {
       state.filter.releaseOwnerFilter = 'me';
       state.releases = [
-        makeRelease({ id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '', owner: null }),
-        makeRelease({ id: 2, name: 'Others', status: 'open', owner_id: 2, description: '', owner: null }),
+        makeRelease({ id: 1, name: 'Mine', status: 'open', owner_id: 1, description: '' }),
+        makeRelease({ id: 2, name: 'Others', status: 'open', owner_id: 2, description: '' }),
       ];
       await renderReleasesView();
-      expect(document.getElementById('releases-view').innerHTML).toContain('1/2');
+      expect(byId('releases-view').innerHTML).toContain('1/2');
     });
   });
 
@@ -352,15 +352,15 @@ describe('releases', () => {
   describe('setupReleasesView', () => {
     it('sets up cancel button to close the modal overlay', async () => {
       await setupReleasesView();
-      document.getElementById('release-modal-overlay').classList.remove('hidden');
-      document.getElementById('release-modal-cancel').click();
-      expect(document.getElementById('release-modal-overlay').classList.contains('hidden')).toBe(true);
+      byId('release-modal-overlay').classList.remove('hidden');
+      byId('release-modal-cancel').click();
+      expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(true);
     });
 
     it('shows an error notification when form is submitted with an empty name', async () => {
       await setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = '';
-      document.getElementById('release-form').dispatchEvent(new Event('submit'));
+      byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Release name is required.', 'error');
     });
@@ -370,7 +370,7 @@ describe('releases', () => {
       byId('release-modal-name', HTMLInputElement).value = 'Valid Name';
       byId('release-modal-start', HTMLInputElement).value = '2026-06-01';
       byId('release-modal-date', HTMLInputElement).value = '2026-05-01';
-      document.getElementById('release-form').dispatchEvent(new Event('submit'));
+      byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith(
         'Release date must not be before start date.',
@@ -379,11 +379,11 @@ describe('releases', () => {
     });
 
     it('creates a release only once when submitted again while the first save is in flight, with the form greyed out', async () => {
-      let resolveCreate: (release: Release) => void;
-      vi.mocked(api.createRelease).mockReturnValue(new Promise(r => { resolveCreate = r; }));
+      const { promise: pendingCreate, resolve: resolveCreate } = Promise.withResolvers<Release>();
+      vi.mocked(api.createRelease).mockReturnValue(pendingCreate);
       await setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
-      const form = document.getElementById('release-form');
+      const form = byId('release-form');
 
       form.dispatchEvent(new Event('submit'));
       expect(form.getAttribute('aria-busy')).toBe('true');
@@ -401,7 +401,7 @@ describe('releases', () => {
       vi.mocked(api.fetchReleases).mockResolvedValue([makeRelease({ id: 99, name: 'v1.0' })]);
       await setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
-      document.getElementById('release-form').dispatchEvent(new Event('submit'));
+      byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       expect(api.createRelease).toHaveBeenCalled();
       // Create doesn't return an owner-hydrated release, so it re-fetches the list instead.
@@ -413,9 +413,9 @@ describe('releases', () => {
       vi.mocked(api.createRelease).mockRejectedValue(new Error('Duplicate name'));
       await setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
-      document.getElementById('release-form').dispatchEvent(new Event('submit'));
+      byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
-      const errorEl = document.getElementById('release-modal-error');
+      const errorEl = byId('release-modal-error');
       expect(errorEl.textContent).toBe('Duplicate name');
       expect(errorEl.classList.contains('hidden')).toBe(false);
     });
@@ -426,8 +426,8 @@ describe('releases', () => {
       state.releases = [makeRelease({ id: 5, name: 'ToDelete', status: 'open' })];
       vi.mocked(utils.showConfirm).mockResolvedValue(false); // cancel the confirm
       await setupReleasesView();
-      document.getElementById('release-modal-delete').classList.remove('hidden');
-      document.getElementById('release-modal-delete').click();
+      byId('release-modal-delete').classList.remove('hidden');
+      byId('release-modal-delete').click();
       await new Promise(process.nextTick);
       // editingReleaseId is null so rel is not found — handler returns early
       expect(api.deleteRelease).not.toHaveBeenCalled();
@@ -435,7 +435,7 @@ describe('releases', () => {
 
     it('fires updateDateInputStyle when a date input changes', async () => {
       await setupReleasesView();
-      const startInput = document.getElementById('release-modal-start');
+      const startInput = byId('release-modal-start');
       startInput.dispatchEvent(new Event('change'));
       expect(utils.updateDateInputStyle).toHaveBeenCalledWith(startInput);
     });
@@ -447,11 +447,11 @@ describe('releases', () => {
     it('opens modal with "New Release" title when the add button is clicked', async () => {
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-add-btn').click();
-      const overlay = document.getElementById('release-modal-overlay');
+      bySelector(document, '.release-add-btn').click();
+      const overlay = byId('release-modal-overlay');
       expect(overlay.classList.contains('hidden')).toBe(false);
-      expect(document.getElementById('release-modal-title').textContent).toBe('New Release');
-      expect(document.getElementById('release-modal-save').textContent).toBe('Save');
+      expect(byId('release-modal-title').textContent).toBe('New Release');
+      expect(byId('release-modal-save').textContent).toBe('Save');
     });
 
     it('opens modal with release data when an open release card is clicked', async () => {
@@ -462,26 +462,26 @@ describe('releases', () => {
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
-      expect(document.getElementById('release-modal-overlay').classList.contains('hidden')).toBe(false);
+      bySelector(document, '.release-card-left').click();
+      expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(false);
       expect(byId('release-modal-name', HTMLInputElement).value).toBe('v2.0');
-      expect(document.getElementById('release-modal-title').textContent).toBe('Release Details');
-      expect(document.getElementById('release-modal-save').textContent).toBe('Save');
+      expect(byId('release-modal-title').textContent).toBe('Release Details');
+      expect(byId('release-modal-save').textContent).toBe('Save');
     });
 
     it('opens read-only modal for a closed release, showing the closed-at date', async () => {
       state.releases = [makeRelease({
         id: 11, name: 'v1.0', status: 'closed', description: '',
-        owner: null, closed_at: '2026-01-15T00:00:00Z',
+        closed_at: '2026-01-15T00:00:00Z',
         start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
-      expect(document.getElementById('release-modal-overlay').classList.contains('hidden')).toBe(false);
-      expect(document.getElementById('release-modal-save').textContent).toBe('Done');
-      expect(document.getElementById('release-modal-cancel').classList.contains('hidden')).toBe(true);
-      expect(document.getElementById('release-modal-closed-at-group').classList.contains('hidden')).toBe(false);
+      bySelector(document, '.release-card-left').click();
+      expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(false);
+      expect(byId('release-modal-save').textContent).toBe('Done');
+      expect(byId('release-modal-cancel').classList.contains('hidden')).toBe(true);
+      expect(byId('release-modal-closed-at-group').classList.contains('hidden')).toBe(false);
       expect(byId('release-modal-closed-at', HTMLInputElement).value).toBe('2026-01-15');
     });
 
@@ -491,13 +491,13 @@ describe('releases', () => {
         makeIssue({ id: 2, release_id: 10, status: 'Open' }),
       ]);
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
-      const stats = document.getElementById('release-modal-stats');
+      bySelector(document, '.release-card-left').click();
+      const stats = byId('release-modal-stats');
       expect(stats.classList.contains('hidden')).toBe(false);
       expect(stats.innerHTML).toContain('2 issues');
     });
@@ -505,19 +505,19 @@ describe('releases', () => {
     it('hides stats when no release is passed (new release modal)', async () => {
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-add-btn').click();
-      expect(document.getElementById('release-modal-stats').classList.contains('hidden')).toBe(true);
+      bySelector(document, '.release-add-btn').click();
+      expect(byId('release-modal-stats').classList.contains('hidden')).toBe(true);
     });
 
     it('dispatches nav-to-release event when the stats nav icon is clicked', async () => {
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await renderReleasesView();
       let eventDetail = null;
       document.addEventListener('nav-to-release', e => { if (e instanceof CustomEvent) eventDetail = e.detail; }, { once: true });
-      document.querySelector<HTMLElement>('.release-stats-nav-icon').click();
+      bySelector(document, '.release-stats-nav-icon').click();
       expect(eventDetail).toEqual({ releaseId: 10 });
     });
   });
@@ -528,14 +528,14 @@ describe('releases', () => {
     it('merges the updated release locally and refreshes the filter/view when editing an open release', async () => {
       vi.mocked(api.updateRelease).mockResolvedValue(makeRelease({ id: 10, name: 'v2.1', status: 'open' }));
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
+      bySelector(document, '.release-card-left').click();
       byId('release-modal-name', HTMLInputElement).value = 'v2.1';
-      document.getElementById('release-form').dispatchEvent(new Event('submit'));
+      byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
       expect(api.updateRelease).toHaveBeenCalledWith(1, 10, expect.objectContaining({ name: 'v2.1' }));
       // The update response is already owner-hydrated, so it's merged in locally — no re-fetch.
@@ -546,15 +546,15 @@ describe('releases', () => {
 
     it('closes the modal immediately when save is clicked for a closed release', async () => {
       state.releases = [makeRelease({
-        id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
+        id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
-      document.getElementById('release-form').dispatchEvent(new Event('submit'));
+      bySelector(document, '.release-card-left').click();
+      byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
-      expect(document.getElementById('release-modal-overlay').classList.contains('hidden')).toBe(true);
+      expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(true);
       expect(api.updateRelease).not.toHaveBeenCalled();
     });
   });
@@ -565,13 +565,13 @@ describe('releases', () => {
     it('removes the release locally and refreshes issues/filter when deletion is confirmed', async () => {
       vi.mocked(api.deleteRelease).mockResolvedValue(undefined);
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click(); // sets editingReleaseId = 10
-      document.getElementById('release-modal-delete').click();
+      bySelector(document, '.release-card-left').click(); // sets editingReleaseId = 10
+      byId('release-modal-delete').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(api.deleteRelease).toHaveBeenCalledWith(1, 10, 'AdminPass123!');
@@ -587,13 +587,13 @@ describe('releases', () => {
     it('does not call deleteRelease when the confirm is cancelled', async () => {
       vi.mocked(utils.promptAdminPasswordConfirmation).mockResolvedValue(false);
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
-      document.getElementById('release-modal-delete').click();
+      bySelector(document, '.release-card-left').click();
+      byId('release-modal-delete').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(api.deleteRelease).not.toHaveBeenCalled();
@@ -605,24 +605,24 @@ describe('releases', () => {
   describe('handleTriggerReleaseDialog', () => {
     it('shows the release dialog when the Release button is clicked', async () => {
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-trigger-btn').click();
+      bySelector(document, '.release-trigger-btn').click();
       await new Promise(process.nextTick);
       expect(document.querySelector('.release-dialog')).not.toBeNull();
     });
 
     it('removes the dialog and does not call triggerRelease when Cancel is clicked', async () => {
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-trigger-btn').click();
+      bySelector(document, '.release-trigger-btn').click();
       await new Promise(process.nextTick);
-      document.getElementById('release-dialog-cancel').click();
+      byId('release-dialog-cancel').click();
       await new Promise(process.nextTick);
       expect(document.querySelector('.release-dialog')).toBeNull();
       expect(api.triggerRelease).not.toHaveBeenCalled();
@@ -632,13 +632,13 @@ describe('releases', () => {
       vi.mocked(api.triggerRelease).mockResolvedValue(makeRelease({ id: 10, name: 'v2.0', status: 'closed' }));
       await setupReleasesView();
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-trigger-btn').click();
+      bySelector(document, '.release-trigger-btn').click();
       await new Promise(process.nextTick);
-      document.getElementById('release-dialog-confirm').click();
+      byId('release-dialog-confirm').click();
       await new Promise(process.nextTick);
       expect(api.triggerRelease).toHaveBeenCalledWith(1, 10, false);
       expect(state.releases[0]).toEqual(expect.objectContaining({ id: 10, status: 'closed' }));
@@ -656,13 +656,13 @@ describe('releases', () => {
         makeIssue({ id: 3, release_id: 10, status: 'Done' }),
       ]);
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-trigger-btn').click();
+      bySelector(document, '.release-trigger-btn').click();
       await new Promise(process.nextTick);
-      const dialog = document.querySelector('.release-dialog');
+      const dialog = bySelector(document, '.release-dialog');
       expect(dialog.innerHTML).toContain('release-stat-row');
       expect(dialog.innerHTML).toContain('Done');
       expect(dialog.innerHTML).toContain('3 issues');
@@ -671,13 +671,13 @@ describe('releases', () => {
     it('shows error notification when triggerRelease throws', async () => {
       vi.mocked(api.triggerRelease).mockRejectedValue(new Error('Release failed'));
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-trigger-btn').click();
+      bySelector(document, '.release-trigger-btn').click();
       await new Promise(process.nextTick);
-      document.getElementById('release-dialog-confirm').click();
+      byId('release-dialog-confirm').click();
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Release failed', 'error');
     });
@@ -690,13 +690,13 @@ describe('releases', () => {
       vi.mocked(api.reopenRelease).mockResolvedValue(makeRelease({ id: 11, name: 'v1.0', status: 'open' }));
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       state.releases = [makeRelease({
-        id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
+        id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click(); // opens modal for closed release
-      document.getElementById('release-modal-reopen').click();
+      bySelector(document, '.release-card-left').click(); // opens modal for closed release
+      byId('release-modal-reopen').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(api.reopenRelease).toHaveBeenCalledWith(1, 11);
@@ -709,13 +709,13 @@ describe('releases', () => {
     it('does not call reopenRelease when reopen confirm is cancelled', async () => {
       vi.mocked(utils.showConfirm).mockResolvedValue(false);
       state.releases = [makeRelease({
-        id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
+        id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
-      document.getElementById('release-modal-reopen').click();
+      bySelector(document, '.release-card-left').click();
+      byId('release-modal-reopen').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(api.reopenRelease).not.toHaveBeenCalled();
@@ -725,13 +725,13 @@ describe('releases', () => {
       vi.mocked(api.reopenRelease).mockRejectedValue(new Error('Reopen failed'));
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       state.releases = [makeRelease({
-        id: 11, name: 'v1.0', status: 'closed', description: '', owner: null,
+        id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
       await setupReleasesView();
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-card-left').click();
-      document.getElementById('release-modal-reopen').click();
+      bySelector(document, '.release-card-left').click();
+      byId('release-modal-reopen').click();
       await new Promise(process.nextTick);
       await new Promise(process.nextTick);
       expect(utils.showNotification).toHaveBeenCalledWith('Reopen failed', 'error');
@@ -743,8 +743,8 @@ describe('releases', () => {
   describe('misc', () => {
     it('sorts closed releases newest-first', async () => {
       state.releases = [
-        makeRelease({ id: 1, name: 'EarlyRelease', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
-        makeRelease({ id: 2, name: 'LateRelease', status: 'closed', closed_at: '2026-03-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 1, name: 'EarlyRelease', status: 'closed', closed_at: '2026-01-01T00:00:00Z', description: '' }),
+        makeRelease({ id: 2, name: 'LateRelease', status: 'closed', closed_at: '2026-03-01T00:00:00Z', description: '' }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -753,8 +753,8 @@ describe('releases', () => {
 
     it('sorts open releases with a release date soonest-first', async () => {
       state.releases = [
-        makeRelease({ id: 1, name: 'FarRelease', status: 'open', release_date: '2026-12-01T00:00:00Z', description: '', owner: null }),
-        makeRelease({ id: 2, name: 'NearRelease', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 1, name: 'FarRelease', status: 'open', release_date: '2026-12-01T00:00:00Z', description: '' }),
+        makeRelease({ id: 2, name: 'NearRelease', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '' }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -763,8 +763,8 @@ describe('releases', () => {
 
     it('places open releases without a release date after those with one', async () => {
       state.releases = [
-        makeRelease({ id: 1, name: 'Undated', status: 'open', release_date: null, description: '', owner: null }),
-        makeRelease({ id: 2, name: 'Dated', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 1, name: 'Undated', status: 'open', release_date: null, description: '' }),
+        makeRelease({ id: 2, name: 'Dated', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '' }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -773,8 +773,8 @@ describe('releases', () => {
 
     it('sorts undated open releases by creation date oldest-first', async () => {
       state.releases = [
-        makeRelease({ id: 1, name: 'NewerUndated', status: 'open', release_date: null, created_at: '2026-05-01T00:00:00Z', description: '', owner: null }),
-        makeRelease({ id: 2, name: 'OlderUndated', status: 'open', release_date: null, created_at: '2026-01-01T00:00:00Z', description: '', owner: null }),
+        makeRelease({ id: 1, name: 'NewerUndated', status: 'open', release_date: null, created_at: '2026-05-01T00:00:00Z', description: '' }),
+        makeRelease({ id: 2, name: 'OlderUndated', status: 'open', release_date: null, created_at: '2026-01-01T00:00:00Z', description: '' }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -787,13 +787,13 @@ describe('releases', () => {
       vi.mocked(api.fetchOpenIssuesByProject).mockResolvedValue([shared]);
       state.issues = [shared];
       state.releases = [makeRelease({
-        id: 10, name: 'v2.0', status: 'open', description: '', owner: null,
+        id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
       await renderReleasesView();
-      document.querySelector<HTMLElement>('.release-trigger-btn').click();
+      bySelector(document, '.release-trigger-btn').click();
       await new Promise(process.nextTick);
-      expect(document.querySelector('.release-dialog-intro').textContent).toContain('1 issue');
+      expect(bySelector(document, '.release-dialog-intro').textContent).toContain('1 issue');
     });
   });
 });

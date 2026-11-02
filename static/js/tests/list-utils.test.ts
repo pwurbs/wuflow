@@ -50,7 +50,7 @@ describe('handleAssignToMe', () => {
   const currentUser = makeUser({ id: 42, first_name: 'Alice', last_name: 'Smith' });
 
   it('sets assignee_id and assignee on the issue', async () => {
-    const issue = makeIssue({ id: 1, assignee_id: null, assignee: null });
+    const issue = makeIssue({ id: 1, assignee_id: null });
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
     await handleAssignToMe(issue, currentUser, vi.fn());
     expect(issue.assignee_id).toBe(42);

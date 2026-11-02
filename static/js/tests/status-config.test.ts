@@ -86,7 +86,7 @@ describe('status-config', () => {
         it('should trim stage display names', () => {
             state.statusConfig = makeStatusConfig({ stage1_name: '  Active  ', stage2_name: '', stage3_name: '', stage4_name: '' });
             const cols = getBoardColumns();
-            expect(cols.find(c => c.statusKey === 'Stage1').displayName).toBe('Active');
+            expect(cols.find(c => c.statusKey === 'Stage1')?.displayName).toBe('Active');
         });
 
         it('should return only anchors when all stages are empty', () => {
@@ -116,18 +116,18 @@ describe('status-config', () => {
             state.statusConfig = makeStatusConfig({ stage1_name: 'In Progress', stage2_name: '', stage3_name: '', stage4_name: '' });
             const opts = getStatusOptions();
             expect(opts.map(o => o.value)).toEqual(['Open', 'Todo', 'Stage1', 'Done', 'Archive']);
-            expect(opts.find(o => o.value === 'Stage1').label).toBe('In Progress');
+            expect(opts.find(o => o.value === 'Stage1')?.label).toBe('In Progress');
         });
 
         it('should include Archive as last option', () => {
             const opts = getStatusOptions();
-            expect(opts.at(-1).value).toBe('Archive');
+            expect(opts.at(-1)?.value).toBe('Archive');
         });
 
         it('should trim stage labels', () => {
             state.statusConfig = makeStatusConfig({ stage1_name: '  Review  ', stage2_name: '', stage3_name: '', stage4_name: '' });
             const opts = getStatusOptions();
-            expect(opts.find(o => o.value === 'Stage1').label).toBe('Review');
+            expect(opts.find(o => o.value === 'Stage1')?.label).toBe('Review');
         });
     });
 

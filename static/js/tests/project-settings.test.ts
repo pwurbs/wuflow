@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
 import { setupProjectSettingsView, renderProjectSettingsView } from '../components/project-settings.ts';
 import * as api from '../api.ts';
-import { byId } from '../utils.ts';
+import { byId, bySelector } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as permissions from '../permissions.ts';
 import * as stateModule from '../state.ts';
@@ -22,6 +22,7 @@ vi.mock('../components/toolbar.ts', () => ({
 
 vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
+  bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   guardSubmit: (await importOriginal<typeof import('../utils.ts')>()).guardSubmit,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
@@ -92,7 +93,7 @@ describe('project-settings.ts component', () => {
     it('hides input group when user cannot create labels', () => {
       vi.mocked(permissions.userCan).mockReturnValue(false);
       setupProjectSettingsView();
-      expect(document.querySelector<HTMLElement>('.label-input-group').style.display).toBe('none');
+      expect(bySelector(document, '.label-input-group').style.display).toBe('none');
     });
 
     it('creates a label on Enter keypress', async () => {
@@ -108,13 +109,14 @@ describe('project-settings.ts component', () => {
     });
 
     it('creates a label only once when Enter is pressed again while the first add is in flight', async () => {
-      let resolveCreate: (label: Label) => void;
-      vi.mocked(api.createLabel).mockReturnValue(new Promise(r => { resolveCreate = r; }));
+      const { promise: pendingCreate, resolve: resolveCreate } = Promise.withResolvers<Label>();
+      vi.mocked(api.createLabel).mockReturnValue(pendingCreate);
       setupProjectSettingsView();
 
       const input = byId('ps-new-label-input', HTMLInputElement);
       input.value = 'Bug';
       const group = input.closest('.label-input-group');
+      assert(group);
       input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
       expect(group.getAttribute('aria-busy')).toBe('true');
@@ -185,7 +187,7 @@ describe('project-settings.ts component', () => {
     it('renders labels returned from the API', async () => {
       vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
       await renderProjectSettingsView();
-      expect(document.querySelector('.label-name').textContent).toBe('Bug');
+      expect(bySelector(document, '.label-name').textContent).toBe('Bug');
     });
 
     it('renders delete button when user has DELETE permission', async () => {
@@ -204,20 +206,20 @@ describe('project-settings.ts component', () => {
     it('hides labels section when user cannot list labels', async () => {
       vi.mocked(permissions.userCan).mockReturnValue(false);
       await renderProjectSettingsView();
-      const section = document.getElementById('ps-labels-list').closest<HTMLElement>('.settings-section');
-      expect(section.style.display).toBe('none');
+      const section = byId('ps-labels-list').closest<HTMLElement>('.settings-section');
+      expect(section?.style.display).toBe('none');
     });
 
     it('shows error message when fetchLabelsByProject fails', async () => {
       vi.mocked(api.fetchLabelsByProject).mockRejectedValue(new Error('Network error'));
       await renderProjectSettingsView();
-      expect(document.getElementById('ps-labels-list').innerHTML).toContain('Failed to load labels');
+      expect(byId('ps-labels-list').innerHTML).toContain('Failed to load labels');
     });
 
     it('sanitizes invalid label color', async () => {
       vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: 'notacolor' })]);
       await renderProjectSettingsView();
-      const labelEl = document.querySelector<HTMLElement>('.label-item');
+      const labelEl = bySelector(document, '.label-item');
       expect(labelEl.style.color).toBe('rgb(128, 128, 128)');
     });
 
@@ -226,7 +228,7 @@ describe('project-settings.ts component', () => {
       vi.mocked(api.deleteLabel).mockResolvedValue(undefined);
 
       await renderProjectSettingsView();
-      document.querySelector<HTMLElement>('.delete-label-btn').click();
+      bySelector(document, '.delete-label-btn').click();
       await new Promise(process.nextTick);
 
       expect(api.deleteLabel).toHaveBeenCalledWith(1, 1, 'AdminPass123!');
@@ -237,7 +239,7 @@ describe('project-settings.ts component', () => {
       vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })]);
 
       await renderProjectSettingsView();
-      document.querySelector<HTMLElement>('.delete-label-btn').click();
+      bySelector(document, '.delete-label-btn').click();
       await new Promise(process.nextTick);
 
       expect(api.deleteLabel).not.toHaveBeenCalled();
@@ -248,7 +250,7 @@ describe('project-settings.ts component', () => {
       await renderProjectSettingsView();
 
       vi.mocked(permissions.userCan).mockReturnValue(false);
-      document.querySelector<HTMLElement>('.delete-label-btn').click();
+      bySelector(document, '.delete-label-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.promptAdminPasswordConfirmation).not.toHaveBeenCalled();
@@ -286,9 +288,9 @@ describe('project-settings.ts component', () => {
 
     it('populates inputs with stage names from config', async () => {
       await renderProjectSettingsView();
-      expect(document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value).toBe('Pending');
-      expect(document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage2_name"]').value).toBe('Working');
-      expect(document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage3_name"]').value).toBe('');
+      expect(bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value).toBe('Pending');
+      expect(bySelector(document, '.sc-name-input[data-field="stage2_name"]', HTMLInputElement).value).toBe('Working');
+      expect(bySelector(document, '.sc-name-input[data-field="stage3_name"]', HTMLInputElement).value).toBe('');
     });
 
     it('shows save button when user has UPDATE_STATUS_CONFIG permission', async () => {
@@ -318,8 +320,9 @@ describe('project-settings.ts component', () => {
       stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage3' }), makeIssue({ id: 2, status: 'Stage3' })];
       await renderProjectSettingsView();
 
-      const stage3Box = document.querySelector('.sc-name-input[data-field="stage3_name"]').closest('.sc-box');
-      const badge = stage3Box.querySelector('.sc-orphan-badge');
+      const stage3Box = bySelector(document, '.sc-name-input[data-field="stage3_name"]').closest('.sc-box');
+      assert(stage3Box);
+      const badge = bySelector(stage3Box, '.sc-orphan-badge');
       expect(badge).not.toBeNull();
       expect(badge.textContent).toBe('2');
     });
@@ -328,15 +331,17 @@ describe('project-settings.ts component', () => {
       stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage1' })];
       await renderProjectSettingsView();
 
-      const stage1Box = document.querySelector('.sc-name-input[data-field="stage1_name"]').closest('.sc-box');
+      const stage1Box = bySelector(document, '.sc-name-input[data-field="stage1_name"]').closest('.sc-box');
+      assert(stage1Box);
       expect(stage1Box.querySelector('.sc-orphan-badge')).toBeNull();
     });
 
     it('input event activates box when a name is typed', async () => {
       await renderProjectSettingsView();
 
-      const input = document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage3_name"]');
+      const input = bySelector(document, '.sc-name-input[data-field="stage3_name"]', HTMLInputElement);
       const box = input.closest('.sc-box');
+      assert(box);
       expect(box.classList.contains('sc-box--inactive')).toBe(true);
 
       input.value = 'QA';
@@ -349,8 +354,9 @@ describe('project-settings.ts component', () => {
     it('input event deactivates box when name is cleared', async () => {
       await renderProjectSettingsView();
 
-      const input = document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]');
+      const input = bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement);
       const box = input.closest('.sc-box');
+      assert(box);
       expect(box.classList.contains('sc-box--active')).toBe(true);
 
       input.value = '';
@@ -364,9 +370,10 @@ describe('project-settings.ts component', () => {
       stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage3' })];
       await renderProjectSettingsView();
 
-      const input = document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage3_name"]');
+      const input = bySelector(document, '.sc-name-input[data-field="stage3_name"]', HTMLInputElement);
       const box = input.closest('.sc-box');
-      const badge = box.querySelector<HTMLElement>('.sc-orphan-badge');
+      assert(box);
+      const badge = bySelector(box, '.sc-orphan-badge');
       expect(badge).not.toBeNull();
 
       input.value = 'QA';
@@ -379,9 +386,10 @@ describe('project-settings.ts component', () => {
       stateModule.state.issues = [makeIssue({ id: 1, status: 'Stage3' })];
       await renderProjectSettingsView();
 
-      const input = document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage3_name"]');
+      const input = bySelector(document, '.sc-name-input[data-field="stage3_name"]', HTMLInputElement);
       const box = input.closest('.sc-box');
-      const badge = box.querySelector<HTMLElement>('.sc-orphan-badge');
+      assert(box);
+      const badge = bySelector(box, '.sc-orphan-badge');
 
       input.value = 'QA';
       input.dispatchEvent(new Event('input'));
@@ -406,8 +414,8 @@ describe('project-settings.ts component', () => {
     it('saves config and shows success notification', async () => {
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = 'Review';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = 'Review';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(api.updateStatusConfig).toHaveBeenCalledWith(
@@ -419,7 +427,7 @@ describe('project-settings.ts component', () => {
     it('sends the names of all four stage columns', async () => {
       await renderProjectSettingsView();
 
-      document.getElementById('ps-save-status-config-btn').click();
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       const [, payload] = vi.mocked(api.updateStatusConfig).mock.calls[0];
@@ -429,7 +437,7 @@ describe('project-settings.ts component', () => {
     it('calls setStatusConfig with the API response', async () => {
       await renderProjectSettingsView();
 
-      document.getElementById('ps-save-status-config-btn').click();
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(stateModule.setStatusConfig).toHaveBeenCalledWith(updatedCfg);
@@ -439,7 +447,7 @@ describe('project-settings.ts component', () => {
       vi.mocked(api.updateStatusConfig).mockRejectedValue(new Error('Server error'));
       await renderProjectSettingsView();
 
-      document.getElementById('ps-save-status-config-btn').click();
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith('Server error', 'error');
@@ -449,7 +457,7 @@ describe('project-settings.ts component', () => {
       vi.mocked(api.updateStatusConfig).mockRejectedValue({ message: 'Validation failed' });
       await renderProjectSettingsView();
 
-      document.getElementById('ps-save-status-config-btn').click();
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith('Validation failed', 'error');
@@ -459,8 +467,8 @@ describe('project-settings.ts component', () => {
       stateModule.state.issues = [];
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = '';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = '';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).not.toHaveBeenCalled();
@@ -472,8 +480,8 @@ describe('project-settings.ts component', () => {
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = '';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = '';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).toHaveBeenCalled();
@@ -485,8 +493,8 @@ describe('project-settings.ts component', () => {
       vi.mocked(utils.showConfirm).mockResolvedValue(false);
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = '';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = '';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showConfirm).toHaveBeenCalled();
@@ -498,8 +506,8 @@ describe('project-settings.ts component', () => {
       vi.mocked(utils.showConfirm).mockResolvedValue(true);
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = '';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = '';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       const [, message] = vi.mocked(utils.showConfirm).mock.calls[0];
@@ -510,8 +518,8 @@ describe('project-settings.ts component', () => {
     it('shows error for name with invalid characters', async () => {
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = 'Bad!';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = 'Bad!';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith(
@@ -523,8 +531,8 @@ describe('project-settings.ts component', () => {
     it('shows error for name with consecutive spaces', async () => {
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = 'In  Progress';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = 'In  Progress';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith(
@@ -536,8 +544,8 @@ describe('project-settings.ts component', () => {
     it('shows error for name exceeding max length', async () => {
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = 'A'.repeat(16);
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = 'A'.repeat(16);
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith(
@@ -549,8 +557,8 @@ describe('project-settings.ts component', () => {
     it('saves successfully with a name containing a single space', async () => {
       await renderProjectSettingsView();
 
-      document.querySelector<HTMLInputElement>('.sc-name-input[data-field="stage1_name"]').value = 'In Progress';
-      document.getElementById('ps-save-status-config-btn').click();
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = 'In Progress';
+      byId('ps-save-status-config-btn').click();
       await new Promise(process.nextTick);
 
       expect(api.updateStatusConfig).toHaveBeenCalledWith(

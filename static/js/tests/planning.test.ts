@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
 import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard, setupPlanningPanel } from '../components/planning.ts';
 import * as api from '../api.ts';
 import * as utils from '../utils.ts';
@@ -10,6 +10,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
   return { byId: actual.byId, bySelector: actual.bySelector, showNotification: vi.fn() };
 });
 import { makeIssue, makeTask } from './fixtures.ts';
+import { byId, bySelector } from '../utils.ts';
 
 vi.mock('../state.ts', () => ({
   state: {
@@ -113,6 +114,7 @@ describe('planning.ts', () => {
     it('creates standard deadline badge', () => {
       const issue = makeIssue({ id: 1, deadline: '2023-10-15' });
       const badge = createDeadlineBadge(issue);
+      assert(badge);
 
       expect(badge.tagName).toBe('SPAN');
       expect(badge.textContent).toBe('Oct 15');
@@ -123,6 +125,7 @@ describe('planning.ts', () => {
     it('creates overdue warning badge', () => {
       const issue = makeIssue({ id: 1, deadline: '2023-10-05' });
       const badge = createDeadlineBadge(issue);
+      assert(badge);
 
       expect(badge.textContent).toBe('Oct 5');
       expect(badge.title).toBe('Overdue!');
@@ -135,6 +138,7 @@ describe('planning.ts', () => {
         tasks: [makeTask({ id: 1, deadline: '2023-10-12', done: false })]
       });
       const badge = createDeadlineBadge(issue);
+      assert(badge);
 
       expect(badge.title).toBe('Task Deadline');
     });
@@ -146,6 +150,7 @@ describe('planning.ts', () => {
         planned_dates: ['2023-10-15']
       });
       const badge = createDeadlineBadge(issue, '2023-10-15');
+      assert(badge);
 
       expect(badge.textContent).toBe('Oct 12');
       expect(badge.classList.contains('overdue')).toBe(true);
@@ -160,6 +165,7 @@ describe('planning.ts', () => {
       });
       // No specificDateStr provided (e.g. general board view summary)
       const badge = createDeadlineBadge(issue);
+      assert(badge);
 
       expect(badge.classList.contains('overdue')).toBe(true);
       expect(badge.title).toBe('Planned late!');
@@ -170,17 +176,17 @@ describe('planning.ts', () => {
     it('renders basic structure (next 10 days)', () => {
       renderPlanningPanel();
 
-      const list = document.getElementById('planning-list');
+      const list = byId('planning-list');
       // 10 days generated loop + maybe Past/Future logic
       // Should have at least 10 '.planning-day' elements
       expect(list.querySelectorAll('.planning-day').length).toBeGreaterThanOrEqual(10);
 
       // Check first day is Today (Oct 10)
-      const firstDay = list.querySelector('.planning-day');
+      const firstDay = bySelector(list, '.planning-day');
       expect(firstDay.textContent).toContain('Oct 10'); // "Tue, Oct 10"
 
       // Check count
-      expect(document.getElementById('planning-count').textContent).toBe('0');
+      expect(byId('planning-count').textContent).toBe('0');
     });
 
     it('renders unscheduled issues section with near and far term splitting', () => {
@@ -192,20 +198,19 @@ describe('planning.ts', () => {
 
       renderPlanningPanel();
 
-      const unscheduledSection = document.getElementById('planning-list').querySelector('.planning-section-unscheduled');
-      expect(unscheduledSection).not.toBeNull();
-      expect(unscheduledSection.querySelector('.planning-section-title').textContent).toBe('Unplanned Deadlines');
+      const unscheduledSection = bySelector(byId('planning-list'), '.planning-section-unscheduled');
+      expect(bySelector(unscheduledSection, '.planning-section-title').textContent).toBe('Unplanned Deadlines');
 
       // Near term should be directly in the content
       const planningItems = unscheduledSection.querySelectorAll('.planning-item');
       // Both are in the DOM, but one is in the far-term container
       expect(planningItems).toHaveLength(2);
 
-      const farHeader = unscheduledSection.querySelector('.planning-section-subheader');
+      const farHeader = bySelector(unscheduledSection, '.planning-section-subheader');
       expect(farHeader).not.toBeNull();
       expect(farHeader.textContent).toContain('10+ days away [1]');
 
-      const farContent = unscheduledSection.querySelector<HTMLElement>('.planning-section-content.far-term');
+      const farContent = bySelector(unscheduledSection, '.planning-section-content.far-term');
       expect(farContent.style.display).toBe('none'); // Default collapsed
     });
 
@@ -215,9 +220,9 @@ describe('planning.ts', () => {
       ];
 
       renderPlanningPanel();
-      const unscheduledSection = document.getElementById('planning-list').querySelector('.planning-section-unscheduled');
-      const farHeader = unscheduledSection.querySelector<HTMLElement>('.planning-section-subheader');
-      const farContent = unscheduledSection.querySelector<HTMLElement>('.planning-section-content.far-term');
+      const unscheduledSection = bySelector(byId('planning-list'), '.planning-section-unscheduled');
+      const farHeader = bySelector(unscheduledSection, '.planning-section-subheader');
+      const farContent = bySelector(unscheduledSection, '.planning-section-content.far-term');
 
       // Click to expand
       farHeader.click();
@@ -236,18 +241,18 @@ describe('planning.ts', () => {
 
       renderPlanningPanel();
 
-      const list = document.getElementById('planning-list');
+      const list = byId('planning-list');
 
-      const dayToday = list.querySelector('#day-2023-10-10');
+      const dayToday = bySelector(list, '#day-2023-10-10');
       expect(dayToday).not.toBeNull();
       expect(dayToday.querySelectorAll('.planning-item')).toHaveLength(1);
       expect(dayToday.textContent).toContain('Planned Today');
 
-      const dayTomorrow = list.querySelector('#day-2023-10-11');
+      const dayTomorrow = bySelector(list, '#day-2023-10-11');
       expect(dayTomorrow).not.toBeNull();
       expect(dayTomorrow.textContent).toContain('Planned Tomorrow');
 
-      expect(document.getElementById('planning-count').textContent).toBe('2');
+      expect(byId('planning-count').textContent).toBe('2');
     });
 
     it('renders Past Planning section for overdue planned issues', () => {
@@ -257,7 +262,7 @@ describe('planning.ts', () => {
 
       renderPlanningPanel();
 
-      const pastDay = document.getElementById('day-past');
+      const pastDay = byId('day-past');
       expect(pastDay).not.toBeNull();
       expect(pastDay.classList.contains('past')).toBe(true);
       expect(pastDay.textContent).toContain('Past Planning');
@@ -271,7 +276,7 @@ describe('planning.ts', () => {
 
       renderPlanningPanel();
 
-      const futureDay = document.getElementById('day-future');
+      const futureDay = byId('day-future');
       expect(futureDay).not.toBeNull();
       expect(futureDay.textContent).toContain('Future Planning');
       expect(futureDay.textContent).toContain('Far Future');
@@ -279,8 +284,8 @@ describe('planning.ts', () => {
 
     it('toggles empty class on days', () => {
       renderPlanningPanel();
-      const list = document.getElementById('planning-list');
-      const emptyDay = list.querySelector('.planning-day');
+      const list = byId('planning-list');
+      const emptyDay = bySelector(list, '.planning-day');
       expect(emptyDay.classList.contains('empty')).toBe(true);
     });
 
@@ -290,9 +295,9 @@ describe('planning.ts', () => {
 
       renderPlanningPanel();
 
-      const list = document.getElementById('planning-list');
-      const item = list.querySelector('.planning-item');
-      const removeBtn = item.querySelector<HTMLElement>('.planning-item-remove');
+      const list = byId('planning-list');
+      const item = bySelector(list, '.planning-item');
+      const removeBtn = bySelector(item, '.planning-item-remove');
 
       await removeBtn.click();
 
@@ -311,12 +316,12 @@ describe('planning.ts', () => {
       // Render with no args — must reuse the callbacks set via setupPlanningPanel.
       renderPlanningPanel();
 
-      const list = document.getElementById('planning-list');
-      const item = list.querySelector<HTMLElement>('.planning-item');
+      const list = byId('planning-list');
+      const item = bySelector(list, '.planning-item');
       item.click();
       expect(openModal).toHaveBeenCalledWith(issue);
 
-      const removeBtn = item.querySelector<HTMLElement>('.planning-item-remove');
+      const removeBtn = bySelector(item, '.planning-item-remove');
       await removeBtn.click();
       expect(rerenderActiveView).toHaveBeenCalled();
     });
@@ -330,8 +335,8 @@ describe('planning.ts', () => {
 
       renderPlanningPanel();
 
-      const list = document.getElementById('planning-list');
-      const dayToday = list.querySelector('#day-2023-10-10');
+      const list = byId('planning-list');
+      const dayToday = bySelector(list, '#day-2023-10-10');
 
       expect(dayToday.querySelectorAll('.planning-item')).toHaveLength(1);
       expect(dayToday.textContent).toContain('Keep');
@@ -349,8 +354,8 @@ describe('planning.ts', () => {
 
       vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('Remove failed'));
 
-      const list = document.getElementById('planning-list');
-      const removeBtn = list.querySelector<HTMLElement>('.planning-item-remove');
+      const list = byId('planning-list');
+      const removeBtn = bySelector(list, '.planning-item-remove');
       await removeBtn.click();
 
       expect(issue.planned_dates).toEqual(['2023-10-10']); // reverted
@@ -375,7 +380,7 @@ describe('planning.ts', () => {
       renderPlanningPanel(refreshApp, vi.fn());
 
       // Dispatch drop on today's day slot
-      const dayToday = document.getElementById('day-2023-10-10');
+      const dayToday = byId('day-2023-10-10');
       dayToday.dispatchEvent(new Event('drop'));
 
       await vi.waitFor(() => {

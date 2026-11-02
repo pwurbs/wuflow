@@ -6,6 +6,7 @@ import * as api from '../api.ts';
 import type { CardCallbacks } from '../components/card.ts';
 import type { Issue } from '../models.ts';
 import { makeIssue } from './fixtures.ts';
+import { byId } from '../utils.ts';
 
 // Mock dependencies
 vi.mock('../state.ts', () => ({
@@ -90,27 +91,27 @@ describe('Archive Component', () => {
 
       await renderArchive(vi.fn(), vi.fn());
 
-      const archiveList = document.getElementById('archive-list');
-      const doneList = document.getElementById('archive-done-list');
+      const archiveList = byId('archive-list');
+      const doneList = byId('archive-done-list');
 
       // 1 archived issue + 1 month header
       expect(archiveList.children).toHaveLength(2);
       expect(doneList.children).toHaveLength(1);
-      expect(document.getElementById('archive-count').textContent).toBe('1');
-      expect(document.getElementById('done-count-archive').textContent).toBe('1');
+      expect(byId('archive-count').textContent).toBe('1');
+      expect(byId('done-count-archive').textContent).toBe('1');
 
       // Verify that move callbacks are NOT passed (arrows disabled for alignment)
       const doneListCards = doneList.querySelectorAll('.card');
       doneListCards.forEach(cardEl => {
-        expect(cardCallbacks.get(cardEl).onMoveTop).toBeUndefined();
-        expect(cardCallbacks.get(cardEl).onMoveBottom).toBeUndefined();
+        expect(cardCallbacks.get(cardEl)?.onMoveTop).toBeUndefined();
+        expect(cardCallbacks.get(cardEl)?.onMoveBottom).toBeUndefined();
       });
     });
   });
 
   describe('setupArchiveView', () => {
     it('should setup event listeners', () => {
-      const archiveList = document.getElementById('archive-list');
+      const archiveList = byId('archive-list');
       const spy = vi.spyOn(archiveList, 'addEventListener');
 
       setupArchiveView(vi.fn(), vi.fn(), undefined);
@@ -123,7 +124,7 @@ describe('Archive Component', () => {
       const refreshApp = vi.fn();
       setupArchiveView(refreshApp, vi.fn(), undefined);
 
-      const list = document.getElementById('archive-list');
+      const list = byId('archive-list');
 
       // Mock Dragged Card
       const card = document.createElement('div');
@@ -156,7 +157,7 @@ describe('Archive Component', () => {
       const refreshApp = vi.fn();
       setupArchiveView(refreshApp, vi.fn(), undefined);
 
-      const section = document.getElementById('archive-archive-section');
+      const section = byId('archive-archive-section');
       const item = document.createElement('div');
       item.classList.add('planning-item');
       item.dataset.id = '100';
@@ -178,7 +179,7 @@ describe('Archive Component', () => {
     it('should save a reorder within Done as one positions request and re-render the archive', async () => {
       setupArchiveView(vi.fn(), vi.fn(), undefined);
 
-      const doneList = document.getElementById('archive-done-list');
+      const doneList = byId('archive-done-list');
       state.state.issues = [
         makeIssue({ id: 1, title: 'Item 1', status: 'Done', position: 0 }),
         makeIssue({ id: 2, title: 'Item 2', status: 'Done', position: 1 })
@@ -218,7 +219,7 @@ describe('Archive Component', () => {
       const rerenderActiveView = vi.fn();
       setupArchiveView(refreshApp, vi.fn(), rerenderActiveView);
 
-      const list = document.getElementById('archive-list');
+      const list = byId('archive-list');
       const section = document.getElementById('archive-archive-section');
       const card = document.createElement('div');
       card.className = 'card';

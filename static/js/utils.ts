@@ -22,7 +22,7 @@ type DeadlineStatus = { late: false } | { late: true; reason: string };
 
 // For an issue deadline.
 export function getDeadlineStatus(issue: DeadlineSource): DeadlineStatus {
-  if (!issue?.deadline) return { late: false };
+  if (!issue.deadline) return { late: false };
   const today = startOfDay(new Date());
   const deadline = startOfDay(issue.deadline);
   if (deadline < today) return { late: true, reason: 'Overdue!' };
@@ -70,7 +70,6 @@ export function bySelector(root: ParentNode, selector: string, Type: new () => H
 }
 
 export function escapeHtml(text: string) {
-  if (!text) return '';
   return text
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -465,8 +464,6 @@ export function initCharCounter(el: HTMLInputElement | HTMLTextAreaElement, maxL
 }
 
 export function canArchive(issue: Issue): { allowed: true; reason?: undefined } | { allowed: false; reason: string } {
-  if (!issue) return { allowed: false, reason: 'No issue provided' };
-
   if (issue.tasks?.some(t => !t.done)) {
     return { allowed: false, reason: 'Issue has open tasks' };
   }

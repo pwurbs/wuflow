@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { bySelector } from '../utils.ts';
 
 let showCardContextMenu: typeof import('../context-menu.ts').showCardContextMenu;
 let hideCardContextMenu: typeof import('../context-menu.ts').hideCardContextMenu;
@@ -29,15 +30,15 @@ describe('context-menu', () => {
   it('calls action and hides menu when item clicked', () => {
     const action = vi.fn();
     showCardContextMenu(0, 0, [{ label: 'Move to top', action }]);
-    document.querySelector<HTMLElement>('.card-context-menu-item').click();
+    bySelector(document, '.card-context-menu-item').click();
     expect(action).toHaveBeenCalled();
-    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(true);
+    expect(bySelector(document, '.card-context-menu').classList.contains('hidden')).toBe(true);
   });
 
   it('does not call action for disabled item', () => {
     const action = vi.fn();
     showCardContextMenu(0, 0, [{ label: 'Disabled', disabled: true, action }]);
-    const item = document.querySelector<HTMLButtonElement>('.card-context-menu-item');
+    const item = bySelector(document, '.card-context-menu-item', HTMLButtonElement);
     expect(item.disabled).toBe(true);
     item.click();
     expect(action).not.toHaveBeenCalled();
@@ -46,13 +47,13 @@ describe('context-menu', () => {
   it('hides on Escape key', () => {
     showCardContextMenu(0, 0, [{ label: 'X', action: vi.fn() }]);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(true);
+    expect(bySelector(document, '.card-context-menu').classList.contains('hidden')).toBe(true);
   });
 
   it('hides on click outside', () => {
     showCardContextMenu(0, 0, [{ label: 'X', action: vi.fn() }]);
     document.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(true);
+    expect(bySelector(document, '.card-context-menu').classList.contains('hidden')).toBe(true);
   });
 
   it('hides on scroll that actually changes position', () => {
@@ -62,11 +63,11 @@ describe('context-menu', () => {
     document.body.appendChild(scroller);
     // Establish the baseline for this element (its already-settled position).
     scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(false);
+    expect(bySelector(document, '.card-context-menu').classList.contains('hidden')).toBe(false);
     // A real further scroll changes scrollTop and should dismiss the menu.
     scroller.scrollTop = 40;
     scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(true);
+    expect(bySelector(document, '.card-context-menu').classList.contains('hidden')).toBe(true);
   });
 
   it('does not hide on a stale scroll notification for an already-settled position', () => {
@@ -79,10 +80,10 @@ describe('context-menu', () => {
     scroller.scrollTop = 950;
     document.body.appendChild(scroller);
     scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(false);
+    expect(bySelector(document, '.card-context-menu').classList.contains('hidden')).toBe(false);
     // Dispatching again with the same, unchanged position stays a no-op.
     scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
-    expect(document.querySelector('.card-context-menu').classList.contains('hidden')).toBe(false);
+    expect(bySelector(document, '.card-context-menu').classList.contains('hidden')).toBe(false);
   });
 
   it('hideCardContextMenu is safe when no menu exists', () => {

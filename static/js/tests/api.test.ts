@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
 import {
   fetchActiveIssuesByProject,
   fetchArchivedIssuesByProject,
@@ -103,8 +103,7 @@ describe('api', () => {
     });
 
     it('issues only one refresh request for concurrent 401s (mutex)', async () => {
-      let resolveRefresh: (value?: unknown) => void;
-      const deferredRefresh = new Promise(res => { resolveRefresh = res; });
+      const { promise: deferredRefresh, resolve: resolveRefresh } = Promise.withResolvers<void>();
 
       vi.mocked(fetch).mockImplementation((url) => {
         if (String(url).includes('/issues/active')) return Promise.resolve(makeResponse(401, ''));
@@ -141,13 +140,13 @@ describe('api', () => {
       expect(location.href).toBe('');
       expect(fetch).toHaveBeenCalledTimes(3);
       expect(vi.mocked(fetch).mock.calls[2][0]).toBe('/api/projects/1/issues/2/tasks/3');
-      expect(vi.mocked(fetch).mock.calls[2][1].method).toBe('PUT');
+      expect(vi.mocked(fetch).mock.calls[2][1]?.method).toBe('PUT');
       expect(result).toEqual({ id: 3 });
     });
 
     it('opens the re-login handler only once for concurrent 401s', async () => {
-      let resolveLogin: () => void;
-      const handler = vi.fn(() => new Promise<void>(res => { resolveLogin = res; }));
+      const { promise: pendingLogin, resolve: resolveLogin } = Promise.withResolvers<void>();
+      const handler = vi.fn(() => pendingLogin);
       setSessionExpiredHandler(handler);
       let reloggedIn = false;
       vi.mocked(fetch).mockImplementation((url) => {
@@ -202,6 +201,7 @@ describe('api', () => {
       vi.useFakeTimers();
       try {
         vi.mocked(fetch).mockImplementation((_url, opts) => new Promise((_res, rej) => {
+          assert(opts?.signal);
           opts.signal.addEventListener('abort', () => rej(new DOMException('Aborted', 'AbortError')));
         }));
         const p = updateTask(1, 2, makeTask({ id: 3 }));
@@ -222,7 +222,7 @@ describe('api', () => {
       await fetchHistory(1, 2);
 
       expect(vi.mocked(fetch).mock.calls[1][0]).toContain('/auth/refresh');
-      expect(vi.mocked(fetch).mock.calls[1][1].signal).toBeUndefined();
+      expect(vi.mocked(fetch).mock.calls[1][1]?.signal).toBeUndefined();
     });
 
     it('reports connection state to the listener', async () => {
@@ -255,7 +255,7 @@ describe('api', () => {
     it('returns null on success', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, {}));
       expect(await reauthenticate('a@b.c', 'pw')).toBeNull();
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ email: 'a@b.c', password: 'pw' });
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ email: 'a@b.c', password: 'pw' });
     });
 
     it('returns the server message on failure', async () => {
@@ -341,7 +341,7 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(201, created));
       const result = await createIssue(1, makeIssue({ title: 'New' }));
       expect(result).toEqual(created);
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('POST');
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('POST');
     });
 
     it('throws with server message on failure', async () => {
@@ -361,7 +361,7 @@ describe('api', () => {
     it('includes If-Match header when etag is provided', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, { id: 1 }));
       await updateIssue(1, makeIssue({ id: 1 }), '"v1"');
-      expect(new Headers(vi.mocked(fetch).mock.calls[0][1].headers).get('If-Match')).toBe('"v1"');
+      expect(new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers).get('If-Match')).toBe('"v1"');
     });
 
     it('returns conflict flag on 409', async () => {
@@ -397,8 +397,8 @@ describe('api', () => {
       await expect(updateIssuePositions(1, positions)).resolves.toBeUndefined();
       expect(fetch).toHaveBeenCalledTimes(1);
       expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/projects/1/issues/positions');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual(positions);
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual(positions);
     });
 
     it('throws the server message on failure', async () => {
@@ -413,8 +413,8 @@ describe('api', () => {
       const positions = [{ id: 102, position: 0 }, { id: 101, position: 1 }];
       await expect(updateTaskPositions(1, 2, positions)).resolves.toBeUndefined();
       expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/projects/1/issues/2/tasks/positions');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual(positions);
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual(positions);
     });
 
     it('throws the server message on failure', async () => {
@@ -442,8 +442,8 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, ''));
       await expect(deleteIssue(1, 1, 'AdminPass123!')).resolves.not.toThrow();
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/projects/1/issues/1');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('DELETE');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ admin_password: 'AdminPass123!' });
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('DELETE');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ admin_password: 'AdminPass123!' });
     });
 
     it('throws on failure', async () => {
@@ -459,7 +459,7 @@ describe('api', () => {
       const result = await moveIssue(1, 1, 2, 'AdminPass123!');
       expect(result).toEqual({ issue: moved, etag: '"move-etag"' });
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/projects/1/issues/1/move');
-      const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body));
+      const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
       expect(body).toEqual({ new_project_id: 2, admin_password: 'AdminPass123!' });
     });
 
@@ -555,7 +555,7 @@ describe('api', () => {
       const proj = { id: 1, name: 'Beta' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, proj));
       expect(await updateProject(1, { name: 'Beta', description: '' })).toEqual(proj);
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
     });
   });
 
@@ -563,8 +563,8 @@ describe('api', () => {
     it('sends DELETE with admin_password body and resolves on success', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, ''));
       await expect(deleteProject(1, 'AdminPass123!')).resolves.not.toThrow();
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('DELETE');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ admin_password: 'AdminPass123!' });
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('DELETE');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ admin_password: 'AdminPass123!' });
     });
 
     it('throws on failure', async () => {
@@ -578,8 +578,8 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, ''));
       await expect(deleteUser(7, 'AdminPass123!')).resolves.not.toThrow();
       expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/users/7');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('DELETE');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ admin_password: 'AdminPass123!' });
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('DELETE');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ admin_password: 'AdminPass123!' });
     });
 
     it('throws the server message on failure', async () => {
@@ -608,7 +608,7 @@ describe('api', () => {
       const config = { stage1_name: 'Pending', stage2_name: 'Working' };
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, config));
       expect(await updateStatusConfig(1, config)).toEqual(config);
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
     });
   });
 
@@ -647,7 +647,7 @@ describe('api', () => {
       const user = makeUser({ id: 1, first_name: 'Alice Updated' });
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, user));
       expect(await updateUser(1, { ...userBody, first_name: 'Alice Updated' })).toEqual(user);
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
     });
   });
 
@@ -675,7 +675,7 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(201, release));
       const result = await createRelease(1, releaseBody('v1.0'));
       expect(result).toEqual(release);
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('POST');
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('POST');
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/projects/1/releases');
     });
 
@@ -691,7 +691,7 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, release));
       const result = await updateRelease(1, 1, releaseBody('v1.1'));
       expect(result).toEqual(release);
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/releases/1');
     });
 
@@ -705,8 +705,8 @@ describe('api', () => {
     it('sends DELETE with admin_password body and resolves on success', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, ''));
       await expect(deleteRelease(1, 1, 'AdminPass123!')).resolves.not.toThrow();
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('DELETE');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ admin_password: 'AdminPass123!' });
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('DELETE');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ admin_password: 'AdminPass123!' });
     });
 
     it('throws with server message on failure', async () => {
@@ -720,8 +720,8 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, ''));
       await expect(deleteLabel(1, 1, 'AdminPass123!')).resolves.not.toThrow();
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/projects/1/labels/1');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('DELETE');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ admin_password: 'AdminPass123!' });
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('DELETE');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ admin_password: 'AdminPass123!' });
     });
 
     it('throws with server message on failure', async () => {
@@ -752,7 +752,7 @@ describe('api', () => {
       const result = await triggerRelease(1, 1, true);
       expect(result).toEqual(release);
       expect(vi.mocked(fetch).mock.calls[0][0]).toContain('/releases/1/release');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ archive_done: true });
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ archive_done: true });
     });
 
     it('throws with server message on failure', async () => {
@@ -798,8 +798,8 @@ describe('api', () => {
       const result = await createComment(1, 5, 'hello');
       expect(result).toEqual(comment);
       expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/projects/1/issues/5/comments');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('POST');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ body: 'hello' });
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('POST');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ body: 'hello' });
     });
 
     it('throws with server message on failure', async () => {
@@ -815,8 +815,8 @@ describe('api', () => {
       const result = await updateComment(1, 5, 1, 'edited');
       expect(result).toEqual(comment);
       expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/projects/1/issues/5/comments/1');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('PUT');
-      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1].body))).toEqual({ body: 'edited' });
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({ body: 'edited' });
     });
 
     it('throws with server message on failure', async () => {
@@ -830,7 +830,7 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, ''));
       await expect(deleteComment(1, 5, 1)).resolves.not.toThrow();
       expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/projects/1/issues/5/comments/1');
-      expect(vi.mocked(fetch).mock.calls[0][1].method).toBe('DELETE');
+      expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('DELETE');
     });
 
     it('throws with server message on failure', async () => {

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
 import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from '../components/activity.ts';
 import * as api from '../api.ts';
 import { state } from '../state.ts';
-import { byId } from '../utils.ts';
+import { byId, bySelector } from '../utils.ts';
 import * as utils from '../utils.ts';
 import { makeComment, makeHistoryEntry, makeIssue, makeUser, makeUserRef } from './fixtures.ts';
 import type { Comment, HistoryEntry } from '../models.ts';
@@ -23,6 +23,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils.ts')>();
   return {
     byId: actual.byId,
+    bySelector: actual.bySelector,
     escapeHtml: vi.fn(s => s),
     formatDateTime: vi.fn(dateStr => `formatted:${dateStr}`),
     getUserInitials: vi.fn(user => {
@@ -96,10 +97,10 @@ describe('Activity Component', () => {
 
   it('unhides the activity section and defaults to the Comments tab', async () => {
     await loadActivity(issue);
-    expect(document.getElementById('activity-section').classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('tab-comments').classList.contains('active')).toBe(true);
-    expect(document.getElementById('comment-list').classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('history-list').classList.contains('hidden')).toBe(true);
+    expect(byId('activity-section').classList.contains('hidden')).toBe(false);
+    expect(byId('tab-comments').classList.contains('active')).toBe(true);
+    expect(byId('comment-list').classList.contains('hidden')).toBe(false);
+    expect(byId('history-list').classList.contains('hidden')).toBe(true);
   });
 
   it('fetches history and comments scoped to the issue', async () => {
@@ -110,8 +111,8 @@ describe('Activity Component', () => {
 
   it('renders an empty state when there are no comments', async () => {
     await loadActivity(issue);
-    const list = document.getElementById('comment-list');
-    expect(list.querySelector('.activity-empty').textContent).toBe('No comments yet.');
+    const list = byId('comment-list');
+    expect(bySelector(list, '.activity-empty').textContent).toBe('No comments yet.');
   });
 
   it('renders comments with author, timestamp, and sanitized markdown body', async () => {
@@ -120,10 +121,10 @@ describe('Activity Component', () => {
     ]);
     await loadActivity(issue);
 
-    const item = document.querySelector('.comment-item');
-    expect(item.querySelector('.comment-author').textContent).toBe('Ann Thor');
-    expect(item.querySelector('.comment-time').textContent).toContain('formatted:2026-01-01T10:00:00Z');
-    expect(item.querySelector('.comment-body').innerHTML).toContain('<p>**bold**</p>');
+    const item = bySelector(document, '.comment-item');
+    expect(bySelector(item, '.comment-author').textContent).toBe('Ann Thor');
+    expect(bySelector(item, '.comment-time').textContent).toContain('formatted:2026-01-01T10:00:00Z');
+    expect(bySelector(item, '.comment-body').innerHTML).toContain('<p>**bold**</p>');
   });
 
   it('marks an edited comment in its timestamp line, showing the edit time rather than the creation time', async () => {
@@ -131,7 +132,7 @@ describe('Activity Component', () => {
       makeComment({ id: 1, user_id: 2, user: makeUserRef({ first_name: 'Ann', last_name: 'Thor' }), body: 'hi', edited: true, created_at: '2026-01-01T10:00:00Z', updated_at: '2026-01-02T11:00:00Z' })
     ]);
     await loadActivity(issue);
-    const text = document.querySelector('.comment-time').textContent;
+    const text = bySelector(document, '.comment-time').textContent;
     expect(text).toContain('edited');
     expect(text).toContain('formatted:2026-01-02T11:00:00Z');
     expect(text).not.toContain('formatted:2026-01-01T10:00:00Z');
@@ -174,66 +175,66 @@ describe('Activity Component', () => {
     ]);
     await loadActivity(issue);
 
-    document.getElementById('tab-history').click();
+    byId('tab-history').click();
 
-    expect(document.getElementById('tab-history').classList.contains('active')).toBe(true);
-    expect(document.getElementById('history-list').classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('comment-list').classList.contains('hidden')).toBe(true);
+    expect(byId('tab-history').classList.contains('active')).toBe(true);
+    expect(byId('history-list').classList.contains('hidden')).toBe(false);
+    expect(byId('comment-list').classList.contains('hidden')).toBe(true);
 
     const items = document.querySelectorAll('.history-item');
     expect(items).toHaveLength(2);
-    expect(items[0].querySelector('.history-text').textContent).toBe('Issue: Created');
-    expect(items[1].querySelector('.history-text').textContent).toBe('Issue: Archived');
+    expect(bySelector(items[0], '.history-text').textContent).toBe('Issue: Created');
+    expect(bySelector(items[1], '.history-text').textContent).toBe('Issue: Archived');
   });
 
   it('renders a friendly sentence for a status change, mapping raw keys to display labels', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, user: null, created_at: '2026-01-01T09:00:00Z' })
+      makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
-    document.getElementById('tab-history').click();
-    expect(document.querySelector('.history-text').textContent).toBe('Status: Changed Open → Working');
+    byId('tab-history').click();
+    expect(bySelector(document, '.history-text').textContent).toBe('Status: Changed Open → Working');
   });
 
   it('renders a title/description change without from/to values', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'title' }, user: null, created_at: '2026-01-01T09:00:00Z' })
+      makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'title' }, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
-    document.getElementById('tab-history').click();
-    expect(document.querySelector('.history-text').textContent).toBe('Title: Changed');
+    byId('tab-history').click();
+    expect(bySelector(document, '.history-text').textContent).toBe('Title: Changed');
   });
 
   it('renders the task change detail verbatim', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      makeHistoryEntry({ id: 1, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, user: null, created_at: '2026-01-01T09:00:00Z' })
+      makeHistoryEntry({ id: 1, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
-    document.getElementById('tab-history').click();
-    expect(document.querySelector('.history-text').textContent).toBe("Task: Added 'Foo'");
+    byId('tab-history').click();
+    expect(bySelector(document, '.history-text').textContent).toBe("Task: Added 'Foo'");
   });
 
   it('renders a move event with old/new project names and a reset note', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      makeHistoryEntry({ id: 1, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, user: null, created_at: '2026-01-01T09:00:00Z' })
+      makeHistoryEntry({ id: 1, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity(issue);
-    document.getElementById('tab-history').click();
-    expect(document.querySelector('.history-text').textContent).toBe('Project: Moved Alpha → Beta (label, release, and status were reset)');
+    byId('tab-history').click();
+    expect(bySelector(document, '.history-text').textContent).toBe('Project: Moved Alpha → Beta (label, release, and status were reset)');
   });
 
   it('picks the marker icon category from the event (and task field for task events)', async () => {
     vi.mocked(api.fetchHistory).mockResolvedValue([
-      makeHistoryEntry({ id: 1, event: 'created', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }),
-      makeHistoryEntry({ id: 2, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, user: null, created_at: '2026-01-02T09:00:00Z' }),
-      makeHistoryEntry({ id: 3, event: 'archived', data: {}, user: null, created_at: '2026-01-03T09:00:00Z' }),
-      makeHistoryEntry({ id: 4, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, user: null, created_at: '2026-01-04T09:00:00Z' }),
-      makeHistoryEntry({ id: 5, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, user: null, created_at: '2026-01-05T09:00:00Z' }),
-      makeHistoryEntry({ id: 6, event: 'task', data: { field: 'task_completed', detail: "Task: Completed 'Foo'" }, user: null, created_at: '2026-01-06T09:00:00Z' }),
-      makeHistoryEntry({ id: 7, event: 'task', data: { field: 'task_deleted', detail: "Task: Deleted 'Foo'" }, user: null, created_at: '2026-01-07T09:00:00Z' })
+      makeHistoryEntry({ id: 1, event: 'created', data: {}, created_at: '2026-01-01T09:00:00Z' }),
+      makeHistoryEntry({ id: 2, event: 'updated', data: { field: 'status', from: 'Open', to: 'Stage1' }, created_at: '2026-01-02T09:00:00Z' }),
+      makeHistoryEntry({ id: 3, event: 'archived', data: {}, created_at: '2026-01-03T09:00:00Z' }),
+      makeHistoryEntry({ id: 4, event: 'moved', data: { field: 'project', from: 'Alpha', to: 'Beta' }, created_at: '2026-01-04T09:00:00Z' }),
+      makeHistoryEntry({ id: 5, event: 'task', data: { field: 'task_added', detail: "Task: Added 'Foo'" }, created_at: '2026-01-05T09:00:00Z' }),
+      makeHistoryEntry({ id: 6, event: 'task', data: { field: 'task_completed', detail: "Task: Completed 'Foo'" }, created_at: '2026-01-06T09:00:00Z' }),
+      makeHistoryEntry({ id: 7, event: 'task', data: { field: 'task_deleted', detail: "Task: Deleted 'Foo'" }, created_at: '2026-01-07T09:00:00Z' })
     ]);
     await loadActivity(issue);
-    document.getElementById('tab-history').click();
+    byId('tab-history').click();
 
     const categories = [...document.querySelectorAll<HTMLElement>('.history-marker')].map(m => m.dataset.category);
     expect(categories).toEqual(['creation', 'change', 'change', 'change', 'addition', 'change', 'deletion']);
@@ -241,13 +242,13 @@ describe('Activity Component', () => {
 
   it('renders an empty state when there is no history', async () => {
     await loadActivity(issue);
-    document.getElementById('tab-history').click();
-    expect(document.querySelector('#history-list .activity-empty').textContent).toBe('No history yet.');
+    byId('tab-history').click();
+    expect(bySelector(document, '#history-list .activity-empty').textContent).toBe('No history yet.');
   });
 
   it('hides the comment form on archived issues', async () => {
     await loadActivity({ ...issue, status: 'Archive' });
-    expect(document.getElementById('comment-form-container').classList.contains('hidden')).toBe(true);
+    expect(byId('comment-form-container').classList.contains('hidden')).toBe(true);
   });
 
   it('greys out the comments of an archived issue, but not those of an open one', async () => {
@@ -255,10 +256,10 @@ describe('Activity Component', () => {
       makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'first', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
     await loadActivity({ ...issue, status: 'Archive' });
-    expect(document.querySelector('.comment-item').getAttribute('aria-disabled')).toBe('true');
+    expect(bySelector(document, '.comment-item').getAttribute('aria-disabled')).toBe('true');
 
     await loadActivity(issue);
-    expect(document.querySelector('.comment-item').hasAttribute('aria-disabled')).toBe(false);
+    expect(bySelector(document, '.comment-item').hasAttribute('aria-disabled')).toBe(false);
   });
 
   it.each([['an open', 'Open'], ['an archived', 'Archive']] as const)('opens a link in a comment of %s issue in a new tab instead of leaving the app', async (_label, status) => {
@@ -271,7 +272,7 @@ describe('Activity Component', () => {
     const openSpy = vi.spyOn(globalThis, 'open').mockImplementation(() => null);
 
     const click = new MouseEvent('click', { bubbles: true, cancelable: true });
-    document.querySelector('.comment-body span').dispatchEvent(click);
+    bySelector(document, '.comment-body span').dispatchEvent(click);
 
     expect(openSpy).toHaveBeenCalledWith('https://example.com/a', '_blank', 'noopener,noreferrer');
     expect(click.defaultPrevented).toBe(true);
@@ -280,7 +281,7 @@ describe('Activity Component', () => {
 
   it('shows the comment form on a non-archived issue', async () => {
     await loadActivity(issue);
-    expect(document.getElementById('comment-form-container').classList.contains('hidden')).toBe(false);
+    expect(byId('comment-form-container').classList.contains('hidden')).toBe(false);
   });
 
   it('submits a new comment and refreshes the list', async () => {
@@ -293,7 +294,7 @@ describe('Activity Component', () => {
 
     const input = byId('new-comment-body', HTMLTextAreaElement);
     input.value = 'new comment';
-    document.getElementById('add-comment-btn').click();
+    byId('add-comment-btn').click();
 
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
@@ -304,13 +305,13 @@ describe('Activity Component', () => {
   });
 
   it('posts a new comment only once while the first submit is in flight, with the editor greyed out', async () => {
-    let resolveCreate: (comment: Comment) => void;
-    vi.mocked(api.createComment).mockReturnValue(new Promise(r => { resolveCreate = r; }));
+    const { promise: pendingCreate, resolve: resolveCreate } = Promise.withResolvers<Comment>();
+    vi.mocked(api.createComment).mockReturnValue(pendingCreate);
     await loadActivity(issue);
 
-    const editor = document.getElementById('new-comment-editor');
+    const editor = byId('new-comment-editor');
     const input = byId('new-comment-body', HTMLTextAreaElement);
-    const addBtn = document.getElementById('add-comment-btn');
+    const addBtn = byId('add-comment-btn');
     input.value = 'new comment';
     addBtn.click();
     expect(editor.getAttribute('aria-busy')).toBe('true');
@@ -330,16 +331,16 @@ describe('Activity Component', () => {
     vi.mocked(api.fetchComments).mockResolvedValue([
       makeComment({ id: 1, user_id: 1, user: makeUserRef({ first_name: 'Me', last_name: 'Self' }), body: 'original', edited: false, created_at: '2026-01-01T09:00:00Z' })
     ]);
-    let resolveUpdate: (comment: Comment) => void;
-    vi.mocked(api.updateComment).mockReturnValue(new Promise(r => { resolveUpdate = r; }));
+    const { promise: pendingUpdate, resolve: resolveUpdate } = Promise.withResolvers<Comment>();
+    vi.mocked(api.updateComment).mockReturnValue(pendingUpdate);
     await loadActivity(issue);
 
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
-    const textarea = document.querySelector<HTMLInputElement>('.comment-edit-input');
-    const save = document.querySelector<HTMLElement>('#comment-list .inline-save-btn');
+    bySelector(document, '.comment-edit-btn').click();
+    const textarea = bySelector(document, '.comment-edit-input', HTMLTextAreaElement);
+    const save = bySelector(document, '#comment-list .inline-save-btn');
     textarea.value = 'changed';
     save.click();
-    expect(textarea.closest('.comment-editor-container').getAttribute('aria-busy')).toBe('true');
+    expect(textarea.closest('.comment-editor-container')?.getAttribute('aria-busy')).toBe('true');
     save.dispatchEvent(new MouseEvent('click')); // a second ✓, e.g. from a stale handler
 
     resolveUpdate(makeComment());
@@ -378,7 +379,7 @@ describe('Activity Component', () => {
   it('shows an error notification and does not call the API when submitting an empty comment', async () => {
     await loadActivity(issue);
     byId('new-comment-body', HTMLTextAreaElement).value = '   ';
-    document.getElementById('add-comment-btn').click();
+    byId('add-comment-btn').click();
 
     await new Promise(process.nextTick);
 
@@ -388,10 +389,10 @@ describe('Activity Component', () => {
 
   it('keeps the new-comment ✓/✕ bar hidden until the field is focused', async () => {
     await loadActivity(issue);
-    const actions = document.getElementById('new-comment-actions');
+    const actions = byId('new-comment-actions');
     expect(actions.classList.contains('hidden')).toBe(true);
 
-    document.getElementById('new-comment-body').focus();
+    byId('new-comment-body').focus();
     expect(actions.classList.contains('hidden')).toBe(false);
     // The counter is driven by the open state, not by focus.
     expect(utils.initCharCounter).toHaveBeenCalledWith(document.getElementById('new-comment-body'), 1000, { manual: true });
@@ -431,16 +432,16 @@ describe('Activity Component', () => {
       expect(scrollIntoView).toHaveBeenCalledTimes(2);
     } finally {
       rafSpy.mockRestore();
-      delete HTMLElement.prototype.scrollIntoView;
+      Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
     }
   });
 
   it('collapses the new-comment form again when it is left empty', async () => {
     await loadActivity(issue);
-    const input = document.getElementById('new-comment-body');
+    const input = byId('new-comment-body');
     input.focus();
     input.blur();
-    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+    expect(byId('new-comment-actions').classList.contains('hidden')).toBe(true);
   });
 
   it('keeps the new-comment form open on blur when a draft was typed', async () => {
@@ -449,7 +450,7 @@ describe('Activity Component', () => {
     input.focus();
     input.value = 'draft';
     input.blur();
-    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(false);
+    expect(byId('new-comment-actions').classList.contains('hidden')).toBe(false);
   });
 
   it('discards the draft and collapses the form when cancelled', async () => {
@@ -457,11 +458,11 @@ describe('Activity Component', () => {
     const input = byId('new-comment-body', HTMLTextAreaElement);
     input.focus();
     input.value = 'draft';
-    document.getElementById('cancel-comment-btn').click();
+    byId('cancel-comment-btn').click();
     await new Promise(process.nextTick); // ✕ asks before discarding changed text
 
     expect(input.value).toBe('');
-    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+    expect(byId('new-comment-actions').classList.contains('hidden')).toBe(true);
   });
 
   it('clears a draft left over from a previously opened issue', async () => {
@@ -474,7 +475,7 @@ describe('Activity Component', () => {
     await loadActivity({ ...issue, id: 2 });
 
     expect(input.value).toBe('');
-    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+    expect(byId('new-comment-actions').classList.contains('hidden')).toBe(true);
   });
 
   it('hides every comment\'s edit/delete actions while a new comment is open, and restores them after submitting', async () => {
@@ -486,15 +487,15 @@ describe('Activity Component', () => {
 
     const input = byId('new-comment-body', HTMLTextAreaElement);
     input.focus();
-    expect(document.querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(true);
+    expect(bySelector(document, '.comment-actions').classList.contains('actions-hidden')).toBe(true);
 
     input.value = 'new comment';
-    document.getElementById('add-comment-btn').click();
+    byId('add-comment-btn').click();
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
 
-    expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
-    expect(document.querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(false);
+    expect(byId('new-comment-actions').classList.contains('hidden')).toBe(true);
+    expect(bySelector(document, '.comment-actions').classList.contains('actions-hidden')).toBe(false);
   });
 
   it('re-applies the hidden comment actions after a tab switch while a new comment is open', async () => {
@@ -506,10 +507,10 @@ describe('Activity Component', () => {
     const input = byId('new-comment-body', HTMLTextAreaElement);
     input.focus();
     input.value = 'draft';
-    document.getElementById('tab-history').click();
-    document.getElementById('tab-comments').click();
+    byId('tab-history').click();
+    byId('tab-comments').click();
 
-    expect(document.querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(true);
+    expect(bySelector(document, '.comment-actions').classList.contains('actions-hidden')).toBe(true);
   });
 
   it('blocks editing an existing comment while a new comment is unconfirmed', async () => {
@@ -521,7 +522,7 @@ describe('Activity Component', () => {
     const input = byId('new-comment-body', HTMLTextAreaElement);
     input.focus();
     input.value = 'draft';
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
+    bySelector(document, '.comment-edit-btn').click();
 
     expect(utils.showNotification).toHaveBeenCalledWith('Finish the new comment first', 'error');
     expect(document.querySelector('.comment-edit-input')).toBeNull();
@@ -540,13 +541,13 @@ describe('Activity Component', () => {
     await loadActivity(issue);
 
     const input = byId('new-comment-body', HTMLTextAreaElement);
-    const editor = document.getElementById('new-comment-editor');
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
+    const editor = byId('new-comment-editor');
+    bySelector(document, '.comment-edit-btn').click();
     expect(input.readOnly).toBe(true);
     expect(editor.getAttribute('aria-disabled')).toBe('true');
 
-    document.querySelector<HTMLInputElement>('.comment-edit-input').value = 'updated';
-    document.querySelector<HTMLElement>(finishBtn).click();
+    bySelector(document, '.comment-edit-input', HTMLTextAreaElement).value = 'updated';
+    bySelector(document, finishBtn).click();
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
 
@@ -562,7 +563,7 @@ describe('Activity Component', () => {
     vi.mocked(api.deleteComment).mockResolvedValue();
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-delete-btn').click();
+    bySelector(document, '.comment-delete-btn').click();
 
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
@@ -579,7 +580,7 @@ describe('Activity Component', () => {
     vi.mocked(utils.showConfirm).mockResolvedValue(false);
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-delete-btn').click();
+    bySelector(document, '.comment-delete-btn').click();
 
     await new Promise(process.nextTick);
 
@@ -593,12 +594,12 @@ describe('Activity Component', () => {
     vi.mocked(api.updateComment).mockResolvedValue(makeComment({}));
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
+    bySelector(document, '.comment-edit-btn').click();
 
-    const textarea = document.querySelector<HTMLInputElement>('.comment-edit-input');
+    const textarea = bySelector(document, '.comment-edit-input', HTMLTextAreaElement);
     expect(textarea).not.toBeNull();
     textarea.value = 'edited text';
-    document.querySelector<HTMLElement>('#comment-list .inline-save-btn').click();
+    bySelector(document, '#comment-list .inline-save-btn').click();
 
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
@@ -606,8 +607,8 @@ describe('Activity Component', () => {
     expect(api.updateComment).toHaveBeenCalledWith(7, 1, 1, 'edited text');
     expect(utils.showNotification).toHaveBeenCalledWith('Comment updated');
     // Re-rendered from the refreshed comment list, with the edited marker shown.
-    expect(document.querySelector('.comment-body').innerHTML).toContain('edited text');
-    expect(document.querySelector('.comment-time').textContent).toContain('edited');
+    expect(bySelector(document, '.comment-body').innerHTML).toContain('edited text');
+    expect(bySelector(document, '.comment-time').textContent).toContain('edited');
   });
 
   it('auto-continues a numbered list on Enter in the inline comment editor', async () => {
@@ -616,9 +617,9 @@ describe('Activity Component', () => {
     ]);
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
+    bySelector(document, '.comment-edit-btn').click();
 
-    const textarea = document.querySelector<HTMLInputElement>('.comment-edit-input');
+    const textarea = bySelector(document, '.comment-edit-input', HTMLTextAreaElement);
     textarea.value = '1. first item';
     textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
     const event = new globalThis.KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
@@ -634,11 +635,12 @@ describe('Activity Component', () => {
     ]);
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
+    bySelector(document, '.comment-edit-btn').click();
 
     const textarea = document.querySelector('.comment-edit-input');
     expect(utils.initCharCounter).toHaveBeenCalledWith(textarea, 1000, { manual: true });
-    const result = vi.mocked(utils.initCharCounter).mock.results.at(-1).value;
+    const result = vi.mocked(utils.initCharCounter).mock.results.at(-1)?.value;
+    assert(result);
     expect(result.show).toHaveBeenCalled();
   });
 
@@ -648,8 +650,8 @@ describe('Activity Component', () => {
     ]);
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
-    document.querySelector<HTMLElement>('#comment-list .inline-cancel-btn').click();
+    bySelector(document, '.comment-edit-btn').click();
+    bySelector(document, '#comment-list .inline-cancel-btn').click();
     await new Promise(process.nextTick); // ✕ asks before discarding changed text
 
     expect(api.updateComment).not.toHaveBeenCalled();
@@ -671,12 +673,12 @@ describe('Activity Component', () => {
     await loadActivity(issue);
 
     const items = document.querySelectorAll('.comment-item');
-    items[0].querySelector<HTMLElement>('.comment-edit-btn').click();
-    expect(items[1].querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(true);
+    bySelector(items[0], '.comment-edit-btn').click();
+    expect(bySelector(items[1], '.comment-actions').classList.contains('actions-hidden')).toBe(true);
 
-    document.querySelector<HTMLElement>('#comment-list .inline-cancel-btn').click();
+    bySelector(document, '#comment-list .inline-cancel-btn').click();
     await new Promise(process.nextTick); // ✕ asks before discarding changed text
-    expect(document.querySelectorAll('.comment-item')[1].querySelector('.comment-actions').classList.contains('actions-hidden')).toBe(false);
+    expect(bySelector(document.querySelectorAll('.comment-item')[1], '.comment-actions').classList.contains('actions-hidden')).toBe(false);
   });
 
   it('blocks editing a second comment while another is already being edited', async () => {
@@ -687,8 +689,8 @@ describe('Activity Component', () => {
     await loadActivity(issue);
 
     const items = document.querySelectorAll('.comment-item');
-    items[0].querySelector<HTMLElement>('.comment-edit-btn').click();
-    items[1].querySelector<HTMLElement>('.comment-edit-btn').click();
+    bySelector(items[0], '.comment-edit-btn').click();
+    bySelector(items[1], '.comment-edit-btn').click();
 
     expect(utils.showNotification).toHaveBeenCalledWith('Finish editing the other comment first', 'error');
     expect(document.querySelectorAll('.comment-edit-input')).toHaveLength(1);
@@ -701,11 +703,11 @@ describe('Activity Component', () => {
     vi.mocked(api.updateComment).mockRejectedValue(new Error('save failed'));
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-edit-btn').click();
+    bySelector(document, '.comment-edit-btn').click();
 
-    const textarea = document.querySelector<HTMLInputElement>('.comment-edit-input');
+    const textarea = bySelector(document, '.comment-edit-input', HTMLTextAreaElement);
     textarea.value = 'edited text';
-    document.querySelector<HTMLElement>('#comment-list .inline-save-btn').click();
+    bySelector(document, '#comment-list .inline-save-btn').click();
 
     await new Promise(process.nextTick);
 
@@ -722,7 +724,7 @@ describe('Activity Component', () => {
     vi.mocked(api.deleteComment).mockRejectedValue(new Error('delete failed'));
 
     await loadActivity(issue);
-    document.querySelector<HTMLElement>('.comment-delete-btn').click();
+    bySelector(document, '.comment-delete-btn').click();
 
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
@@ -735,7 +737,7 @@ describe('Activity Component', () => {
 
     await loadActivity(issue);
     byId('new-comment-body', HTMLTextAreaElement).value = 'new comment';
-    document.getElementById('add-comment-btn').click();
+    byId('add-comment-btn').click();
 
     await new Promise(process.nextTick);
 
@@ -750,7 +752,7 @@ describe('Activity Component', () => {
 
     await loadActivity(issue);
     byId('new-comment-body', HTMLTextAreaElement).value = 'new comment';
-    document.getElementById('add-comment-btn').click();
+    byId('add-comment-btn').click();
 
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
@@ -781,15 +783,15 @@ describe('Activity Component', () => {
       key(input, 'Escape');
       await tick();
       expect(input.value).toBe('');
-      expect(document.getElementById('new-comment-actions').classList.contains('hidden')).toBe(true);
+      expect(byId('new-comment-actions').classList.contains('hidden')).toBe(true);
     });
 
     it('saves an edited comment with Cmd/Ctrl+Enter', async () => {
       oneComment();
       vi.mocked(api.updateComment).mockResolvedValue(makeComment({}));
       await loadActivity(issue);
-      document.querySelector<HTMLElement>('.comment-edit-btn').click();
-      const textarea = document.querySelector<HTMLInputElement>('.comment-edit-input');
+      bySelector(document, '.comment-edit-btn').click();
+      const textarea = bySelector(document, '.comment-edit-input', HTMLTextAreaElement);
       textarea.value = 'changed';
 
       key(textarea, 'Enter', { ctrlKey: true });
@@ -802,19 +804,19 @@ describe('Activity Component', () => {
       oneComment();
       await loadActivity(issue);
 
-      document.querySelector<HTMLElement>('.comment-edit-btn').click();
-      key(document.querySelector('.comment-edit-input'), 'Escape');
+      bySelector(document, '.comment-edit-btn').click();
+      key(bySelector(document, '.comment-edit-input'), 'Escape');
       await tick();
       expect(utils.confirmDiscard).toHaveBeenLastCalledWith(false);
       expect(document.querySelector('.comment-edit-input')).toBeNull();
 
-      document.querySelector<HTMLElement>('.comment-edit-btn').click();
-      document.querySelector<HTMLInputElement>('.comment-edit-input').value = 'changed';
+      bySelector(document, '.comment-edit-btn').click();
+      bySelector(document, '.comment-edit-input', HTMLTextAreaElement).value = 'changed';
       vi.mocked(utils.confirmDiscard).mockResolvedValueOnce(false); // Keep editing
-      document.querySelector<HTMLElement>('#comment-list .inline-cancel-btn').click();
+      bySelector(document, '#comment-list .inline-cancel-btn').click();
       await tick();
       expect(utils.confirmDiscard).toHaveBeenLastCalledWith(true);
-      expect(document.querySelector<HTMLInputElement>('.comment-edit-input').value).toBe('changed');
+      expect(bySelector(document, '.comment-edit-input', HTMLTextAreaElement).value).toBe('changed');
       expect(api.updateComment).not.toHaveBeenCalled();
     });
 
@@ -826,6 +828,7 @@ describe('Activity Component', () => {
       const input = byId('new-comment-body', HTMLTextAreaElement);
       input.focus();
       const draft = getOpenCommentDraft();
+      assert(draft);
       expect(draft.changed()).toBe(false);
       input.value = 'draft';
       expect(draft.changed()).toBe(true);
@@ -839,10 +842,11 @@ describe('Activity Component', () => {
       oneComment();
       vi.mocked(api.updateComment).mockRejectedValue(new Error('Network error'));
       await loadActivity(issue);
-      document.querySelector<HTMLElement>('.comment-edit-btn').click();
-      document.querySelector<HTMLInputElement>('.comment-edit-input').value = 'changed';
+      bySelector(document, '.comment-edit-btn').click();
+      bySelector(document, '.comment-edit-input', HTMLTextAreaElement).value = 'changed';
 
       const draft = getOpenCommentDraft();
+      assert(draft);
       expect(draft.changed()).toBe(true);
       expect(await draft.save()).toBe(false);
       expect(getOpenCommentDraft()).not.toBeNull();
@@ -852,15 +856,15 @@ describe('Activity Component', () => {
       oneComment();
       const onEditEnd = vi.fn();
       await loadActivity(issue, { onEditStart: vi.fn(), onEditEnd });
-      document.querySelector<HTMLElement>('.comment-edit-btn').click();
-      document.querySelector<HTMLInputElement>('.comment-edit-input').value = 'changed';
+      bySelector(document, '.comment-edit-btn').click();
+      bySelector(document, '.comment-edit-input', HTMLTextAreaElement).value = 'changed';
 
       closeCommentEditors();
 
       expect(getOpenCommentDraft()).toBeNull();
       expect(onEditEnd).toHaveBeenCalled();
       expect(document.querySelector('.comment-edit-input')).toBeNull();
-      expect(document.getElementById('new-comment-editor').hasAttribute('aria-disabled')).toBe(false);
+      expect(byId('new-comment-editor').hasAttribute('aria-disabled')).toBe(false);
       expect(api.updateComment).not.toHaveBeenCalled();
     });
   });
@@ -868,11 +872,11 @@ describe('Activity Component', () => {
   describe('history sentence text for less common event and field types', () => {
     it('renders an unarchived event', async () => {
       vi.mocked(api.fetchHistory).mockResolvedValue([
-        makeHistoryEntry({ id: 1, event: 'unarchived', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' })
+        makeHistoryEntry({ id: 1, event: 'unarchived', data: {}, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await loadActivity(issue);
-      document.getElementById('tab-history').click();
-      expect(document.querySelector('.history-text').textContent).toBe('Issue: Unarchived');
+      byId('tab-history').click();
+      expect(bySelector(document, '.history-text').textContent).toBe('Issue: Unarchived');
     });
 
     it('falls back to the raw event name for an unrecognized event type', async () => {
@@ -881,8 +885,8 @@ describe('Activity Component', () => {
         { id: 1, event: 'some_future_event', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' }
       ]);
       await loadActivity(issue);
-      document.getElementById('tab-history').click();
-      expect(document.querySelector('.history-text').textContent).toBe('some_future_event');
+      byId('tab-history').click();
+      expect(bySelector(document, '.history-text').textContent).toBe('some_future_event');
     });
 
     it.each([
@@ -894,20 +898,20 @@ describe('Activity Component', () => {
       ['release', { from: 'v1', to: 'v2' }, 'Release: Changed v1 → v2']
     ])('renders a %s change sentence', async (field, fromTo, expected) => {
       vi.mocked(api.fetchHistory).mockResolvedValue([
-        makeHistoryEntry({ id: 1, event: 'updated', data: { field, ...fromTo }, user: null, created_at: '2026-01-01T09:00:00Z' })
+        makeHistoryEntry({ id: 1, event: 'updated', data: { field, ...fromTo }, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await loadActivity(issue);
-      document.getElementById('tab-history').click();
-      expect(document.querySelector('.history-text').textContent).toBe(expected);
+      byId('tab-history').click();
+      expect(bySelector(document, '.history-text').textContent).toBe(expected);
     });
 
     it('falls back to a generic "Issue: Updated" sentence for an unrecognized field', async () => {
       vi.mocked(api.fetchHistory).mockResolvedValue([
-        makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'some_future_field' }, user: null, created_at: '2026-01-01T09:00:00Z' })
+        makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'some_future_field' }, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await loadActivity(issue);
-      document.getElementById('tab-history').click();
-      expect(document.querySelector('.history-text').textContent).toBe('Issue: Updated');
+      byId('tab-history').click();
+      expect(bySelector(document, '.history-text').textContent).toBe('Issue: Updated');
     });
   });
 
@@ -915,11 +919,11 @@ describe('Activity Component', () => {
     it('re-fetches and re-renders the History tab for the currently loaded issue', async () => {
       vi.mocked(api.fetchHistory).mockResolvedValueOnce([]);
       await loadActivity(issue);
-      document.getElementById('tab-history').click();
+      byId('tab-history').click();
       expect(document.querySelectorAll('.history-item')).toHaveLength(0);
 
       vi.mocked(api.fetchHistory).mockResolvedValueOnce([
-        makeHistoryEntry({ id: 1, event: 'created', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' })
+        makeHistoryEntry({ id: 1, event: 'created', data: {}, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await refreshHistory();
 
@@ -944,29 +948,29 @@ describe('Activity Component', () => {
 
       // Simulate a background refresh (e.g. from a field save) whose request is
       // still in flight — we control exactly when it resolves.
-      let resolveStaleFetch: (history: HistoryEntry[]) => void;
-      vi.mocked(api.fetchHistory).mockImplementationOnce(() => new Promise(resolve => { resolveStaleFetch = resolve; }));
+      const { promise: pendingStaleFetch, resolve: resolveStaleFetch } = Promise.withResolvers<HistoryEntry[]>();
+      vi.mocked(api.fetchHistory).mockImplementationOnce(() => pendingStaleFetch);
       const stalePromise = refreshHistory();
 
       // Meanwhile the modal closes and reopens on a different issue, and that
       // fresh load resolves before the stale background refresh does.
       const otherIssue = { ...issue, id: 99 };
       vi.mocked(api.fetchHistory).mockResolvedValueOnce([
-        makeHistoryEntry({ id: 5, event: 'created', data: {}, user: null, created_at: '2026-02-01T09:00:00Z' })
+        makeHistoryEntry({ id: 5, event: 'created', data: {}, created_at: '2026-02-01T09:00:00Z' })
       ]);
       vi.mocked(api.fetchComments).mockResolvedValueOnce([]);
       await loadActivity(otherIssue);
 
       // The stale fetch (for the old issue) finally resolves after the newer load.
       resolveStaleFetch([
-        makeHistoryEntry({ id: 1, event: 'archived', data: {}, user: null, created_at: '2026-01-01T09:00:00Z' })
+        makeHistoryEntry({ id: 1, event: 'archived', data: {}, created_at: '2026-01-01T09:00:00Z' })
       ]);
       await stalePromise;
 
-      document.getElementById('tab-history').click();
+      byId('tab-history').click();
       const items = document.querySelectorAll('.history-item');
       expect(items).toHaveLength(1);
-      expect(items[0].querySelector('.history-text').textContent).toBe('Issue: Created');
+      expect(bySelector(items[0], '.history-text').textContent).toBe('Issue: Created');
     });
   });
 });

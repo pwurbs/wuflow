@@ -67,14 +67,14 @@ describe('getDragAfterElement', () => {
     ]);
   });
 
-  it('returns undefined when column has no cards', () => {
+  it('returns null when column has no cards', () => {
     const empty = document.createElement('div');
-    expect(getDragAfterElement(empty, 150)).toBeUndefined();
+    expect(getDragAfterElement(empty, 150)).toBeNull();
   });
 
-  it('returns undefined when cursor is below all card midpoints', () => {
+  it('returns null when cursor is below all card midpoints', () => {
     // y=400 is below card C midpoint (325) → all offsets positive
-    expect(getDragAfterElement(column, 400)).toBeUndefined();
+    expect(getDragAfterElement(column, 400)).toBeNull();
   });
 
   it('returns first card when cursor is above its midpoint', () => {
@@ -109,9 +109,9 @@ describe('getDragAfterElement', () => {
 });
 
 describe('getDragAfterTaskElement', () => {
-  it('returns undefined when container has no task items', () => {
+  it('returns null when container has no task items', () => {
     const empty = document.createElement('div');
-    expect(getDragAfterTaskElement(empty, 100)).toBeUndefined();
+    expect(getDragAfterTaskElement(empty, 100)).toBeNull();
   });
 
   it('returns task below cursor', () => {
@@ -124,11 +124,11 @@ describe('getDragAfterTaskElement', () => {
     expect(getDragAfterTaskElement(container, 60)).toBe(tasks[0]);
   });
 
-  it('returns undefined when cursor is below all task midpoints', () => {
+  it('returns null when cursor is below all task midpoints', () => {
     const container = makeContainer('task-item', [
       { top: 50, height: 40 },
     ]);
-    expect(getDragAfterTaskElement(container, 300)).toBeUndefined();
+    expect(getDragAfterTaskElement(container, 300)).toBeNull();
   });
 
   it('excludes dragging task', () => {
