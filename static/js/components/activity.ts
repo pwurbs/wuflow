@@ -343,7 +343,7 @@ function renderComments(container: HTMLElement | null) {
     li.dataset.id = String(comment.id);
     if (ctx.readOnly) li.setAttribute('aria-disabled', 'true'); // archived issue
 
-    const canModify = (cu && comment.user_id === cu.id) || isCommentModerator(cu);
+    const canModify = comment.user_id === cu?.id || isCommentModerator(cu);
 
     const header = document.createElement('div');
     header.className = 'comment-header';

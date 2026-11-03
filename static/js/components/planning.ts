@@ -522,7 +522,7 @@ export async function processDroppedCard(draggedCard: HTMLElement, targetDateStr
   const sourceDateStr = draggedCard.dataset.dateInstance;
 
   if (issue) {
-    if (!issue.planned_dates) issue.planned_dates = [];
+    issue.planned_dates ??= [];
     if (issue.planned_dates.includes(targetDateStr)) return;
 
     const newDates = [...issue.planned_dates];

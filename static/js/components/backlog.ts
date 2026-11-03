@@ -121,7 +121,7 @@ export async function renderBacklog(refreshApp?: RefreshApp, openModal?: OpenMod
 
   function makeCardCallbacks(issue: Issue, issuesInList: Issue[]) {
     const isFirst = issuesInList[0]?.id === issue.id;
-    const isLast  = issuesInList[issuesInList.length - 1]?.id === issue.id;
+    const isLast  = issuesInList.at(-1)?.id === issue.id;
     const cb: CardCallbacks = {
       openModal:        openModalCallback,
       onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),

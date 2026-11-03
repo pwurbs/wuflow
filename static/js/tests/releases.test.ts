@@ -213,7 +213,7 @@ describe('releases', () => {
     });
 
     it('toggles the dropdown when the trigger is clicked', async () => {
-      await setupReleasesView(); // registers the click listener on the trigger
+      setupReleasesView(); // registers the click listener on the trigger
       renderReleaseOwnerOptions([]);
       const options = byId('release-owner-options');
       const trigger = byId('release-owner-trigger');
@@ -223,7 +223,7 @@ describe('releases', () => {
     });
 
     it('closes the dropdown on outside click', async () => {
-      await setupReleasesView(); // registers the document-level outside-click listener
+      setupReleasesView(); // registers the document-level outside-click listener
       renderReleaseOwnerOptions([]);
       const options = byId('release-owner-options');
       options.classList.remove('hidden');
@@ -352,14 +352,14 @@ describe('releases', () => {
 
   describe('setupReleasesView', () => {
     it('sets up cancel button to close the modal overlay', async () => {
-      await setupReleasesView();
+      setupReleasesView();
       byId('release-modal-overlay').classList.remove('hidden');
       byId('release-modal-cancel').click();
       expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(true);
     });
 
     it('shows an error notification when form is submitted with an empty name', async () => {
-      await setupReleasesView();
+      setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = '';
       byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
@@ -367,7 +367,7 @@ describe('releases', () => {
     });
 
     it('shows an error notification when release date is before start date', async () => {
-      await setupReleasesView();
+      setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'Valid Name';
       byId('release-modal-start', HTMLInputElement).value = '2026-06-01';
       byId('release-modal-date', HTMLInputElement).value = '2026-05-01';
@@ -382,7 +382,7 @@ describe('releases', () => {
     it('creates a release only once when submitted again while the first save is in flight, with the form greyed out', async () => {
       const { promise: pendingCreate, resolve: resolveCreate } = Promise.withResolvers<Release>();
       vi.mocked(api.createRelease).mockReturnValue(pendingCreate);
-      await setupReleasesView();
+      setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
       const form = byId('release-form');
 
@@ -400,7 +400,7 @@ describe('releases', () => {
     it('calls createRelease and refreshes the release list on successful new release submit', async () => {
       vi.mocked(api.createRelease).mockResolvedValue(makeRelease({ id: 99, name: 'v1.0' }));
       vi.mocked(api.fetchReleases).mockResolvedValue([makeRelease({ id: 99, name: 'v1.0' })]);
-      await setupReleasesView();
+      setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
       byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
@@ -412,7 +412,7 @@ describe('releases', () => {
 
     it('shows inline error when createRelease rejects', async () => {
       vi.mocked(api.createRelease).mockRejectedValue(new Error('Duplicate name'));
-      await setupReleasesView();
+      setupReleasesView();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
       byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
@@ -426,7 +426,7 @@ describe('releases', () => {
       vi.mocked(userCan).mockReturnValue(true);
       state.releases = [makeRelease({ id: 5, name: 'ToDelete', status: 'open' })];
       vi.mocked(utils.showConfirm).mockResolvedValue(false); // cancel the confirm
-      await setupReleasesView();
+      setupReleasesView();
       byId('release-modal-delete').classList.remove('hidden');
       byId('release-modal-delete').click();
       await new Promise(process.nextTick);
@@ -435,7 +435,7 @@ describe('releases', () => {
     });
 
     it('fires updateDateInputStyle when a date input changes', async () => {
-      await setupReleasesView();
+      setupReleasesView();
       const startInput = byId('release-modal-start');
       startInput.dispatchEvent(new Event('change'));
       expect(utils.updateDateInputStyle).toHaveBeenCalledWith(startInput);
@@ -446,7 +446,7 @@ describe('releases', () => {
 
   describe('openReleaseModal', () => {
     it('opens modal with "New Release" title when the add button is clicked', async () => {
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-add-btn').click();
       const overlay = byId('release-modal-overlay');
@@ -461,7 +461,7 @@ describe('releases', () => {
         owner: makeUserRef({ id: 2, first_name: 'Bob', last_name: 'Jones' }),
         start_date: '2026-01-01T00:00:00Z', release_date: '2026-06-01T00:00:00Z',
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(false);
@@ -476,7 +476,7 @@ describe('releases', () => {
         closed_at: '2026-01-15T00:00:00Z',
         start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(false);
@@ -495,7 +495,7 @@ describe('releases', () => {
         id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       const stats = byId('release-modal-stats');
@@ -504,7 +504,7 @@ describe('releases', () => {
     });
 
     it('hides stats when no release is passed (new release modal)', async () => {
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-add-btn').click();
       expect(byId('release-modal-stats').classList.contains('hidden')).toBe(true);
@@ -532,7 +532,7 @@ describe('releases', () => {
         id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       byId('release-modal-name', HTMLInputElement).value = 'v2.1';
@@ -550,7 +550,7 @@ describe('releases', () => {
         id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       byId('release-form').dispatchEvent(new Event('submit'));
@@ -569,7 +569,7 @@ describe('releases', () => {
         id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click(); // sets editingReleaseId = 10
       byId('release-modal-delete').click();
@@ -591,7 +591,7 @@ describe('releases', () => {
         id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       byId('release-modal-delete').click();
@@ -631,7 +631,7 @@ describe('releases', () => {
 
     it('merges the closed release locally and refreshes issues/filter when Confirm Release is clicked', async () => {
       vi.mocked(api.triggerRelease).mockResolvedValue(makeRelease({ id: 10, name: 'v2.0', status: 'closed' }));
-      await setupReleasesView();
+      setupReleasesView();
       state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: '',
         start_date: null, release_date: null,
@@ -694,7 +694,7 @@ describe('releases', () => {
         id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click(); // opens modal for closed release
       byId('release-modal-reopen').click();
@@ -713,7 +713,7 @@ describe('releases', () => {
         id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       byId('release-modal-reopen').click();
@@ -729,7 +729,7 @@ describe('releases', () => {
         id: 11, name: 'v1.0', status: 'closed', description: '',
         closed_at: '2026-01-15T00:00:00Z', start_date: null, release_date: null,
       })];
-      await setupReleasesView();
+      setupReleasesView();
       await renderReleasesView();
       bySelector(document, '.release-card-left').click();
       byId('release-modal-reopen').click();

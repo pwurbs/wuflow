@@ -71,7 +71,7 @@ async function init() {
     setupPlanningPanel(refreshApp, openModal, rerenderActiveView);
     setupSystemSettingsView();
     setupProjectSettingsView();
-    void setupReleasesView();
+    setupReleasesView();
     setupModal(refreshApp, rerenderAfterIssueChange);
     setupUserMenu(user);
 
@@ -288,5 +288,5 @@ function switchView(view: keyof typeof VIEW_CONFIG) {
         releaseSearchInput.value = '';
     }
 
-    cfg.onEnter();
+    void cfg.onEnter();
 }

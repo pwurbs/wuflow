@@ -154,7 +154,7 @@ function setupScrollCue() {
   update();
 }
 
-export async function openModal(issue: Issue | null = null) {
+export function openModal(issue: Issue | null = null) {
   const modal = byId('issue-modal');
   modal.classList.remove('hidden');
   // The modal element is reused: start every issue at the top, not where the last one was left
@@ -748,7 +748,7 @@ function setupInlineEditing() {
     if (!titleInput.classList.contains('inline-editing')) return;
     if (e.key === 'Enter') {
       e.preventDefault();
-      _saveTitleFn();
+      void _saveTitleFn();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       _cancelTitleFn();
@@ -950,7 +950,6 @@ function leaveEditors() {
 
 export function preventNavigation(e: BeforeUnloadEvent) {
   e.preventDefault();
-  e.returnValue = '';
 }
 
 // True while the title, description or a task is in inline edit mode, i.e. a re-render of
@@ -1183,7 +1182,7 @@ async function handleTaskSubmit() {
 
   try {
     const newTask = await createTask(state.currentIssue.project_id, state.currentIssue.id, taskData);
-    if (!state.currentIssue.tasks) state.currentIssue.tasks = [];
+    state.currentIssue.tasks ??= [];
     state.currentIssue.tasks.push(newTask);
     renderTasks(state.currentIssue.tasks, byId('task-list'), state.currentIssue, taskCallbacks(state.currentIssue));
     resetTaskForm();

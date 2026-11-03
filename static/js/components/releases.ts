@@ -29,7 +29,7 @@ function removeReleaseFromState(id: number) {
   if (idx !== -1) state.releases.splice(idx, 1);
 }
 
-export async function setupReleasesView() {
+export function setupReleasesView() {
   setupOwnerDropdown();
 
   const cancelBtn = document.getElementById('release-modal-cancel');

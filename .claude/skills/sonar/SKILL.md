@@ -10,19 +10,26 @@ is public: reading the API needs no token. Only the upload in step 2 uses the to
 takes `SONAR_TOKEN` or reads it from the macOS keychain, which asks the user for the keychain
 password. Never read, print or put the token on a command line yourself.
 
-Mode: `$ARGUMENTS` = `fetch` → skip steps 1–2 (the user already ran the "Sonar" VS Code task);
-otherwise run all steps.
+Mode: `$ARGUMENTS` = `fetch` → skip steps 1–2 (the user already ran the "Sonar" VS Code task). This
+mode expects a fresh scan of the current code, because the results show the last uploaded analysis:
+ask the user to reply with a short "ok" once the "Sonar" task has run on the current code, and
+wait for it before step 3.
+Otherwise run all steps. First tell the user that step 2 runs outside the sandbox, so they will be
+asked to approve it. If they would rather not, they stop here, run the "Sonar" VS Code task and then
+start `/sonar fetch`.
 
 ## 1. Prerequisites
 Run in order; if one fails, stop and report — do not scan:
 - `go test -coverprofile=backend/test-results/coverage.out ./backend/...`
 - `cd static/js && npm run test:coverage`
+- `cd static/js && npm run typecheck`
 - `./scripts/go_checks.sh` (writes the gosec report; findings make it exit 1 — report them, then
   ask whether to scan anyway)
 
 ## 2. Scan
-`./scripts/sonar_scan.sh > <scratchpad>/sonar-scan.log 2>&1` — uploads and waits for the quality
-gate. A non-zero exit after the upload because the gate failed is a result for step 5, not an error.
+`./scripts/sonar_scan.sh > <scratchpad>/sonar-scan.log 2>&1`, outside the sandbox: the Java scanner
+ignores the sandbox proxy, so inside it fails with "Failed to query JRE metadata … failed: null".
+It uploads and waits for the quality gate. A non-zero exit after the upload because the gate failed is a result for step 5, not an error.
 Then `grep -E 'WARN|ERROR'` the log and report each line in step 5: a parser warning means Sonar
 skipped that file, so its issues are missing from the results.
 
@@ -30,8 +37,9 @@ skipped that file, so its issues are missing from the results.
 `./scripts/sonar_results.sh` — prints the analysis state, then quality gate, open issues and hotspots
 to review for the current branch and for `main`, then the rule names with links (the API has no rule
 descriptions). Feature branches list the issues `main`'s last analysis doesn't have, so `main`
-holds the existing debt. These are mostly in changed code, but a newer analyzer also adds findings
-in unchanged code: check the flagged lines against `git diff main...HEAD` and say which they are. Step 2 analyses only the current branch: the `main` results are the last stored
+holds the existing debt. They come from this branch: edited lines, but also renamed or converted
+files and changed analysis settings (`tsconfig*.json`, `sonar-project.properties`) that expose
+unchanged lines. Name the branch change behind each group. Step 2 analyses only the current branch: the `main` results are the last stored
 analysis of `main` (date and commit in the analysis state table), not part of this run. Carry its
 WARNING/NOTE lines (analysis not of HEAD, uncommitted changes) to the top of the report: the
 results describe the analysed commit, not the current code.
@@ -50,10 +58,11 @@ whether `!important` is redundant, needed or covers a duplicate decides the clas
   file or rule is meant, and marking it in the SonarCloud UI only when the line can't take a comment.
 
 ## 5. Report and stop
-Start with the quality gate (status, failed conditions), the lag warning and the scanner warnings
-from step 2, if any. Then one table each for the current branch (new issues) and `main` (debt; its
-heading names the analysis date and commit) with: rule (linked), name, type/severity, count, files:lines, class, proposed action. Hotspots to
-review in a separate list.
+Start with the quality gate (status, failed conditions and the rules that cause each, e.g.
+new_reliability_rating: bugs only), the lag warning and the scanner warnings from step 2, if any.
+Then one table each for the current branch (new issues) and `main` (debt; its heading names the
+analysis date and commit) with: rule (linked), name, type/severity, count, files:lines, fails gate,
+class, proposed action. Hotspots to review in a separate list.
 
 Then stop. The user decides what gets fixed; fixes follow CLAUDE.md "Testing". Never change issue
 or hotspot status through the API, and never add exclusions or `//NOSONAR` without the user's go.

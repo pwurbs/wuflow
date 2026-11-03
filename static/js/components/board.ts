@@ -72,7 +72,7 @@ export function renderBoard(refreshApp?: RefreshApp, openModal?: OpenModal, rere
     if (columns[issue.status]) {
       const issuesInColumn = columnIssues[issue.status] ?? [];
       const isFirst = issuesInColumn[0]?.id === issue.id;
-      const isLast  = issuesInColumn[issuesInColumn.length - 1]?.id === issue.id;
+      const isLast  = issuesInColumn.at(-1)?.id === issue.id;
       const cardCallbacks: CardCallbacks = {
         openModal:        openModalCallback,
         onDragStart:      () => setDragSuccess(false),

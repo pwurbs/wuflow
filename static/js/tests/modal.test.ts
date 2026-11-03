@@ -130,7 +130,8 @@ async function openModalWithMock(issue: Issue | null) {
   if (issue) {
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"test-etag"' });
   }
-  await openModal(issue);
+  openModal(issue);
+  await Promise.resolve(); // lets the background revalidation start
 }
 
 // A save of the open issue that the test answers by hand: answer(etag) lets the server answer
@@ -309,7 +310,7 @@ describe('Modal Component', () => {
     // Mock fetchIssueById to return this specific issue
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"test-etag"' });
 
-    await openModal(issue);
+    openModal(issue);
 
     expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
     expect(byId('modal-title').textContent).toBe('Issue Details #123');
@@ -2187,11 +2188,10 @@ describe('Modal Component', () => {
     });
 
     it('should handle preventNavigation', () => {
-      // jsdom cannot construct a BeforeUnloadEvent, and preventNavigation only uses these two members.
-      const event = { preventDefault: vi.fn(), returnValue: 'abc' } as unknown as BeforeUnloadEvent;
+      // jsdom cannot construct a BeforeUnloadEvent, and preventNavigation only uses preventDefault.
+      const event = { preventDefault: vi.fn() } as unknown as BeforeUnloadEvent;
       preventNavigation(event);
       expect(event.preventDefault).toHaveBeenCalled();
-      expect(event.returnValue).toBe('');
     });
 
     it('should toggle preview in new-issue mode', () => {
@@ -2436,9 +2436,9 @@ describe('Modal Component', () => {
       vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: null, etag: null });
       const modal = byId('issue-modal');
 
-      await openModal(makeIssue({ id: 999 }));
+      openModal(makeIssue({ id: 999 }));
 
-      expect(utils.showNotification).toHaveBeenCalledWith('Issue not found or was deleted', 'error');
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledWith('Issue not found or was deleted', 'error'));
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
@@ -2446,9 +2446,9 @@ describe('Modal Component', () => {
       vi.mocked(api.fetchIssueById).mockRejectedValue(new Error('Network Error'));
       const modal = byId('issue-modal');
 
-      await openModal(makeIssue({ id: 999 }));
+      openModal(makeIssue({ id: 999 }));
 
-      expect(utils.showNotification).toHaveBeenCalledWith('Failed to load issue', 'error');
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledWith('Failed to load issue', 'error'));
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
@@ -3029,7 +3029,7 @@ describe('Modal Component', () => {
       expect(utils.showNotification).toHaveBeenCalledWith('Order save failed', 'error');
       // The old positions are restored and the task list is re-rendered in the old order
       expect(state.currentIssue?.tasks?.map(t => [t.id, t.position])).toEqual([[101, 0], [102, 1]]);
-      expect(vi.mocked(tasks.renderTasks).mock.calls.length).toBe(renderCountBefore + 1);
+      expect(vi.mocked(tasks.renderTasks).mock.calls).toHaveLength(renderCountBefore + 1);
     });
   });
 });
@@ -3051,7 +3051,7 @@ describe('Project Selector Coverage', () => {
       makeProject({ id: 2, name: 'My Project' })
     ]);
 
-    await openModal(issue);
+    openModal(issue);
     await new Promise(process.nextTick);
 
     expect(byId('project-text').textContent).toBe('My Project');
@@ -3062,7 +3062,7 @@ describe('Project Selector Coverage', () => {
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"etag"' });
     vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' })]);
 
-    await openModal(issue);
+    openModal(issue);
     await new Promise(process.nextTick);
 
     // Initial value set from issue?.project?.name ?? 'default' (no project object)
@@ -3114,7 +3114,7 @@ describe('Project Selector Coverage', () => {
     vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
     vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 10, name: 'Backend' })]);
 
-    await openModal(null);
+    openModal(null);
     await new Promise(process.nextTick);
 
     // Second option corresponds to project id=2 ('Other')
@@ -3132,7 +3132,7 @@ describe('Project Selector Coverage', () => {
     vi.mocked(api.fetchLabelsByProject).mockRejectedValue(new Error('Network error'));
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    await openModal(null);
+    openModal(null);
     await new Promise(process.nextTick);
 
     const option = document.querySelectorAll<HTMLElement>('#project-options .custom-option')[1];
@@ -3316,7 +3316,7 @@ describe('release-select change handler', () => {
     const issue = makeIssue({ id: 1, title: 'T', status: 'Open', release_id: null, release: null });
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"e"' });
     vi.mocked(setCurrentIssue).mockImplementation(v => { state.currentIssue = v; });
-    await openModal(issue);
+    openModal(issue);
     state.currentIssue = issue;
 
     const releaseSelect = byId('release-select', HTMLInputElement);
@@ -3335,7 +3335,7 @@ describe('release-select change handler', () => {
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"e"' });
     vi.mocked(api.updateIssue).mockResolvedValue({ issue: makeIssue({ ...issue, release_id: null, release: null }), etag: '"e2"', conflict: false });
     vi.mocked(setCurrentIssue).mockImplementation(v => { state.currentIssue = v; });
-    await openModal(issue);
+    openModal(issue);
     state.currentIssue = issue;
 
     const releaseSelect = byId('release-select', HTMLInputElement);

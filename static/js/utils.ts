@@ -298,7 +298,7 @@ export function singleFlight<T>(fn: () => Promise<T>): () => Promise<T> {
 
 // aria-disabled greys an element out and blocks clicks (base/utilities.css).
 export function setAriaDisabled(el: Element, disabled: boolean) {
-  if (disabled) el.setAttribute('aria-disabled', 'true');
+  if (disabled) el.setAttribute('aria-disabled', 'true'); //NOSONAR - sets or clears like classList.toggle(name, force); callers pass a computed state
   else el.removeAttribute('aria-disabled');
 }
 
@@ -394,8 +394,8 @@ export function continueListOnEnter(textarea: HTMLTextAreaElement, e: Event) {
   const lineStart = value.lastIndexOf('\n', start - 1) + 1;
   const currentLine = value.substring(lineStart, start);
 
-  const bulletMatch = currentLine.match(/^(\s*)([-*+]) (.*)$/);
-  const numberedMatch = currentLine.match(/^(\s*)(\d+)\. (.*)$/);
+  const bulletMatch = /^(\s*)([-*+]) (.*)$/.exec(currentLine);
+  const numberedMatch = /^(\s*)(\d+)\. (.*)$/.exec(currentLine);
   const match = bulletMatch ?? numberedMatch;
   if (!match) return false;
 

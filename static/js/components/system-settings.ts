@@ -563,7 +563,7 @@ export function validatePasswordPolicy(password: string, email: string): string 
   if (countUtf8Bytes(password) > MAX_PASSWORD_BYTES) {
     return `Password must not exceed ${MAX_PASSWORD_BYTES} bytes (letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4)`;
   }
-  if (email && password.toLowerCase() === email.toLowerCase()) {
+  if (email !== '' && password.toLowerCase() === email.toLowerCase()) {
     return 'Password must not be your email address';
   }
   if (isBlacklistedPassword(password)) {

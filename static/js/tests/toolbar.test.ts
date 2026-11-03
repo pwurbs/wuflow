@@ -296,23 +296,13 @@ describe('filterIssues project (server-side)', () => {
     state.selectedProjectId = null;
   });
 
-  it('returns all issues regardless of selectedProjectId (filtering is server-side)', () => {
-    state.selectedProjectId = null;
-    expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
-  });
-
-  it('does not filter by project when selectedProjectId is set', () => {
-    state.selectedProjectId = 1;
-    expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
-  });
-
-  it('does not filter out issues with null project', () => {
-    state.selectedProjectId = 2;
-    expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
-  });
-
-  it('returns all issues even when selectedProjectId matches nothing', () => {
-    state.selectedProjectId = 99;
+  it.each([
+    ['not set', null],
+    ['set to the first issue\'s project', 1],
+    ['set to the second issue\'s project', 2],
+    ['set to a project no issue has', 99],
+  ])('returns all issues when selectedProjectId is %s', (_label, projectId) => {
+    state.selectedProjectId = projectId;
     expect(filterIssues(projectIssues, emptyFilter)).toHaveLength(3);
   });
 });

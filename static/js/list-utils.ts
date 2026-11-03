@@ -32,7 +32,7 @@ export async function handleMoveTop(issue: Issue, allIssuesInList: Issue[], rere
 }
 
 export async function handleMoveBottom(issue: Issue, allIssuesInList: Issue[], rerenderCallback?: () => void, refreshCallback?: () => unknown) {
-  if (allIssuesInList.length <= 1 || allIssuesInList[allIssuesInList.length - 1].id === issue.id) return;
+  if (allIssuesInList.length <= 1 || allIssuesInList.at(-1)?.id === issue.id) return;
 
   // Create a new array without the issue
   const otherIssues = allIssuesInList.filter(i => i.id !== issue.id);
