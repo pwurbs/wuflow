@@ -77,10 +77,7 @@ async function init() {
 
     // Fetch and display version
     void fetchVersion().then(version => {
-        const versionEl = document.getElementById('app-version');
-        if (versionEl) {
-            versionEl.textContent = 'v' + version;
-        }
+        byId('app-version').textContent = 'v' + version;
     });
 
     await refreshApp();
@@ -256,16 +253,15 @@ const VIEW_CONFIG = {
 };
 
 function applyReleaseFilterVisibility(isReleases: boolean) {
-    document.getElementById('label-filter-wrapper')?.classList.toggle('hidden', isReleases);
-    document.getElementById('priority-filter-wrapper')?.classList.toggle('hidden', isReleases);
-    document.getElementById('release-filter-wrapper')?.classList.toggle('hidden', isReleases);
-    document.getElementById('search-filter-wrapper')?.classList.toggle('hidden', isReleases);
-    document.getElementById('release-search-wrapper')?.classList.toggle('hidden', !isReleases);
+    byId('label-filter-wrapper').classList.toggle('hidden', isReleases);
+    byId('priority-filter-wrapper').classList.toggle('hidden', isReleases);
+    byId('release-filter-wrapper').classList.toggle('hidden', isReleases);
+    byId('search-filter-wrapper').classList.toggle('hidden', isReleases);
+    byId('release-search-wrapper').classList.toggle('hidden', !isReleases);
 }
 
 function switchView(view: keyof typeof VIEW_CONFIG) {
     const cfg = VIEW_CONFIG[view];
-    if (!cfg) return;
 
     Object.values(VIEW_CONFIG).forEach(c => { c.el.classList.add('hidden'); c.nav.classList.remove('active'); });
 

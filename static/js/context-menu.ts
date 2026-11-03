@@ -1,3 +1,5 @@
+import { containsTarget } from './utils.ts';
+
 export interface ContextMenuItem {
   label: string;
   disabled?: boolean;
@@ -39,7 +41,7 @@ export function showCardContextMenu(x: number, y: number, items: ContextMenuItem
   menu.style.top  = `${y + h > window.innerHeight ? y - h : y}px`;
 
   if (currentCleanup) currentCleanup();
-  const onOut = (e: MouseEvent) => { if (!(e.target instanceof Node && menu.contains(e.target))) hideCardContextMenu(); };
+  const onOut = (e: MouseEvent) => { if (!containsTarget(menu, e.target)) hideCardContextMenu(); };
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') hideCardContextMenu(); };
   // Opening the menu (via right-click on a card far down a long column) can
   // itself require scrolling the target into view. The browser sometimes

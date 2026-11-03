@@ -25,6 +25,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   guardSubmit: (await importOriginal<typeof import('../utils.ts')>()).guardSubmit,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
+  containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn((str) => str),
@@ -258,11 +259,6 @@ describe('project-settings.ts component', () => {
       expect(api.deleteLabel).not.toHaveBeenCalled();
     });
 
-    it('returns early without error when container is not set up', async () => {
-      document.body.innerHTML = '';
-      await renderProjectSettingsView();
-      expect(document.querySelector('.delete-label-btn')).toBeNull();
-    });
   });
 
   // ── renderStatusConfigSection ─────────────────────────────────────────────

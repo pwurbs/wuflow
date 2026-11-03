@@ -25,6 +25,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     byId: actual.byId,
     bySelector: actual.bySelector,
     errorMessage: actual.errorMessage,
+    containsTarget: actual.containsTarget,
     escapeHtml: vi.fn(s => s),
     formatDateTime: vi.fn(dateStr => `formatted:${dateStr}`),
     getUserInitials: vi.fn(user => {

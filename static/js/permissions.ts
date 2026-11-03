@@ -109,11 +109,9 @@ export type Action = keyof typeof rolePermissions;
 /**
  * Returns true if the given role is permitted to perform action.
  */
-export function can(role: Role | null, action: Action | null): boolean {
-    if (!role || !action) return false;
-    const allowed: readonly Role[] | undefined = rolePermissions[action];
-    if (!allowed) return false;
-    return allowed.includes(role);
+export function can(role: Role | null, action: Action): boolean {
+    const allowed: readonly Role[] = rolePermissions[action];
+    return !!role && allowed.includes(role);
 }
 
 /**

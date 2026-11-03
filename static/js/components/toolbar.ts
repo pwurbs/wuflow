@@ -2,9 +2,10 @@ import { state, setFilterLabel, setFilterPriority, setFilterAssignee, setFilterR
 import type { Filter, UserFilter } from '../state.ts';
 import type { Label, Project, Release, User } from '../models.ts';
 import type { Priority } from '../domain-constants.ts';
+import type { RefreshApp, RerenderView } from '../list-utils.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import { logout, updateCurrentUser } from '../api.ts';
-import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage } from '../utils.ts';
+import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage, containsTarget } from '../utils.ts';
 import { validatePasswordPolicy } from './system-settings.ts';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
@@ -41,10 +42,10 @@ function updateFilterButtonState(btn: HTMLElement, defaultText: string, selected
 
 // ─── Label Filter ──────────────────────────────────────────────────────────────
 
-let labelRefreshCallback: (() => unknown) | undefined;
+let labelRefreshCallback: RerenderView | undefined;
 
-export function initLabelFilter(refreshApp: () => unknown) {
-  labelRefreshCallback = refreshApp;
+export function initLabelFilter(rerenderView: RerenderView) {
+  labelRefreshCallback = rerenderView;
 
   const labelFilterContainer = byId('label-filter-wrapper');
   const labelFilterBtn = byId('label-filter-btn');
@@ -56,7 +57,7 @@ export function initLabelFilter(refreshApp: () => unknown) {
   });
 
   document.addEventListener('click', (e) => {
-    if (!(e.target instanceof Node && labelFilterContainer.contains(e.target))) {
+    if (!containsTarget(labelFilterContainer, e.target)) {
       labelFilterOptions.classList.add('hidden');
     }
   });
@@ -102,10 +103,10 @@ function createLabelOption(text: string, value: Filter['labelId']) {
 
 // ─── Priority Filter ───────────────────────────────────────────────────────────
 
-let priorityRefreshCallback: (() => unknown) | undefined;
+let priorityRefreshCallback: RerenderView | undefined;
 
-export function initPriorityFilter(refreshApp: () => unknown) {
-  priorityRefreshCallback = refreshApp;
+export function initPriorityFilter(rerenderView: RerenderView) {
+  priorityRefreshCallback = rerenderView;
 
   const priorityFilterContainer = byId('priority-filter-wrapper');
   const priorityFilterBtn = byId('priority-filter-btn');
@@ -114,14 +115,13 @@ export function initPriorityFilter(refreshApp: () => unknown) {
   priorityFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
 
-    const labelOpts = document.getElementById('label-filter-options');
-    if (labelOpts) labelOpts.classList.add('hidden');
+    byId('label-filter-options').classList.add('hidden');
 
     priorityFilterOptions.classList.toggle('hidden');
   });
 
   document.addEventListener('click', (e) => {
-    if (!(e.target instanceof Node && priorityFilterContainer.contains(e.target))) {
+    if (!containsTarget(priorityFilterContainer, e.target)) {
       priorityFilterOptions.classList.add('hidden');
     }
   });
@@ -165,10 +165,10 @@ function createPriorityOption(text: string, value: Priority) {
 
 // ─── User Filter ───────────────────────────────────────────────────────────────
 
-let userRefreshCallback: (() => unknown) | undefined;
+let userRefreshCallback: RerenderView | undefined;
 
-export function initUserFilter(refreshApp: () => unknown) {
-  userRefreshCallback = refreshApp;
+export function initUserFilter(rerenderView: RerenderView) {
+  userRefreshCallback = rerenderView;
 
   const userFilterContainer = byId('user-filter-wrapper');
   const userFilterBtn = byId('user-filter-btn');
@@ -180,7 +180,7 @@ export function initUserFilter(refreshApp: () => unknown) {
   });
 
   document.addEventListener('click', (e) => {
-    if (!(e.target instanceof Node && userFilterContainer.contains(e.target))) {
+    if (!containsTarget(userFilterContainer, e.target)) {
       userFilterOptions.classList.add('hidden');
     }
   });
@@ -239,10 +239,10 @@ function createUserOption(text: string, value: UserFilter, setFilter: (value: Us
 
 // ─── Release Filter ────────────────────────────────────────────────────────────
 
-let releaseRefreshCallback: (() => unknown) | undefined;
+let releaseRefreshCallback: RerenderView | undefined;
 
-export function initReleaseFilter(refreshApp: () => unknown) {
-  releaseRefreshCallback = refreshApp;
+export function initReleaseFilter(rerenderView: RerenderView) {
+  releaseRefreshCallback = rerenderView;
 
   const releaseFilterContainer = byId('release-filter-wrapper');
   const releaseFilterBtn = byId('release-filter-btn');
@@ -254,7 +254,7 @@ export function initReleaseFilter(refreshApp: () => unknown) {
   });
 
   document.addEventListener('click', (e) => {
-    if (!(e.target instanceof Node && releaseFilterContainer.contains(e.target))) {
+    if (!containsTarget(releaseFilterContainer, e.target)) {
       releaseFilterOptions.classList.add('hidden');
     }
   });
@@ -300,15 +300,13 @@ function createReleaseOption(text: string, value: Filter['releaseId']) {
 
 // ─── Project Selector ──────────────────────────────────────────────────────────
 
-let _onProjectChange: (() => unknown) | null = null;
+let _onProjectChange: RefreshApp | null = null;
 
-export function initProjectSelector(onProjectChange: () => unknown) {
+export function initProjectSelector(onProjectChange: RefreshApp) {
   _onProjectChange = onProjectChange;
 
-  const btn = document.getElementById('project-selector-btn');
-  const optionsDiv = document.getElementById('project-selector-options');
-
-  if (!btn || !optionsDiv) return;
+  const btn = byId('project-selector-btn');
+  const optionsDiv = byId('project-selector-options');
 
   // Restore last selected project from browser storage
   const stored = localStorage.getItem('wuflow_selectedProjectId');
@@ -330,18 +328,16 @@ export function initProjectSelector(onProjectChange: () => unknown) {
 }
 
 export function updateProjectSelectorOptions(projects: Project[]) {
-  const btn = document.getElementById('project-selector-btn');
-  const optionsDiv = document.getElementById('project-selector-options');
-
-  if (!btn || !optionsDiv) return;
+  const btn = byId('project-selector-btn');
+  const optionsDiv = byId('project-selector-options');
 
   optionsDiv.innerHTML = '';
 
-  if (state.selectedProjectId === null && projects && projects.length > 0) {
+  if (state.selectedProjectId === null && projects.length > 0) {
     setSelectedProject(projects[0].id);
     localStorage.setItem('wuflow_selectedProjectId', String(projects[0].id));
     if (_onProjectChange) _onProjectChange();
-  } else if (state.selectedProjectId !== null && projects && !projects.some(p => p.id === state.selectedProjectId)) {
+  } else if (state.selectedProjectId !== null && !projects.some(p => p.id === state.selectedProjectId)) {
     const fallback = projects.length > 0 ? projects[0].id : null;
     setSelectedProject(fallback);
     if (fallback === null) {
@@ -352,7 +348,7 @@ export function updateProjectSelectorOptions(projects: Project[]) {
     if (_onProjectChange) _onProjectChange();
   }
 
-  (projects || []).forEach(project => {
+  projects.forEach(project => {
     const option = document.createElement('div');
     option.className = 'custom-option' + (state.selectedProjectId === project.id ? ' selected' : '');
     option.dataset.value = String(project.id);
@@ -368,7 +364,7 @@ export function updateProjectSelectorOptions(projects: Project[]) {
     optionsDiv.appendChild(option);
   });
 
-  const current = (projects || []).find(p => p.id === state.selectedProjectId);
+  const current = projects.find(p => p.id === state.selectedProjectId);
   updateProjectButtonLabel(btn, current ? current.name : 'Select Project');
 }
 
@@ -382,64 +378,50 @@ function updateProjectButtonLabel(btn: HTMLElement, projectName: string) {
 // ─── User Menu ─────────────────────────────────────────────────────────────────
 
 export function setupUserMenu(user: User) {
-  const userMenuBtn = document.getElementById('user-menu-btn');
+  const userMenuBtn = byId('user-menu-btn');
   const userMenuDropdown = byId('user-menu-dropdown');
-  const userEmailSpan = document.getElementById('current-user-email');
-  const logoutBtn = document.getElementById('user-menu-logout');
-  const passwordBtn = document.getElementById('user-menu-password');
+  const userEmailSpan = byId('current-user-email');
 
-  if (userEmailSpan) {
-    const initials = getUserInitials(user);
-    const badge = document.createElement('div');
-    badge.className = 'user-badge';
-    badge.textContent = initials;
+  const badge = document.createElement('div');
+  badge.className = 'user-badge';
+  badge.textContent = getUserInitials(user);
 
-    userEmailSpan.innerHTML = '';
-    userEmailSpan.style.display = 'flex';
-    userEmailSpan.style.alignItems = 'center';
-    userEmailSpan.style.gap = '8px';
-    userEmailSpan.appendChild(badge);
-    userEmailSpan.appendChild(document.createTextNode(`${user.email} (${user.role})`));
-  }
+  userEmailSpan.innerHTML = '';
+  userEmailSpan.style.display = 'flex';
+  userEmailSpan.style.alignItems = 'center';
+  userEmailSpan.style.gap = '8px';
+  userEmailSpan.appendChild(badge);
+  userEmailSpan.appendChild(document.createTextNode(`${user.email} (${user.role})`));
 
-  if (userMenuBtn && userMenuDropdown) {
-    userMenuBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      userMenuDropdown.classList.toggle('hidden');
-    });
+  userMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    userMenuDropdown.classList.toggle('hidden');
+  });
 
-    document.addEventListener('click', (e) => {
-      const inside = e.target instanceof Node && (userMenuBtn.contains(e.target) || userMenuDropdown.contains(e.target));
-      if (!inside) {
-        userMenuDropdown.classList.add('hidden');
-      }
-    });
-  }
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      void logout();
-    });
-  }
-
-  if (passwordBtn) {
-    passwordBtn.addEventListener('click', () => {
+  document.addEventListener('click', (e) => {
+    const inside = containsTarget(userMenuBtn, e.target) || containsTarget(userMenuDropdown, e.target);
+    if (!inside) {
       userMenuDropdown.classList.add('hidden');
-      openPasswordModal();
-    });
-  }
+    }
+  });
+
+  byId('user-menu-logout').addEventListener('click', () => {
+    void logout();
+  });
+
+  byId('user-menu-password').addEventListener('click', () => {
+    userMenuDropdown.classList.add('hidden');
+    openPasswordModal();
+  });
 
   setupPasswordModal(user);
 }
 
 function setupPasswordModal(user: User) {
-  const modal = document.getElementById('password-modal');
-  const form = document.getElementById('password-form');
-  const cancelBtn = document.getElementById('password-cancel-btn');
+  const modal = byId('password-modal');
+  const form = byId('password-form', HTMLFormElement);
 
-  if (!modal || !(form instanceof HTMLFormElement) || !cancelBtn) return;
-
-  cancelBtn.addEventListener('click', () => {
+  byId('password-cancel-btn').addEventListener('click', () => {
     modal.classList.add('hidden');
     form.reset();
   });
@@ -454,7 +436,7 @@ function setupPasswordModal(user: User) {
         throw new Error('New password and confirmation do not match.');
       }
 
-      const pwError = validatePasswordPolicy(newPassword, user ? user.email : '');
+      const pwError = validatePasswordPolicy(newPassword, user.email);
       if (pwError) {
         throw new Error(pwError);
       }
@@ -468,33 +450,22 @@ function setupPasswordModal(user: User) {
         void logout();
       }, 1500);
     } catch (err) {
-      const errorDisplay = document.getElementById('password-modal-error');
-      if (errorDisplay) {
-        errorDisplay.textContent = errorMessage(err);
-        errorDisplay.classList.remove('hidden');
-      } else {
-        showNotification(errorMessage(err), 'error');
-      }
+      const errorDisplay = byId('password-modal-error');
+      errorDisplay.textContent = errorMessage(err);
+      errorDisplay.classList.remove('hidden');
     }
   });
 }
 
 function openPasswordModal() {
-  const modal = document.getElementById('password-modal');
-  const errorDisplay = document.getElementById('password-modal-error');
+  const errorDisplay = byId('password-modal-error');
+  errorDisplay.textContent = '';
+  errorDisplay.classList.add('hidden');
 
-  if (modal) {
-    if (errorDisplay) {
-      errorDisplay.textContent = '';
-      errorDisplay.classList.add('hidden');
-    }
-
-    const usernameField = document.getElementById('password-form-username');
-    if (usernameField instanceof HTMLInputElement && state.currentUser) {
-      usernameField.value = state.currentUser.email || '';
-    }
-
-    modal.classList.remove('hidden');
-    byId('current-password').focus();
+  if (state.currentUser) {
+    byId('password-form-username', HTMLInputElement).value = state.currentUser.email;
   }
+
+  byId('password-modal').classList.remove('hidden');
+  byId('current-password').focus();
 }

@@ -21,6 +21,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
+  containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
   showNotification: vi.fn(),
   getUserInitials: vi.fn((user) => (user.first_name[0] + user.last_name[0]).toUpperCase()),
   debounce: vi.fn((fn) => fn),
@@ -847,24 +848,6 @@ describe('User Menu', () => {
     const errorDisplay = byId('password-modal-error');
     expect(errorDisplay.textContent).toBe('Password is too weak');
     expect(errorDisplay.classList.contains('hidden')).toBe(false);
-  });
-
-  it('falls back to showNotification when error display element is absent', async () => {
-    const { validatePasswordPolicy } = await import('../components/system-settings.ts');
-    const { showNotification } = await import('../utils.ts');
-    vi.mocked(validatePasswordPolicy).mockReturnValueOnce('Some policy error');
-    vi.mocked(showNotification).mockClear();
-
-    setupUserMenu(mockUser);
-    byId('password-modal-error').remove();
-
-    byId('new-password', HTMLInputElement).value = TEST_PW_BAD;
-    byId('confirm-new-password', HTMLInputElement).value = TEST_PW_BAD;
-    byId('password-form').dispatchEvent(new Event('submit'));
-
-    await Promise.resolve();
-
-    expect(showNotification).toHaveBeenCalledWith('Some policy error', 'error');
   });
 
   it('shows inline error and does not submit when new password and confirmation do not match', async () => {

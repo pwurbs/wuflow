@@ -60,6 +60,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
   return {
     byId: actual.byId,
     bySelector: actual.bySelector,
+    containsTarget: actual.containsTarget,
     errorMessage: actual.errorMessage,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
@@ -158,10 +159,31 @@ function setScrollMetrics(el: Element, { scrollHeight, clientHeight, scrollTop }
 
 const rerenderViews = vi.fn();
 
+// The activity area, which setupModal wires through the real setupActivity.
+const ACTIVITY_FIXTURE = `
+  <div id="activity-section" class="hidden">
+    <button id="tab-comments"></button>
+    <button id="tab-history"></button>
+    <ul id="comment-list"></ul>
+    <ul id="history-list" class="hidden"></ul>
+    <div id="comment-form-container">
+      <div id="new-comment-editor">
+        <textarea id="new-comment-body"></textarea>
+        <div id="new-comment-actions" class="hidden">
+          <button id="cancel-comment-btn" type="button"></button>
+          <button id="add-comment-btn" type="button"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+`;
+
 describe('Modal Component', () => {
   beforeEach(() => {
     // Setup DOM
     document.body.innerHTML = `
+      <div id="notification-toast" class="notification-toast hidden"></div>
+      ${ACTIVITY_FIXTURE}
       <div id="issue-modal" class="hidden">
         <div class="modal-content">
           <h2 id="modal-title"></h2>
@@ -181,6 +203,7 @@ describe('Modal Component', () => {
               </div>
             </div>
             <div class="form-group"><div id="planned-dates-container"></div></div>
+            <span id="deadline-display"></span>
             <input id="deadline" type="date" class="custom-date-input">
 
             <!-- Custom Dropdowns -->
@@ -729,6 +752,21 @@ describe('Modal Component', () => {
     expect(preview.classList.contains('hidden')).toBe(true);
     expect(editor.classList.contains('hidden')).toBe(false);
     expect(toggleBtn.classList.contains('active')).toBe(false);
+    expect(boldBtn.disabled).toBe(false);
+    expect(boldBtn.classList.contains('disabled')).toBe(false);
+  });
+
+  it('leaves the preview mode when the modal is opened again', () => {
+    openModal(null);
+    const toggleBtn = byId('md-preview-toggle');
+    const boldBtn = bySelector(document, '.editor-btn[data-md="bold"]', HTMLButtonElement);
+    toggleBtn.click();
+    expect(boldBtn.disabled).toBe(true);
+
+    openModal(null);
+
+    expect(toggleBtn.classList.contains('active')).toBe(false);
+    expect(byId('description-preview').classList.contains('active')).toBe(false);
     expect(boldBtn.disabled).toBe(false);
     expect(boldBtn.classList.contains('disabled')).toBe(false);
   });
@@ -1406,19 +1444,15 @@ describe('Modal Component', () => {
     });
 
     describe('Done toast', () => {
-      let toast: HTMLDivElement;
+      let toast: HTMLElement;
       beforeEach(() => {
-        toast = document.createElement('div');
-        toast.id = 'notification-toast';
-        toast.className = 'notification-toast hidden';
-        document.body.appendChild(toast);
+        toast = byId('notification-toast');
         vi.mocked(utils.showNotification).mockImplementation((message, type = 'success') => {
           toast.textContent = message;
           toast.className = 'notification-toast ' + type;
         });
       });
       afterEach(() => {
-        toast.remove();
         vi.mocked(utils.showNotification).mockImplementation(() => {});
       });
 
@@ -2169,6 +2203,20 @@ describe('Modal Component', () => {
       statusTrigger.click();
 
       expect(priorityOptions.classList.contains('hidden')).toBe(true);
+    });
+
+    it('closes an open project or release dropdown when another dropdown opens', () => {
+      openModal(null);
+      const projectOptions = byId('project-options');
+      const releaseOptions = byId('release-options');
+      projectOptions.classList.remove('hidden');
+      releaseOptions.classList.remove('hidden');
+
+      byId('status-trigger').click();
+
+      expect(byId('status-options').classList.contains('hidden')).toBe(false);
+      expect(projectOptions.classList.contains('hidden')).toBe(true);
+      expect(releaseOptions.classList.contains('hidden')).toBe(true);
     });
 
     it('should handle archive issue failure when not allowed', async () => {
@@ -3207,11 +3255,6 @@ describe('renderReleaseOptions', () => {
     expect(byId('release-select', HTMLInputElement).value).toBe('1');
     expect(byId('release-text').textContent).toBe('v1.0');
   });
-
-  it('returns early when the options container is absent', () => {
-    byId('release-options').remove();
-    expect(() => renderReleaseOptions([], null)).not.toThrow();
-  });
 });
 
 // ─── release-select inline save ───────────────────────────────────────────────
@@ -3219,6 +3262,7 @@ describe('renderReleaseOptions', () => {
 describe('release-select change handler', () => {
   beforeEach(async () => {
     document.body.innerHTML = `
+      ${ACTIVITY_FIXTURE}
       <div id="issue-modal" class="hidden">
         <div class="modal-content">
           <h2 id="modal-title"></h2>
@@ -3236,6 +3280,7 @@ describe('release-select change handler', () => {
               </div>
             </div>
             <div id="planned-dates-container"></div>
+            <span id="deadline-display"></span>
             <input id="deadline" type="date">
             <div id="status-dropdown">
               <div id="status-trigger"><span id="status-text"></span></div>

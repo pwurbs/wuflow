@@ -1,14 +1,37 @@
-import { state } from '../state.ts';
-import { byId, bySelector } from '../utils.ts';
-import { getStatusOptions, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
+import { state, setReleases, setStatusConfig } from '../state.ts';
+import { byId, containsTarget } from '../utils.ts';
+import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { fetchLabelsByProject, fetchReleases, fetchStatusConfig } from '../api.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import type { Label, Project, Release, User } from '../models.ts';
 
-export function setupCustomDropdown(wrapperId: string, triggerId: string, optionsId: string) {
-  const trigger = byId(triggerId);
-  const options = byId(optionsId);
+function closeOptions(options: HTMLElement) {
+  options.classList.add('hidden');
+  options.style.maxHeight = '';
+}
 
+// Sets up the issue modal's dropdowns, each made of the elements <name>-dropdown, <name>-trigger
+// and <name>-options. Opening one closes the others, a click outside closes all.
+export function setupIssueDropdowns() {
+  const dropdowns = ['status', 'label', 'priority', 'assignee', 'project', 'release'].map(name => ({
+    wrapper: byId(`${name}-dropdown`),
+    trigger: byId(`${name}-trigger`),
+    options: byId(`${name}-options`),
+  }));
+
+  dropdowns.forEach(({ trigger, options }) => {
+    const others = dropdowns.map(d => d.options).filter(o => o !== options);
+    setupCustomDropdown(trigger, options, others);
+  });
+
+  document.addEventListener('click', (e) => {
+    dropdowns.forEach(({ wrapper, options }) => {
+      if (!containsTarget(wrapper, e.target)) closeOptions(options);
+    });
+  });
+}
+
+function setupCustomDropdown(trigger: HTMLElement, options: HTMLElement, otherOptions: HTMLElement[]) {
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
 
@@ -16,14 +39,7 @@ export function setupCustomDropdown(wrapperId: string, triggerId: string, option
 
     const wasHidden = options.classList.contains('hidden');
 
-    // Close others
-    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown'].forEach(id => {
-      if (id !== wrapperId) {
-        const otherOptions = bySelector(byId(id), '.custom-select-options');
-        otherOptions.classList.add('hidden');
-        otherOptions.style.maxHeight = '';
-      }
-    });
+    otherOptions.forEach(closeOptions);
 
     if (wasHidden) {
       // Constrain dropdown to available space below the trigger within the modal
@@ -36,8 +52,7 @@ export function setupCustomDropdown(wrapperId: string, triggerId: string, option
       }
       options.classList.remove('hidden');
     } else {
-      options.classList.add('hidden');
-      options.style.maxHeight = '';
+      closeOptions(options);
     }
   });
 }
@@ -97,8 +112,7 @@ export function renderLabelOptions(labels: Label[]) {
 }
 
 export function renderReleaseOptions(releases: Release[], currentReleaseId: number | null) {
-  const optionsContainer = document.getElementById('release-options');
-  if (!optionsContainer) return;
+  const optionsContainer = byId('release-options');
   optionsContainer.innerHTML = '';
 
   const noReleaseDiv = document.createElement('div');
@@ -109,7 +123,7 @@ export function renderReleaseOptions(releases: Release[], currentReleaseId: numb
   });
   optionsContainer.appendChild(noReleaseDiv);
 
-  (releases || []).filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
+  releases.filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = release.name;
@@ -122,7 +136,7 @@ export function renderReleaseOptions(releases: Release[], currentReleaseId: numb
   const releaseInput = byId('release-select', HTMLInputElement);
   const releaseText = byId('release-text');
   if (currentReleaseId) {
-    const found = (releases || []).find(r => r.id === currentReleaseId);
+    const found = releases.find(r => r.id === currentReleaseId);
     releaseInput.value = String(currentReleaseId);
     releaseText.textContent = found ? found.name : 'No Release';
   } else {
@@ -132,11 +146,10 @@ export function renderReleaseOptions(releases: Release[], currentReleaseId: numb
 }
 
 export function renderProjectOptions(projects: Project[]) {
-  const optionsContainer = document.getElementById('project-options');
-  if (!optionsContainer) return;
+  const optionsContainer = byId('project-options');
   optionsContainer.innerHTML = '';
 
-  (projects || []).forEach(project => {
+  projects.forEach(project => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = project.name;
@@ -148,15 +161,15 @@ export function renderProjectOptions(projects: Project[]) {
         byId('label-text').textContent = 'No Label';
       }).catch(err => console.error('Failed to reload labels for project', err));
       fetchReleases(project.id).then(releases => {
-        state.releases = releases;
+        setReleases(releases);
         renderReleaseOptions(releases, null);
       }).catch(err => console.error('Failed to reload releases for project', err));
       fetchStatusConfig(project.id).then(cfg => {
-        state.statusConfig = cfg;
+        setStatusConfig(cfg);
         renderStatusOptions();
         byId('status', HTMLInputElement).value = STATUS_OPEN;
-        byId('status-text').textContent = 'Open';
-        document.getElementById('status-options')?.classList.add('hidden');
+        byId('status-text').textContent = getStatusLabel(STATUS_OPEN);
+        closeOptions(byId('status-options'));
       }).catch(err => console.error('Failed to reload status config for project', err));
     });
     optionsContainer.appendChild(div);
@@ -203,7 +216,6 @@ export function renderAssigneeOptions(users: User[]) {
 function selectOption(inputId: string, textId: string, optionsId: string, value: string | number, text: string) {
   const input = byId(inputId, HTMLInputElement);
   const textSpan = byId(textId);
-  const options = byId(optionsId);
 
   if (input.value != value) {
     input.value = String(value);
@@ -211,6 +223,5 @@ function selectOption(inputId: string, textId: string, optionsId: string, value:
     input.dispatchEvent(new Event('change')); // Trigger immediate save if applicable
   }
 
-  options.classList.add('hidden');
-  options.style.maxHeight = '';
+  closeOptions(byId(optionsId));
 }

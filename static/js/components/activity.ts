@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.ts';
-import { escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled, errorMessage } from '../utils.ts';
+import { byId, escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled, errorMessage } from '../utils.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { getStatusLabel } from '../status-config.ts';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.ts';
@@ -63,22 +63,19 @@ function shownIssue() {
 function nextSeq() { return ++requestSeq; }
 function isStale(seq: number) { return seq !== requestSeq; }
 
-const els = () => {
-  const input = document.getElementById('new-comment-body');
-  return {
-    section: document.getElementById('activity-section'),
-    tabComments: document.getElementById('tab-comments'),
-    tabHistory: document.getElementById('tab-history'),
-    commentList: document.getElementById('comment-list'),
-    historyList: document.getElementById('history-list'),
-    form: document.getElementById('comment-form-container'),
-    editor: document.getElementById('new-comment-editor'),
-    input: input instanceof HTMLTextAreaElement ? input : null,
-    actions: document.getElementById('new-comment-actions'),
-    addBtn: document.getElementById('add-comment-btn'),
-    cancelBtn: document.getElementById('cancel-comment-btn')
-  };
-};
+const els = () => ({
+  section: byId('activity-section'),
+  tabComments: byId('tab-comments'),
+  tabHistory: byId('tab-history'),
+  commentList: byId('comment-list'),
+  historyList: byId('history-list'),
+  form: byId('comment-form-container'),
+  editor: byId('new-comment-editor'),
+  input: byId('new-comment-body', HTMLTextAreaElement),
+  actions: byId('new-comment-actions'),
+  addBtn: byId('add-comment-btn'),
+  cancelBtn: byId('cancel-comment-btn')
+});
 
 // Counter of the new-comment textarea. Kept at module scope because it's driven
 // manually by open/closeNewCommentForm rather than by focus/blur.
@@ -88,12 +85,11 @@ let newCommentCounter: ReturnType<typeof initCharCounter> | null = null;
 // once at app start, like setupModal.
 export function setupActivity() {
   const e = els();
-  if (!e.section) return;
-  e.tabComments?.addEventListener('click', () => switchTab('comments'));
-  e.tabHistory?.addEventListener('click', () => switchTab('history'));
+  e.tabComments.addEventListener('click', () => switchTab('comments'));
+  e.tabHistory.addEventListener('click', () => switchTab('history'));
   // Links in a comment open in a new tab, like those in the description, instead of
   // replacing the app in this one.
-  e.commentList?.addEventListener('click', (ev) => {
+  e.commentList.addEventListener('click', (ev) => {
     const anchor = ev.target instanceof Element ? ev.target.closest('.comment-body a') : null;
     if (!(anchor instanceof HTMLAnchorElement)) return;
     ev.preventDefault();
@@ -102,27 +98,25 @@ export function setupActivity() {
   // ✓ and Ctrl/Cmd+Enter share the in-flight submit instead of posting the same
   // comment twice while the first request is still running.
   const submitNewCommentOnce = guardSubmit(submitNewComment, { field: e.editor });
-  e.addBtn?.addEventListener('click', submitNewCommentOnce);
-  e.cancelBtn?.addEventListener('click', discardNewComment);
+  e.addBtn.addEventListener('click', submitNewCommentOnce);
+  e.cancelBtn.addEventListener('click', discardNewComment);
   const input = e.input;
-  if (input) {
-    // manual: true — the counter is tied to the form's edit mode (like the
-    // inline comment editor's), not to focus.
-    newCommentCounter = initCharCounter(input, MAX_COMMENT_LENGTH, { manual: true });
-    // Focus rather than click, so tabbing into the field opens the form too.
-    input.addEventListener('focus', () => openNewCommentForm(submitNewCommentOnce));
-    // An empty field means nothing was written yet — collapse again instead of
-    // holding the single-editor guard for a form the user only passed through.
-    input.addEventListener('blur', () => {
-      if (!input.value.trim()) closeNewCommentForm();
-    });
-    // The textarea grows with its content, which can push the action bar out
-    // of sight on a long comment.
-    input.addEventListener('input', () => {
-      if (ctx.activeEditor === 'new') ensureNewCommentVisible(e.editor);
-    });
-    input.addEventListener('keydown', (ev) => handleCommentKeydown(ev, input, submitNewCommentOnce, discardNewComment));
-  }
+  // manual: true — the counter is tied to the form's edit mode (like the
+  // inline comment editor's), not to focus.
+  newCommentCounter = initCharCounter(input, MAX_COMMENT_LENGTH, { manual: true });
+  // Focus rather than click, so tabbing into the field opens the form too.
+  input.addEventListener('focus', () => openNewCommentForm(submitNewCommentOnce));
+  // An empty field means nothing was written yet — collapse again instead of
+  // holding the single-editor guard for a form the user only passed through.
+  input.addEventListener('blur', () => {
+    if (!input.value.trim()) closeNewCommentForm();
+  });
+  // The textarea grows with its content, which can push the action bar out
+  // of sight on a long comment.
+  input.addEventListener('input', () => {
+    if (ctx.activeEditor === 'new') ensureNewCommentVisible(e.editor);
+  });
+  input.addEventListener('keydown', (ev) => handleCommentKeydown(ev, input, submitNewCommentOnce, discardNewComment));
 }
 
 // The new-comment form starts collapsed (just the textarea) and only shows its
@@ -143,7 +137,7 @@ function handleCommentKeydown(ev: KeyboardEvent, textarea: HTMLTextAreaElement, 
 }
 
 function hasNewCommentText() {
-  return (els().input?.value || '').trim() !== '';
+  return els().input.value.trim() !== '';
 }
 
 async function discardNewComment() {
@@ -156,7 +150,7 @@ function openNewCommentForm(save: () => Promise<boolean>) {
   const e = els();
   ctx.activeEditor = 'new';
   ctx.draft = { changed: hasNewCommentText, save, discard: () => closeNewCommentForm({ clear: true }) };
-  e.actions?.classList.remove('hidden');
+  e.actions.classList.remove('hidden');
   newCommentCounter?.show();
   // No active row: every existing comment's Edit/Delete is hidden while the
   // new comment is unconfirmed.
@@ -173,8 +167,8 @@ function openNewCommentForm(save: () => Promise<boolean>) {
 // editor's scroll reset in modal.ts.
 let scrollRaf = 0;
 let lastEditorHeight: number | null = null;
-function ensureNewCommentVisible(editor: HTMLElement | null) {
-  if (!editor?.scrollIntoView || scrollRaf) return;
+function ensureNewCommentVisible(editor: HTMLElement) {
+  if (!editor.scrollIntoView || scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = 0;
     // field-sizing: content grows the box on line wraps, not on every
@@ -192,12 +186,12 @@ function ensureNewCommentVisible(editor: HTMLElement | null) {
 // collapsed (e.g. from loadActivity, to drop a draft from a previous issue).
 function closeNewCommentForm({ clear = false } = {}) {
   const e = els();
-  if (clear && e.input) e.input.value = ''; // the counter recomputes on its next show()
+  if (clear) e.input.value = ''; // the counter recomputes on its next show()
   if (ctx.activeEditor !== 'new') return;
   ctx.activeEditor = null;
   ctx.draft = null;
   lastEditorHeight = null; // reopening must scroll again
-  e.actions?.classList.add('hidden');
+  e.actions.classList.add('hidden');
   newCommentCounter?.hide();
   setOtherCommentsActionsHidden(e.commentList, null);
   ctx.callbacks.onEditEnd?.();
@@ -208,8 +202,8 @@ function closeNewCommentForm({ clear = false } = {}) {
 // can't be typed into.
 function setNewCommentFormBlocked(blocked: boolean) {
   const { editor, input } = els();
-  if (input) input.readOnly = blocked;
-  if (editor) setAriaDisabled(editor, blocked);
+  input.readOnly = blocked;
+  setAriaDisabled(editor, blocked);
 }
 
 // The open comment editor's draft for the modal's Done handler: { changed, save,
@@ -237,9 +231,7 @@ export async function loadActivity(issue: Issue, callbacks: ActivityCallbacks = 
   // Drop any draft (and its guard state) left over from a previously opened issue.
   closeCommentEditors();
 
-  const e = els();
-  if (!e.section) return;
-  e.section.classList.remove('hidden');
+  els().section.classList.remove('hidden');
 
   try {
     const [history, comments] = await Promise.all([
@@ -284,16 +276,14 @@ export async function refreshHistory() {
 
 function renderAll() {
   const e = els();
-  if (!e.section) return;
-
-  e.tabComments?.classList.toggle('active', ctx.activeTab === 'comments');
-  e.tabHistory?.classList.toggle('active', ctx.activeTab === 'history');
-  e.commentList?.classList.toggle('hidden', ctx.activeTab !== 'comments');
-  e.historyList?.classList.toggle('hidden', ctx.activeTab !== 'history');
+  e.tabComments.classList.toggle('active', ctx.activeTab === 'comments');
+  e.tabHistory.classList.toggle('active', ctx.activeTab === 'history');
+  e.commentList.classList.toggle('hidden', ctx.activeTab !== 'comments');
+  e.historyList.classList.toggle('hidden', ctx.activeTab !== 'history');
 
   // The new-comment form belongs to the Comments tab and is hidden on archived issues.
   const showForm = ctx.activeTab === 'comments' && !ctx.readOnly && userCan(state.currentUser, ACTION_CREATE_COMMENT);
-  e.form?.classList.toggle('hidden', !showForm);
+  e.form.classList.toggle('hidden', !showForm);
 
   renderComments(e.commentList);
   renderHistory(e.historyList);
@@ -324,8 +314,7 @@ function buildAuthorSpan(user: UserRef | undefined, className: string) {
   return author;
 }
 
-function renderComments(container: HTMLElement | null) {
-  if (!container) return;
+function renderComments(container: HTMLElement) {
   container.innerHTML = '';
 
   if (ctx.comments.length === 0) {
@@ -421,8 +410,8 @@ function isOtherCommentActive(commentId: number) {
 // place — more preventive than corrective. A null activeLi means "no comment
 // is the active one", i.e. hide them all (used while the new-comment form is
 // open). Comments rendered later derive the same state via isOtherCommentActive.
-function setOtherCommentsActionsHidden(container: HTMLElement | null, activeLi: HTMLElement | null) {
-  container?.querySelectorAll<HTMLElement>('.comment-item').forEach(item => {
+function setOtherCommentsActionsHidden(container: HTMLElement, activeLi: HTMLElement | null) {
+  container.querySelectorAll<HTMLElement>('.comment-item').forEach(item => {
     if (item === activeLi) return;
     const hidden = isOtherCommentActive(Number(item.dataset.id));
     item.querySelector('.comment-actions')?.classList.toggle('actions-hidden', hidden);
@@ -547,7 +536,7 @@ async function removeComment(comment: Comment) {
 // Resolves true once the comment is added.
 async function submitNewComment() {
   const e = els();
-  const bodyText = (e.input?.value || '').trim();
+  const bodyText = e.input.value.trim();
   if (!bodyText) { showNotification('Comment must not be empty', 'error'); return false; }
   try {
     const issue = shownIssue();
@@ -638,8 +627,7 @@ const HISTORY_ICONS = {
   deletion: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>'
 };
 
-function renderHistory(container: HTMLElement | null) {
-  if (!container) return;
+function renderHistory(container: HTMLElement) {
   container.innerHTML = '';
 
   if (ctx.history.length === 0) {

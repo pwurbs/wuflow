@@ -11,49 +11,47 @@ import { DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 let projectSettingsContainer: HTMLElement | null = null;
 
 export function setupProjectSettingsView() {
-  projectSettingsContainer = document.getElementById('project-settings-view');
+  projectSettingsContainer = byId('project-settings-view');
 
-  const addLabelInput = document.getElementById('ps-new-label-input');
-
-  if (addLabelInput instanceof HTMLInputElement) {
-    if (userCan(state.currentUser, ACTION_CREATE_LABEL)) {
-      initCharCounter(addLabelInput, MAX_LABEL_NAME_LEN);
-
-      const handleAdd = async () => {
-        const name = addLabelInput.value.trim();
-        if (!name) return;
-        if (countCodepoints(name) > MAX_LABEL_NAME_LEN) {
-          showNotification(`Label name must not exceed ${MAX_LABEL_NAME_LEN} characters.`, 'error');
-          return;
-        }
-        try {
-          const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
-          const existingLabels = await fetchLabelsByProject(projectId);
-          const usedColors = existingLabels.map(l => l.color);
-          const color = getUnusedColor(usedColors);
-          await createLabel(projectId, { name, color });
-          addLabelInput.value = '';
-          const labels = await renderProjectSettingsView();
-          updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
-          showNotification('Label created', 'success');
-        } catch (err) {
-          console.error(err);
-          showNotification('Failed to create label', 'error');
-        }
-      };
-
-      // A repeated Enter shares the in-flight add instead of creating the label
-      // twice while the first request is still running.
-      const addLabel = guardSubmit(handleAdd, { field: addLabelInput.closest('.label-input-group') });
-
-      addLabelInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') void addLabel();
-      });
-    } else {
-      const group = addLabelInput.closest<HTMLElement>('.label-input-group');
-      if (group) group.style.display = 'none';
-    }
+  const addLabelInput = byId('ps-new-label-input', HTMLInputElement);
+  if (!userCan(state.currentUser, ACTION_CREATE_LABEL)) {
+    const group = addLabelInput.closest<HTMLElement>('.label-input-group');
+    if (group) group.style.display = 'none';
+    return;
   }
+
+  initCharCounter(addLabelInput, MAX_LABEL_NAME_LEN);
+
+  const handleAdd = async () => {
+    const name = addLabelInput.value.trim();
+    if (!name) return;
+    if (countCodepoints(name) > MAX_LABEL_NAME_LEN) {
+      showNotification(`Label name must not exceed ${MAX_LABEL_NAME_LEN} characters.`, 'error');
+      return;
+    }
+    try {
+      const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
+      const existingLabels = await fetchLabelsByProject(projectId);
+      const usedColors = existingLabels.map(l => l.color);
+      const color = getUnusedColor(usedColors);
+      await createLabel(projectId, { name, color });
+      addLabelInput.value = '';
+      const labels = await renderProjectSettingsView();
+      updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
+      showNotification('Label created', 'success');
+    } catch (err) {
+      console.error(err);
+      showNotification('Failed to create label', 'error');
+    }
+  };
+
+  // A repeated Enter shares the in-flight add instead of creating the label
+  // twice while the first request is still running.
+  const addLabel = guardSubmit(handleAdd, { field: addLabelInput.closest('.label-input-group') });
+
+  addLabelInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') void addLabel();
+  });
 }
 
 export async function renderProjectSettingsView() {
@@ -61,9 +59,7 @@ export async function renderProjectSettingsView() {
 
   renderStatusConfigSection();
 
-  const labelsList = document.getElementById('ps-labels-list');
-  if (!labelsList) return;
-
+  const labelsList = byId('ps-labels-list');
   const labelsSection = labelsList.closest<HTMLElement>('.settings-section');
   if (labelsSection) {
     labelsSection.style.display = userCan(state.currentUser, ACTION_LIST_LABELS) ? '' : 'none';
@@ -122,9 +118,7 @@ export async function renderProjectSettingsView() {
 }
 
 function renderStatusConfigSection() {
-  const content = document.getElementById('ps-status-config-content');
-  if (!content) return;
-
+  const content = byId('ps-status-config-content');
   const canEdit = userCan(state.currentUser, ACTION_UPDATE_STATUS_CONFIG);
   const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
   const cfg = state.statusConfig ?? getDefaultStatusConfig();
@@ -132,7 +126,7 @@ function renderStatusConfigSection() {
   const disabledAttr = canEdit ? '' : 'disabled';
 
   const slotBoxes = STATUS_SLOTS.map((slot, i) => {
-    const val = escapeHtml(cfg[slot.field] ?? '');
+    const val = escapeHtml(cfg[slot.field]);
     const isActive = val.trim() !== '';
     const activeClass = isActive ? 'sc-box--active' : 'sc-box--inactive';
     // Count issues with this stage status in the current project (from already-loaded state)
@@ -208,7 +202,7 @@ async function handleSaveStatusConfig(projectId: number, previousCfg: StatusName
 
   // Check for columns being deactivated that still have issues
   const deactivating = STATUS_SLOTS.filter(slot => {
-    const wasActive = (previousCfg[slot.field] ?? '').trim() !== '';
+    const wasActive = previousCfg[slot.field].trim() !== '';
     const willBeActive = (payload[slot.field] ?? '').trim() !== '';
     return wasActive && !willBeActive;
   });

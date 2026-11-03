@@ -1,7 +1,7 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { sortReleasesByDate } from '../list-utils.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector, errorMessage } from '../utils.ts';
+import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector, errorMessage, containsTarget } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
 import type { Issue, Release, User } from '../models.ts';
@@ -32,28 +32,21 @@ function removeReleaseFromState(id: number) {
 export function setupReleasesView() {
   setupOwnerDropdown();
 
-  const cancelBtn = document.getElementById('release-modal-cancel');
-  const form = document.getElementById('release-form');
-  const nameInput = document.getElementById('release-modal-name');
-  const descInput = document.getElementById('release-modal-desc');
-
-  if (nameInput instanceof HTMLInputElement) initCharCounter(nameInput, MAX_RELEASE_NAME_LEN);
-  if (descInput instanceof HTMLTextAreaElement) initCharCounter(descInput, MAX_RELEASE_DESC_LEN);
+  initCharCounter(byId('release-modal-name', HTMLInputElement), MAX_RELEASE_NAME_LEN);
+  initCharCounter(byId('release-modal-desc', HTMLTextAreaElement), MAX_RELEASE_DESC_LEN);
 
   ['release-modal-start', 'release-modal-date'].forEach(id => {
-    const input = document.getElementById(id);
-    if (!(input instanceof HTMLInputElement)) return;
+    const input = byId(id, HTMLInputElement);
     input.addEventListener('change', () => {
       updateDateInputStyle(input);
     });
   });
 
-  cancelBtn?.addEventListener('click', closeReleaseModal);
-  if (form instanceof HTMLFormElement) onGuardedSubmit(form, handleReleaseSubmit);
+  byId('release-modal-cancel').addEventListener('click', closeReleaseModal);
+  onGuardedSubmit(byId('release-form', HTMLFormElement), handleReleaseSubmit);
 
-  const deleteBtn = document.getElementById('release-modal-delete');
-  if (deleteBtn && userCan(state.currentUser, ACTION_DELETE_RELEASE)) {
-    deleteBtn.addEventListener('click', async () => {
+  if (userCan(state.currentUser, ACTION_DELETE_RELEASE)) {
+    byId('release-modal-delete').addEventListener('click', async () => {
       const rel = state.releases.find(r => r.id === editingReleaseId);
       if (!rel) return;
       closeReleaseModal();
@@ -61,9 +54,8 @@ export function setupReleasesView() {
     });
   }
 
-  const reopenBtn = document.getElementById('release-modal-reopen');
-  if (reopenBtn && userCan(state.currentUser, ACTION_TRIGGER_RELEASE)) {
-    reopenBtn.addEventListener('click', async () => {
+  if (userCan(state.currentUser, ACTION_TRIGGER_RELEASE)) {
+    byId('release-modal-reopen').addEventListener('click', async () => {
       const rel = state.releases.find(r => r.id === editingReleaseId);
       if (!rel) return;
       const confirmed = await showConfirm(
@@ -86,10 +78,9 @@ export function setupReleasesView() {
 }
 
 function setupOwnerDropdown() {
-  const wrapper = document.getElementById('release-owner-dropdown');
-  const trigger = document.getElementById('release-owner-trigger');
-  const options = document.getElementById('release-owner-options');
-  if (!(trigger instanceof HTMLButtonElement) || !options) return;
+  const wrapper = byId('release-owner-dropdown');
+  const trigger = byId('release-owner-trigger', HTMLButtonElement);
+  const options = byId('release-owner-options');
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -98,15 +89,14 @@ function setupOwnerDropdown() {
   });
 
   document.addEventListener('click', (e) => {
-    if (wrapper && !(e.target instanceof Node && wrapper.contains(e.target))) {
+    if (!containsTarget(wrapper, e.target)) {
       options.classList.add('hidden');
     }
   });
 }
 
 export function renderReleaseOwnerOptions(users: User[]) {
-  const container = document.getElementById('release-owner-options');
-  if (!container) return;
+  const container = byId('release-owner-options');
   container.innerHTML = '';
 
   const noOwnerDiv = document.createElement('div');
@@ -143,8 +133,7 @@ function selectReleaseOwner(value: string, text: string) {
 }
 
 export async function renderReleasesView() {
-  const container = document.getElementById('releases-view');
-  if (!container) return;
+  const container = byId('releases-view');
 
   await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
 
@@ -246,22 +235,19 @@ function buildReleasesSection(title: string, releases: Release[], isOpenSection:
 }
 
 function applyModalButtons(release: Release | null, isClosed: boolean) {
-  document.getElementById('release-modal-delete')
-    ?.classList.toggle('hidden', !release || !userCan(state.currentUser, ACTION_DELETE_RELEASE));
-  document.getElementById('release-modal-reopen')
-    ?.classList.toggle('hidden', !isClosed || !userCan(state.currentUser, ACTION_TRIGGER_RELEASE));
-  document.getElementById('release-modal-cancel')
-    ?.classList.toggle('hidden', isClosed);
-  const saveBtn = document.getElementById('release-modal-save');
-  if (saveBtn) { saveBtn.classList.remove('hidden'); saveBtn.textContent = isClosed ? 'Done' : 'Save'; }
+  byId('release-modal-delete').classList.toggle('hidden', !release || !userCan(state.currentUser, ACTION_DELETE_RELEASE));
+  byId('release-modal-reopen').classList.toggle('hidden', !isClosed || !userCan(state.currentUser, ACTION_TRIGGER_RELEASE));
+  byId('release-modal-cancel').classList.toggle('hidden', isClosed);
+  const saveBtn = byId('release-modal-save');
+  saveBtn.classList.remove('hidden');
+  saveBtn.textContent = isClosed ? 'Done' : 'Save';
 }
 
 function applyModalDateFields(release: Release | null, isClosed: boolean) {
   const startInput = byId('release-modal-start', HTMLInputElement);
   const dateInput = byId('release-modal-date', HTMLInputElement);
 
-  const closedAtGroup = document.getElementById('release-modal-closed-at-group');
-  closedAtGroup?.classList.toggle('hidden', !isClosed);
+  byId('release-modal-closed-at-group').classList.toggle('hidden', !isClosed);
   if (isClosed && release?.closed_at) {
     const closedAtInput = byId('release-modal-closed-at', HTMLInputElement);
     closedAtInput.value = toDateInputValue(release.closed_at);
@@ -325,7 +311,7 @@ function openReleaseModal(release: Release | null) {
 
 function closeReleaseModal() {
   editingReleaseId = null;
-  document.getElementById('release-modal-overlay')?.classList.add('hidden');
+  byId('release-modal-overlay').classList.add('hidden');
 }
 
 async function handleReleaseSubmit() {
@@ -336,7 +322,7 @@ async function handleReleaseSubmit() {
   const desc = byId('release-modal-desc', HTMLTextAreaElement).value.trim();
   const startVal = byId('release-modal-start', HTMLInputElement).value;
   const dateVal = byId('release-modal-date', HTMLInputElement).value;
-  const errorDisplay = document.getElementById('release-modal-error');
+  const errorDisplay = byId('release-modal-error');
 
   if (!name) { showNotification('Release name is required.', 'error'); return; }
   if (startVal && dateVal && dateVal < startVal) {
@@ -365,10 +351,8 @@ async function handleReleaseSubmit() {
     updateReleaseFilterOptions(state.releases);
     void renderReleasesView();
   } catch (err) {
-    if (errorDisplay) {
-      errorDisplay.textContent = errorMessage(err) || 'Failed to save release.';
-      errorDisplay.classList.remove('hidden');
-    }
+    errorDisplay.textContent = errorMessage(err) || 'Failed to save release.';
+    errorDisplay.classList.remove('hidden');
   }
 }
 
@@ -387,8 +371,7 @@ function buildReleaseDateRange(rel: Release) {
 }
 
 function renderModalStats(release: Release | null) {
-  const statsEl = document.getElementById('release-modal-stats');
-  if (!statsEl) return;
+  const statsEl = byId('release-modal-stats');
   if (!release) {
     statsEl.classList.add('hidden');
     return;

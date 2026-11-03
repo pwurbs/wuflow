@@ -6,9 +6,10 @@ import { setDraggedCard, setDraggedCardOrigin } from '../drag.ts';
 import { showCardContextMenu } from '../context-menu.ts';
 import type { ContextMenuItem } from '../context-menu.ts';
 import type { Issue, ReleaseRef } from '../models.ts';
+import type { OpenModal } from '../list-utils.ts';
 
 export interface CardCallbacks {
-  openModal?: (issue: Issue) => void;
+  openModal?: OpenModal;
   onDragStart?: (cardEl: HTMLElement) => void;
   onDragEnd?: (cardEl: HTMLElement) => void;
   // null: the card is already first/last.

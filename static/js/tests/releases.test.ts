@@ -28,6 +28,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   toDateInputValue: (await importOriginal<typeof import('../utils.ts')>()).toDateInputValue,
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
+  containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => String(s ?? '')),
@@ -207,11 +208,6 @@ describe('releases', () => {
       expect(byId('release-owner-text').textContent).toBe('Bob Jones');
     });
 
-    it('returns early without throwing when the container element is absent', () => {
-      byId('release-owner-options').remove();
-      expect(() => renderReleaseOwnerOptions([])).not.toThrow();
-    });
-
     it('toggles the dropdown when the trigger is clicked', async () => {
       setupReleasesView(); // registers the click listener on the trigger
       renderReleaseOwnerOptions([]);
@@ -235,11 +231,6 @@ describe('releases', () => {
   // ─── renderReleasesView ───────────────────────────────────────────────────────
 
   describe('renderReleasesView', () => {
-    it('returns early without throwing when the container is absent', async () => {
-      byId('releases-view').remove();
-      await expect(renderReleasesView()).resolves.not.toThrow();
-    });
-
     it('renders "Open Releases" section with empty state text when there are no releases', async () => {
       await renderReleasesView();
       const container = byId('releases-view');

@@ -15,7 +15,7 @@ const HINT_NEW_USER = 'Minimum 12 characters. No common passwords.';
 let systemSettingsViewContainer: HTMLElement | null = null;
 
 export function setupSystemSettingsView() {
-  systemSettingsViewContainer = document.getElementById('system-settings-view');
+  systemSettingsViewContainer = byId('system-settings-view');
 
   // User management
   setupUserModal();
@@ -40,26 +40,13 @@ export async function renderSystemSettingsView() {
 let editingProjectId: number | null = null;
 
 function setupProjectModal() {
-  const addProjectBtn = document.getElementById('add-project-btn');
-  const cancelBtn = document.getElementById('project-modal-cancel');
-  const form = document.getElementById('project-form');
-  const projectDeleteBtn = document.getElementById('project-modal-delete');
+  initCharCounter(byId('project-name', HTMLInputElement), MAX_PROJECT_NAME_LEN);
+  initCharCounter(byId('project-description', HTMLTextAreaElement), MAX_PROJECT_DESC_LEN);
 
-  const nameInput = document.getElementById('project-name');
-  const descInput = document.getElementById('project-description');
-  if (nameInput instanceof HTMLInputElement) initCharCounter(nameInput, MAX_PROJECT_NAME_LEN);
-  if (descInput instanceof HTMLTextAreaElement) initCharCounter(descInput, MAX_PROJECT_DESC_LEN);
-
-  if (addProjectBtn) {
-    addProjectBtn.addEventListener('click', () => openProjectModal(null));
-  }
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', closeProjectModal);
-  }
-  if (form instanceof HTMLFormElement) onGuardedSubmit(form, () => handleProjectSubmit());
-  if (projectDeleteBtn) {
-    projectDeleteBtn.addEventListener('click', () => handleDeleteProject());
-  }
+  byId('add-project-btn').addEventListener('click', () => openProjectModal(null));
+  byId('project-modal-cancel').addEventListener('click', closeProjectModal);
+  onGuardedSubmit(byId('project-form', HTMLFormElement), handleProjectSubmit);
+  byId('project-modal-delete').addEventListener('click', handleDeleteProject);
 }
 
 function openProjectModal(project: Project | null) {
@@ -81,7 +68,7 @@ function openProjectModal(project: Project | null) {
     descInput.value = project.description || '';
 
     // Show delete button, but not for the default project (id 1) or if missing permission
-    if (project.id !== 1 && userCan(state.currentUser, ACTION_DELETE_PROJECT)) {
+    if (project.id !== DEFAULT_PROJECT_ID && userCan(state.currentUser, ACTION_DELETE_PROJECT)) {
       deleteBtn.classList.remove('hidden');
     } else {
       deleteBtn.classList.add('hidden');
@@ -188,9 +175,8 @@ async function handleDeleteProject() {
 }
 
 async function renderProjectList() {
-  const projectsList = document.getElementById('projects-list');
-  const projectSection = document.getElementById('project-management-section');
-  if (!projectsList || !projectSection) return;
+  const projectsList = byId('projects-list');
+  const projectSection = byId('project-management-section');
 
   if (userCan(state.currentUser, ACTION_LIST_PROJECTS)) {
     projectSection.style.display = '';
@@ -200,10 +186,7 @@ async function renderProjectList() {
   }
 
   // Only users with ACTION_CREATE_PROJECT can add projects
-  const addBtn = document.getElementById('add-project-btn');
-  if (addBtn) {
-    addBtn.style.display = userCan(state.currentUser, ACTION_CREATE_PROJECT) ? '' : 'none';
-  }
+  byId('add-project-btn').style.display = userCan(state.currentUser, ACTION_CREATE_PROJECT) ? '' : 'none';
 
   projectsList.innerHTML = '<div class="loader">Loading...</div>';
 
@@ -252,30 +235,21 @@ let editingUserOriginal: EditedUser | null = null;
 
 const ROLE_RANK: Record<Role, number> = { user: 0, admin: 1, sysadmin: 2 };
 function isRolePromotion(fromRole: Role, toRole: Role) {
-  return (ROLE_RANK[toRole] ?? -1) > (ROLE_RANK[fromRole] ?? -1);
+  return ROLE_RANK[toRole] > ROLE_RANK[fromRole];
 }
 
 function setupUserModal() {
-  const addUserBtn = document.getElementById('add-user-btn');
-  const cancelBtn = document.getElementById('user-modal-cancel');
-  const form = document.getElementById('user-form');
-
-  if (addUserBtn) {
-    if (userCan(state.currentUser, ACTION_CREATE_USER)) {
-      addUserBtn.style.display = '';
-      addUserBtn.addEventListener('click', () => openUserModal(null));
-    } else {
-      addUserBtn.style.display = 'none';
-    }
+  const addUserBtn = byId('add-user-btn');
+  if (userCan(state.currentUser, ACTION_CREATE_USER)) {
+    addUserBtn.style.display = '';
+    addUserBtn.addEventListener('click', () => openUserModal(null));
+  } else {
+    addUserBtn.style.display = 'none';
   }
 
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', closeUserModal);
-  }
-
-  if (form instanceof HTMLFormElement) onGuardedSubmit(form, () => handleUserSubmit());
-
-  document.getElementById('user-modal-delete')?.addEventListener('click', () => handleDeleteUser());
+  byId('user-modal-cancel').addEventListener('click', closeUserModal);
+  onGuardedSubmit(byId('user-form', HTMLFormElement), handleUserSubmit);
+  byId('user-modal-delete').addEventListener('click', handleDeleteUser);
 
   // Setup custom dropdowns
   setupUserDropdown('user-role-trigger', 'user-role-options', 'user-role', 'user-role-text');
@@ -319,7 +293,7 @@ function openUserModal(user: User | null) {
 
     // Set role dropdown value
     roleInput.value = user.role;
-    roleText.textContent = ROLE_DISPLAY_NAMES[user.role] ?? 'User';
+    roleText.textContent = ROLE_DISPLAY_NAMES[user.role];
 
     // ... existing code ...
 
@@ -469,7 +443,7 @@ function getUserUpdateConfirmationCopy(userData: UserWrite, original: EditedUser
     });
   }
   if (isRolePromotion(original.role, userData.role)) {
-    const roleLabel = ROLE_DISPLAY_NAMES[userData.role] ?? userData.role;
+    const roleLabel = ROLE_DISPLAY_NAMES[userData.role];
     cases.push({
       title: 'Confirm Role Change',
       message: `Do you really want to change ${name}'s role to ${roleLabel}?\nThis signs them out of every active session (<15min); the new permissions apply from their next login.`,
@@ -607,9 +581,8 @@ export function isBlacklistedPassword(pw: string) {
 }
 
 async function renderUserList() {
-  const usersList = document.getElementById('users-list');
-  const userSection = document.getElementById('user-management-section');
-  if (!usersList || !userSection) return;
+  const usersList = byId('users-list');
+  const userSection = byId('user-management-section');
 
   // Only show user management for users with ACTION_LIST_USERS
   if (userCan(state.currentUser, ACTION_LIST_USERS)) {
@@ -636,12 +609,7 @@ async function renderUserList() {
       const row = document.createElement('div');
       row.className = user.active ? 'settings-entry' : 'settings-entry user-inactive';
 
-      const roleBadgeMap: Record<Role, string> = {
-        sysadmin: '<span class="settings-entry-badge sysadmin">Sysadmin</span>',
-        admin: '<span class="settings-entry-badge admin">Admin</span>',
-        user: '<span class="settings-entry-badge user">User</span>',
-      };
-      const roleBadge = roleBadgeMap[user.role] ?? '';
+      const roleBadge = `<span class="settings-entry-badge ${escapeHtml(user.role)}">${ROLE_DISPLAY_NAMES[user.role]}</span>`;
 
       const lastLoginText = user.last_login ? formatDateTime(user.last_login) : 'Never';
 
@@ -673,20 +641,13 @@ async function renderUserList() {
 // --- Custom Dropdown Helpers ---
 
 function setupUserDropdown(triggerId: string, optionsId: string, inputId: string, textId: string) {
-  const trigger = document.getElementById(triggerId);
-  const options = document.getElementById(optionsId);
-  const input = document.getElementById(inputId);
-  const text = document.getElementById(textId);
-  if (!trigger || !options || !(input instanceof HTMLInputElement) || !text) return;
+  const trigger = byId(triggerId);
+  const options = byId(optionsId);
+  const input = byId(inputId, HTMLInputElement);
+  const text = byId(textId);
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
-    // Close other user dropdowns
-    ['user-role-options', 'user-active-options'].forEach(id => {
-      if (id !== optionsId) {
-        document.getElementById(id)?.classList.add('hidden');
-      }
-    });
     options.classList.toggle('hidden');
   });
 

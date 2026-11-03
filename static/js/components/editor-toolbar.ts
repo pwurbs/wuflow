@@ -16,10 +16,6 @@ export function setupEditorToolbar(inlineEditor: InlineEditor) {
   const editor = byId('description-editor', HTMLTextAreaElement);
   const preview = byId('description-preview');
 
-  function handleEnterKey(e: KeyboardEvent) {
-    continueListOnEnter(editor, e);
-  }
-
   function handleTabKey(e: KeyboardEvent) {
     e.preventDefault();
     const start = editor.selectionStart;
@@ -95,7 +91,7 @@ export function setupEditorToolbar(inlineEditor: InlineEditor) {
       e.preventDefault();
       void inlineEditor.discard();
     } else if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-      handleEnterKey(e);
+      continueListOnEnter(editor, e);
     } else if (e.key === 'Tab') {
       handleTabKey(e);
     }
@@ -190,21 +186,15 @@ export function setupEditorToolbar(inlineEditor: InlineEditor) {
   });
 
   // Preview toggle
-  const previewToggle = document.getElementById('md-preview-toggle');
-  previewToggle?.addEventListener('click', () => {
+  const previewToggle = byId('md-preview-toggle');
+  previewToggle.addEventListener('click', () => {
     const showingPreview = !preview.classList.contains('hidden');
-    const toolbarBtns = document.querySelectorAll<HTMLButtonElement>('.editor-btn[data-md]');
 
     if (showingPreview) {
       preview.classList.add('hidden');
-      preview.classList.remove('active');
       editor.classList.remove('hidden');
       editor.focus();
-      previewToggle.classList.remove('active');
-      toolbarBtns.forEach(b => {
-        b.disabled = false;
-        b.classList.remove('disabled');
-      });
+      exitMdPreview();
     } else {
       const { html, strippedHTML } = renderMarkdownWithReport(editor.value);
       preview.innerHTML = html;
@@ -215,10 +205,21 @@ export function setupEditorToolbar(inlineEditor: InlineEditor) {
       preview.classList.add('active');
       editor.classList.add('hidden');
       previewToggle.classList.add('active');
-      toolbarBtns.forEach(b => {
-        b.disabled = true;
-        b.classList.add('disabled');
-      });
+      setMarkdownButtonsDisabled(true);
     }
   });
+}
+
+function setMarkdownButtonsDisabled(disabled: boolean) {
+  document.querySelectorAll<HTMLButtonElement>('.editor-btn[data-md]').forEach(b => {
+    b.disabled = disabled;
+    b.classList.toggle('disabled', disabled);
+  });
+}
+
+// Leaves the preview mode of the toggle; showing or hiding the preview and editor is up to the caller.
+export function exitMdPreview() {
+  byId('description-preview').classList.remove('active');
+  byId('md-preview-toggle').classList.remove('active');
+  setMarkdownButtonsDisabled(false);
 }

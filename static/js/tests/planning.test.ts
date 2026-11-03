@@ -7,7 +7,7 @@ import { state } from '../state.ts'; // Imported from mock
 // Mock dependencies
 vi.mock('../utils.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils.ts')>();
-  return { byId: actual.byId, bySelector: actual.bySelector, errorMessage: actual.errorMessage, showNotification: vi.fn() };
+  return { byId: actual.byId, bySelector: actual.bySelector, errorMessage: actual.errorMessage, containsTarget: actual.containsTarget, showNotification: vi.fn() };
 });
 import { makeIssue, makeTask } from './fixtures.ts';
 import { byId, bySelector } from '../utils.ts';

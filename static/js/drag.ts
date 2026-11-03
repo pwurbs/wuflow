@@ -20,8 +20,9 @@ export function setDraggedCardOrigin(origin: typeof draggedCardOrigin) {
   draggedCardOrigin = origin;
 }
 
-export function getDragAfterElement(column: Element, y: number): Element | null {
-  const draggableElements = [...column.querySelectorAll('.card:not(.dragging)')];
+// The first element matching selector in container whose vertical center is below y.
+function getDragAfter(container: Element, selector: string, y: number): Element | null {
+  const draggableElements = [...container.querySelectorAll(selector)];
 
   return draggableElements.reduce<{ offset: number; element?: Element }>((closest, child) => {
     const box = child.getBoundingClientRect();
@@ -33,6 +34,10 @@ export function getDragAfterElement(column: Element, y: number): Element | null 
       return closest;
     }
   }, { offset: Number.NEGATIVE_INFINITY }).element ?? null;
+}
+
+export function getDragAfterElement(column: Element, y: number): Element | null {
+  return getDragAfter(column, '.card:not(.dragging)', y);
 }
 
 // Task drag helpers
@@ -45,16 +50,5 @@ export function setDraggedTask(task: HTMLElement | null) {
 }
 
 export function getDragAfterTaskElement(container: Element, y: number): Element | null {
-  const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
-
-  return draggableElements.reduce<{ offset: number; element?: Element }>((closest, child) => {
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
-
-    if (offset < 0 && offset > closest.offset) {
-      return { offset: offset, element: child };
-    } else {
-      return closest;
-    }
-  }, { offset: Number.NEGATIVE_INFINITY }).element ?? null;
+  return getDragAfter(container, '.task-item:not(.dragging)', y);
 }

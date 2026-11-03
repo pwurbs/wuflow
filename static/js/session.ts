@@ -29,12 +29,11 @@ export function setupSession() {
   document.addEventListener('pointerdown', onInteraction, { capture: true, passive: true });
   document.addEventListener('keydown', onInteraction, { capture: true, passive: true });
 
-  const form = document.getElementById('reauth-form');
-  form?.addEventListener('submit', (e) => {
+  byId('reauth-form').addEventListener('submit', (e) => {
     e.preventDefault();
     void submitReauth();
   });
-  document.getElementById('reauth-logout-btn')?.addEventListener('click', () => {
+  byId('reauth-logout-btn').addEventListener('click', () => {
     // Same as the user menu's Logout. The beforeunload guard still warns about unsaved
     // edits; if the user stays, the dialog remains open.
     void logout();
@@ -136,5 +135,5 @@ function setReauthError(message: string) {
 
 /** Shows the connection banner while the server is unreachable. */
 export function setConnectionState(ok: boolean) {
-  document.getElementById('connection-banner')?.classList.toggle('hidden', ok);
+  byId('connection-banner').classList.toggle('hidden', ok);
 }

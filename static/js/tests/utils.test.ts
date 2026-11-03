@@ -8,7 +8,7 @@ import {
   getDeadlineStatus, getTaskDeadlineStatus,
   promptAdminPasswordConfirmation,
   guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
-  isErrorToastShown, setAriaDisabled,
+  isErrorToastShown, setAriaDisabled, containsTarget,
 } from '../utils.ts';
 import { makeIssue, makeRelease, makeTask, makeUserRef } from './fixtures.ts';
 
@@ -120,6 +120,30 @@ describe('bySelector', () => {
 
   it('throws when the match has another type', () => {
     expect(() => bySelector(document, '.row', HTMLInputElement)).toThrow(new TypeError('.row is a HTMLDivElement, expected HTMLInputElement'));
+  });
+});
+
+describe('containsTarget', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="box"><span id="inner"></span></div><div id="outside"></div>';
+  });
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('is true for the element itself and for an element inside it', () => {
+    const box = byId('box');
+    expect(containsTarget(box, box)).toBe(true);
+    expect(containsTarget(box, byId('inner'))).toBe(true);
+  });
+
+  it('is false for an element outside it', () => {
+    expect(containsTarget(byId('box'), byId('outside'))).toBe(false);
+  });
+
+  it('is false for no target and for a target that is not a node', () => {
+    expect(containsTarget(byId('box'), null)).toBe(false);
+    expect(containsTarget(byId('box'), globalThis.window)).toBe(false);
   });
 });
 

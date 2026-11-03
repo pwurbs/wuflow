@@ -2,7 +2,6 @@ import { singleFlight, errorMessage } from './utils.ts';
 import type { Comment, HistoryEntry, Issue, Label, PositionUpdate, Project, Release, StatusConfig, Task, User } from './models.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Priority } from './domain-constants.ts';
-import type { Role } from './permissions.ts';
 
 // Request bodies (the *Request schemas in docs/swagger.json). A Date is sent as its ISO string.
 export interface IssueWrite {
@@ -25,23 +24,12 @@ export interface TaskWrite {
   position: number;
 }
 
-export interface UserWrite {
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: Role;
-  active: boolean;
+export type UserWrite = Pick<User, 'email' | 'first_name' | 'last_name' | 'role' | 'active'> & {
   password?: string;
   admin_password?: string;
-}
+};
 
-export interface ReleaseWrite {
-  name: string;
-  description: string;
-  start_date: string | null;
-  release_date: string | null;
-  owner_id: number | null;
-}
+export type ReleaseWrite = Pick<Release, 'name' | 'description' | 'start_date' | 'release_date' | 'owner_id'>;
 
 const API_URL = '/api';
 
@@ -299,13 +287,13 @@ export async function updateIssuePositions(projectId: number, positions: Positio
   await putPositions(`${API_URL}/projects/${projectId}/issues/positions`, positions, 'Failed to save the new order');
 }
 
-async function putPositions(url: string, positions: PositionUpdate[], errorMessage: string): Promise<void> {
+async function putPositions(url: string, positions: PositionUpdate[], failMessage: string): Promise<void> {
   const res = await authFetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(positions)
   });
-  if (!res.ok) throw new Error(await res.text() || errorMessage);
+  if (!res.ok) throw new Error(await res.text() || failMessage);
 }
 
 export async function archiveIssue(projectId: number, id: number): Promise<Issue> {

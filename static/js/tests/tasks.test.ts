@@ -20,6 +20,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     toDateInputValue: actual.toDateInputValue,
     guardSubmit: actual.guardSubmit,
     errorMessage: actual.errorMessage,
+    containsTarget: actual.containsTarget,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     escapeHtml: vi.fn(s => s),

@@ -8,9 +8,7 @@ import type { IssueWrite } from '../api.ts';
 export type SaveDates = (getChanges: (issue: Issue) => Pick<IssueWrite, 'planned_dates'>, successMessage: string) => Promise<boolean>;
 
 export function getPlannedDatesFromDOM() {
-  const container = document.getElementById('planned-dates-container');
-  if (!container) return [];
-  const chips = container.querySelectorAll<HTMLElement>('.date-chip');
+  const chips = byId('planned-dates-container').querySelectorAll<HTMLElement>('.date-chip');
   const dates: string[] = [];
   chips.forEach(chip => {
     if (chip.dataset.date) dates.push(chip.dataset.date);
@@ -20,9 +18,7 @@ export function getPlannedDatesFromDOM() {
 
 // saveDates is unused for a new issue, whose dates are sent when it is created.
 export function renderPlannedDateChips(issue: Pick<Issue, 'planned_dates'> | null, saveDates: SaveDates) {
-  const container = document.getElementById('planned-dates-container');
-  if (!container) return; // Ensure element exists in HTML
-
+  const container = byId('planned-dates-container');
   container.innerHTML = '';
 
   const dates = issue?.planned_dates ? [...issue.planned_dates] : [];

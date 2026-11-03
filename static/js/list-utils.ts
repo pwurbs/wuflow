@@ -5,18 +5,18 @@ import { STATUS_ARCHIVE } from './status-config.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Issue, Release, User } from './models.ts';
 import { getDraggedCard, getDraggedCardOrigin, getDragAfterElement } from './drag.ts';
-import { showNotification, errorMessage } from './utils.ts';
+import { byId, showNotification, errorMessage, containsTarget } from './utils.ts';
 
 // The callbacks app.ts hands to each issue view (board, backlog, archive).
 export type RefreshApp = () => unknown;
 export type OpenModal = (issue: Issue) => void;
 export type RerenderView = () => void;
 
-function createRerenderOrRefresh(rerenderCallback?: () => void, refreshApp?: () => unknown) {
+function createRerenderOrRefresh(rerenderCallback?: RerenderView, refreshApp?: RefreshApp) {
   return () => { if (rerenderCallback) rerenderCallback(); else if (refreshApp) refreshApp(); };
 }
 
-export async function handleMoveTop(issue: Issue, allIssuesInList: Issue[], rerenderCallback?: () => void, refreshCallback?: () => unknown) {
+export async function handleMoveTop(issue: Issue, allIssuesInList: Issue[], rerenderCallback?: RerenderView, refreshCallback?: RefreshApp) {
   if (allIssuesInList.length <= 1 || allIssuesInList[0].id === issue.id) return;
 
   // Create a new array without the issue
@@ -31,7 +31,7 @@ export async function handleMoveTop(issue: Issue, allIssuesInList: Issue[], rere
   }
 }
 
-export async function handleMoveBottom(issue: Issue, allIssuesInList: Issue[], rerenderCallback?: () => void, refreshCallback?: () => unknown) {
+export async function handleMoveBottom(issue: Issue, allIssuesInList: Issue[], rerenderCallback?: RerenderView, refreshCallback?: RefreshApp) {
   if (allIssuesInList.length <= 1 || allIssuesInList.at(-1)?.id === issue.id) return;
 
   // Create a new array without the issue
@@ -52,13 +52,13 @@ export async function handleMoveBottom(issue: Issue, allIssuesInList: Issue[], r
  * re-rendering moves the cards back right away, even when the server is unreachable. The
  * refresh then shows the actual server state.
  */
-export function showSaveFailure(err: unknown, rerenderCallback?: () => void, refreshCallback?: () => unknown) {
+export function showSaveFailure(err: unknown, rerenderCallback?: RerenderView, refreshCallback?: RefreshApp) {
   showNotification(errorMessage(err), 'error');
   if (rerenderCallback) rerenderCallback();
   if (refreshCallback) refreshCallback();
 }
 
-export async function handleTogglePriority(issue: Issue, rerenderCallback?: () => void) {
+export async function handleTogglePriority(issue: Issue, rerenderCallback?: RerenderView) {
   const originalPriority = issue.priority;
   issue.priority = issue.priority === PRIORITY_HIGH ? PRIORITY_NORMAL : PRIORITY_HIGH;
   try {
@@ -71,7 +71,7 @@ export async function handleTogglePriority(issue: Issue, rerenderCallback?: () =
   }
 }
 
-export async function handleAssignToMe(issue: Issue, currentUser: User, rerenderCallback?: () => void) {
+export async function handleAssignToMe(issue: Issue, currentUser: User, rerenderCallback?: RerenderView) {
   const originalAssigneeId = issue.assignee_id;
   const originalAssignee = issue.assignee;
   issue.assignee_id = currentUser.id;
@@ -87,7 +87,7 @@ export async function handleAssignToMe(issue: Issue, currentUser: User, rerender
   }
 }
 
-export async function updatePositions(orderedIssues: Issue[], rerenderCallback?: () => void) {
+export async function updatePositions(orderedIssues: Issue[], rerenderCallback?: RerenderView) {
   const changes: OrderChange[] = [];
   orderedIssues.forEach((issue, index) => {
     if (issue.position !== index) {
@@ -159,10 +159,7 @@ export async function saveIssueOrder(changes: OrderChange[]) {
  */
 export function getListUpdates(listId: string, targetStatus: IssueStatus) {
   const result: { changes: OrderChange[], archives: Promise<object>[] } = { changes: [], archives: [] };
-  const listElement = document.getElementById(listId);
-  if (!listElement) return result;
-
-  const cards = [...listElement.querySelectorAll<HTMLElement>('.card')];
+  const cards = [...byId(listId).querySelectorAll<HTMLElement>('.card')];
   cards.forEach((card, index) => {
     const id = Number(card.dataset.id);
     const issue = state.issues.find(i => i.id === id);
@@ -186,8 +183,8 @@ export function getListUpdates(listId: string, targetStatus: IssueStatus) {
 interface DropOptions {
   onDrop?: (issue: Issue, targetStatus?: IssueStatus) => unknown;
   onValidate?: (issue: Issue, targetStatus: IssueStatus) => boolean | Promise<boolean>;
-  refreshApp?: () => unknown;
-  rerenderCallback?: () => void;
+  refreshApp?: RefreshApp;
+  rerenderCallback?: RerenderView;
   performReorder?: boolean;
   showDragHighlight?: boolean;
 }
@@ -196,9 +193,7 @@ interface DropOptions {
  * Shared logic for section-level drop zones (e.g., dropping onto the column background)
  */
 export function setupSectionDrop(sectionId: string, targetStatus: IssueStatus, options: DropOptions = {}) {
-  const section = document.getElementById(sectionId);
-  if (!section) return;
-
+  const section = byId(sectionId);
   const list = section.querySelector('.backlog-list');
   const { onDrop, onValidate, refreshApp, rerenderCallback, showDragHighlight = true } = options;
   const rerenderOrRefresh = createRerenderOrRefresh(rerenderCallback, refreshApp);
@@ -212,7 +207,7 @@ export function setupSectionDrop(sectionId: string, targetStatus: IssueStatus, o
   });
 
   section.addEventListener('dragleave', (e) => {
-    if (!(e.relatedTarget instanceof Node && section.contains(e.relatedTarget)) && list) {
+    if (!containsTarget(section, e.relatedTarget) && list) {
       list.classList.remove('drag-over');
       const draggedCard = getDraggedCard();
       const origin = getDraggedCardOrigin();
@@ -263,9 +258,7 @@ export function setupSectionDrop(sectionId: string, targetStatus: IssueStatus, o
  * Shared logic for list-level drag zones (e.g., dropping directly into a list for reordering)
  */
 export function setupListDrag(listId: string, targetStatus: IssueStatus, options: DropOptions = {}) {
-  const list = document.getElementById(listId);
-  if (!list) return;
-
+  const list = byId(listId);
   const { onDrop, onValidate, refreshApp, rerenderCallback, performReorder = true, showDragHighlight = true } = options;
   const rerenderOrRefresh = createRerenderOrRefresh(rerenderCallback, refreshApp);
 
@@ -288,7 +281,7 @@ export function setupListDrag(listId: string, targetStatus: IssueStatus, options
   });
 
   list.addEventListener('dragleave', (e) => {
-    if (!(e.relatedTarget instanceof Node && list.contains(e.relatedTarget))) {
+    if (!containsTarget(list, e.relatedTarget)) {
       list.classList.remove('drag-over');
     }
   });

@@ -42,6 +42,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     bySelector: actual.bySelector,
     onGuardedSubmit: actual.onGuardedSubmit,
     errorMessage: actual.errorMessage,
+    containsTarget: actual.containsTarget,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     getUserInitials: vi.fn().mockReturnValue('AD'),
@@ -81,16 +82,44 @@ vi.mock('../state.ts', () => ({
   setProjects: vi.fn(),
 }));
 
+vi.mock('../components/toolbar.ts', () => ({
+  updateProjectSelectorOptions: vi.fn(),
+}));
+
+// setupSystemSettingsView sets up the project and the user management, so every fixture has both.
+const PROJECT_SECTION = `
+  <div id="project-management-section">
+    <button id="add-project-btn"></button>
+    <div id="projects-list"></div>
+  </div>
+`;
+
+const PROJECT_MODAL = `
+  <div id="project-modal-overlay" class="hidden">
+    <h2 id="project-modal-title"></h2>
+    <form id="project-form">
+      <input type="text" id="project-name">
+      <textarea id="project-description"></textarea>
+      <div id="project-modal-error" class="hidden"></div>
+      <button type="button" id="project-modal-cancel"></button>
+      <button type="button" id="project-modal-delete" class="hidden"></button>
+      <button type="submit" id="project-modal-save"></button>
+    </form>
+  </div>
+`;
+
 describe('system-settings.ts component', () => {
   beforeEach(() => {
     // Setup DOM
     document.body.innerHTML = `
+      ${PROJECT_MODAL}
       <div id="system-settings-view">
         <div class="settings-section">
           <input type="text" id="new-label-input">
           <button id="add-label-btn"></button>
           <div id="labels-list"></div>
         </div>
+        ${PROJECT_SECTION}
         <div id="user-management-section">
           <button id="add-user-btn"></button>
           <div id="users-list"></div>
@@ -117,7 +146,6 @@ describe('system-settings.ts component', () => {
               <div class="custom-option" data-value="sysadmin">Sysadmin</div>
             </div>
           </div>
-          <div id="user-active-options" class="hidden"></div>
           <input type="checkbox" id="user-active">
           <div id="user-modal-error" class="hidden"></div>
           <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
@@ -127,10 +155,13 @@ describe('system-settings.ts component', () => {
 
       <!-- Admin Confirm Modal -->
       <div id="admin-confirm-modal" class="hidden">
-        <input type="password" id="admin-confirm-password">
-        <div id="admin-confirm-error" class="hidden"></div>
-        <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-        <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+        <form id="admin-confirm-form">
+          <input type="text" id="admin-confirm-username">
+          <input type="password" id="admin-confirm-password">
+          <div id="admin-confirm-error" class="hidden"></div>
+          <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+          <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+        </form>
       </div>
     `;
 
@@ -402,16 +433,13 @@ describe('system-settings.ts component', () => {
   });
 
   describe('Dropdowns and Support', () => {
-    it('should toggle dropdown and close others', () => {
+    it('should toggle dropdown', () => {
       setupSystemSettingsView();
       const trigger = byId('user-role-trigger');
       const options = byId('user-role-options');
-      const otherOptions = byId('user-active-options');
 
-      otherOptions.classList.remove('hidden');
       trigger.click(); // Opens
       expect(options.classList.contains('hidden')).toBe(false);
-      expect(otherOptions.classList.contains('hidden')).toBe(true);
 
       trigger.click(); // Closes
       expect(options.classList.contains('hidden')).toBe(true);
@@ -485,12 +513,14 @@ describe('Additional Coverage', () => {
     beforeEach(async () => {
       // Re-initialize DOM specifically for these tests to guarantee elements exist
       document.body.innerHTML = `
+        ${PROJECT_MODAL}
         <div id="system-settings-view">
           <div class="settings-section">
             <input type="text" id="new-label-input">
             <button id="add-label-btn"></button>
             <div id="labels-list"></div>
           </div>
+          ${PROJECT_SECTION}
           <div id="user-management-section">
             <button id="add-user-btn"></button>
             <div id="users-list"></div>
@@ -516,7 +546,6 @@ describe('Additional Coverage', () => {
                 <div class="custom-option" data-value="sysadmin">Sysadmin</div>
               </div>
             </div>
-            <div id="user-active-options" class="hidden"></div>
             <input type="checkbox" id="user-active">
             <div id="user-modal-error" class="hidden"></div>
             <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
@@ -526,10 +555,13 @@ describe('Additional Coverage', () => {
 
         <!-- Admin Confirm Modal -->
         <div id="admin-confirm-modal" class="hidden">
-          <input type="password" id="admin-confirm-password">
-          <div id="admin-confirm-error" class="hidden"></div>
-          <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-          <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+          <form id="admin-confirm-form">
+            <input type="text" id="admin-confirm-username">
+            <input type="password" id="admin-confirm-password">
+            <div id="admin-confirm-error" class="hidden"></div>
+            <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+            <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+          </form>
         </div>
       `;
       state.currentUser = makeUser({ id: 100, role: 'admin' });
@@ -622,10 +654,13 @@ const ADMIN_CONFIRM_MODAL = `
   <div id="admin-confirm-modal" class="hidden">
     <h2 id="admin-confirm-title"></h2>
     <p id="admin-confirm-message"></p>
-    <input type="password" id="admin-confirm-password">
-    <div id="admin-confirm-error" class="hidden"></div>
-    <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-    <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+    <form id="admin-confirm-form">
+      <input type="text" id="admin-confirm-username">
+      <input type="password" id="admin-confirm-password">
+      <div id="admin-confirm-error" class="hidden"></div>
+      <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+      <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+    </form>
   </div>
 `;
 
@@ -647,7 +682,6 @@ const USER_MODAL = `
           <div class="custom-option" data-value="sysadmin">Sysadmin</div>
         </div>
       </div>
-      <div id="user-active-options" class="hidden"></div>
       <input type="checkbox" id="user-active">
       <div id="user-modal-error" class="hidden"></div>
       <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
@@ -659,7 +693,9 @@ const USER_MODAL = `
 describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   beforeEach(() => {
     document.body.innerHTML = `
+      ${PROJECT_MODAL}
       <div id="system-settings-view">
+        ${PROJECT_SECTION}
         <div id="user-management-section">
           <button id="add-user-btn"></button>
           <div id="users-list"></div>
@@ -979,28 +1015,14 @@ const PROJECT_DOM = `
       <button id="add-label-btn"></button>
       <div id="labels-list"></div>
     </div>
-    <div id="project-management-section">
-      <button id="add-project-btn"></button>
-      <div id="projects-list"></div>
-    </div>
+    ${PROJECT_SECTION}
     <div id="user-management-section">
       <button id="add-user-btn"></button>
       <div id="users-list"></div>
     </div>
   </div>
 
-  <!-- Project Modal -->
-  <div id="project-modal-overlay" class="hidden">
-    <h2 id="project-modal-title"></h2>
-    <form id="project-form">
-      <input type="text" id="project-name">
-      <textarea id="project-description"></textarea>
-      <div id="project-modal-error" class="hidden"></div>
-      <button type="button" id="project-modal-cancel"></button>
-      <button type="button" id="project-modal-delete" class="hidden"></button>
-      <button type="submit" id="project-modal-save"></button>
-    </form>
-  </div>
+  ${PROJECT_MODAL}
 
   <!-- Confirm Modal -->
   <div id="confirm-modal" class="hidden">
@@ -1028,7 +1050,6 @@ const PROJECT_DOM = `
           <div class="custom-option" data-value="sysadmin">Sysadmin</div>
         </div>
       </div>
-      <div id="user-active-options" class="hidden"></div>
       <input type="checkbox" id="user-active">
       <div id="user-modal-error" class="hidden"></div>
       <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
@@ -1040,10 +1061,13 @@ const PROJECT_DOM = `
   <div id="admin-confirm-modal" class="hidden">
     <h2 id="admin-confirm-title"></h2>
     <p id="admin-confirm-message"></p>
-    <input type="password" id="admin-confirm-password">
-    <div id="admin-confirm-error" class="hidden"></div>
-    <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-    <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+    <form id="admin-confirm-form">
+      <input type="text" id="admin-confirm-username">
+      <input type="password" id="admin-confirm-password">
+      <div id="admin-confirm-error" class="hidden"></div>
+      <button type="button" id="admin-confirm-ok-btn">Confirm</button>
+      <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
+    </form>
   </div>
 `;
 
@@ -1369,7 +1393,9 @@ describe('User deletion', () => {
 
   beforeEach(() => {
     document.body.innerHTML = `
+      ${PROJECT_MODAL}
       <div id="system-settings-view">
+        ${PROJECT_SECTION}
         <div id="user-management-section">
           <button id="add-user-btn"></button>
           <div id="users-list"></div>

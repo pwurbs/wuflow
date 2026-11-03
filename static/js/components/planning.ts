@@ -1,7 +1,7 @@
 import { state, isFilterActive } from '../state.ts';
 import { STATUS_DONE, STATUS_ARCHIVE } from '../status-config.ts';
 import { updateIssue } from '../api.ts';
-import { showNotification, byId, bySelector, errorMessage } from '../utils.ts';
+import { showNotification, byId, bySelector, errorMessage, containsTarget } from '../utils.ts';
 import { getDraggedCard, setDraggedCard } from '../drag.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues } from '../filters.ts';
@@ -150,6 +150,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
           targetId = `day-${dateStr}`;
         }
 
+        // Not byId: day columns are rendered per date, so a date's column may not exist.
         const container = document.getElementById(targetId);
         if (container) {
           // Pass distinct dateStr so we know WHICH instance this is
@@ -209,7 +210,7 @@ function createPlanningDayElement(title: string, idSuffix: string) {
     div.classList.add('drag-over');
   });
   div.addEventListener('dragleave', (e) => {
-    if (!(e.relatedTarget instanceof Node && div.contains(e.relatedTarget))) div.classList.remove('drag-over');
+    if (!containsTarget(div, e.relatedTarget)) div.classList.remove('drag-over');
   });
   div.addEventListener('drop', handlePlanningDrop);
 

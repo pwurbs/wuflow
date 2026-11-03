@@ -60,9 +60,7 @@ function buildLaneCard(releaseId: number | null, name: string, count: number) {
 }
 
 function renderBacklogReleaseLanes() {
-  const container = document.getElementById('backlog-release-lanes');
-  if (!container) return;
-
+  const container = byId('backlog-release-lanes');
   const openReleases = sortReleasesByDate(state.releases.filter(r => r.status === RELEASE_STATUS_OPEN));
 
   if (openReleases.length === 0) {

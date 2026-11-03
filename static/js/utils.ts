@@ -69,6 +69,11 @@ export function bySelector(root: ParentNode, selector: string, Type: new () => H
   throw new TypeError(`${selector} is a ${el.constructor.name}, expected ${Type.name}`);
 }
 
+// Whether an event's target is el or inside it.
+export function containsTarget(el: Element, target: EventTarget | null) {
+  return target instanceof Node && el.contains(target);
+}
+
 export function escapeHtml(text: string) {
   return text
     .replaceAll("&", "&amp;")
@@ -85,6 +90,7 @@ export function errorMessage(err: unknown): string {
 
 let notificationTimeout: ReturnType<typeof setTimeout> | undefined;
 export function showNotification(message: string, type = 'success') {
+  // Not byId: this runs in error handlers, where a throw would hide the original error.
   const notificationToast = document.getElementById('notification-toast');
   if (notificationToast) {
     if (notificationTimeout) clearTimeout(notificationTimeout);
@@ -100,8 +106,8 @@ export function showNotification(message: string, type = 'success') {
 
 // True while an error toast is on screen.
 export function isErrorToastShown() {
-  const toast = document.getElementById('notification-toast');
-  return !!toast && toast.classList.contains('error') && !toast.classList.contains('hidden');
+  const toast = byId('notification-toast');
+  return toast.classList.contains('error') && !toast.classList.contains('hidden');
 }
 
 // Cancels the confirm dialog that is currently open, if any (see showConfirm).
@@ -195,9 +201,8 @@ export function promptAdminPasswordConfirmation(title: string, message: string, 
     okBtn.classList.add(okType);
 
     input.value = '';
-    const usernameField = document.getElementById('admin-confirm-username');
-    if (usernameField instanceof HTMLInputElement && state.currentUser) {
-      usernameField.value = state.currentUser.email || '';
+    if (state.currentUser) {
+      byId('admin-confirm-username', HTMLInputElement).value = state.currentUser.email;
     }
     errorDiv.textContent = '';
     errorDiv.classList.add('hidden');
@@ -229,7 +234,7 @@ export function promptAdminPasswordConfirmation(title: string, message: string, 
         input.focus();
         return false;
       }
-    }, { field: document.getElementById('admin-confirm-form') });
+    }, { field: byId('admin-confirm-form') });
 
     // Resolves only after the guard has re-enabled the dialog, so a caller that
     // opens the next dialog right away gets a usable one.

@@ -12,8 +12,8 @@ import type { RefreshApp, RerenderView } from '../list-utils.ts';
 import { renderMarkdown, renderMarkdownWithReport } from '../markdown.ts';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.ts';
 import { renderTasks } from './tasks.ts';
-import { setupEditorToolbar } from './editor-toolbar.ts';
-import { setupCustomDropdown, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions } from './issue-dropdowns.ts';
+import { setupEditorToolbar, exitMdPreview } from './editor-toolbar.ts';
+import { setupIssueDropdowns, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions } from './issue-dropdowns.ts';
 import { getPlannedDatesFromDOM, renderPlannedDateChips } from './planned-dates.ts';
 import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from './activity.ts';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.ts';
@@ -109,25 +109,7 @@ export function setupModal(refreshApp: RefreshApp, rerenderViews: RerenderView) 
     input.addEventListener('change', () => updateDateInputStyle(input));
   });
 
-  // Custom Dropdown Logic
-  setupCustomDropdown('status-dropdown', 'status-trigger', 'status-options');
-  setupCustomDropdown('label-dropdown', 'label-trigger', 'label-options');
-  setupCustomDropdown('priority-dropdown', 'priority-trigger', 'priority-options');
-  setupCustomDropdown('assignee-dropdown', 'assignee-trigger', 'assignee-options');
-  setupCustomDropdown('project-dropdown', 'project-trigger', 'project-options');
-  setupCustomDropdown('release-dropdown', 'release-trigger', 'release-options');
-
-  // Close dropdowns on outside click
-  document.addEventListener('click', (e) => {
-    ['status-dropdown', 'label-dropdown', 'priority-dropdown', 'assignee-dropdown', 'project-dropdown', 'release-dropdown'].forEach(id => {
-      const container = document.getElementById(id);
-      if (container && !(e.target instanceof Node && container.contains(e.target))) {
-        const opts = bySelector(container, '.custom-select-options');
-        opts.classList.add('hidden');
-        opts.style.maxHeight = '';
-      }
-    });
-  });
+  setupIssueDropdowns();
 }
 
 function setupScrollCue() {
@@ -318,8 +300,6 @@ function renderModalDropdowns(issue: Issue | null) {
   setupProjectDropdown(issue);
 
   // Release Dropdown
-  byId('release-select', HTMLInputElement).value = String(issue?.release_id ?? '');
-  byId('release-text').textContent = issue?.release?.name ?? 'No Release';
   renderReleaseOptions(state.releases, issue?.release_id ?? null);
 }
 
@@ -349,7 +329,7 @@ function renderIssueFields(issue: Issue) {
   renderPlannedDateChips(issue, savePlannedDates);
 
   setDeadlineInput(issue);
-  document.getElementById('deadline-display')?.classList.toggle('overdue', getDeadlineStatus(issue).late);
+  byId('deadline-display').classList.toggle('overdue', getDeadlineStatus(issue).late);
 
   byId('tasks-section').classList.remove('hidden');
   byId('task-form-container').classList.toggle('hidden', isArchived);
@@ -384,10 +364,10 @@ function setupNewModal() {
   renderPlannedDateChips(null, savePlannedDates);
 
   updateDateInputStyle(byId('deadline', HTMLInputElement));
-  document.getElementById('deadline-display')?.classList.remove('overdue');
+  byId('deadline-display').classList.remove('overdue');
 
   byId('tasks-section').classList.add('hidden');
-  document.getElementById('activity-section')?.classList.add('hidden');
+  byId('activity-section').classList.add('hidden');
   byId('delete-issue-btn').classList.add('hidden');
   byId('archive-issue-btn').classList.add('hidden');
   byId('unarchive-issue-btn').classList.add('hidden');
@@ -407,15 +387,6 @@ function setupNewModal() {
 
 }
 
-function resetMdPreview(previewEl: HTMLElement) {
-  previewEl.classList.remove('active');
-  document.getElementById('md-preview-toggle')?.classList.remove('active');
-  document.querySelectorAll<HTMLButtonElement>('.editor-btn[data-md]').forEach(b => {
-    b.disabled = false;
-    b.classList.remove('disabled');
-  });
-}
-
 // enable: edit modal, where title and description are shown read-only until clicked
 // (readOnly: never, for an archived issue, which is greyed out); otherwise the new-issue form.
 function toggleInlineEditMode(enable: boolean, readOnly = false) {
@@ -425,7 +396,7 @@ function toggleInlineEditMode(enable: boolean, readOnly = false) {
   const descPreview = byId('description-preview');
   const descEditActions = byId('description-edit-actions');
 
-  resetMdPreview(descPreview);
+  exitMdPreview();
 
   for (const el of [titleInput, descContainer]) {
     el.classList.toggle('inline-editable', enable && !readOnly);
@@ -517,6 +488,9 @@ function enqueueIssueWrite<T>(write: () => Promise<T>): Promise<T> {
   return run;
 }
 
+// The fields a save of the open issue changes.
+type IssueChanges = Partial<IssueWrite>;
+
 /**
  * Queues a save of the given fields of the current issue. getChanges(issue) returns them,
  * computed from the issue as left by earlier saves. On success the fields are applied to
@@ -524,9 +498,6 @@ function enqueueIssueWrite<T>(write: () => Promise<T>): Promise<T> {
  * assignee object), except its tasks: an open task editor or drag holds the current task
  * objects. Resolves false on a conflict or if the modal was closed meanwhile.
  */
-// The fields a save of the open issue changes.
-type IssueChanges = Partial<IssueWrite>;
-
 function saveIssueChanges(getChanges: (issue: Issue) => IssueChanges, successMessage: string | null) {
   const issueId = state.currentIssue?.id;
   return enqueueIssueWrite(async () => {
@@ -563,7 +534,8 @@ function validateIssueForm(title: string, description: string) {
 
 function getIssueDataFromForm(): IssueWrite & { project_id: number } {
   const title = byId('title', HTMLInputElement).value.trim();
-  const description = byId('description-editor', HTMLTextAreaElement).value || '';
+  const description = byId('description-editor', HTMLTextAreaElement).value;
+  const deadlineVal = byId('deadline', HTMLInputElement).value;
   const assigneeIdVal = byId('assignee-select', HTMLInputElement).value;
   const labelId = byId('label-select', HTMLInputElement).value;
   const projectIdVal = byId('project-select', HTMLInputElement).value;
@@ -572,7 +544,7 @@ function getIssueDataFromForm(): IssueWrite & { project_id: number } {
   return {
     title,
     description,
-    deadline: byId('deadline', HTMLInputElement).value ? new Date(byId('deadline', HTMLInputElement).value + 'T12:00:00') : null,
+    deadline: deadlineVal ? new Date(deadlineVal + 'T12:00:00') : null,
     planned_dates: getPlannedDatesFromDOM(),
     // The hidden inputs only ever hold a value of the status and priority dropdowns.
     status: byId('status', HTMLInputElement).value as IssueStatus,
@@ -580,7 +552,7 @@ function getIssueDataFromForm(): IssueWrite & { project_id: number } {
     assignee_id: assigneeIdVal ? Number.parseInt(assigneeIdVal) : null,
     position: state.currentIssue ? state.currentIssue.position : 0,
     label: labelId ? { id: Number.parseInt(labelId) } : null,
-    project_id: projectIdVal ? Number.parseInt(projectIdVal) : 1,
+    project_id: projectIdVal ? Number.parseInt(projectIdVal) : DEFAULT_PROJECT_ID,
     release_id: releaseIdVal ? Number.parseInt(releaseIdVal) : null
   };
 }
@@ -853,7 +825,7 @@ function setupInlineEditing() {
     descEditor.classList.add('hidden');
     descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
-    resetMdPreview(descPreview);
+    exitMdPreview();
     syncUnloadListener();
   };
 
@@ -879,7 +851,7 @@ function setupInlineEditing() {
     descEditor.classList.add('hidden');
     descPreview.classList.remove('hidden');
     descEditActions.classList.add('hidden');
-    resetMdPreview(descPreview);
+    exitMdPreview();
     syncUnloadListener();
     return true;
   };
@@ -1026,7 +998,7 @@ async function handleDeadlineChange(rawValue: string) {
   const dateVal = rawValue ? new Date(rawValue + 'T12:00:00') : null;
   if (!(await saveSidebarField({ deadline: dateVal }, null, byId('deadline', HTMLInputElement)))) return;
   const dlStatus = getDeadlineStatus({ deadline: dateVal, release: state.currentIssue.release });
-  document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
+  byId('deadline-display').classList.toggle('overdue', dlStatus.late);
   const lateTaskCount = refreshTaskDeadlineStyles();
   const taskSuffix = lateTaskCount === 1 ? '' : 's';
   const taskWarning = lateTaskCount > 0 ? ` — ${lateTaskCount} task${taskSuffix} past deadline` : '';
@@ -1079,7 +1051,7 @@ function setupSidebarImmediateSave() {
       const releaseId = val ? Number.parseInt(val) : null;
       if (await saveSidebarField({ release_id: releaseId }, 'Release updated', releaseSelect)) {
         const dlStatus = getDeadlineStatus(state.currentIssue);
-        document.getElementById('deadline-display')?.classList.toggle('overdue', dlStatus.late);
+        byId('deadline-display').classList.toggle('overdue', dlStatus.late);
         if (dlStatus.late) showNotification(`Release updated — deadline is ${dlStatus.reason}`, 'warning');
       }
     }
@@ -1131,7 +1103,7 @@ async function moveIssueToProject(projectId: number) {
   byId('release-text').textContent = 'No Release';
   byId('status', HTMLInputElement).value = STATUS_OPEN;
   byId('status-text').textContent = getStatusLabel(STATUS_OPEN);
-  document.getElementById('status-options')?.classList.add('hidden');
+  byId('status-options').classList.add('hidden');
   setupEditModal(updated);
   showNotification('Project changed', 'info');
 }

@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../api.ts', () => ({ updateIssue: vi.fn(), updateIssuePositions: vi.fn(), archiveIssue: vi.fn() }));
 vi.mock('../utils.ts', async (importOriginal) => ({
+  byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
+  containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
   showNotification: vi.fn()
 }));
 vi.mock('../drag.ts', () => ({ getDraggedCard: vi.fn(), getDragAfterElement: vi.fn() }));
@@ -203,9 +205,5 @@ describe('getListUpdates', () => {
     expect(changes).toEqual([]);
     expect(archives).toHaveLength(1);
     expect(api.archiveIssue).toHaveBeenCalledWith(5, 1);
-  });
-
-  it('returns empty results for a missing list', () => {
-    expect(getListUpdates('nope', 'Open')).toEqual({ changes: [], archives: [] });
   });
 });
