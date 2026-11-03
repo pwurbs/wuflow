@@ -78,7 +78,9 @@ Next: `/release publish`, once the user decided the release goes out.
 **U1 Start:** `./scripts/release_check.sh publish`; on `PROBLEM` lines stop. Then
 `./scripts/sonar_results.sh`: the quality gate on main must be OK and the analysis must be of HEAD;
 otherwise stop. Publish may run days after prepare: this is the check that main is still the state
-P4 and P7 tested.
+P4 and P7 tested. The release tags exist only on GitHub, so later diffs start from the last
+release's release commit:
+`git log -1 --format=%h --grep='^chore(release): Finalized changelog and version for <last release>$' main`.
 
 **U2 Image:** `./scripts/image_release.sh` — builds and pushes the multi-arch image. If it stops for
 a missing ghcr.io login, stop: the user runs the "Image Release" task.
@@ -91,12 +93,12 @@ a missing ghcr.io login, stop: the user runs the "Image Release" task.
 **U5 Checkpoint:** the GitHub security report (Security tab of pwurbs/wuflow), together with the
 checks `local.md` assigns to U5.
 
-**U6 Wiki:** run the doc-sync agent once more, on `git diff v<last release> main -- docs/ README.md`
-(last release from U1), so that the wiki matches main. Then in `../wuflow.wiki`: if `git status` shows changes, commit
+**U6 Wiki:** run the doc-sync agent once more, on `git diff <release commit> main -- docs/ README.md`
+(release commit from U1), so that the wiki matches main. Then in `../wuflow.wiki`: if `git status` shows changes, commit
 `Changes for X.Y.Z`; if it is ahead of `origin`, push.
 
-**U7 GitHub release:** write the release notes to `release-notes-X.Y.Z.md` in the scratchpad and
-open them with `open -a "Visual Studio Code" <file>`. Base: `.github/release_template.md`:
+**U7 GitHub release:** show the release notes in the chat as one Markdown code block, ready to
+paste. Base: `.github/release_template.md`:
 - Highlights: a short paragraph on the release's focus in general terms ("This release focuses
   on …"), not a list of the changes.
 - All other lines are the lines of `CHANGELOG.md` `# X.Y.Z`, each in its section, worded as in the
