@@ -13,7 +13,7 @@ vi.stubGlobal('localStorage', {
 
 vi.mock('../api.ts', () => ({
   logout: vi.fn(),
-  updateCurrentUser: vi.fn().mockResolvedValue({}),
+  updateCurrentUser: vi.fn(async () => ({})),
 }));
 
 vi.mock('../utils.ts', async (importOriginal) => ({

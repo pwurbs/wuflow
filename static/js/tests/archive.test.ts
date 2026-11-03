@@ -19,12 +19,12 @@ vi.mock('../state.ts', () => ({
 }));
 
 vi.mock('../api.ts', () => ({
-  updateIssue: vi.fn().mockResolvedValue({}),
-  updateIssuePositions: vi.fn().mockResolvedValue(undefined),
-  archiveIssue: vi.fn().mockResolvedValue({}),
-  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([])
+  updateIssue: vi.fn(async () => ({})),
+  updateIssuePositions: vi.fn(async () => undefined),
+  archiveIssue: vi.fn(async () => ({})),
+  fetchArchivedIssuesByProject: vi.fn(async () => []),
+  fetchOpenIssuesByProject: vi.fn(async () => []),
+  fetchActiveIssuesByProject: vi.fn(async () => [])
 }));
 
 const { mockCreateCardElement, cardCallbacks } = vi.hoisted(() => {
@@ -61,8 +61,8 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
-  canArchive: vi.fn().mockReturnValue({ allowed: true }),
-  showConfirm: vi.fn().mockResolvedValue(true),
+  canArchive: vi.fn(() => ({ allowed: true })),
+  showConfirm: vi.fn(async () => true),
   showNotification: vi.fn(),
 }));
 
@@ -123,8 +123,8 @@ describe('Archive Component', () => {
     });
 
     it('should handle drop to archive', async () => {
-      const refreshApp = vi.fn();
-      setupArchiveView(refreshApp, vi.fn(), undefined);
+      const rerender = vi.fn();
+      setupArchiveView(vi.fn(), vi.fn(), rerender);
 
       const list = byId('archive-list');
 
@@ -152,7 +152,7 @@ describe('Archive Component', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(api.archiveIssue).toHaveBeenCalledWith(1, 99);
-      expect(refreshApp).toHaveBeenCalled();
+      expect(rerender).toHaveBeenCalled();
     });
 
     it('should ignore a planning item dropped on the archive section (the planning sidebar is not shown here)', async () => {

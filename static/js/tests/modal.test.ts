@@ -11,7 +11,7 @@ import type { Issue, Task } from '../models.ts';
 import type { IssueWrite } from '../api.ts';
 
 type UpdateIssueResult = Awaited<ReturnType<typeof api.updateIssue>>;
-import { makeIssue, makeLabel, makeProject, makeRelease, makeTask, makeUser, makeUserRef, savedIssue } from './fixtures.ts';
+import { makeIssue, makeLabel, makeProject, makeRelease, makeStatusConfig, makeTask, makeUser, makeUserRef, savedIssue } from './fixtures.ts';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
 const _localStore: Record<string, string> = {};
@@ -24,36 +24,42 @@ vi.stubGlobal('localStorage', {
 // Mock dependencies
 vi.mock('../api.ts', () => ({
   createIssue: vi.fn(),
-  updateIssue: vi.fn().mockResolvedValue({ issue: {}, etag: '"test-etag"', conflict: false }),
-  archiveIssue: vi.fn().mockResolvedValue({ id: 100, status: 'Archive' }),
-  unarchiveIssue: vi.fn().mockResolvedValue({ id: 101, status: 'Done' }),
-  moveIssue: vi.fn().mockResolvedValue({ issue: { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }, etag: '"move-etag"' }),
+  updateIssue: vi.fn(async () => ({ issue: {}, etag: '"test-etag"', conflict: false })),
+  archiveIssue: vi.fn(async () => ({ id: 100, status: 'Archive' })),
+  unarchiveIssue: vi.fn(async () => ({ id: 101, status: 'Done' })),
+  moveIssue: vi.fn(async () => ({ issue: { id: 1, project_id: 2, label: null, release_id: null, status: 'Open' }, etag: '"move-etag"' })),
   createTask: vi.fn(),
   updateTaskPositions: vi.fn(),
   deleteIssue: vi.fn(),
   fetchLabelsByProject: vi.fn(),
-  fetchReleases: vi.fn().mockResolvedValue([]),
-  fetchStatusConfig: vi.fn().mockResolvedValue(null),
+  fetchReleases: vi.fn(async () => []),
+  fetchStatusConfig: vi.fn(async () => null),
   fetchUsers: vi.fn(),
   fetchProjects: vi.fn(),
   fetchIssueById: vi.fn(),
-  fetchHistory: vi.fn().mockResolvedValue([]),
-  fetchComments: vi.fn().mockResolvedValue([])
+  fetchHistory: vi.fn(async () => []),
+  fetchComments: vi.fn(async () => [])
 }));
 
-vi.mock('../state.ts', () => ({
-  state: {
+vi.mock('../state.ts', () => {
+  const mockState = {
     issues: [],
     releases: [],
+    statusConfig: null,
     labels: [],
     labelsProjectId: null,
     users: [],
     projects: [],
     currentIssue: null,
     currentUser: { role: 'admin' }
-  },
-  setCurrentIssue: vi.fn()
-}));
+  };
+  return {
+    state: mockState,
+    setCurrentIssue: vi.fn(),
+    setReleases: vi.fn(releases => { mockState.releases = releases; }),
+    setStatusConfig: vi.fn(cfg => { mockState.statusConfig = cfg; })
+  };
+});
 
 vi.mock('../utils.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils.ts')>();
@@ -66,7 +72,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     showConfirm: vi.fn(),
     updateDateInputStyle: vi.fn(),
     escapeHtml: vi.fn(s => s),
-    canArchive: vi.fn().mockReturnValue({ allowed: true }),
+    canArchive: vi.fn(() => ({ allowed: true })),
     initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
     countCodepoints: vi.fn(s => [...s].length),
     getUserInitials: vi.fn(user => {
@@ -178,10 +184,8 @@ const ACTIVITY_FIXTURE = `
   </div>
 `;
 
-describe('Modal Component', () => {
-  beforeEach(() => {
-    // Setup DOM
-    document.body.innerHTML = `
+// The issue modal and the page parts setupModal wires.
+const MODAL_FIXTURE = `
       <div id="notification-toast" class="notification-toast hidden"></div>
       ${ACTIVITY_FIXTURE}
       <div id="issue-modal" class="hidden">
@@ -286,30 +290,42 @@ describe('Modal Component', () => {
         <div id="add-issue-btn" class="menu-btn"></div>
         <div id="nav-board" class="menu-btn"></div>
       </div>
-    `;
+`;
 
-    // Reset mocks
-    vi.clearAllMocks();
+// Sets up the modal on MODAL_FIXTURE with the default API answers and an empty state.
+function setupModalFixture(rerender = vi.fn()) {
+  document.body.innerHTML = MODAL_FIXTURE;
 
-    // Default mock returns
-    vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug' }), makeLabel({ id: 2, name: 'Feature' })]);
-    vi.mocked(api.fetchUsers).mockResolvedValue([makeUser({ id: 1, first_name: 'Test', last_name: 'User', active: true })]);
-    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'default' })]);
-    vi.mocked(api.updateIssue).mockImplementation(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"updated-etag"', conflict: false }));
-    state.currentIssue = null;
-    state.currentUser = makeUser({ id: 100, role: 'admin' });
-    state.labels = [];
-    state.labelsProjectId = null;
-    state.users = [];
-    state.projects = [];
-    vi.mocked(setCurrentIssue).mockImplementation((val) => { state.currentIssue = val; });
+  vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug' }), makeLabel({ id: 2, name: 'Feature' })]);
+  vi.mocked(api.fetchUsers).mockResolvedValue([makeUser({ id: 1, first_name: 'Test', last_name: 'User', active: true })]);
+  vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'default' })]);
+  vi.mocked(api.updateIssue).mockImplementation(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"updated-etag"', conflict: false }));
+  state.currentIssue = null;
+  state.currentUser = makeUser({ id: 100, role: 'admin' });
+  state.releases = [];
+  state.statusConfig = null;
+  state.labels = [];
+  state.labelsProjectId = null;
+  state.users = [];
+  state.projects = [];
+  vi.mocked(setCurrentIssue).mockImplementation((val) => { state.currentIssue = val; });
+  // The new-issue form starts in the project chosen last; each test starts in the default one.
+  localStorage.removeItem('wuflow_selectedProjectId');
 
-    HTMLElement.prototype.scrollIntoView = vi.fn();
-    HTMLInputElement.prototype.reportValidity = vi.fn();
-    vi.spyOn(console, "error").mockImplementation(() => { });
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  HTMLInputElement.prototype.reportValidity = vi.fn();
+  vi.spyOn(console, "error").mockImplementation(() => { });
 
-    // Initialize module
-    setupModal(vi.fn(), rerenderViews);
+  setupModal(vi.fn(), rerender);
+  // modal.ts keeps the open issue and editors in module state; start every test with the
+  // modal closed, as the app does, and without the calls that closing made.
+  closeModal();
+  vi.clearAllMocks();
+}
+
+describe('Modal Component', () => {
+  beforeEach(() => {
+    setupModalFixture(rerenderViews);
   });
   it('should open modal for new issue', async () => {
     openModal(null);
@@ -3084,11 +3100,7 @@ describe('Modal Component', () => {
 
 describe('Project Selector Coverage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(api.updateIssue).mockImplementation(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"test-etag"', conflict: false }));
-    state.currentIssue = null;
-    vi.mocked(setCurrentIssue).mockImplementation((val) => { state.currentIssue = val; });
-    setupModal(vi.fn(), vi.fn());
+    setupModalFixture();
   });
 
   it('should update project-text after fetchProjects resolves with a matching project (lines 198-199)', async () => {
@@ -3146,6 +3158,36 @@ describe('Project Selector Coverage', () => {
     expect(byId('project-text').textContent).toBe('Default');
   });
 
+  it('keeps the issue project\'s labels, releases and statuses when the move to another project is cancelled', async () => {
+    const releasesA = [makeRelease({ id: 5, name: 'A-1.0', project_id: 1 })];
+    state.releases = releasesA;
+    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
+    vi.mocked(api.fetchLabelsByProject).mockImplementation(async (projectId) =>
+      projectId === 1 ? [makeLabel({ id: 7, name: 'Bug', project_id: 1 })] : [makeLabel({ id: 20, name: 'B-Label', project_id: 2 })]);
+    vi.mocked(api.fetchReleases).mockResolvedValue([makeRelease({ id: 30, name: 'B-1.0', project_id: 2 })]);
+    vi.mocked(api.fetchStatusConfig).mockResolvedValue(makeStatusConfig({ project_id: 2 }));
+    const issue = makeIssue({ id: 1, project_id: 1, status: 'Done', label: makeLabel({ id: 7, name: 'Bug' }), release_id: 5, release: makeRelease({ id: 5, name: 'A-1.0' }) });
+    await openModalWithMock(issue);
+    await new Promise(process.nextTick);
+    // The dialog stays open until the project's data has arrived, then the user cancels.
+    const dialog = Promise.withResolvers<boolean>();
+    vi.mocked(utils.promptAdminPasswordConfirmation).mockImplementationOnce(() => dialog.promise);
+
+    document.querySelectorAll<HTMLElement>('#project-options .custom-option')[1].click();
+    await new Promise(process.nextTick);
+    dialog.resolve(false);
+    await new Promise(process.nextTick);
+
+    expect(byId('project-select', HTMLInputElement).value).toBe('1');
+    expect(byId('status', HTMLInputElement).value).toBe('Done');
+    expect(byId('label-select', HTMLInputElement).value).toBe('7');
+    expect(byId('label-text').textContent).toBe('Bug');
+    expect(byId('release-select', HTMLInputElement).value).toBe('5');
+    expect(state.releases).toBe(releasesA);
+    expect(state.statusConfig).toBeNull();
+    expect([...document.querySelectorAll('#label-options .custom-option')].map(o => o.textContent)).toEqual(['No Label', 'Bug']);
+  });
+
   it('should not call moveIssue when project-select changes without currentIssue', async () => {
     state.currentIssue = null;
 
@@ -3158,9 +3200,12 @@ describe('Project Selector Coverage', () => {
     expect(api.moveIssue).not.toHaveBeenCalled();
   });
 
-  it('should reload labels and reset selection when a project option is clicked (lines 1295-1299)', async () => {
+  it('loads the chosen project\'s labels, releases and statuses in the new-issue form', async () => {
+    const releasesB = [makeRelease({ id: 30, name: 'B-1.0', project_id: 2 })];
     vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
     vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 10, name: 'Backend' })]);
+    vi.mocked(api.fetchReleases).mockResolvedValue(releasesB);
+    vi.mocked(api.fetchStatusConfig).mockResolvedValue(makeStatusConfig({ project_id: 2 }));
 
     openModal(null);
     await new Promise(process.nextTick);
@@ -3171,14 +3216,18 @@ describe('Project Selector Coverage', () => {
     await new Promise(process.nextTick);
 
     expect(api.fetchLabelsByProject).toHaveBeenCalledWith(2);
+    expect(api.fetchReleases).toHaveBeenCalledWith(2);
+    expect(api.fetchStatusConfig).toHaveBeenCalledWith(2);
     expect(byId('label-select', HTMLInputElement).value).toBe('');
     expect(byId('label-text').textContent).toBe('No Label');
+    expect([...document.querySelectorAll('#label-options .custom-option')].map(o => o.textContent)).toEqual(['No Label', 'Backend']);
+    expect(state.releases).toBe(releasesB);
+    expect(byId('status', HTMLInputElement).value).toBe('Open');
   });
 
-  it('should log error when fetchLabelsByProject fails on project option click (line 1299)', async () => {
+  it('shows an error when the chosen project\'s options cannot be loaded', async () => {
     vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
     vi.mocked(api.fetchLabelsByProject).mockRejectedValue(new Error('Network error'));
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     openModal(null);
     await new Promise(process.nextTick);
@@ -3187,7 +3236,30 @@ describe('Project Selector Coverage', () => {
     option.click();
     await new Promise(process.nextTick);
 
-    expect(consoleSpy).toHaveBeenCalledWith('Failed to reload labels for project', expect.any(Error));
+    expect(utils.showNotification).toHaveBeenCalledWith('Network error', 'error');
+  });
+
+  it('loads the new project\'s labels, releases and statuses once the issue has moved', async () => {
+    const releasesB = [makeRelease({ id: 30, name: 'B-1.0', project_id: 2 })];
+    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
+    vi.mocked(api.fetchLabelsByProject).mockImplementation(async (projectId) =>
+      projectId === 1 ? [makeLabel({ id: 7, name: 'Bug', project_id: 1 })] : [makeLabel({ id: 20, name: 'B-Label', project_id: 2 })]);
+    vi.mocked(api.fetchReleases).mockResolvedValue(releasesB);
+    vi.mocked(api.fetchStatusConfig).mockResolvedValue(makeStatusConfig({ project_id: 2 }));
+    vi.mocked(api.moveIssue).mockResolvedValue({ issue: makeIssue({ id: 1, project_id: 2, status: 'Open' }), etag: '"move-etag"' });
+    await openModalWithMock(makeIssue({ id: 1, project_id: 1, status: 'Done', label: makeLabel({ id: 7, name: 'Bug' }), release_id: 5 }));
+    await new Promise(process.nextTick);
+
+    document.querySelectorAll<HTMLElement>('#project-options .custom-option')[1].click();
+    await new Promise(process.nextTick);
+
+    expect(api.moveIssue).toHaveBeenCalledWith(1, 1, 2, 'AdminPass123!');
+    expect(api.fetchReleases).toHaveBeenCalledWith(2);
+    expect(state.releases).toBe(releasesB);
+    expect(byId('status', HTMLInputElement).value).toBe('Open');
+    expect(byId('label-select', HTMLInputElement).value).toBe('');
+    expect(byId('release-select', HTMLInputElement).value).toBe('');
+    expect([...document.querySelectorAll('#label-options .custom-option')].map(o => o.textContent)).toEqual(['No Label', 'B-Label']);
   });
 });
 
@@ -3260,101 +3332,10 @@ describe('renderReleaseOptions', () => {
 // ─── release-select inline save ───────────────────────────────────────────────
 
 describe('release-select change handler', () => {
-  beforeEach(async () => {
-    document.body.innerHTML = `
-      ${ACTIVITY_FIXTURE}
-      <div id="issue-modal" class="hidden">
-        <div class="modal-content">
-          <h2 id="modal-title"></h2>
-          <form id="issue-form">
-            <input id="issue-id" type="hidden">
-            <input id="title" type="text" value="">
-            <div class="editor-container">
-              <div class="md-editor-panes">
-                <textarea id="description-editor"></textarea>
-                <div id="description-preview" class="hidden"></div>
-              </div>
-              <div id="description-edit-actions" class="hidden">
-                <button id="desc-cancel-btn" type="button"></button>
-                <button id="desc-save-btn" type="button"></button>
-              </div>
-            </div>
-            <div id="planned-dates-container"></div>
-            <span id="deadline-display"></span>
-            <input id="deadline" type="date">
-            <div id="status-dropdown">
-              <div id="status-trigger"><span id="status-text"></span></div>
-              <div id="status-options" class="hidden"></div>
-              <input type="hidden" id="status">
-            </div>
-            <div id="priority-dropdown">
-              <div id="priority-trigger"><span id="priority-text"></span></div>
-              <div id="priority-options" class="hidden"></div>
-              <input type="hidden" id="priority">
-            </div>
-            <div id="label-dropdown">
-              <div id="label-trigger"><span id="label-text"></span></div>
-              <div id="label-options" class="hidden"></div>
-              <input type="hidden" id="label-select">
-            </div>
-            <div id="assignee-dropdown">
-              <div id="assignee-trigger"><span id="assignee-text"></span></div>
-              <div id="assignee-options" class="hidden"></div>
-              <input type="hidden" id="assignee-select">
-            </div>
-            <div id="project-dropdown">
-              <button type="button" id="project-trigger"><span id="project-text"></span></button>
-              <div id="project-options" class="hidden"></div>
-              <input type="hidden" id="project-select" value="1">
-            </div>
-            <div id="release-dropdown">
-              <div id="release-trigger"><span id="release-text"></span></div>
-              <div id="release-options" class="hidden"></div>
-              <input type="hidden" id="release-select">
-            </div>
-            <div id="tasks-section">
-              <div id="task-form-container">
-                <input id="new-task-title" type="text">
-                <input id="new-task-deadline" type="date">
-                <button id="add-task-btn" type="button"></button>
-              </div>
-              <ul id="task-list"></ul>
-            </div>
-            <button id="delete-issue-btn" type="button"></button>
-            <button id="archive-issue-btn" type="button"></button>
-            <button id="unarchive-issue-btn" type="button"></button>
-            <button id="cancel-btn" type="button"></button>
-            <button id="save-issue-btn" type="submit"></button>
-            <button id="done-btn" type="button"></button>
-            <button class="editor-btn" data-md="bold" data-prefix="**" data-suffix="**"></button>
-            <button class="editor-btn" data-md="italic" data-prefix="*" data-suffix="*"></button>
-            <button class="editor-btn" data-md="strike" data-prefix="~~" data-suffix="~~"></button>
-            <button class="editor-btn" data-md="h1"></button>
-            <button class="editor-btn" data-md="h2"></button>
-            <button class="editor-btn" data-md="ul"></button>
-            <button class="editor-btn" data-md="ol"></button>
-            <button class="editor-btn" data-md="link"></button>
-            <button class="editor-btn" data-md="code"></button>
-            <button class="editor-btn" data-md="table"></button>
-            <button id="md-preview-toggle" class="editor-btn">Preview</button>
-          </form>
-        </div>
-      </div>
-      <div class="left-menu">
-        <div id="add-issue-btn" class="menu-btn"></div>
-        <div id="nav-board" class="menu-btn"></div>
-      </div>
-    `;
-    vi.clearAllMocks();
-    vi.mocked(api.fetchLabelsByProject).mockResolvedValue([]);
-    vi.mocked(api.fetchUsers).mockResolvedValue([]);
-    vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' })]);
+  beforeEach(() => {
+    setupModalFixture();
     vi.mocked(api.updateIssue).mockResolvedValue({ issue: makeIssue({ id: 1, release_id: 2, release: makeRelease({ id: 2, name: 'v2.0' }) }), etag: '"etag"', conflict: false });
     state.releases = [makeRelease({ id: 2, name: 'v2.0' })];
-    HTMLElement.prototype.scrollIntoView = vi.fn();
-    HTMLInputElement.prototype.reportValidity = vi.fn();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    setupModal(vi.fn(), vi.fn());
   });
 
   it('calls updateIssue with new release_id when release-select changes to a release', async () => {
@@ -3373,6 +3354,28 @@ describe('release-select change handler', () => {
       expect.objectContaining({ release_id: 2 }),
       expect.any(String)
     );
+  });
+
+  it('skips the deadline check when the modal was closed while the release was saving', async () => {
+    const issue = makeIssue({ id: 1, title: 'T', status: 'Open', release_id: null, release: null });
+    vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"e"' });
+    vi.mocked(setCurrentIssue).mockImplementation(v => { state.currentIssue = v; });
+    const answerSave = answerByHand();
+    vi.mocked(api.updateIssue).mockImplementationOnce(answerSave.save);
+    openModal(issue);
+    await new Promise(process.nextTick);
+    vi.mocked(utils.getDeadlineStatus).mockClear();
+
+    const releaseSelect = byId('release-select', HTMLInputElement);
+    releaseSelect.value = '2';
+    releaseSelect.dispatchEvent(new Event('change'));
+    await new Promise(process.nextTick);
+    closeModal();
+    answerSave.answer('"e2"');
+    await new Promise(process.nextTick);
+
+    expect(api.updateIssue).toHaveBeenCalled();
+    expect(utils.getDeadlineStatus).not.toHaveBeenCalled();
   });
 
   it('calls updateIssue with release_id null when release-select is cleared', async () => {

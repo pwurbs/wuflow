@@ -84,11 +84,11 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
           try {
             await deleteTask(currentIssue.project_id, currentIssue.id, task.id);
             // Remove from local array to update UI immediately if needed
-            const tasks = currentIssue.tasks ?? [];
-            const index = tasks.findIndex(t => t.id === task.id);
-            if (index > -1) tasks.splice(index, 1);
+            const issueTasks = currentIssue.tasks ?? [];
+            const index = issueTasks.findIndex(t => t.id === task.id);
+            if (index > -1) issueTasks.splice(index, 1);
 
-            renderTasks(tasks, container, currentIssue, callbacks);
+            renderTasks(issueTasks, container, currentIssue, callbacks);
             showNotification('Task deleted');
             if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
           } catch (err) {

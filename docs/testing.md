@@ -42,6 +42,8 @@ Any frontend module containing "decisions" (if/else, state transitions, data map
 * **Why:** Testing state transitions in a unit test is ~100x faster than in a browser.
 * **Values that may be missing:** elements are read with `byId`/`bySelector` like in the app, so a missing element fails with its id or selector. Inside `expect(...)` use `?.`, the assertion fails on a missing value. Before calling or reusing a value that may be missing, check it with `assert(value)` from Vitest.
 * **Promises resolved by the test:** `Promise.withResolvers()`.
+* **Mocks:** before each test, every mock goes back to the implementation it was created with (`mockReset` in `vitest.config.ts`). A default answer in a `vi.mock` factory is therefore written as `vi.fn(async () => [])`, not `vi.fn().mockResolvedValue([])`, which the reset would remove. Each `describe` sets up its own DOM and mock answers and does not rely on an earlier one.
+* **Test order:** every run shuffles the tests (`sequence.shuffle` in `vitest.config.ts`), so a test that depends on an earlier one fails soon. To repeat a failing order, pass the seed the run printed: `npm test -- --sequence.seed=<seed>`.
 * **Inputs the types rule out** are not tested, except data the backend may send outside its type (such as an unknown event name), with `@ts-expect-error` and the reason.
 
 All Unit tests are located in the [static/js](../static/js/README.md) directory.

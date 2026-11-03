@@ -12,10 +12,10 @@ vi.mock('../api.ts', () => ({
   deleteRelease: vi.fn(),
   triggerRelease: vi.fn(),
   reopenRelease: vi.fn(),
-  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchReleases: vi.fn().mockResolvedValue([]),
+  fetchArchivedIssuesByProject: vi.fn(async () => []),
+  fetchOpenIssuesByProject: vi.fn(async () => []),
+  fetchActiveIssuesByProject: vi.fn(async () => []),
+  fetchReleases: vi.fn(async () => []),
 }));
 
 vi.mock('../components/toolbar.ts', () => ({
@@ -59,7 +59,7 @@ vi.mock('../state.ts', () => ({
 }));
 
 vi.mock('../permissions.ts', () => ({
-  userCan: vi.fn().mockReturnValue(true),
+  userCan: vi.fn(() => true),
   ACTION_CREATE_RELEASE: 'create_release',
   ACTION_UPDATE_RELEASE: 'update_release',
   ACTION_DELETE_RELEASE: 'delete_release',
@@ -342,6 +342,13 @@ describe('releases', () => {
   // ─── setupReleasesView ────────────────────────────────────────────────────────
 
   describe('setupReleasesView', () => {
+    // Opens the "New Release" form the way the user does, so a submit creates a release.
+    async function openNewReleaseForm() {
+      setupReleasesView();
+      await renderReleasesView();
+      bySelector(document, '.release-add-btn').click();
+    }
+
     it('sets up cancel button to close the modal overlay', async () => {
       setupReleasesView();
       byId('release-modal-overlay').classList.remove('hidden');
@@ -373,7 +380,7 @@ describe('releases', () => {
     it('creates a release only once when submitted again while the first save is in flight, with the form greyed out', async () => {
       const { promise: pendingCreate, resolve: resolveCreate } = Promise.withResolvers<Release>();
       vi.mocked(api.createRelease).mockReturnValue(pendingCreate);
-      setupReleasesView();
+      await openNewReleaseForm();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
       const form = byId('release-form');
 
@@ -391,7 +398,7 @@ describe('releases', () => {
     it('calls createRelease and refreshes the release list on successful new release submit', async () => {
       vi.mocked(api.createRelease).mockResolvedValue(makeRelease({ id: 99, name: 'v1.0' }));
       vi.mocked(api.fetchReleases).mockResolvedValue([makeRelease({ id: 99, name: 'v1.0' })]);
-      setupReleasesView();
+      await openNewReleaseForm();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
       byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);
@@ -403,7 +410,7 @@ describe('releases', () => {
 
     it('shows inline error when createRelease rejects', async () => {
       vi.mocked(api.createRelease).mockRejectedValue(new Error('Duplicate name'));
-      setupReleasesView();
+      await openNewReleaseForm();
       byId('release-modal-name', HTMLInputElement).value = 'v1.0';
       byId('release-form').dispatchEvent(new Event('submit'));
       await new Promise(process.nextTick);

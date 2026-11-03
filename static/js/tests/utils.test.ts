@@ -453,11 +453,7 @@ describe('showConfirm', () => {
     cancelBtn = document.createElement('button');
     cancelBtn.id = 'confirm-cancel-btn';
 
-    document.body.append(modal, titleEl, messageEl, okBtn, cancelBtn);
-  });
-
-  afterEach(() => {
-    [modal, titleEl, messageEl, okBtn, cancelBtn].forEach(el => el.remove());
+    document.body.replaceChildren(modal, titleEl, messageEl, okBtn, cancelBtn);
   });
 
   it('cancels a still-open confirm when a new one replaces it, so one click answers only the new one', async () => {

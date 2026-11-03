@@ -42,6 +42,7 @@ describe('planning.ts', () => {
       <span id="planning-count">0</span>
     `;
     state.issues = [];
+    state.filter.search = '';
     vi.clearAllMocks();
   });
 
@@ -344,7 +345,6 @@ describe('planning.ts', () => {
     });
 
     it('should revert planned_dates and show notification when remove date button fails', async () => {
-      state.filter.search = ''; // prevent leak from previous filter test
       const refreshApp = vi.fn();
       const rerenderActiveView = vi.fn();
       const issue = makeIssue({ id: 1, title: 'Test', planned_dates: ['2023-10-10'], status: 'Todo' });

@@ -30,9 +30,9 @@ vi.mock('../api.ts', () => ({
   updateProject: vi.fn(),
   deleteProject: vi.fn(),
   logout: vi.fn(),
-  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
+  fetchActiveIssuesByProject: vi.fn(async () => []),
+  fetchArchivedIssuesByProject: vi.fn(async () => []),
+  fetchOpenIssuesByProject: vi.fn(async () => []),
 }));
 
 vi.mock('../utils.ts', async (importOriginal) => {
@@ -45,7 +45,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     containsTarget: actual.containsTarget,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
-    getUserInitials: vi.fn().mockReturnValue('AD'),
+    getUserInitials: vi.fn(() => 'AD'),
     escapeHtml: vi.fn((str) => str),
     initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
     countCodepoints: vi.fn(s => [...s].length),
@@ -565,6 +565,8 @@ describe('Additional Coverage', () => {
         </div>
       `;
       state.currentUser = makeUser({ id: 100, role: 'admin' });
+      vi.mocked(api.fetchUsers).mockResolvedValue([]);
+      vi.mocked(permissions.userCan).mockReturnValue(true);
       setupSystemSettingsView();
       await renderSystemSettingsView();
       byId('add-user-btn').click();

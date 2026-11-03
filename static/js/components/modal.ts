@@ -13,7 +13,7 @@ import { renderMarkdown, renderMarkdownWithReport } from '../markdown.ts';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.ts';
 import { renderTasks } from './tasks.ts';
 import { setupEditorToolbar, exitMdPreview } from './editor-toolbar.ts';
-import { setupIssueDropdowns, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions } from './issue-dropdowns.ts';
+import { setupIssueDropdowns, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions, loadProjectOptions } from './issue-dropdowns.ts';
 import { getPlannedDatesFromDOM, renderPlannedDateChips } from './planned-dates.ts';
 import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from './activity.ts';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.ts';
@@ -510,7 +510,7 @@ function saveIssueChanges(getChanges: (issue: Issue) => IssueChanges, successMes
     // After applying the saved issue: the views copy it, and a card with the old updated_at
     // would make a quick reopen look like a change by someone else (forced conflict).
     rerenderViewsCallback?.();
-    return true;
+    return state.currentIssue === issue;
   });
 }
 
@@ -1068,6 +1068,7 @@ function setupSidebarImmediateSave() {
       await enqueueIssueWrite(() => moveIssueToProject(projectId));
     } else {
       localStorage.setItem('wuflow_selectedProjectId', String(projectId));
+      await loadProjectOptions(projectId);
     }
   });
 }
@@ -1095,15 +1096,7 @@ async function moveIssueToProject(projectId: number) {
   currentEtag = etag;
   setCurrentIssue(updated);
   localStorage.setItem('wuflow_selectedProjectId', String(projectId));
-  // The project-option click already loaded label/release/statusconfig for the new
-  // project. Just reset the displayed values that the server cleared on move.
-  byId('label-select', HTMLInputElement).value = '';
-  byId('label-text').textContent = 'No Label';
-  byId('release-select', HTMLInputElement).value = '';
-  byId('release-text').textContent = 'No Release';
-  byId('status', HTMLInputElement).value = STATUS_OPEN;
-  byId('status-text').textContent = getStatusLabel(STATUS_OPEN);
-  byId('status-options').classList.add('hidden');
+  await loadProjectOptions(projectId);
   setupEditModal(updated);
   showNotification('Project changed', 'info');
 }

@@ -24,11 +24,11 @@ vi.mock('../state.ts', () => ({
 }));
 
 vi.mock('../api.ts', () => ({
-  updateIssue: vi.fn().mockResolvedValue({}),
-  updateIssuePositions: vi.fn().mockResolvedValue(undefined),
-  fetchOpenIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchArchivedIssuesByProject: vi.fn().mockResolvedValue([]),
-  fetchActiveIssuesByProject: vi.fn().mockResolvedValue([])
+  updateIssue: vi.fn(async () => ({})),
+  updateIssuePositions: vi.fn(async () => undefined),
+  fetchOpenIssuesByProject: vi.fn(async () => []),
+  fetchArchivedIssuesByProject: vi.fn(async () => []),
+  fetchActiveIssuesByProject: vi.fn(async () => [])
 }));
 
 const { mockCreateCardElement, cardCallbacks } = vi.hoisted(() => {
@@ -352,6 +352,34 @@ describe('Backlog Component', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
 
       expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ id: 99, release_id: 1 }));
+    });
+
+    it('shows an error and redraws the backlog when a drop onto a release lane fails', async () => {
+      document.body.insertAdjacentHTML('beforeend', '<div id="notification-toast" class="hidden"></div>');
+      state.state.releases = [
+        makeRelease({ id: 1, name: 'v1.0', status: 'open', release_date: null, created_at: '2024-01-01' }),
+      ];
+      state.state.issues = [
+        makeIssue({ id: 99, title: 'Test', status: 'Open', position: 0, release_id: null }),
+      ];
+      vi.mocked(api.updateIssue).mockRejectedValueOnce(new Error('Release is closed'));
+
+      const mockCard = document.createElement('div');
+      mockCard.className = 'card';
+      mockCard.dataset.id = '99';
+      vi.mocked(dragModule.getDraggedCard).mockReturnValue(mockCard);
+
+      const rerender = vi.fn();
+      await renderBacklog(vi.fn(), vi.fn(), rerender);
+
+      bySelector(document, '.release-lane-card').dispatchEvent(new Event('drop', { bubbles: false, cancelable: true }));
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      const toast = byId('notification-toast');
+      expect(toast.textContent).toBe('Release is closed');
+      expect(toast.classList.contains('error')).toBe(true);
+      expect(rerender).toHaveBeenCalled();
+      expect(state.state.issues[0].release_id).toBeNull();
     });
 
     it('should add drag-over class on dragover when a card is being dragged', async () => {

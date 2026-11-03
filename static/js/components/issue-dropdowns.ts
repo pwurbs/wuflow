@@ -1,5 +1,5 @@
 import { state, setReleases, setStatusConfig } from '../state.ts';
-import { byId, containsTarget } from '../utils.ts';
+import { byId, containsTarget, errorMessage, showNotification } from '../utils.ts';
 import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { fetchLabelsByProject, fetchReleases, fetchStatusConfig } from '../api.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
@@ -155,25 +155,31 @@ export function renderProjectOptions(projects: Project[]) {
     div.textContent = project.name;
     div.addEventListener('click', () => {
       selectOption('project-select', 'project-text', 'project-options', project.id, project.name);
-      fetchLabelsByProject(project.id).then(labels => {
-        renderLabelOptions(labels);
-        byId('label-select', HTMLInputElement).value = '';
-        byId('label-text').textContent = 'No Label';
-      }).catch(err => console.error('Failed to reload labels for project', err));
-      fetchReleases(project.id).then(releases => {
-        setReleases(releases);
-        renderReleaseOptions(releases, null);
-      }).catch(err => console.error('Failed to reload releases for project', err));
-      fetchStatusConfig(project.id).then(cfg => {
-        setStatusConfig(cfg);
-        renderStatusOptions();
-        byId('status', HTMLInputElement).value = STATUS_OPEN;
-        byId('status-text').textContent = getStatusLabel(STATUS_OPEN);
-        closeOptions(byId('status-options'));
-      }).catch(err => console.error('Failed to reload status config for project', err));
     });
     optionsContainer.appendChild(div);
   });
+}
+
+// Fills the label, release and status dropdowns with the given project's options and resets
+// them to their empty values, as the server does when an issue moves to that project.
+export async function loadProjectOptions(projectId: number) {
+  try {
+    const [labels, releases, cfg] = await Promise.all([
+      fetchLabelsByProject(projectId), fetchReleases(projectId), fetchStatusConfig(projectId),
+    ]);
+    renderLabelOptions(labels);
+    byId('label-select', HTMLInputElement).value = '';
+    byId('label-text').textContent = 'No Label';
+    setReleases(releases);
+    renderReleaseOptions(releases, null);
+    setStatusConfig(cfg);
+    renderStatusOptions();
+    byId('status', HTMLInputElement).value = STATUS_OPEN;
+    byId('status-text').textContent = getStatusLabel(STATUS_OPEN);
+    closeOptions(byId('status-options'));
+  } catch (err) {
+    showNotification(errorMessage(err), 'error');
+  }
 }
 
 export function renderAssigneeOptions(users: User[]) {

@@ -33,35 +33,11 @@ body:not(.is-dragging) .card.is-archived:hover {
   transition: none;
 }
 
-.card.highlighted {
-  background-color: color-mix(in srgb, var(--accent-blue) 15%, transparent);
-  box-shadow: 0 0 0 3px var(--accent-blue);
-  animation: pulse 0.5s ease-in-out;
-}
-
 .card.hover-highlight {
   background-color: var(--hover-bg);
   transform: translateY(-4px);
   box-shadow: var(--shadow-popover);
   border: 1px solid var(--accent-blue);
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.02);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .card.highlighted {
-    animation: none;
-  }
 }
 
 .card-id {

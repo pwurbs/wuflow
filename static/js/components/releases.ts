@@ -337,7 +337,6 @@ async function handleReleaseSubmit() {
   try {
     const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
     const releaseId = editingReleaseId;
-    const isEdit = !!releaseId;
     if (releaseId) {
       const updated = await updateRelease(projectId, releaseId, payload);
       mergeReleaseIntoState(updated);
@@ -347,7 +346,7 @@ async function handleReleaseSubmit() {
       setReleases(await fetchReleases(projectId));
     }
     closeReleaseModal();
-    showNotification(isEdit ? 'Release updated' : 'Release created', 'success');
+    showNotification(releaseId ? 'Release updated' : 'Release created', 'success');
     updateReleaseFilterOptions(state.releases);
     void renderReleasesView();
   } catch (err) {

@@ -4,7 +4,7 @@ import { RELEASE_STATUS_OPEN } from '../domain-constants.ts';
 import { updateIssue } from '../api.ts';
 import { ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { createCardElement, type CardCallbacks } from './card.ts';
-import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag, sortReleasesByDate } from '../list-utils.ts';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, showSaveFailure, setupListDrag, sortReleasesByDate } from '../list-utils.ts';
 import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 import type { Issue } from '../models.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
@@ -49,10 +49,14 @@ function buildLaneCard(releaseId: number | null, name: string, count: number) {
     const issue = state.issues.find(i => i.id === issueId);
     if (!issue || issue.release_id === releaseId) return;
     const updated = { ...issue, release_id: releaseId };
-    const result = await updateIssue(updated.project_id, updated);
-    if (result.issue) {
-      Object.assign(issue, result.issue);
-      void renderBacklog();
+    try {
+      const result = await updateIssue(updated.project_id, updated);
+      if (result.issue) {
+        Object.assign(issue, result.issue);
+        void renderBacklog();
+      }
+    } catch (err) {
+      showSaveFailure(err, rerenderActiveViewCallback, refreshAppCallback);
     }
   });
 

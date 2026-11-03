@@ -55,7 +55,7 @@ vi.mock('../drag.ts', () => ({
   setDraggedCard: vi.fn(),
   setDraggedCardOrigin: vi.fn(),
   setDragSuccess: vi.fn(),
-  getDragSuccess: vi.fn().mockReturnValue(false)
+  getDragSuccess: vi.fn(() => false)
 
 }));
 
@@ -441,8 +441,9 @@ describe('Board Component', () => {
       state.state.issues = issues;
       vi.mocked(filters.filterIssues).mockReturnValue(issues);
       vi.mocked(filters.sortByPosition).mockReturnValue(issues);
+      const rerender = vi.fn();
 
-      renderBoard();
+      renderBoard(undefined, undefined, rerender);
 
       const optionsAssigned   = cardOptions(1);
       const optionsUnassigned = cardOptions(2);
@@ -451,7 +452,7 @@ describe('Board Component', () => {
       assert(optionsUnassigned.onAssignToMe);
 
       optionsUnassigned.onAssignToMe();
-      expect(listUtils.handleAssignToMe).toHaveBeenCalledWith(issues[1], state.state.currentUser, expect.any(Function));
+      expect(listUtils.handleAssignToMe).toHaveBeenCalledWith(issues[1], state.state.currentUser, rerender);
     });
 
     it('should not process dragover if dragged element is not a card', () => {
