@@ -1,4 +1,11 @@
 
+# 1.4.6
+
+- Frontend code converted from JavaScript to TypeScript with strict type checking, including types for all API data and a type check in the test suites and in the build
+- Bumped marked to 18.1.3
+- Fixed: cancelling a project move in the issue dialog no longer leaves the other project's labels, releases and statuses in the dropdowns
+- Fixed: a failed drop onto a release lane in the backlog now shows an error
+
 # 1.4.5
 
 - Docs: Redesign of Readme and doc files

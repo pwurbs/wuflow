@@ -12,7 +12,7 @@
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=alert_status)](https://sonarcloud.io/dashboard?id=wuflow-oss)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=wuflow-oss&metric=vulnerabilities)](https://sonarcloud.io/dashboard?id=wuflow-oss)
 
-wuFlow ships as a single Go binary that stores its data in an embedded SQLite database and serves the vanilla-JavaScript frontend from embedded assets. It runs as a Docker container, on Kubernetes via Helm, or as a Home Assistant add-on.
+wuFlow ships as a single Go binary that stores its data in an embedded SQLite database and serves the JavaScript frontend from embedded assets. It runs as a Docker container, on Kubernetes via Helm, or as a Home Assistant add-on.
 
 Why wuFlow and full feature overview → [wuflow.dev](https://wuflow.dev)
 

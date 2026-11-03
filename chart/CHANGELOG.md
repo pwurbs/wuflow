@@ -1,4 +1,7 @@
 
+# 1.4.6
+- Bumped app version to 1.4.6
+
 # 1.4.5
 - Bumped app version to 1.4.5
 
