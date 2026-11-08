@@ -2,7 +2,7 @@ apiVersion: v2
 name: wuflow
 description: "wuFlow is a lean, security-first, self-hosted issue tracker: Kanban board, backlog, releases and a daily planner in one place."
 type: application
-version: 1.4.6
+version: 1.4.7
 appVersion: "1.4.6"
 icon: https://raw.githubusercontent.com/pwurbs/wuflow/main/static/logo.png
 home: https://wuflow.dev
@@ -24,11 +24,8 @@ keywords:
 annotations:
   artifacthub.io/category: skip-prediction
   artifacthub.io/changes: |
-    - kind: changed
-      description: wuFlow 1.4.6
-      links:
-        - name: Release notes
-          url: https://github.com/pwurbs/wuflow/releases/tag/v1.4.6
+    - kind: fixed
+      description: The pod failing to write to a new volume that belongs to root, such as cloud block storage, the pod now sets fsGroup. On existing installations, the first start after the upgrade changes the group of all files on the volume once
   artifacthub.io/containsSecurityUpdates: "false"
   artifacthub.io/links: |
     - name: Website

@@ -73,6 +73,8 @@ The container user matters when manually copying data into the volume from outsi
 
 The Deployment uses the `Recreate` strategy, so the old pod has released the volume before the new one starts.
 
+The pod sets `fsGroup: 999` with `fsGroupChangePolicy: OnRootMismatch`, so the volume is writable even when a new volume belongs to root, as with most block storage. If the top directory of the volume has a different group, for example on an existing `local-path` volume, kubelet changes the group of all files on it once at the next start.
+
 ## Security Measures
 
 The image runs as the non-root user `appuser` (UID/GID 999). The pod and its container set an explicit `securityContext` that satisfies the Restricted Pod Security Standard:
@@ -81,6 +83,8 @@ The image runs as the non-root user `appuser` (UID/GID 999). The pod and its con
 runAsNonRoot: true
 runAsUser: 999
 runAsGroup: 999
+fsGroup: 999
+fsGroupChangePolicy: OnRootMismatch
 seccompProfile:
   type: RuntimeDefault
 allowPrivilegeEscalation: false

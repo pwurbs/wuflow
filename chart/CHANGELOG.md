@@ -1,4 +1,7 @@
 
+# 1.4.7
+- Fixed the pod failing to write to a new volume that belongs to root, such as cloud block storage: the pod now sets `fsGroup`. On existing installations, the first start after the upgrade changes the group of all files on the volume once
+
 # 1.4.6
 - Bumped app version to 1.4.6
 
