@@ -82,11 +82,12 @@ P4 and P7 tested. The release tags exist only on GitHub, so later diffs start fr
 release's release commit:
 `git log -1 --format=%h --grep='^chore(release): Finalized changelog and version for <last release>$' main`.
 
-**U2 Image:** `./scripts/image_release.sh` — builds and pushes the multi-arch image. If it stops for
-a missing ghcr.io login, stop: the user runs the "Image Release" task.
+**U2 Image:** `./scripts/image_release.sh` — builds and pushes the multi-arch image. Both release
+scripts read the token from the keychain item `ghcr-push-token`, which asks the user for the
+keychain password. If a script stops because it could not read the item, stop: the user creates it
+(scripts/README.md) or runs the matching VS Code task.
 
-**U3 Chart:** `./scripts/helm_release.sh`; if it stops for a missing login, the user runs the
-"Helm Release" task. Checkpoint: the chart package on GitHub (Artifact Hub picks it up later).
+**U3 Chart:** `./scripts/helm_release.sh`. Checkpoint: the chart package on GitHub (Artifact Hub picks it up later).
 
 **U4 Push main:** `git push origin main`.
 

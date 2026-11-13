@@ -92,7 +92,7 @@ A shell script to package the Helm chart in [`chart/`](../chart) and push it to 
 ```bash
 ./scripts/helm_release.sh
 ```
-The script expects `helm` (3.8+) to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted. The login is skipped if a cached `ghcr.io` login already exists. Without a terminal (e.g. run by the `/release` skill), the script stops instead of prompting.
+The script expects `helm` (3.8+) to be available in your PATH, and the GitHub token described under [`image_release.sh`](#image_releasesh). `helm registry login` stores the token in Helm's registry config file, so the script logs out again when it exits.
 
 ### `image_release.sh`
 A shell script to build the multi-arch (`amd64`, `arm64`) container image with the version from the `VERSION` file and push it to GitHub Container Registry (`ghcr.io`).
@@ -101,7 +101,7 @@ A shell script to build the multi-arch (`amd64`, `arm64`) container image with t
 ```bash
 ./scripts/image_release.sh
 ```
-The script expects the Apple `container` CLI to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or entered when prompted. The login is skipped if a cached `ghcr.io` login already exists. Without a terminal (e.g. run by the `/release` skill), the script stops instead of prompting.
+The script expects the Apple `container` CLI to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or stored in the macOS keychain. Create the keychain item with `security add-generic-password -a "$USER" -s ghcr-push-token -T "" -w` (prompts for the token): with `-T ""` no application is trusted, so every read asks for the keychain password, also when the `/release` skill runs the script. The script logs in to `ghcr.io` only for the push and logs out when it exits.
 
 ### `go_checks.sh`
 Runs the Go static-analysis and security checks used by the "Go Checks" VS Code task: `gosec` (sonarqube report), `golangci-lint run`, `golangci-lint fmt --diff`, and `govulncheck`. Each command's output is preceded by a banner so results are easy to scan in the console.

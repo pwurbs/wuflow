@@ -7,8 +7,7 @@
 # Prerequisites:
 #   - helm 3.8+ installed
 #   - A GitHub Personal Access Token with the `write:packages` scope, either exported as
-#     GHCR_TOKEN or entered when prompted
-#   - jq (optional; without it, login is always re-run instead of reusing a cached session)
+#     GHCR_TOKEN or stored in the macOS keychain item `ghcr-push-token` (scripts/README.md)
 
 set -e
 
@@ -16,7 +15,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHART_DIR="${SCRIPT_DIR}/../chart"
 DIST_DIR="${SCRIPT_DIR}/../dist"
 GITHUB_USER="pwurbs"
-OCI_REPO="oci://ghcr.io/${GITHUB_USER}/charts"
+REGISTRY="ghcr.io"
+OCI_REPO="oci://${REGISTRY}/${GITHUB_USER}/charts"
 
 CHART_VERSION=$(awk '/^version:/ {print $2}' "${CHART_DIR}/Chart.yaml")
 APP_VERSION=$(awk -F'"' '/^appVersion:/ {print $2}' "${CHART_DIR}/Chart.yaml")
@@ -33,30 +33,24 @@ if [[ "${IMAGE_TAG}" != "${APP_VERSION}" ]]; then
     exit 1
 fi
 
-# helm registry login persists credentials to $HELM_REGISTRY_CONFIG (like docker login) — skip
-# the token prompt/login when jq is available and a cached entry for ghcr.io already exists.
-HELM_REGISTRY_CONFIG_PATH="$(helm env | sed -n 's/^HELM_REGISTRY_CONFIG="\(.*\)"$/\1/p')"
-if [[ -z "${GHCR_TOKEN}" ]] && command -v jq &>/dev/null \
-    && [[ -f "${HELM_REGISTRY_CONFIG_PATH}" ]] \
-    && jq -e '.auths["ghcr.io"]' "${HELM_REGISTRY_CONFIG_PATH}" &>/dev/null; then
-    echo "==> Already logged in to ghcr.io (cached credentials), skipping login"
-else
-    if [[ -z "${GHCR_TOKEN}" ]]; then
-        # Without a terminal (e.g. run by the /release skill) nobody can answer the prompt.
-        if [[ ! -t 0 ]]; then
-            echo "No cached ghcr.io login and no GHCR_TOKEN; run the \"Helm Release\" VS Code task. Aborting."
-            exit 1
-        fi
-        read -rsp "GitHub PAT for ${GITHUB_USER} (write:packages scope): " GHCR_TOKEN
-        echo
-    fi
-    echo "==> Logging in to ghcr.io as ${GITHUB_USER} ..."
-    echo "${GHCR_TOKEN}" | helm registry login ghcr.io -u "${GITHUB_USER}" --password-stdin
+if [[ -z "${GHCR_TOKEN:-}" ]]; then
+    GHCR_TOKEN=$(security find-generic-password -a "$USER" -s ghcr-push-token -w 2>/dev/null || true)
+fi
+if [[ -z "${GHCR_TOKEN:-}" ]]; then
+    echo "GHCR_TOKEN is not set and the keychain item 'ghcr-push-token' could not be read (missing or access denied). Aborting." >&2
+    exit 1
 fi
 
 echo "==> Packaging chart wuflow-${CHART_VERSION} ..."
 mkdir -p "${DIST_DIR}"
 helm package "${CHART_DIR}" -d "${DIST_DIR}"
+
+# helm registry login writes the token to the registry config file: the trap logs out on every
+# exit, also after a failed push, so it stays there only while the script runs.
+trap 'helm registry logout "${REGISTRY}" >/dev/null 2>&1 || true' EXIT
+echo "==> Logging in to ${REGISTRY} as ${GITHUB_USER} ..."
+printf '%s' "${GHCR_TOKEN}" | helm registry login "${REGISTRY}" -u "${GITHUB_USER}" --password-stdin
+unset GHCR_TOKEN
 
 echo "==> Pushing to ${OCI_REPO} ..."
 helm push "${DIST_DIR}/wuflow-${CHART_VERSION}.tgz" "${OCI_REPO}"
