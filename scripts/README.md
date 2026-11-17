@@ -42,7 +42,7 @@ A shell script to perform a local Trivy security scan on the container image, us
 ```bash
 ./scripts/trivy_scan.sh
 ```
-The script expects `container` and `trivy` to be installed and available in your PATH.
+The script expects `container` and `trivy` to be installed and available in your PATH. It starts the container system service if it is not running.
 
 ### `run_wapiti_scan.sh`
 A fully automated two-phase shell script that:
@@ -101,7 +101,7 @@ A shell script to build the multi-arch (`amd64`, `arm64`) container image with t
 ```bash
 ./scripts/image_release.sh
 ```
-The script expects the Apple `container` CLI to be available in your PATH, and a GitHub Personal Access Token with the `write:packages` scope, either exported as `GHCR_TOKEN` or stored in the macOS keychain. Create the keychain item with `security add-generic-password -a "$USER" -s ghcr-push-token -T "" -w` (prompts for the token): with `-T ""` no application is trusted, so every read asks for the keychain password, also when the `/release` skill runs the script. The script logs in to `ghcr.io` only for the push and logs out when it exits.
+The script expects the Apple `container` CLI to be available in your PATH (it starts the container system service if it is not running), and a GitHub Personal Access Token with the `write:packages` scope, stored in the macOS keychain. Create the keychain item with `security add-generic-password -a "$USER" -s ghcr-push-token -T "" -w` (prompts for the token): with `-T ""` no application is trusted, so every read asks for the keychain password, also when the `/release` skill runs the script. The script logs in to `ghcr.io` only for the push and logs out when it exits.
 
 ### `go_checks.sh`
 Runs the Go static-analysis and security checks used by the "Go Checks" VS Code task: `gosec` (sonarqube report), `golangci-lint run`, `golangci-lint fmt --diff`, and `govulncheck`. Each command's output is preceded by a banner so results are easy to scan in the console.

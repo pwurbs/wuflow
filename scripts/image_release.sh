@@ -5,9 +5,9 @@
 # Usage: ./scripts/image_release.sh
 #
 # Prerequisites:
-#   - Apple container CLI installed and its system service running (`container system start`)
-#   - A GitHub Personal Access Token with the `write:packages` scope, either exported as
-#     GHCR_TOKEN or stored in the macOS keychain item `ghcr-push-token` (scripts/README.md)
+#   - Apple container CLI installed (the script starts its system service if it is not running)
+#   - A GitHub Personal Access Token with the `write:packages` scope, stored in the macOS
+#     keychain item `ghcr-push-token` (scripts/README.md)
 
 set -e
 
@@ -23,16 +23,24 @@ if [[ -z "${VERSION}" ]]; then
     exit 1
 fi
 
-if [[ -z "${GHCR_TOKEN:-}" ]]; then
-    GHCR_TOKEN=$(security find-generic-password -a "$USER" -s ghcr-push-token -w 2>/dev/null || true)
-fi
-if [[ -z "${GHCR_TOKEN:-}" ]]; then
-    echo "GHCR_TOKEN is not set and the keychain item 'ghcr-push-token' could not be read (missing or access denied). Aborting." >&2
+if ! command -v container >/dev/null 2>&1; then
+    echo "The Apple container CLI is not installed (macOS only). Aborting." >&2
     exit 1
+fi
+if ! container system status 2>/dev/null | grep -q '^status *running'; then
+    echo "==> Starting the container system service ..."
+    container system start
 fi
 
 echo "==> Building ${IMAGE}:${VERSION} (amd64, arm64) ..."
 container build --no-cache --arch amd64,arm64 --build-arg VERSION="${VERSION}" -t "${IMAGE}:${VERSION}" "${ROOT_DIR}"
+
+# Read after the build, so all keychain prompts come together at the end.
+GHCR_TOKEN=$(security find-generic-password -a "$USER" -s ghcr-push-token -w 2>/dev/null || true)
+if [[ -z "${GHCR_TOKEN}" ]]; then
+    echo "The keychain item 'ghcr-push-token' could not be read (missing or access denied). Aborting." >&2
+    exit 1
+fi
 
 # The login lasts only for the push: the trap logs out on every exit, also after a failed push.
 trap 'container registry logout "${REGISTRY}" >/dev/null 2>&1 || true' EXIT

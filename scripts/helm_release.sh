@@ -6,8 +6,8 @@
 #
 # Prerequisites:
 #   - helm 3.8+ installed
-#   - A GitHub Personal Access Token with the `write:packages` scope, either exported as
-#     GHCR_TOKEN or stored in the macOS keychain item `ghcr-push-token` (scripts/README.md)
+#   - A GitHub Personal Access Token with the `write:packages` scope, stored in the macOS
+#     keychain item `ghcr-push-token` (scripts/README.md)
 
 set -e
 
@@ -33,17 +33,15 @@ if [[ "${IMAGE_TAG}" != "${APP_VERSION}" ]]; then
     exit 1
 fi
 
-if [[ -z "${GHCR_TOKEN:-}" ]]; then
-    GHCR_TOKEN=$(security find-generic-password -a "$USER" -s ghcr-push-token -w 2>/dev/null || true)
-fi
-if [[ -z "${GHCR_TOKEN:-}" ]]; then
-    echo "GHCR_TOKEN is not set and the keychain item 'ghcr-push-token' could not be read (missing or access denied). Aborting." >&2
-    exit 1
-fi
-
 echo "==> Packaging chart wuflow-${CHART_VERSION} ..."
 mkdir -p "${DIST_DIR}"
 helm package "${CHART_DIR}" -d "${DIST_DIR}"
+
+GHCR_TOKEN=$(security find-generic-password -a "$USER" -s ghcr-push-token -w 2>/dev/null || true)
+if [[ -z "${GHCR_TOKEN}" ]]; then
+    echo "The keychain item 'ghcr-push-token' could not be read (missing or access denied). Aborting." >&2
+    exit 1
+fi
 
 # helm registry login writes the token to the registry config file: the trap logs out on every
 # exit, also after a failed push, so it stays there only while the script runs.

@@ -8,6 +8,16 @@ set -e
 cd "$(dirname "$0")/.."
 
 VERSION=$(cat VERSION)
+
+if ! command -v container >/dev/null 2>&1; then
+    echo "The Apple container CLI is not installed (macOS only). Aborting." >&2
+    exit 1
+fi
+if ! container system status 2>/dev/null | grep -q '^status *running'; then
+    echo "==> Starting the container system service ..."
+    container system start
+fi
+
 container build --no-cache --arch arm64 --build-arg VERSION="$VERSION" -t "wuflow:$VERSION" .
 
 # Ensure the .trivy directory exists and is clean
