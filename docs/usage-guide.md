@@ -14,12 +14,13 @@ Only users having the sysadmin role are allowed to access the system settings vi
 ## The Interface
 
 wuFlow is built with a clearly arranged layout that combines all relevant information in one view:
-- **Main Menu**: In the left sidebar, you can switch between the different views of the application: New issue, Backlog, Board, Archive, Project Settings and System Settings
+- **Main Menu**: In the left sidebar, you can switch between the different views of the application, in three sections: your personal view (My Work), the selected project (New issue, Backlog, Board, Archive, Releases, Project Settings) and the system (System Settings)
+- **My Work**: Your active issues across all projects in one view, with your personal planning (see [The My Work View](#the-my-work-view))
 - **Board** (Main view): Displays issues in the usual Kanban style with configurable columns. You can freely drag and drop issues between columns and change the order within one column. Click on an issue card to view and adapt details.
 - **Planning Sidebar**: Placed on the right, this simple calendar view allows you to plan issues by dragging them to a specific date. This allows you additionally to plan issues and tasks over the next 10 days, keeping an eye on upcoming deadlines.
 - **User Menu**: In the top right corner, there is the menu of the currently logged in user. Currently, password management and log out is available.
 - **Project Selection**: Select the project for which you want to see issues on the boards and in the planning sidebar.
-- **Filter Bar**: Placed above the board, this bar allows you to filter by label, priority, assignee, release, and full text search. The filter influences the shown issue cards and planning entries.
+- **Filter Bar**: Placed above the board, this bar allows you to filter by label, priority, assignee, release, and text. The text filter matches the issue number, title and description; `#12` matches exactly issue 12, `12` every number containing 12. The filter influences the shown issue cards and planning entries.
 - **Backlog / Archive View**: Switches the main area to a list-based layout for managing open issues (Backlog) or completed and archived issues (Archive).
 - **Releases View**: Shows all releases for the selected project, grouped into open and closed sections. Accessible to all users for team-wide visibility; creating and managing releases requires Admin or Sysadmin role. On this view, the filter bar shows an owner filter and a full text search over releases.
 - **Project and System Settings**: Accessible via the Main Menu in the left sidebar, provides project-scoped or system wide settings.
@@ -141,9 +142,22 @@ Deadlines can be assigned to issues and/or tasks. But **planned dates can only b
 - Issues **planned more than 10 days in the future** are collected in a box "Future Planning" at the bottom of the Planning Sidebar.
 - There is a **mutual highlighting** when hovering over a planning item or an issue on the board.
 
-If there are many users active on the board, the entries in the planning sidebar could be overwhelming. In that case, you can filter the planning sidebar to show only your issues. When you select your name in the filter box, then only your issues are considered and you can see your personal plan for the coming days and weeks. 
-
+The planning sidebar next to the board is the **team view of the selected project**: it shows the plan of everyone working in this project. If there are many users active on the board, its entries could be overwhelming. In that case, you can filter it to show only your issues: when you select your name in the filter box, only your issues of this project are considered. For **your personal plan across all projects**, use the [My Work view](#the-my-work-view).
 <br clear="right">
+
+## The My Work View
+
+My Work shows all active issues assigned to you, from **all projects**, in one place. You don't need to switch projects or set the assignee filter. Open it with the topmost entry of the main menu.
+
+<img src="screenshots/my-work.png" alt="My Work" width="1000">
+
+- **Columns**: Not Started (Todo), In Progress (all stages between Todo and Done) and Done. Open (backlog) and archived issues are not shown.
+- **Project lanes**: each project with active issues of yours has its own row, sorted by project name, with the number of your issues.
+- **Cards** look like on the board, without the assignee (they are all yours) and without the release. In In Progress, a card shows the column the issue is in within its project (e.g. Testing), because In Progress combines several board columns.
+- **Order**: in Not Started and In Progress, the most urgent issues come first: overdue issues (issue or task deadline), then high priority, then issues planned for today, the next two days or a past day, then the rest. In Done, the most recently changed issues come first.
+- **Editing**: click a card or a planning item to open the issue. Its fields offer the options of the issue's own project, and changes are saved to that project. My Work updates when you close the issue. Cards cannot be dragged here: change the status in the issue, or use the project's board.
+- **Planning**: the planning on the right works like the planning sidebar of the board, but shows your issues of all projects, each with its project name. It is read-only: plan issues in the issue itself or on the project's board.
+- **Filter**: the top bar shows only the text filter. It works like on the board (issue number, title and description) and filters the cards and the planning. The other filters belong to a single project and are not offered here.
 
 ## The Backlog View
 

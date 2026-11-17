@@ -18,7 +18,7 @@ test.describe('Board Functionality', () => {
     const header = page.locator('.column[data-status="Todo"] .column-header');
     await expect(header.locator('h2')).toHaveCSS('color', 'rgb(126, 164, 224)');
     await expect(header.locator('.count')).toHaveCSS('background-color', 'rgb(42, 54, 72)');
-    await expect(page.locator('.sidebar-header .count')).toHaveCSS('background-color', 'rgb(42, 54, 72)');
+    await expect(page.locator('.board .sidebar-header .count')).toHaveCSS('background-color', 'rgb(42, 54, 72)');
   });
 
   test('self-hosted fonts load and are used for text and headings', async ({ page }) => {
@@ -101,7 +101,7 @@ test.describe('Board Functionality', () => {
   test('planning panel is always visible on board view', async ({ page }) => {
     // Planning panel should be visible by default on board view
     await expect(page.locator('#planning-panel')).toBeVisible();
-    await expect(page.locator('.sidebar')).toBeVisible();
+    await expect(page.locator('.board .sidebar')).toBeVisible();
   });
 
   test('drag issue between columns', async ({ page }) => {

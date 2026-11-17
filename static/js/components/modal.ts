@@ -1,21 +1,22 @@
 import { state, setCurrentIssue } from '../state.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
-import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchLabelsByProject, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.ts';
+import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.ts';
 import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, bySelector, errorMessage } from '../utils.ts';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.ts';
 import { PRIORITY_NORMAL, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import type { Priority } from '../domain-constants.ts';
 import type { IssueStatus } from '../status-config.ts';
 import type { IssueWrite } from '../api.ts';
-import type { Issue, Label, PositionUpdate, Project, Task, User } from '../models.ts';
+import type { Issue, PositionUpdate, Project, Task, User } from '../models.ts';
 import type { RefreshApp, RerenderView } from '../list-utils.ts';
 import { renderMarkdown, renderMarkdownWithReport } from '../markdown.ts';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.ts';
 import { renderTasks } from './tasks.ts';
 import { setupEditorToolbar, exitMdPreview } from './editor-toolbar.ts';
-import { setupIssueDropdowns, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions, loadProjectOptions } from './issue-dropdowns.ts';
+import { setupIssueDropdowns, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions, cachedProjectOptions, fetchProjectOptions, resetProjectDropdowns } from './issue-dropdowns.ts';
+import type { ProjectOptions } from './issue-dropdowns.ts';
 import { getPlannedDatesFromDOM, renderPlannedDateChips } from './planned-dates.ts';
-import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from './activity.ts';
+import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors, setActivityStatusNames } from './activity.ts';
 import { getDragAfterTaskElement, getDraggedTask } from '../drag.ts';
 
 let refreshAppCallback: RefreshApp | null = null;
@@ -28,6 +29,19 @@ const STALE_ETAG = '"stale"';
 let issueLoad: Promise<void> | null = null; // Pending background revalidation of the open issue (see openModal)
 let issueLoadSeq = 0; // Bumped per open/close so a late revalidation can't touch another issue
 let hasSavedDuringSession = false; // Tracks whether any save occurred in this modal session
+
+// Label, release and status options of the dialog's project: the open issue's project, or
+// the project chosen for a new issue. Kept here instead of in state, so the board's state
+// never holds another project's options. The selected project's come from refreshApp's
+// cache, any other project's are fetched (e.g. an issue opened from My Work).
+let dialogProject: ProjectOptions | null = null;
+let dialogProjectLoad: { projectId: number; promise: Promise<ProjectOptions> } | null = null; // shared by repeated renders
+let dialogProjectSeq = 0; // Bumped per render of the options, so only the latest applies a fetch result
+// Status, label and release stay disabled while the dialog's project options load (or failed
+// to load), so another project's options can never be chosen.
+let projectOptionsPending = false;
+let sidebarReadOnly = false;
+const PROJECT_OPTION_TRIGGERS = new Set(['status-trigger', 'label-trigger', 'release-trigger']);
 
 export function setupModal(refreshApp: RefreshApp, rerenderViews: RerenderView) {
   refreshAppCallback = refreshApp;
@@ -146,6 +160,8 @@ export function openModal(issue: Issue | null = null) {
 
   const seq = ++issueLoadSeq;
   currentEtag = null;
+  dialogProject = null;
+  dialogProjectLoad = null;
 
   if (issue) {
     // Render immediately from the caller's copy (list endpoints return the same shape as
@@ -241,12 +257,8 @@ function setupProjectDropdown(issue: Issue | null) {
 }
 
 function renderModalDropdowns(issue: Issue | null) {
-  // Status Dropdown
-  const statusInput = byId('status', HTMLInputElement);
-  const currentStatus = issue?.status ?? STATUS_OPEN;
-  statusInput.value = currentStatus;
-  byId('status-text').textContent = getStatusLabel(currentStatus);
-  renderStatusOptions();
+  // Status Dropdown (options and names: showProjectOptions)
+  byId('status', HTMLInputElement).value = issue?.status ?? STATUS_OPEN;
 
   // Priority Dropdown
   const priorityInput = byId('priority', HTMLInputElement);
@@ -254,28 +266,9 @@ function renderModalDropdowns(issue: Issue | null) {
   byId('priority-text').textContent = issue?.priority ?? PRIORITY_NORMAL;
   renderPriorityOptions();
 
-  // Label Dropdown
-  const labelInput = byId('label-select', HTMLInputElement);
-  const labelText = byId('label-text');
-  labelInput.value = String(issue?.label?.id ?? '');
-  labelText.textContent = issue?.label?.name ?? 'No Label';
-
-  const labelProjectId = issue?.project_id ?? (state.selectedProjectId ?? DEFAULT_PROJECT_ID);
-  const applyLabels = (labels: Label[]) => {
-    renderLabelOptions(labels);
-    const label = issue?.label;
-    if (label) {
-      const found = labels.find(l => l.id === label.id);
-      if (found) labelText.textContent = found.name;
-    }
-  };
-  // refreshApp caches the selected project's labels; only an issue from another
-  // project (e.g. in the "all projects" view) needs its own fetch.
-  if (state.labelsProjectId === labelProjectId) {
-    applyLabels(state.labels);
-  } else {
-    fetchLabelsByProject(labelProjectId).then(applyLabels).catch(err => console.error('Failed to load labels', err));
-  }
+  // Label Dropdown (options: showProjectOptions)
+  byId('label-select', HTMLInputElement).value = String(issue?.label?.id ?? '');
+  byId('label-text').textContent = issue?.label?.name ?? 'No Label';
 
   // Assignee Dropdown
   const assigneeInput = byId('assignee-select', HTMLInputElement);
@@ -299,8 +292,68 @@ function renderModalDropdowns(issue: Issue | null) {
   // Project Dropdown
   setupProjectDropdown(issue);
 
-  // Release Dropdown
-  renderReleaseOptions(state.releases, issue?.release_id ?? null);
+  // Status, label and release options of the issue's project; a new issue's project is
+  // the one setupProjectDropdown preselected.
+  showProjectOptions(issue, issue?.project_id ?? Number.parseInt(byId('project-select', HTMLInputElement).value));
+}
+
+// Shows the status, label and release options of projectId: right away when known (the
+// selected project, or already loaded for this dialog), else after fetching them, with the
+// three dropdowns disabled meanwhile. issue null: a new issue, whose values are reset.
+function showProjectOptions(issue: Issue | null, projectId: number) {
+  const seq = ++dialogProjectSeq;
+  const known = dialogProject?.projectId === projectId ? dialogProject : cachedProjectOptions(projectId);
+  if (known) {
+    dialogProject = known;
+    setProjectOptionsPending(false);
+    applyProjectOptions(issue, known);
+    return;
+  }
+  setProjectOptionsPending(true);
+  byId('status-text').textContent = '…';
+  if (issue) byId('release-text').textContent = issue.release?.name ?? 'No Release';
+  loadDialogProject(projectId).then(options => {
+    if (seq !== dialogProjectSeq) return; // another issue or project rendered meanwhile
+    dialogProject = options;
+    setProjectOptionsPending(false);
+    applyProjectOptions(issue, options);
+  }).catch((err: unknown) => {
+    if (seq !== dialogProjectSeq) return;
+    // The dropdowns stay disabled: the project's options are unknown.
+    showNotification(errorMessage(err), 'error');
+  });
+}
+
+function loadDialogProject(projectId: number) {
+  if (dialogProjectLoad?.projectId !== projectId) {
+    const promise = fetchProjectOptions(projectId);
+    dialogProjectLoad = { projectId, promise };
+    promise.catch(() => {
+      // Failed: the next render fetches again. The error is shown by the caller.
+      if (dialogProjectLoad?.promise === promise) dialogProjectLoad = null;
+    });
+  }
+  return dialogProjectLoad.promise;
+}
+
+function applyProjectOptions(issue: Issue | null, options: ProjectOptions) {
+  setActivityStatusNames(options.statusNames);
+  if (!issue) {
+    resetProjectDropdowns(options);
+    return;
+  }
+  byId('status-text').textContent = getStatusLabel(issue.status, options.statusNames);
+  renderStatusOptions(options.statusNames);
+  renderLabelOptions(options.labels);
+  const label = issue.label;
+  const found = label ? options.labels.find(l => l.id === label.id) : undefined;
+  if (found) byId('label-text').textContent = found.name;
+  renderReleaseOptions(options.releases, issue.release_id ?? null);
+}
+
+function setProjectOptionsPending(pending: boolean) {
+  projectOptionsPending = pending;
+  applySidebarDisabled();
 }
 
 function setupEditModal(issue: Issue) {
@@ -412,9 +465,16 @@ function toggleInlineEditMode(enable: boolean, readOnly = false) {
 // The dropdowns and dates of an archived issue can't be used. The project trigger is left
 // to setupProjectDropdown, which also disables it for missing permissions.
 function setSidebarReadOnly(readOnly: boolean) {
+  sidebarReadOnly = readOnly;
+  applySidebarDisabled();
+}
+
+function applySidebarDisabled() {
   const modal = byId('issue-modal');
-  modal.querySelectorAll<HTMLButtonElement>('.custom-select-trigger:not(#project-trigger)').forEach(el => { el.disabled = readOnly; });
-  modal.querySelectorAll('.custom-date-input').forEach(el => setAriaDisabled(el, readOnly));
+  modal.querySelectorAll<HTMLButtonElement>('.custom-select-trigger:not(#project-trigger)').forEach(el => {
+    el.disabled = sidebarReadOnly || (projectOptionsPending && PROJECT_OPTION_TRIGGERS.has(el.id));
+  });
+  modal.querySelectorAll('.custom-date-input').forEach(el => setAriaDisabled(el, sidebarReadOnly));
 }
 
 export function closeModal() {
@@ -1068,7 +1128,7 @@ function setupSidebarImmediateSave() {
       await enqueueIssueWrite(() => moveIssueToProject(projectId));
     } else {
       localStorage.setItem('wuflow_selectedProjectId', String(projectId));
-      await loadProjectOptions(projectId);
+      showProjectOptions(null, projectId);
     }
   });
 }
@@ -1096,7 +1156,8 @@ async function moveIssueToProject(projectId: number) {
   currentEtag = etag;
   setCurrentIssue(updated);
   localStorage.setItem('wuflow_selectedProjectId', String(projectId));
-  await loadProjectOptions(projectId);
+  // The server reset label, release and status: the dropdowns now show the new project's options.
+  renderModalDropdowns(updated);
   setupEditModal(updated);
   showNotification('Project changed', 'info');
 }

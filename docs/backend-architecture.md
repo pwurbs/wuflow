@@ -101,13 +101,17 @@ Why this shape rather than a factory-level COUNT pre-check:
 ```go
 func checkProjectAccess(w, r) (int, bool) {
     // parse pId → 400 on bad input
-    // ProjectExists → 404 on unknown project
-    // TODO(per-project-membership): membership lookup goes here
+    // ProjectAccessible(userID, pID) → 404 on an unknown or inaccessible project
     return pID, true
 }
 ```
 
-This helper sits at the single chokepoint reached by `withProject` and `withProjectResource`. When the `project_users` table lands, the membership check goes inside this function (after `ProjectExists`, before the return) and nothing else needs to change. The `TODO(per-project-membership)` marker in the body points at the exact insertion line.
+This helper sits at the single chokepoint reached by all project-scoped factories (`withProject`, `withProjectResource`, `withIssue`, `withIssueResource`). Which projects a user may access is defined once, in `accessibleProjects(userID)` (`db.go`): a subquery of the allowed project IDs, today all projects. Two paths use it:
+
+- `ProjectAccessible`, called by `checkProjectAccess` for every project-scoped route.
+- `GetMyActiveIssues` (`GET /api/me/issues`), which lists issues across projects and filters them by the same subquery.
+
+When the `project_users` table lands, the membership rule goes into `accessibleProjects` (marked `TODO(per-project-membership)`) and applies to both. Not covered by it: `GET /api/projects` and the target project of a move (`POST …/move`), which do not go through `checkProjectAccess`.
 
 ## Inner handler conventions
 

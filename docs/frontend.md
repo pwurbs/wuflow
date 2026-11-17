@@ -19,7 +19,8 @@ Each file in `static/js/` is an ES module. Paths relative to `static/js/`:
 
 - **`app.ts`**: Entry point of the app page: loads the data, sets up the views and refreshes them
 - **`login.ts`**: Entry point of the login page
-- **`components/`**: One module per view or UI part: Board, Backlog, Archive, Releases, planning panel, system and project settings, issue modal (with `tasks.ts`, `activity.ts`, `editor-toolbar.ts`, `issue-dropdowns.ts` and `planned-dates.ts`), card, toolbar
+- **`components/`**: One module per view or UI part: My Work, Board, Backlog, Archive, Releases, planning panel, system and project settings, issue modal (with `tasks.ts`, `activity.ts`, `editor-toolbar.ts`, `issue-dropdowns.ts` and `planned-dates.ts`), card, toolbar
+- **`my-work-order.ts`**: Pure functions of the My Work view: project lanes, status categories and the order within a cell
 - **`state.ts`**: Core client-side state management
 - **`models.ts`**: Types of the API resources (issue, release, user, …); mirror of the structs in `backend/models.go`
 - **`issue-lists.ts`**: Shared cache that loads the open/archived issue lists on demand and merges them into the issue state (see [Data Loading](#data-loading))
@@ -50,6 +51,7 @@ The styles in `static/styles/` follow the 7-1 pattern known from Sass, reduced t
 
 - **Import order**: `main.css` imports all files of the app page, in the order of the table. This order is the cascade order: a page style can adapt a component, not the other way round.
 - **Login page**: `login.html` does not use `main.css`. It links only `variables.css`, `reset.css`, `typography.css` and `pages/login.css`.
+- **Spacing**: padding and gaps of new rules use the spacing scale `--space-*` in `abstracts/variables.css` (steps of 4px; add a step when needed). Older files still use literal values. Border widths stay literal.
 - **Typography**: font sizes and weights are collected in `base/typography.css`. Before adding them to a component or page file, check whether a selector group there already covers the element.
 - **Fonts**: Figtree (text, `--font-sans`) and Gabarito (headings, `--font-display`) are self-hosted in `static/fonts/` under the SIL Open Font License (see `CREDITS.md`), so the browser makes no third-party request. Markdown written by users (description, comments) always uses the text font.
 - **Colors**: all colors, including tints and shadows, come from the custom properties in `abstracts/variables.css`. Only label colors are set inline, because users pick them. Blue exists in two variables: `--accent-blue` (text, icons, borders and tints) and `--fill-blue` (fills behind white text, e.g. primary buttons, avatars, ticked checkboxes). Red text uses `--danger-text`, red fills `--danger-color`. White text on a fill uses `--text-on-fill`, and the fills dark enough for it are `--fill-blue`, `--fill-green`, `--fill-red` and `--fill-amber`.
@@ -72,6 +74,19 @@ All inline editors of the issue modal follow one behaviour:
 - **Sidebar fields** of the issue modal (status, planned dates, deadline, assignee, priority, label, release) save on change. The changed field, label included, is dimmed until its save is done. The other fields stay usable, and further changes are saved one after another.
 - **Inactive means greyed out, greyed out means inactive**: everything that cannot be used right now is shown at `--inactive-opacity`, and nothing else is. One rule in `base/utilities.css` styles the three markers: `:disabled` (native controls), `[aria-disabled="true"]` (other elements, also not clickable) and `[aria-busy="true"]` (saving). An archived issue is greyed out as a whole: title, description, comments, dropdowns and dates. Links in greyed-out text still open.
 - **Leaving the page**: while any editor holds unsaved text, the browser asks before a reload or navigation (`beforeunload`).
+- **Options of the issue's project**: status names, labels and releases in the sidebar belong to the project of the open issue (for a new issue: the project chosen in the modal), held in `dialogProject` in `modal.ts`. For the selected project they come from the cache `refreshApp()` filled (`cachedProjectOptions`), for any other project (an issue opened from My Work, the target of a move) from `fetchProjectOptions` (both in `issue-dropdowns.ts`). Until they have arrived, status, label and release stay disabled, also if loading fails. The modal never writes them to `state`, so the views behind it keep the selected project's options. The History tab gets the same status names via `setActivityStatusNames`.
+
+---
+
+## My Work
+
+`components/my-work.ts` renders the My Work view from one request, `GET /api/me/issues` ([api.md](./api.md)).
+
+- **Reuse instead of own components**: cards come from `createCardElement` with `CardOptions` (`showAssignee`, `showRelease`, `stageName`, `draggable`), the planning from `buildPlanningList` in `planning.ts` with `readOnly` and `itemSubline`. Without these options both produce the Board's card and planning, so My Work changes nothing on the Board.
+- **Layout**: one grid in `styles/pages/my-work.css`. Each band is a fixed track (padding, border, card gap) plus an `fr` track for its cards (2fr / 1fr / 2fr), so all card lanes are equally wide. The sizes come from the Board's custom properties (`--board-column-*`, `--card-gap`).
+- **No IDs or Board classes**: the My Work planning list renders without element IDs, and the grid does not use `.column` or `[data-status]`, because the Board queries these document-wide.
+- **Toolbar**: `filters: 'search'` in `VIEW_CONFIG` (`app.ts`). My Work applies only `filter.search` via `filterIssues`, the other filters belong to the selected project.
+- **Data**: the list lives in the module, not in `state.issues` (the selected project's issues). `refreshApp()` reloads it while the view is visible, and `rerenderAfterIssueChange` merges edits from the issue dialog.
 
 ---
 

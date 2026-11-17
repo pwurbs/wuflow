@@ -181,6 +181,33 @@ type StatusConfig struct {
 	Stage4Name string `json:"stage4_name"` // default "" (hidden)
 }
 
+// defaultStatusConfig is the config of a project that has no project_status_config row.
+func defaultStatusConfig(projectID int) StatusConfig {
+	return StatusConfig{ProjectID: projectID, Stage1Name: "Pending", Stage2Name: "Working"}
+}
+
+// DisplayName returns the board column name of status. A stage without a name (a hidden
+// column) falls back to the status value, as the frontend's getStatusLabel does.
+func (c StatusConfig) DisplayName(status IssueStatus) string {
+	names := map[IssueStatus]string{
+		StatusStage1: c.Stage1Name,
+		StatusStage2: c.Stage2Name,
+		StatusStage3: c.Stage3Name,
+		StatusStage4: c.Stage4Name,
+	}
+	if name := names[status]; name != "" {
+		return name
+	}
+	return string(status)
+}
+
+// MyIssue is an issue of the My Work view: the issue plus the name of its board column
+// in its own project's status config.
+type MyIssue struct {
+	Issue
+	StatusName string `json:"status_name"`
+}
+
 // UserRole represents a user's role in the system.
 type UserRole string
 

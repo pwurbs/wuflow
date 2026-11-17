@@ -54,6 +54,7 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
 ## Before reporting a task as done
 - Testing done as described in [Testing](#testing); all required suites pass.
 - Check and update docs/, README.md and docs/swagger.json where the change requires it.
+- The diff is checked against every rule in [Project rules](#project-rules) and the docs listed under [Docs](#docs) for the changed areas; any rule not met is named in the report, with a question.
 
 ## Wrap-up
 - Run the doc-sync subagent (.claude/agents/doc-sync.md): it mirrors docs/ and README into

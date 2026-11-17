@@ -87,6 +87,11 @@ export interface Issue {
   updated_at: string;
 }
 
+// An issue of GET /api/me/issues: status_name is its board column name in its own project.
+export interface MyIssue extends Issue {
+  status_name: string;
+}
+
 export interface StatusConfig {
   project_id: number;
   stage1_name: string;

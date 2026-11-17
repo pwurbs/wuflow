@@ -159,23 +159,23 @@ func HandleGetVersion(version string) http.HandlerFunc {
 // -----------------------------------------------------------------------------
 
 // checkProjectAccess validates that {pId} from the URL is a positive int and
-// the project exists. Returns the project ID and ok=true on success; writes the
-// appropriate HTTP error and returns ok=false on failure.
+// the project exists and is accessible to the requesting user. Returns the
+// project ID and ok=true on success; writes the appropriate HTTP error and
+// returns ok=false on failure. An inaccessible project answers 404 like a
+// missing one, so its existence is not revealed.
 //
-// TODO(per-project-membership): This is the SINGLE insertion point for
-// per-project membership enforcement. When the project_users table is
-// introduced, add the membership lookup here (after project existence,
-// before returning ok). All project-scoped routes flow through this helper
-// via withProject / withProjectResource, so no other handler will change.
+// All project-scoped routes flow through this helper via the with* factories.
+// Which projects a user may access is defined once in accessibleProjects
+// (db.go), which the cross-project My Work list uses as well.
 func checkProjectAccess(w http.ResponseWriter, r *http.Request) (int, bool) {
 	pID, err := strconv.Atoi(r.PathValue(pathParamProjectID))
 	if err != nil || pID <= 0 {
 		http.Error(w, errMsgInvalidProject, http.StatusBadRequest)
 		return 0, false
 	}
-	exists, err := ProjectExists(r.Context(), pID)
+	exists, err := ProjectAccessible(r.Context(), GetUserIDFromContext(r.Context()), pID)
 	if err != nil {
-		LogError("checkProjectAccess: ProjectExists failed", "project_id", pID, "error", err)
+		LogError("checkProjectAccess: ProjectAccessible failed", "project_id", pID, "error", err)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return 0, false
 	}
@@ -1914,6 +1914,22 @@ func fetchAndEncodeIssues(ctx context.Context, w http.ResponseWriter, projectID 
 	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(issues); err != nil {
 		LogError(name+": failed to encode response", "error", err)
+	}
+}
+
+// handleListMyIssues handles GET /api/me/issues: the active issues assigned to the
+// requesting user across all projects. The user comes only from the session.
+func handleListMyIssues(w http.ResponseWriter, r *http.Request) {
+	userID := GetUserIDFromContext(r.Context())
+	issues, err := GetMyActiveIssues(r.Context(), userID)
+	if err != nil {
+		LogError("GetMyActiveIssues failed", "user_id", userID, "error", err)
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(issues); err != nil {
+		LogError("handleListMyIssues: failed to encode response", "error", err)
 	}
 }
 

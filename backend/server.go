@@ -275,6 +275,7 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 	// --- Current user (self) --------------------------------------------------
 	hf("GET", "/api/auth/me", HandleGetCurrentUser, authAPI)
 	hf("PUT", "/api/auth/me", HandleUpdateSelf, authAPI)
+	hf("GET", "/api/me/issues", withRole(ActionListIssues, handleListMyIssues), authAPI)
 
 	// --- Users ----------------------------------------------------------------
 	hf("GET", "/api/users", withRole(ActionListUsers, handleListUsers), authAPI)

@@ -25,6 +25,7 @@ import {
   updateStatusConfig,
   deleteLabel,
   fetchReleases,
+  fetchMyIssues,
   createRelease,
   updateRelease,
   deleteRelease,
@@ -648,6 +649,27 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, user));
       expect(await updateUser(1, { ...userBody, first_name: 'Alice Updated' })).toEqual(user);
       expect(vi.mocked(fetch).mock.calls[0][1]?.method).toBe('PUT');
+    });
+  });
+
+  // --- My Work ---
+
+  describe('fetchMyIssues', () => {
+    it('returns my issues on success', async () => {
+      const issues = [{ ...makeIssue({ id: 3 }), status_name: 'Working' }];
+      vi.mocked(fetch).mockResolvedValue(makeResponse(200, issues));
+      expect(await fetchMyIssues()).toEqual(issues);
+      expect(fetch).toHaveBeenCalledWith('/api/me/issues', { signal: expect.any(AbortSignal) });
+    });
+
+    it('throws with server message on failure', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(500, 'Internal Server Error'));
+      await expect(fetchMyIssues()).rejects.toThrow('Internal Server Error');
+    });
+
+    it('throws a default message when the server sends none', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(500, ''));
+      await expect(fetchMyIssues()).rejects.toThrow('Failed to load your issues');
     });
   });
 

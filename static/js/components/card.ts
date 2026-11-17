@@ -19,13 +19,23 @@ export interface CardCallbacks {
   onAssignToMe?: () => unknown;
 }
 
-export function createCardElement(issue: Issue, isBoard = false, callbacks: CardCallbacks = {}) {
+// The ways My Work shows a board card differently; the defaults give the project board's card.
+export interface CardOptions {
+  showAssignee?: boolean;
+  // Board card only: false shows stageName (the issue's column name, if given) in the
+  // release chip's place instead of the release.
+  showRelease?: boolean;
+  stageName?: string;
+  draggable?: boolean;
+}
+
+export function createCardElement(issue: Issue, isBoard = false, callbacks: CardCallbacks = {}, options: CardOptions = {}) {
   const card = document.createElement('div');
   card.className = 'card';
   if (isBoard) {
     card.classList.add('board-card');
   }
-  card.draggable = issue.status !== STATUS_ARCHIVE;
+  card.draggable = (options.draggable ?? true) && issue.status !== STATUS_ARCHIVE;
   card.dataset.id = String(issue.id);
   card.classList.toggle('is-archived', issue.status === STATUS_ARCHIVE);
   if (issue.priority === PRIORITY_HIGH) {
@@ -37,7 +47,7 @@ export function createCardElement(issue: Issue, isBoard = false, callbacks: Card
   const openTasks = totalTasks - completedTasks;
 
   if (isBoard) {
-    card.innerHTML = getBoardCardHTML(issue, openTasks);
+    card.innerHTML = getBoardCardHTML(issue, openTasks, options);
   } else {
     card.innerHTML = getBacklogCardHTML(issue, openTasks, totalTasks);
   }
@@ -129,22 +139,24 @@ export function createCardElement(issue: Issue, isBoard = false, callbacks: Card
   return card;
 }
 
-function getBoardCardHTML(issue: Issue, openTasks: number) {
+function getBoardCardHTML(issue: Issue, openTasks: number, options: CardOptions) {
   const labelColor = issue.label && COLOR_REGEX.test(issue.label.color) ? issue.label.color : '#808080';
   const deadlineStatus = getDeadlineStatus(issue);
   const deadlineClass = deadlineStatus.late ? ' overdue' : '';
   const deadlineTitle = deadlineStatus.late ? ` title="${deadlineStatus.reason}"` : '';
+  const stageChip = options.stageName ? `<span class="release-chip stage-chip" title="Status: ${escapeHtml(options.stageName)}">${escapeHtml(options.stageName)}</span>` : '';
+  const releaseSlot = options.showRelease === false ? stageChip : getReleaseChipHTML(issue.release);
 
   return `
             <div class="board-card-title">${escapeHtml(issue.title)}</div>
             <div class="board-card-label-space">
                 ${issue.label ? `<span class="label-chip" title="${escapeHtml(issue.label.name)}" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
-                ${getReleaseChipHTML(issue.release)}
+                ${releaseSlot}
             </div>
             <div class="board-card-bottom">
                 <div class="board-card-id-group" style="display: flex; align-items: center; gap: 8px;">
                   <div class="board-card-id">#${issue.id}</div>
-                  ${getAssigneeBadgeHTML(issue)}
+                  ${options.showAssignee === false ? '' : getAssigneeBadgeHTML(issue)}
                 </div>
                 <div class="board-card-meta-right">
                     ${issue.deadline ? `<div class="board-card-deadline${deadlineClass}"${deadlineTitle}>${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}

@@ -170,7 +170,7 @@ export async function openIssueByTitle(page: Page, title: string): Promise<void>
  */
 // ...
 
-export async function navigateTo(page: Page, view: 'board' | 'backlog' | 'system-settings' | 'archive' | 'project-settings' | 'releases'): Promise<void> {
+export async function navigateTo(page: Page, view: 'my-work' | 'board' | 'backlog' | 'system-settings' | 'archive' | 'project-settings' | 'releases'): Promise<void> {
   await page.click(`#nav-${view}`);
 }
 

@@ -152,6 +152,23 @@ describe('filterIssues', () => {
       const result = filterIssues(mockIssues, filter);
       expect(result.some(i => i.id === 3)).toBe(true);
     });
+
+    const numbered = [
+      createIssue({ id: 12, title: 'Twelve' }),
+      createIssue({ id: 112, title: 'Hundred twelve' }),
+      createIssue({ id: 7, title: 'Mentions #12 in the title' }),
+    ];
+    const ids = (search: string) => filterIssues(numbered, { search }).map(i => i.id);
+
+    it('matches the exact number with "#", and a part of it without', () => {
+      expect(ids('#12')).toEqual([12, 7]); // 7: "#12" is in its title
+      expect(ids('12')).toEqual([12, 112, 7]);
+      expect(ids(' #112 ')).toEqual([112]);
+    });
+
+    it('treats a lone "#" like any other text', () => {
+      expect(ids('#')).toEqual([7]);
+    });
   });
 
   describe('release filter', () => {

@@ -9,9 +9,10 @@ import { setupSystemSettingsView, renderSystemSettingsView } from './components/
 import { setupProjectSettingsView, renderProjectSettingsView } from './components/project-settings.ts';
 import { setupReleasesView, renderReleasesView, renderReleaseOwnerOptions } from './components/releases.ts';
 import { setupModal, openModal } from './components/modal.ts';
+import { setupMyWorkView, loadMyIssues, renderMyWork, mergeMyIssue } from './components/my-work.ts';
 import { setupSession } from './session.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from './issue-lists.ts';
-import { byId, bySelector, debounce } from './utils.ts';
+import { byId, bySelector, debounce, errorMessage, showNotification } from './utils.ts';
 import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.ts';
 
 // DOM Elements
@@ -21,13 +22,15 @@ const navBacklog = byId('nav-backlog');
 const navSystemSettings = byId('nav-system-settings');
 const navProjectSettings = byId('nav-project-settings');
 const navReleases = byId('nav-releases');
+const navMyWork = byId('nav-my-work');
 const boardView = bySelector(document, '.board');
+const myWorkView = byId('my-work-view');
 const archiveView = byId('archive-view');
 const backlogView = byId('backlog-view');
 const releasesView = byId('releases-view');
 const systemSettingsView = byId('system-settings-view');
 const projectSettingsView = byId('project-settings-view');
-const sidebar = bySelector(document, '.sidebar');
+const sidebar = bySelector(boardView, '.sidebar'); // the board's planning panel (My Work has its own)
 const filterContainer = byId('filter-container');
 const projectSelectorContainer = byId('project-selector-container');
 const toolbar = bySelector(document, '.toolbar');
@@ -50,9 +53,10 @@ async function init() {
     // Installed only after the initial auth check: an expired session at page load
     // still redirects to /login, later expiries open the re-login dialog instead.
     setupSession();
-    // Hide System Settings nav for non-sysadmin users
+    // Hide System Settings nav (and the separator above it) for non-sysadmin users
     if (user.role !== 'sysadmin') {
         navSystemSettings.classList.add('hidden');
+        byId('system-menu-separator').classList.add('hidden');
     }
     // Hide Project Settings nav for user role
     if (user.role === 'user') {
@@ -69,6 +73,7 @@ async function init() {
     setupBacklogView(refreshApp, openModal, rerenderActiveView);
     setupArchiveView(refreshApp, openModal, rerenderActiveView);
     setupPlanningPanel(refreshApp, openModal, rerenderActiveView);
+    setupMyWorkView(openModal);
     setupSystemSettingsView();
     setupProjectSettingsView();
     setupReleasesView();
@@ -106,7 +111,17 @@ function getVisibleViews() {
         archive: !archiveView.classList.contains('hidden'),
         projectSettings: !projectSettingsView.classList.contains('hidden'),
         releases: !releasesView.classList.contains('hidden'),
+        myWork: !myWorkView.classList.contains('hidden'),
     };
+}
+
+// Loads my issues for My Work. A failure is shown, and the view keeps its last list.
+async function loadMyWork() {
+    try {
+        await loadMyIssues();
+    } catch (err) {
+        showNotification(errorMessage(err), 'error');
+    }
 }
 
 // The open/archived issue lists the given view needs on top of the active issues.
@@ -125,7 +140,9 @@ async function refreshApp() {
         // The lists the visible view needs are requested in the same wave but not awaited
         // here: the view's render joins the request and handles its errors, so a failed
         // list does not stop the rest of the refresh.
-        void ensureIssueLists(issueListsFor(getVisibleViews())).catch(() => {});
+        const visibleAtStart = getVisibleViews();
+        void ensureIssueLists(issueListsFor(visibleAtStart)).catch(() => {});
+        const myWorkLoad = visibleAtStart.myWork ? loadMyWork() : null;
         const [, , labels, releases, users, projects] = await Promise.all([
             issuesLoad,
             loadStatusConfig(),
@@ -167,6 +184,10 @@ async function refreshApp() {
             void renderReleasesView();
         }
         renderPlanningPanel();
+        if (myWorkLoad) {
+            await myWorkLoad;
+            renderMyWork();
+        }
     } catch (err) {
         console.error('Failed to refresh app:', err);
     }
@@ -195,6 +216,9 @@ function rerenderActiveView() {
     if (visible.releases) {
         void renderReleasesView();
     }
+    if (visible.myWork) {
+        renderMyWork();
+    }
     renderPlanningPanel();
 }
 
@@ -206,9 +230,11 @@ function rerenderAfterIssueChange() {
         const current = state.currentIssue;
         const idx = state.issues.findIndex(i => i.id === current.id);
         if (idx !== -1) state.issues[idx] = { ...state.issues[idx], ...current };
+        mergeMyIssue(current);
     }
     renderBoard();
     renderPlanningPanel();
+    if (getVisibleViews().myWork) renderMyWork();
 }
 
 function setupEventListeners() {
@@ -219,6 +245,7 @@ function setupEventListeners() {
     navSystemSettings.addEventListener('click', () => switchView('system-settings'));
     navProjectSettings.addEventListener('click', () => switchView('project-settings'));
     navReleases.addEventListener('click', () => switchView('releases'));
+    navMyWork.addEventListener('click', () => switchView('my-work'));
 
     // New Issue Btn
     byId('add-issue-btn').addEventListener('click', () => openModal(null));
@@ -243,21 +270,27 @@ function setupEventListeners() {
     });
 }
 
+// filters: which filters the toolbar shows while hideFilter is false (see applyFilterVisibility).
 const VIEW_CONFIG = {
-    'board':           { el: boardView,           nav: navBoard,           hideSidebar: false, hideFilter: false, hideProjectSelector: false, systemSettings: false, onEnter: () => refreshApp() },
-    'backlog':         { el: backlogView,          nav: navBacklog,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, onEnter: () => refreshApp() },
-    'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, onEnter: () => refreshApp() },
-    'releases':        { el: releasesView,         nav: navReleases,        hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, onEnter: () => renderReleasesView() },
-    'project-settings':{ el: projectSettingsView,  nav: navProjectSettings, hideSidebar: true,  hideFilter: true,  hideProjectSelector: false, systemSettings: false, onEnter: () => renderProjectSettingsView() },
-    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  systemSettings: true,  onEnter: () => renderSystemSettingsView() },
-};
+    'my-work':         { el: myWorkView,           nav: navMyWork,          hideSidebar: true,  hideFilter: false, hideProjectSelector: true,  systemSettings: false, filters: 'search',   onEnter: () => refreshApp() },
+    'board':           { el: boardView,           nav: navBoard,           hideSidebar: false, hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
+    'backlog':         { el: backlogView,          nav: navBacklog,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
+    'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
+    'releases':        { el: releasesView,         nav: navReleases,        hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'releases', onEnter: () => renderReleasesView() },
+    'project-settings':{ el: projectSettingsView,  nav: navProjectSettings, hideSidebar: true,  hideFilter: true,  hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => renderProjectSettingsView() },
+    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  systemSettings: true,  filters: 'issues',   onEnter: () => renderSystemSettingsView() },
+} as const;
 
-function applyReleaseFilterVisibility(isReleases: boolean) {
-    byId('label-filter-wrapper').classList.toggle('hidden', isReleases);
-    byId('priority-filter-wrapper').classList.toggle('hidden', isReleases);
-    byId('release-filter-wrapper').classList.toggle('hidden', isReleases);
-    byId('search-filter-wrapper').classList.toggle('hidden', isReleases);
-    byId('release-search-wrapper').classList.toggle('hidden', !isReleases);
+// issues: label, priority, user, release filter and issue search (project views);
+// releases: owner filter and release search; search: only the issue search (My Work).
+function applyFilterVisibility(filters: 'issues' | 'releases' | 'search') {
+    const issueFilters = filters === 'issues';
+    byId('label-filter-wrapper').classList.toggle('hidden', !issueFilters);
+    byId('priority-filter-wrapper').classList.toggle('hidden', !issueFilters);
+    byId('release-filter-wrapper').classList.toggle('hidden', !issueFilters);
+    byId('user-filter-wrapper').classList.toggle('hidden', filters === 'search');
+    byId('search-filter-wrapper').classList.toggle('hidden', filters === 'releases');
+    byId('release-search-wrapper').classList.toggle('hidden', filters !== 'releases');
 }
 
 function switchView(view: keyof typeof VIEW_CONFIG) {
@@ -271,9 +304,9 @@ function switchView(view: keyof typeof VIEW_CONFIG) {
     filterContainer.classList.toggle('hidden', cfg.hideFilter);
     projectSelectorContainer.classList.toggle('hidden', cfg.hideProjectSelector);
     toolbar.classList.toggle('toolbar--system-settings', cfg.systemSettings);
+    applyFilterVisibility(cfg.filters);
 
     const isReleases = view === 'releases';
-    applyReleaseFilterVisibility(isReleases);
     updateUserFilterOptions(state.users, isReleases ? 'releases' : 'issues');
     if (isReleases) renderReleaseOwnerOptions(state.users);
 

@@ -5755,3 +5755,80 @@ func TestWriteUserUpdateError(t *testing.T) {
 		})
 	}
 }
+
+const apiMyIssues = "/api/me/issues"
+
+func getMyIssues(t *testing.T, userID int, url string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("GET", url, nil)
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyUserID, userID))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	return rr
+}
+
+func TestHandleListMyIssuesUsesOnlyTheSessionUser(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	me, other := seedMyWork(t)
+
+	// An assignee parameter must not select another user's issues.
+	rr := getMyIssues(t, me, apiMyIssues+"?assignee="+strconv.Itoa(other)+"&assignee_id="+strconv.Itoa(other))
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	var issues []MyIssue
+	if err := json.NewDecoder(rr.Body).Decode(&issues); err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 5 {
+		t.Fatalf("expected my 5 active issues, got %d", len(issues))
+	}
+	projects := map[int]bool{}
+	for _, i := range issues {
+		if i.AssigneeID == nil || *i.AssigneeID != me {
+			t.Errorf("issue %q is not assigned to the session user", i.Title)
+		}
+		if i.StatusName == "" {
+			t.Errorf("issue %q has no status_name", i.Title)
+		}
+		projects[i.ProjectID] = true
+	}
+	if len(projects) != 2 {
+		t.Errorf("expected issues from 2 projects, got %v", projects)
+	}
+}
+
+func TestHandleListMyIssuesEmptyListIsJSONArray(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	me := createMyWorkUser(t, "me@example.com")
+
+	rr := getMyIssues(t, me, apiMyIssues)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf(wrongStatusCode, rr.Code, http.StatusOK)
+	}
+	if body := rr.Body.String(); body != "[]\n" {
+		t.Errorf("expected an empty JSON array, got %q", body)
+	}
+}
+
+func TestHandleListMyIssuesDBError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	me, _ := seedMyWork(t)
+	if _, err := DB.Exec("DROP TABLE project_status_config"); err != nil {
+		t.Fatalf("drop table: %v", err)
+	}
+
+	rr := getMyIssues(t, me, apiMyIssues)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+	if body := rr.Body.String(); body != errMsgInternalServerError+"\n" {
+		t.Errorf("expected the generic error message, got %q", body)
+	}
+}

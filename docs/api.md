@@ -8,7 +8,7 @@ All API endpoints except `/api/auth/login` require authentication via HTTPOnly c
 
 ## Handler Mapping
 
-Every route is registered with Go 1.22 method+path syntax in `backend/server.go`; the mux returns `405` automatically when the path matches but no handler is registered for the request method. Project-scoped routes flow through the `checkProjectAccess` helper which validates the `{pId}` URL parameter and (eventually) per-project membership.
+Every route is registered with Go 1.22 method+path syntax in `backend/server.go`; the mux returns `405` automatically when the path matches but no handler is registered for the request method. Project-scoped routes flow through the `checkProjectAccess` helper which validates the `{pId}` URL parameter and checks that the user may access the project. Which projects a user may access is defined once in `accessibleProjects` (`backend/db.go`, today: all projects); `/me/issues` uses the same definition (see [backend-architecture.md](backend-architecture.md#checkprojectaccess--the-future-membership-hook)).
 
 | Endpoint | Method | Handler | Auth | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -18,6 +18,7 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/auth/refresh` | POST | `HandleRefresh` | Refresh Token | Refresh access token |
 | `/auth/me` | GET | `HandleGetCurrentUser` | Required | Get current user |
 | `/auth/me` | PUT | `HandleUpdateSelf` | Required | Update own profile (e.g. password) |
+| `/me/issues` | GET | `handleListMyIssues` | Required | Get the active issues assigned to me across all projects (My Work) |
 | `/users` | GET | `handleListUsers` | Required | List all users |
 | `/users` | POST | `handleCreateUser` | Sysadmin | Create new user |
 | `/users/:id` | GET | `handleGetUser` | Required | Get user details |
@@ -224,6 +225,14 @@ Retrieves issues with status *Todo, Stage1, Stage2, Stage3, Stage4, or Done* for
 - **Errors**:
   - `401 Unauthorized` - Not authenticated
   - `404 Not Found` - Project doesn't exist
+
+### Get My Active Issues
+Retrieves the issues assigned to the requesting user with status *Todo, Stage1, Stage2, Stage3, Stage4, or Done* across all projects the user may access (My Work view). Excludes *Open* and *Archive* statuses. The user is taken only from the session; there is no assignee parameter. Includes associated tasks.
+- **GET** `/me/issues`
+- **Response**: Array of issue objects (each including their tasks and `project`), each with an additional field:
+  - `status_name`: name of the issue's board column in its own project (e.g. `Testing`; `Todo` and `Done` for those statuses; the status value, e.g. `Stage3`, for a stage that has no name)
+- **Errors**:
+  - `401 Unauthorized` - Not authenticated
 
 ### Get Open Issues for a Project
 Retrieves issues with status *Open* (backlog items) for a specific project. Loaded lazily when the Backlog view is first opened. Includes associated tasks.

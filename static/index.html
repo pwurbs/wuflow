@@ -84,8 +84,9 @@
                     <!-- Search Input -->
                     <div id="search-filter-wrapper" class="toolbar-input-wrapper">
                         <!-- maxlength: sync with search limit (50) documented in input-validation.md -->
-                        <input type="search" id="search-input" placeholder="Search..." class="search-input"
-                            maxlength="50" autocomplete="off" aria-label="Search issues">
+                        <input type="search" id="search-input" placeholder="Number, title, description…" class="search-input"
+                            maxlength="50" autocomplete="off" aria-label="Filter issues by number, title or description"
+                            title="Shows only issues whose number (e.g. 12 or #12), title or description contains the text">
                     </div>
                     <div id="release-search-wrapper" class="toolbar-input-wrapper hidden">
                         <input type="search" id="release-search-input" placeholder="Search releases..." class="search-input"
@@ -113,6 +114,21 @@
 
         <div class="main-content">
             <nav class="left-menu">
+                <!-- Personal -->
+                <button id="nav-my-work" class="menu-btn" aria-label="My Work">
+                    <!-- Person with list lines -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="8" cy="8" r="4"></circle>
+                        <path d="M2 21v-1a6 6 0 0 1 12 0v1"></path>
+                        <line x1="16" y1="8" x2="22" y2="8"></line>
+                        <line x1="16" y1="13" x2="22" y2="13"></line>
+                        <line x1="18" y1="18" x2="22" y2="18"></line>
+                    </svg>
+                    <span class="menu-tooltip">My Work</span>
+                </button>
+                <div class="menu-separator"></div>
+                <!-- Selected project (New Issue creates the issue there) -->
                 <button id="add-issue-btn" class="menu-btn" aria-label="New Issue">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -187,7 +203,8 @@
                     </svg>
                     <span class="menu-tooltip">Project Settings</span>
                 </button>
-                <div class="menu-separator"></div>
+                <div id="system-menu-separator" class="menu-separator"></div>
+                <!-- System -->
                 <button id="nav-system-settings" class="menu-btn" aria-label="System Settings">
                     <!-- Cogwheel -->
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -439,6 +456,23 @@
                             <div id="planning-list">
                                 <!-- Planning days will be injected here -->
                             </div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+
+            <div id="my-work-view" class="my-work hidden">
+                <div class="my-work-layout">
+                    <!-- Category header, project lanes and cards injected by my-work.ts -->
+                    <div id="my-work-grid" class="my-work-grid"></div>
+
+                    <aside class="sidebar" aria-label="My planning">
+                        <div class="sidebar-header">
+                            <h3>Planning</h3>
+                            <span class="count" id="my-work-planning-count">0</span>
+                        </div>
+                        <div id="my-work-planning-list">
+                            <!-- Read-only planning of my issues injected here -->
                         </div>
                     </aside>
                 </div>

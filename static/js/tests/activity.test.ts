@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
-import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors } from '../components/activity.ts';
+import { setupActivity, loadActivity, refreshHistory, getOpenCommentDraft, closeCommentEditors, setActivityStatusNames } from '../components/activity.ts';
 import * as api from '../api.ts';
+import { getStatusLabel } from '../status-config.ts';
 import { state } from '../state.ts';
 import { byId, bySelector } from '../utils.ts';
 import * as utils from '../utils.ts';
@@ -196,6 +197,23 @@ describe('Activity Component', () => {
     await loadActivity(issue);
     byId('tab-history').click();
     expect(bySelector(document, '.history-text').textContent).toBe('Status: Changed Open → Working');
+  });
+
+  it('names a status change with the column names of the issue\'s project once the dialog sets them', async () => {
+    vi.mocked(api.fetchHistory).mockResolvedValue([
+      makeHistoryEntry({ id: 1, event: 'updated', data: { field: 'status', from: 'Stage1', to: 'Stage2' }, created_at: '2026-01-01T09:00:00Z' })
+    ]);
+    await loadActivity(issue);
+    byId('tab-history').click();
+
+    // getStatusLabel is mocked here: check that the history re-renders with the names passed on.
+    const names = { stage1_name: 'Testing', stage2_name: 'Review', stage3_name: '', stage4_name: '' };
+    vi.mocked(getStatusLabel).mockClear();
+    setActivityStatusNames(names);
+    expect(getStatusLabel).toHaveBeenCalledWith('Stage1', names);
+    expect(getStatusLabel).toHaveBeenCalledWith('Stage2', names);
+
+    setActivityStatusNames(null); // module state: back to the selected project's names
   });
 
   it('renders a title/description change without from/to values', async () => {

@@ -14,7 +14,7 @@ import type { IssueStatus } from './status-config.ts';
  * @param currentUserId - ID of the current user, required when filter.assigneeId === 'me'
  * @returns Filtered issues
  */
-export function filterIssues(issues: Issue[], filter: Partial<Filter>, currentUserId?: number | null): Issue[] {
+export function filterIssues<T extends Issue>(issues: T[], filter: Partial<Filter>, currentUserId?: number | null): T[] {
   let result = issues;
 
   // Label filter
@@ -56,19 +56,20 @@ export function filterIssues(issues: Issue[], filter: Partial<Filter>, currentUs
     result = result.filter(issue => matchesReleaseIds(issue, releaseFilterIds));
   }
 
-  // Search filter (matches id, title or description)
-  if (filter.search) {
-    const term = filter.search.trim().toLowerCase();
-    if (term) {
-      result = result.filter(issue =>
-        String(issue.id).includes(term) ||
-        issue.title.toLowerCase().includes(term) ||
-        issue.description.toLowerCase().includes(term)
-      );
-    }
+  const term = filter.search?.trim().toLowerCase();
+  if (term) {
+    result = result.filter(issue => matchesText(issue, term));
   }
 
   return result;
+}
+
+// Text filter: number, title or description. "#12" matches exactly issue 12,
+// "12" every number containing it. term is trimmed and lower case.
+function matchesText(issue: Issue, term: string) {
+  const id = String(issue.id);
+  const numberMatches = term.startsWith('#') ? id === term.slice(1) : id.includes(term);
+  return numberMatches || issue.title.toLowerCase().includes(term) || issue.description.toLowerCase().includes(term);
 }
 
 function matchesRelease(issue: Issue, releaseId: Filter['releaseId']) {

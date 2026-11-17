@@ -62,8 +62,8 @@ export function getBoardColumns(): BoardColumn[] {
 
 // Returns [{value, label}] for the issue modal status dropdown.
 // Includes Open and all active board columns except Archive (archived via button).
-export function getStatusOptions(): StatusOption[] {
-    const cfg = getActiveStatusConfig();
+// cfg: the column names of the issue's project; default: the selected project's.
+export function getStatusOptions(cfg: StatusNames = getActiveStatusConfig()): StatusOption[] {
     const opts: StatusOption[] = [
         { value: STATUS_OPEN, label: 'Open' },
         { value: STATUS_TODO, label: 'Todo' },
@@ -78,9 +78,9 @@ export function getStatusOptions(): StatusOption[] {
     return opts;
 }
 
-// Returns the display label for a given status key using current config.
+// Returns the display label for a given status key using cfg (default: the selected project's).
 // Falls back to the raw status key if not found (e.g. for archived issues).
-export function getStatusLabel(statusKey: string): string {
-    const opts = getStatusOptions();
+export function getStatusLabel(statusKey: string, cfg: StatusNames = getActiveStatusConfig()): string {
+    const opts = getStatusOptions(cfg);
     return opts.find(o => o.value === statusKey)?.label ?? statusKey;
 }

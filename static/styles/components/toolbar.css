@@ -168,6 +168,11 @@
   /* box-sizing: border-box; Inherited from reset */
 }
 
+/* Wide enough for its placeholder */
+#search-input {
+  width: var(--issue-filter-input-width);
+}
+
 .search-input:hover {
   border-color: var(--accent-blue);
 }

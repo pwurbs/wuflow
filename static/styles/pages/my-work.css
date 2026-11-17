@@ -1,0 +1,117 @@
+/* My Work: one grid of three category bands (2, 1 and 2 board columns wide). Row 1 holds
+   the category headers, then each project has a lane header across the full width and a
+   row of three cells. A last filler row stretches the bands to the bottom. */
+.my-work-grid {
+  /* Padding and border (2px) of a band, as of a board column */
+  --my-work-band-inset: calc(2 * var(--board-column-padding-x) + 2px);
+  /* Card width as on the board: a board column minus its inset */
+  --my-work-card-min: calc(var(--board-column-min-width) - var(--my-work-band-inset));
+  --my-work-card-max: calc(var(--board-column-width) - var(--my-work-band-inset));
+  /* Fixed widths of all bands together: insets, the card gap in each wide band, the gaps between bands */
+  --my-work-fixed: calc(3 * var(--my-work-band-inset) + 2 * var(--card-gap) + 2 * var(--board-column-gap));
+
+  /* Each band is a fixed track (inset, plus the card gap in a wide band) and a flexible
+     track holding only its cards: 2fr, 1fr, 2fr. So all five card lanes are exactly
+     equal at every width. Band gaps are tracks too, hence no column-gap. */
+  display: grid;
+  grid-template-columns:
+    [ns-start] calc(var(--my-work-band-inset) + var(--card-gap)) minmax(0, 2fr) [ns-end]
+    var(--board-column-gap)
+    [ip-start] var(--my-work-band-inset) minmax(0, 1fr) [ip-end]
+    var(--board-column-gap)
+    [done-start] calc(var(--my-work-band-inset) + var(--card-gap)) minmax(0, 2fr) [done-end];
+  flex: 1 1 0;
+  /* Narrow screens as on the board: lanes shrink to a board column's minimum, then the view scrolls */
+  min-width: calc(5 * var(--my-work-card-min) + var(--my-work-fixed));
+  max-width: calc(5 * var(--my-work-card-max) + var(--my-work-fixed));
+  min-height: 100%;
+}
+
+.my-work-grid [data-category="notStarted"] {
+  grid-column: ns;
+}
+
+.my-work-grid [data-category="inProgress"] {
+  grid-column: ip;
+}
+
+.my-work-grid [data-category="done"] {
+  grid-column: done;
+}
+
+/* Category header: the board's .column-header, plus the side and top border a .column gives it */
+.my-work-grid .column-header {
+  border: 1px solid var(--panel-border);
+}
+
+/* Padding: shared with the board's .column-content (board.css) */
+.my-work-cell {
+  background-color: var(--column-bg);
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
+}
+
+/* Not Started and Done: cards flow in two columns, row by row */
+.my-work-cell--wide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--card-gap);
+  align-content: start;
+}
+
+.my-work-cell--fill {
+  border-bottom: 1px solid var(--panel-border);
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+}
+
+/* Not draggable here: clicking opens the issue */
+.my-work .card {
+  cursor: pointer;
+}
+
+/* Project lane: a separator row across all bands */
+.my-work-lane-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--column-bg);
+  border-top: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+  color: var(--text-color);
+}
+
+.my-work-lane-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-work-empty {
+  grid-column: 1 / -1;
+  padding: var(--space-4);
+  color: var(--muted-text);
+  background-color: var(--column-bg);
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
+}
+
+/* Planning item: title with the project name as a second line */
+.planning-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.planning-item-project {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-text);
+}
+
+.planning-item.read-only {
+  cursor: pointer;
+}

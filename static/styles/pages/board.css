@@ -1,4 +1,5 @@
-.board {
+.board,
+.my-work {
   overflow-x: auto;
   flex: 1;
   min-width: 0;
@@ -6,9 +7,10 @@
   /* Allow vertical scrolling for the whole board */
 }
 
-.board-columns {
+.board-columns,
+.my-work-layout {
   display: flex;
-  gap: 20px;
+  gap: var(--board-column-gap);
   min-height: 100%;
   padding-bottom: 20px;
 }
@@ -16,8 +18,8 @@
 .column {
   background-color: var(--column-bg);
   border-radius: var(--radius-panel);
-  width: 330px;
-  min-width: 200px;
+  width: var(--board-column-width);
+  min-width: var(--board-column-min-width);
   flex-shrink: 1;
   display: flex;
   flex-direction: column;
@@ -46,8 +48,13 @@
   /* implicit reset */
 }
 
+/* Space around the cards of a board column, also of a My Work cell */
+.column-content,
+.my-work-cell {
+  padding: var(--space-4) var(--board-column-padding-x) var(--space-2);
+}
+
 .column-content {
-  padding: 16px 12px 8px;
   flex: 1;
   overflow: visible;
   /* Allow tooltip to overflow */
@@ -186,6 +193,7 @@
 }
 
 /* Align sidebar to the right */
-.board-columns .sidebar {
+.board-columns .sidebar,
+.my-work-layout .sidebar {
   margin-left: auto;
 }

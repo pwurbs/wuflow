@@ -355,7 +355,8 @@ func TestDBErrors(t *testing.T) {
 		{"UserExists", func() error { _, err := UserExists(context.Background(), 1); return err }},
 		{"UserExistsAndActive", func() error { _, err := UserExistsAndActive(context.Background(), 1); return err }},
 		{"LabelExistsInProject", func() error { _, err := LabelExistsInProject(context.Background(), 1, 1); return err }},
-		{"ProjectExists", func() error { _, err := ProjectExists(context.Background(), 1); return err }},
+		{"ProjectAccessible", func() error { _, err := ProjectAccessible(context.Background(), 1, 1); return err }},
+		{"GetMyActiveIssues", func() error { _, err := GetMyActiveIssues(context.Background(), 1); return err }},
 		{"ReleaseExistsInProject", func() error { _, err := ReleaseExistsInProject(context.Background(), 1, 1); return err }},
 		{"CreateUser", func() error {
 			return CreateUser(context.Background(), &User{Email: "x@y.z", FirstName: "F", LastName: "L", PasswordHash: "h", Role: RoleUser})
@@ -1873,5 +1874,117 @@ func TestUpdateTaskPositionsPrepareError(t *testing.T) {
 	err := UpdateTaskPositions(ctx, 1, []PositionUpdate{{ID: 1, Position: 0}})
 	if err == nil || errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("expected a DB error, got %v", err)
+	}
+}
+
+func TestGetMyActiveIssuesReturnsOnlyMyActiveIssuesOfAllProjects(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	me, _ := seedMyWork(t)
+
+	issues, err := GetMyActiveIssues(context.Background(), me)
+	if err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	got := myIssuesByTitle(issues)
+	want := map[string]string{ // title → status name
+		"A todo":   "Todo",
+		"A stage1": "Pending", // default project: seeded default names
+		"A done":   "Done",
+		"B stage1": "Testing", // Beta's own names
+		"B stage2": "Review",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d issues, got %d: %v", len(want), len(got), got)
+	}
+	for title, statusName := range want {
+		issue, ok := got[title]
+		if !ok {
+			t.Errorf("missing issue %q", title)
+			continue
+		}
+		if issue.StatusName != statusName {
+			t.Errorf("%q: expected status name %q, got %q", title, statusName, issue.StatusName)
+		}
+		if issue.Project == nil || issue.Project.ID != issue.ProjectID {
+			t.Errorf("%q: expected its project in the response, got %+v", title, issue.Project)
+		}
+	}
+	if tasks := got["B stage2"].Tasks; len(tasks) != 1 || tasks[0].Title != testTaskTitle {
+		t.Errorf("expected the issue's task, got %+v", tasks)
+	}
+}
+
+func TestGetMyActiveIssuesStatusNameFallbacks(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	me := createMyWorkUser(t, "me@example.com")
+	noRow := createMyWorkProject(t, "No config row")
+	if _, err := DB.Exec("DELETE FROM project_status_config WHERE project_id = ?", noRow); err != nil {
+		t.Fatalf("delete config row: %v", err)
+	}
+	// Default project: stage 3 hidden (no name).
+	createMyWorkIssue(t, DefaultProjectID, StatusStage3, &me, "Hidden stage")
+	createMyWorkIssue(t, noRow, StatusStage2, &me, "Defaults")
+
+	issues, err := GetMyActiveIssues(context.Background(), me)
+	if err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	got := myIssuesByTitle(issues)
+	if name := got["Hidden stage"].StatusName; name != "Stage3" {
+		t.Errorf("hidden stage: expected the status value, got %q", name)
+	}
+	if name := got["Defaults"].StatusName; name != "Working" {
+		t.Errorf("project without config row: expected the default name, got %q", name)
+	}
+}
+
+func TestGetMyActiveIssuesStatusConfigScanError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	me := createMyWorkUser(t, "me@example.com")
+	createMyWorkIssue(t, DefaultProjectID, StatusTodo, &me, "A todo")
+	// A NULL stage name cannot be scanned into a string; the real table forbids NULL.
+	for _, stmt := range []string{
+		"DROP TABLE project_status_config",
+		"CREATE TABLE project_status_config (project_id INTEGER PRIMARY KEY, stage1_name TEXT, stage2_name TEXT, stage3_name TEXT, stage4_name TEXT)",
+		"INSERT INTO project_status_config (project_id) VALUES (1)",
+	} {
+		if _, err := DB.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+
+	if _, err := GetMyActiveIssues(context.Background(), me); err == nil {
+		t.Fatal("expected a scan error, got nil")
+	}
+}
+
+func TestGetMyActiveIssuesWithoutIssuesIsEmpty(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	me := createMyWorkUser(t, "me@example.com")
+
+	issues, err := GetMyActiveIssues(context.Background(), me)
+	if err != nil {
+		t.Fatalf(errUnexpected, err)
+	}
+	if issues == nil || len(issues) != 0 {
+		t.Errorf("expected an empty, non-nil list, got %#v", issues)
+	}
+}
+
+func TestProjectAccessible(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	ok, err := ProjectAccessible(context.Background(), 1, DefaultProjectID)
+	if err != nil || !ok {
+		t.Errorf("existing project: expected accessible, got %v (err %v)", ok, err)
+	}
+	ok, err = ProjectAccessible(context.Background(), 1, 999)
+	if err != nil || ok {
+		t.Errorf("missing project: expected not accessible, got %v (err %v)", ok, err)
 	}
 }

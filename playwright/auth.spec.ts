@@ -269,6 +269,7 @@ test.describe('Authentication Security', () => {
     await page.fill('#login-password', adminPassword);
     await page.click('#login-btn');
     await expect(page.locator('#nav-system-settings')).toBeVisible();
+    await expect(page.locator('#system-menu-separator')).toBeVisible();
 
     // 2. Create a plain admin-role user via API (sysadmin session is active)
     const adminUserEmail = `nav_admin_${Date.now()}@example.com`;
@@ -298,6 +299,8 @@ test.describe('Authentication Security', () => {
     await page.click('#login-btn');
     await expect(page.locator('.board')).toBeVisible();
     await expect(page.locator('#nav-system-settings')).toBeHidden();
+    // No separator line without the System section below it
+    await expect(page.locator('#system-menu-separator')).toBeHidden();
 
     // 5. Cleanup: log back in as sysadmin and deactivate the temp user
     await page.click('#user-menu-btn');

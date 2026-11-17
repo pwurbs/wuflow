@@ -7,7 +7,7 @@ import { byId, bySelector } from '../utils.ts';
 import * as utils from '../utils.ts';
 import * as tasks from '../components/tasks.ts';
 import * as activity from '../components/activity.ts';
-import type { Issue, Task } from '../models.ts';
+import type { Issue, StatusConfig, Task } from '../models.ts';
 import type { IssueWrite } from '../api.ts';
 
 type UpdateIssueResult = Awaited<ReturnType<typeof api.updateIssue>>;
@@ -33,7 +33,8 @@ vi.mock('../api.ts', () => ({
   deleteIssue: vi.fn(),
   fetchLabelsByProject: vi.fn(),
   fetchReleases: vi.fn(async () => []),
-  fetchStatusConfig: vi.fn(async () => null),
+  // As the server answers for a project without a saved config (never null).
+  fetchStatusConfig: vi.fn(async () => ({ project_id: 1, stage1_name: 'Pending', stage2_name: 'Working', stage3_name: '', stage4_name: '' })),
   fetchUsers: vi.fn(),
   fetchProjects: vi.fn(),
   fetchIssueById: vi.fn(),
@@ -123,6 +124,7 @@ vi.mock('../components/activity.ts', async (importOriginal) => {
     loadActivity: vi.fn(actual.loadActivity),
     refreshHistory: vi.fn(actual.refreshHistory),
     getOpenCommentDraft: vi.fn(actual.getOpenCommentDraft),
+    setActivityStatusNames: vi.fn(actual.setActivityStatusNames),
   };
 });
 
@@ -302,10 +304,13 @@ function setupModalFixture(rerender = vi.fn()) {
   vi.mocked(api.updateIssue).mockImplementation(async (_projectId, sent) => ({ issue: savedIssue(sent), etag: '"updated-etag"', conflict: false }));
   state.currentIssue = null;
   state.currentUser = makeUser({ id: 100, role: 'admin' });
+  // As after refreshApp: project 1 (the default issue's) is selected and its options cached.
+  // Issues of other projects load their own options (see "Project context" below).
+  state.selectedProjectId = 1;
   state.releases = [];
   state.statusConfig = null;
-  state.labels = [];
-  state.labelsProjectId = null;
+  state.labels = [makeLabel({ id: 1, name: 'Bug' }), makeLabel({ id: 2, name: 'Feature' })];
+  state.labelsProjectId = 1;
   state.users = [];
   state.projects = [];
   vi.mocked(setCurrentIssue).mockImplementation((val) => { state.currentIssue = val; });
@@ -356,7 +361,7 @@ describe('Modal Component', () => {
     expect(byId('title', HTMLInputElement).value).toBe('Test Issue');
     expect(byId('description-editor', HTMLTextAreaElement).value).toBe('Test Desc');
     expect(setCurrentIssue).toHaveBeenCalledWith(issue);
-    expect(api.fetchLabelsByProject).toHaveBeenCalled(); // labels fetched to render options
+    expect(byId('label-options').textContent).toContain('Bug'); // label options rendered (from the cache)
   });
 
   it('should close modal and reset state', () => {
@@ -3161,6 +3166,7 @@ describe('Project Selector Coverage', () => {
   it('keeps the issue project\'s labels, releases and statuses when the move to another project is cancelled', async () => {
     const releasesA = [makeRelease({ id: 5, name: 'A-1.0', project_id: 1 })];
     state.releases = releasesA;
+    state.labels = [makeLabel({ id: 7, name: 'Bug', project_id: 1 })];
     vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' }), makeProject({ id: 2, name: 'Other' })]);
     vi.mocked(api.fetchLabelsByProject).mockImplementation(async (projectId) =>
       projectId === 1 ? [makeLabel({ id: 7, name: 'Bug', project_id: 1 })] : [makeLabel({ id: 20, name: 'B-Label', project_id: 2 })]);
@@ -3221,7 +3227,10 @@ describe('Project Selector Coverage', () => {
     expect(byId('label-select', HTMLInputElement).value).toBe('');
     expect(byId('label-text').textContent).toBe('No Label');
     expect([...document.querySelectorAll('#label-options .custom-option')].map(o => o.textContent)).toEqual(['No Label', 'Backend']);
-    expect(state.releases).toBe(releasesB);
+    expect([...document.querySelectorAll('#release-options .custom-option')].map(o => o.textContent)).toEqual(['No Release', 'B-1.0']);
+    // The board's state keeps the selected project's options.
+    expect(state.releases).toEqual([]);
+    expect(state.statusConfig).toBeNull();
     expect(byId('status', HTMLInputElement).value).toBe('Open');
   });
 
@@ -3255,11 +3264,129 @@ describe('Project Selector Coverage', () => {
 
     expect(api.moveIssue).toHaveBeenCalledWith(1, 1, 2, 'AdminPass123!');
     expect(api.fetchReleases).toHaveBeenCalledWith(2);
-    expect(state.releases).toBe(releasesB);
+    expect([...document.querySelectorAll('#release-options .custom-option')].map(o => o.textContent)).toEqual(['No Release', 'B-1.0']);
+    // The board's state keeps the selected project's options.
+    expect(state.releases).toEqual([]);
+    expect(state.statusConfig).toBeNull();
     expect(byId('status', HTMLInputElement).value).toBe('Open');
     expect(byId('label-select', HTMLInputElement).value).toBe('');
     expect(byId('release-select', HTMLInputElement).value).toBe('');
     expect([...document.querySelectorAll('#label-options .custom-option')].map(o => o.textContent)).toEqual(['No Label', 'B-Label']);
+  });
+});
+
+// ─── Project context: an issue of a project other than the selected one (My Work) ─
+
+describe('Project context of the issue dialog', () => {
+  beforeEach(() => {
+    setupModalFixture();
+  });
+
+  const namesB = { stage1_name: 'Testing', stage2_name: 'Review' };
+
+  function mockProjectB() {
+    vi.mocked(api.fetchLabelsByProject).mockImplementation(async id => id === 2 ? [makeLabel({ id: 20, name: 'B-Label', project_id: 2 })] : []);
+    vi.mocked(api.fetchReleases).mockImplementation(async id => id === 2 ? [makeRelease({ id: 30, name: 'B-1.0', project_id: 2 })] : []);
+    vi.mocked(api.fetchStatusConfig).mockImplementation(async id => makeStatusConfig({ project_id: id, ...namesB }));
+  }
+
+  const issueB = (overrides: Partial<Issue> = {}) => makeIssue({
+    id: 7, project_id: 2, status: 'Stage1',
+    label: makeLabel({ id: 20, name: 'B-Label' }),
+    release_id: 30, release: makeRelease({ id: 30, name: 'B-1.0' }),
+    ...overrides,
+  });
+  // The fixture's triggers are divs (buttons on the page): read the property as the other tests do.
+  const triggerDisabled = (id: string) => document.querySelector<HTMLButtonElement>(`#${id}`)?.disabled;
+  const projectTriggersDisabled = () => ['status-trigger', 'label-trigger', 'release-trigger'].map(triggerDisabled);
+  const optionTexts = (id: string) => [...document.querySelectorAll(`#${id} .custom-option`)].map(o => o.textContent);
+
+  it('loads the options of an issue from another project, with the dropdowns disabled until they arrive', async () => {
+    mockProjectB();
+    const cfg = Promise.withResolvers<StatusConfig>();
+    vi.mocked(api.fetchStatusConfig).mockReturnValueOnce(cfg.promise);
+
+    await openModalWithMock(issueB());
+
+    expect(projectTriggersDisabled()).toEqual([true, true, true]);
+    expect(triggerDisabled('priority-trigger')).toBe(false);
+    expect(byId('release-text').textContent).toBe('B-1.0');
+
+    cfg.resolve(makeStatusConfig({ project_id: 2, ...namesB }));
+    await flush();
+
+    expect(projectTriggersDisabled()).toEqual([false, false, false]);
+    expect(byId('status-text').textContent).toBe('Testing');
+    expect(optionTexts('status-options')).toEqual(['Open', 'Todo', 'Testing', 'Review', 'Done', 'Archived']);
+    expect(optionTexts('label-options')).toEqual(['No Label', 'B-Label']);
+    expect(optionTexts('release-options')).toEqual(['No Release', 'B-1.0']);
+    expect(api.fetchLabelsByProject).toHaveBeenCalledWith(2);
+    expect(api.fetchReleases).toHaveBeenCalledWith(2);
+    expect(api.fetchStatusConfig).toHaveBeenCalledWith(2);
+    expect(activity.setActivityStatusNames).toHaveBeenLastCalledWith(expect.objectContaining(namesB));
+    // The board's state keeps the selected project's options.
+    expect(state.releases).toEqual([]);
+    expect(state.statusConfig).toBeNull();
+    expect(state.labelsProjectId).toBe(1);
+  });
+
+  it('uses the cached options for an issue of the selected project', async () => {
+    mockProjectB();
+    await openModalWithMock(makeIssue({ id: 1, project_id: 1, status: 'Stage2' }));
+    await flush();
+
+    expect(api.fetchLabelsByProject).not.toHaveBeenCalled();
+    expect(api.fetchReleases).not.toHaveBeenCalled();
+    expect(api.fetchStatusConfig).not.toHaveBeenCalled();
+    expect(byId('status-text').textContent).toBe('Working');
+    expect(projectTriggersDisabled()).toEqual([false, false, false]);
+  });
+
+  it('keeps the dropdowns disabled and shows the error when the options cannot be loaded', async () => {
+    mockProjectB();
+    vi.mocked(api.fetchReleases).mockRejectedValueOnce(new Error('Network error'));
+
+    await openModalWithMock(issueB());
+    await flush();
+
+    expect(utils.showNotification).toHaveBeenCalledWith('Network error', 'error');
+    expect(projectTriggersDisabled()).toEqual([true, true, true]);
+  });
+
+  it('ignores options that arrive after another issue was opened', async () => {
+    mockProjectB();
+    const cfg = Promise.withResolvers<StatusConfig>();
+    vi.mocked(api.fetchStatusConfig).mockReturnValueOnce(cfg.promise);
+    await openModalWithMock(issueB());
+    closeModal();
+    await openModalWithMock(makeIssue({ id: 1, project_id: 1, status: 'Stage1' }));
+
+    cfg.resolve(makeStatusConfig({ project_id: 2, ...namesB }));
+    await flush();
+
+    expect(byId('status-text').textContent).toBe('Pending');
+    expect(optionTexts('status-options')).not.toContain('Testing');
+    expect(projectTriggersDisabled()).toEqual([false, false, false]);
+  });
+
+  it('keeps an archived issue of another project read-only once its options are loaded', async () => {
+    mockProjectB();
+    await openModalWithMock(issueB({ status: 'Archive' }));
+    await flush();
+
+    expect(projectTriggersDisabled()).toEqual([true, true, true]);
+  });
+
+  it('saves a change to the issue\'s own project with its ETag', async () => {
+    mockProjectB();
+    await openModalWithMock(issueB());
+    await flush();
+
+    byId('label-trigger').click();
+    [...document.querySelectorAll<HTMLElement>('#label-options .custom-option')][0].click(); // No Label
+    await flush();
+
+    expect(api.updateIssue).toHaveBeenCalledWith(2, expect.objectContaining({ id: 7, label: null }), '"test-etag"');
   });
 });
 

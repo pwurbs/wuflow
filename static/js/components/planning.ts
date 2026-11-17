@@ -42,13 +42,62 @@ export function getEffectiveDeadlineInfo(issue: Issue) {
   return minInfo;
 }
 
+// How a planning list differs between the project board (default) and My Work.
+export interface PlanningListOptions {
+  // No drag & drop, no drop targets, no remove buttons, no element IDs.
+  readOnly?: boolean;
+  // The element shown before an item's title (board: assignee badge).
+  itemLead?: (issue: Issue) => HTMLElement | null;
+  // A second line under the title (My Work: project name).
+  itemSubline?: (issue: Issue) => HTMLElement;
+  openModal?: OpenModal;
+}
+
 export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenModal, rerenderActiveView?: RerenderView) {
   if (refreshApp) refreshAppCallback = refreshApp;
   if (openModal) openModalCallback = openModal;
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
-  const planningList = byId('planning-list');
   const planningCount = byId('planning-count');
+  const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
+  const count = buildPlanningList(byId('planning-list'), filteredIssues, {
+    itemLead: createAssigneeBadgeElement,
+    openModal: (issue) => openModalCallback?.(issue),
+  });
+
+  planningCount.textContent = String(count);
+
+  if (isFilterActive()) {
+    planningCount.textContent = `${count}/${countPlanningEntries(state.issues)}`;
+  }
+}
+
+// The total behind "shown/total" while a filter is active: the planning entries of all
+// given issues except Done and Archive.
+export function countPlanningEntries(issues: Issue[]) {
+  let totalCount = 0;
+  issues.forEach(issue => {
+    if (issue.status !== STATUS_DONE && issue.status !== STATUS_ARCHIVE) {
+      // Unscheduled: has deadline/subtask-deadline but no planned dates
+      const info = getEffectiveDeadlineInfo(issue);
+      const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
+      if (info && isUnscheduled) {
+        totalCount++;
+      }
+      // Planned: count each planned date
+      if (issue.planned_dates && issue.planned_dates.length > 0) {
+        totalCount += issue.planned_dates.length;
+      }
+    }
+  });
+  return totalCount;
+}
+
+/**
+ * Fills planningList with the planning of the given issues (Unplanned Deadlines, Past
+ * Planning, the next 10 days, Future Planning) and returns the number of items shown.
+ */
+export function buildPlanningList(planningList: HTMLElement, filteredIssues: Issue[], opts: PlanningListOptions = {}) {
   planningList.innerHTML = '';
 
   let count = 0;
@@ -62,10 +111,17 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
     return `${year}-${month}-${day}`;
   };
 
+  // Day containers by key ('past', 'future' or YYYY-MM-DD), looked up here instead of by
+  // document-wide ID because the board and My Work lists are in the DOM at the same time.
+  const days = new Map<string, HTMLElement>();
+  const addDay = (title: string, key: string) => {
+    const day = createPlanningDayElement(title, key, opts.readOnly ?? false);
+    days.set(key, day);
+    planningList.appendChild(day);
+  };
+
   // Add Unscheduled section FIRST (at top) for issues with deadline (or subtask deadline) but no planned date
   // Now: Issue is unscheduled if planned_dates is empty or null
-
-  const filteredIssues = filterIssues(state.issues, state.filter, state.currentUser?.id);
 
   const unscheduledIssues = filteredIssues
     .filter(issue => {
@@ -80,7 +136,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
     }); // Sort by effective deadline, tightest first
 
   if (unscheduledIssues.length > 0) {
-    const unscheduledSection = createUnscheduledSection(unscheduledIssues);
+    const unscheduledSection = createUnscheduledSection(unscheduledIssues, opts);
     planningList.appendChild(unscheduledSection);
     count += unscheduledIssues.length;
   }
@@ -97,7 +153,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
   });
 
   if (hasPastIssues) {
-    planningList.appendChild(createPlanningDayElement('Past Planning', 'past'));
+    addDay('Past Planning', 'past');
   }
 
   // Next 10 Days
@@ -106,7 +162,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
     date.setDate(today.getDate() + i);
     const dateStr = date.toLocaleDateString(navigator.language, { weekday: 'short', month: 'short', day: 'numeric' });
     const dateId = getLocalISODate(date);
-    planningList.appendChild(createPlanningDayElement(dateStr, dateId));
+    addDay(dateStr, dateId);
   }
 
   // Future Planning (for > 10 days)
@@ -123,7 +179,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
   });
 
   if (hasFutureIssues) {
-    planningList.appendChild(createPlanningDayElement('Future Planning', 'future'));
+    addDay('Future Planning', 'future');
   }
 
   // Populate planned issues
@@ -137,62 +193,42 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
         // Normalize
         planned.setHours(12, 0, 0, 0);
 
-        let targetId;
+        let targetKey;
         if (planned < today) {
           if (addedPastIssues.has(issue.id)) return;
-          targetId = 'day-past';
+          targetKey = 'past';
           addedPastIssues.add(issue.id);
         } else if (planned >= futureCutoff) {
           if (addedFutureIssues.has(issue.id)) return;
-          targetId = 'day-future';
+          targetKey = 'future';
           addedFutureIssues.add(issue.id);
         } else {
-          targetId = `day-${dateStr}`;
+          targetKey = dateStr;
         }
 
-        // Not byId: day columns are rendered per date, so a date's column may not exist.
-        const container = document.getElementById(targetId);
+        // Day columns are rendered per date, so a date's column may not exist.
+        const container = days.get(targetKey);
         if (container) {
           // Pass distinct dateStr so we know WHICH instance this is
-          bySelector(container, '.planning-day-content').appendChild(createPlanningItem(issue, dateStr));
+          bySelector(container, '.planning-day-content').appendChild(createPlanningItem(issue, dateStr, opts));
           count++;
         }
       });
     }
   });
 
-  planningCount.textContent = String(count);
-
-  if (isFilterActive()) {
-    let totalCount = 0;
-    state.issues.forEach(issue => {
-      if (issue.status !== STATUS_DONE && issue.status !== STATUS_ARCHIVE) {
-        // Unscheduled: has deadline/subtask-deadline but no planned dates
-        const info = getEffectiveDeadlineInfo(issue);
-        const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
-        if (info && isUnscheduled) {
-          totalCount++;
-        }
-        // Planned: count each planned date
-        if (issue.planned_dates && issue.planned_dates.length > 0) {
-          totalCount += issue.planned_dates.length;
-        }
-      }
-    });
-    planningCount.textContent = `${count}/${totalCount}`;
-  }
-
-
-  document.querySelectorAll('.planning-day').forEach(day => {
+  planningList.querySelectorAll('.planning-day').forEach(day => {
     const content = bySelector(day, '.planning-day-content');
     day.classList.toggle('empty', content.children.length === 0);
   });
+
+  return count;
 }
 
-function createPlanningDayElement(title: string, idSuffix: string) {
+function createPlanningDayElement(title: string, idSuffix: string, readOnly: boolean) {
   const div = document.createElement('div');
   div.className = `planning-day ${idSuffix === 'past' ? 'past' : ''}`;
-  div.id = `day-${idSuffix}`;
+  if (!readOnly) div.id = `day-${idSuffix}`;
   div.dataset.date = idSuffix === 'past' ? 'past' : idSuffix;
 
   div.innerHTML = `
@@ -201,6 +237,7 @@ function createPlanningDayElement(title: string, idSuffix: string) {
         </div>
         <div class="planning-day-content"></div>
     `;
+  if (readOnly) return div;
 
   // Drop Logic
   div.addEventListener('dragover', (e) => {
@@ -279,30 +316,71 @@ function createAssigneeBadgeElement(issue: Issue) {
   return badge;
 }
 
-function createPlanningItem(issue: Issue, dateStr: string) {
+// The parts planned and unplanned items share: lead element, title, click, drag source
+// (unless read-only) and the hover link to the issue's card.
+function createItemBase(issue: Issue, className: string, opts: PlanningListOptions, effectAllowed: DataTransfer['effectAllowed']) {
   const div = document.createElement('div');
-  div.className = `planning-item ${issue.status === STATUS_DONE ? 'done' : ''}`;
-  div.draggable = true;
+  div.className = className;
+  div.classList.toggle('read-only', opts.readOnly ?? false);
+  div.draggable = !opts.readOnly;
   div.dataset.id = String(issue.id);
-  // Store the date of this specific instance
-  div.dataset.dateInstance = dateStr;
 
-  // Add Assignee Badge if assigned
-  const assigneeBadge = createAssigneeBadgeElement(issue);
-  if (assigneeBadge) {
-    div.appendChild(assigneeBadge);
+  const lead = opts.itemLead?.(issue);
+  if (lead) {
+    div.appendChild(lead);
   }
 
   const titleSpan = document.createElement('span');
   titleSpan.className = 'planning-item-title';
   titleSpan.textContent = issue.title;
+  if (opts.itemSubline) {
+    const text = document.createElement('div');
+    text.className = 'planning-item-text';
+    text.append(titleSpan, opts.itemSubline(issue));
+    div.appendChild(text);
+  } else {
+    div.appendChild(titleSpan);
+  }
 
-  div.appendChild(titleSpan);
+  // Click to open modal
+  div.addEventListener('click', () => {
+    opts.openModal?.(issue);
+  });
+
+  if (!opts.readOnly) {
+    div.addEventListener('dragstart', (e) => {
+      setDraggedCard(div);
+      // planning item acts as a card proxy for basic dragging but has different class
+      div.classList.add('dragging');
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = effectAllowed;
+    });
+    div.addEventListener('dragend', () => {
+      div.classList.remove('dragging');
+      setDraggedCard(null);
+    });
+  }
+
+  // Hover highlight integration. All matches: the hidden board can hold a card with the same ID.
+  div.addEventListener('mouseenter', () => {
+    document.querySelectorAll(`.card[data-id="${issue.id}"]`).forEach(el => el.classList.add('hover-highlight'));
+  });
+  div.addEventListener('mouseleave', () => {
+    document.querySelectorAll(`.card[data-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
+  });
+
+  return div;
+}
+
+function createPlanningItem(issue: Issue, dateStr: string, opts: PlanningListOptions) {
+  const div = createItemBase(issue, `planning-item ${issue.status === STATUS_DONE ? 'done' : ''}`, opts, 'copyMove');
+  // Store the date of this specific instance
+  div.dataset.dateInstance = dateStr;
 
   const badge = createDeadlineBadge(issue, dateStr);
   if (badge) {
     div.appendChild(badge);
   }
+  if (opts.readOnly) return div;
 
   const removeBtn = document.createElement('span');
   removeBtn.className = 'planning-item-remove';
@@ -331,39 +409,12 @@ function createPlanningItem(issue: Issue, dateStr: string) {
   });
 
   div.appendChild(removeBtn);
-
-  // Click to open modal
-  div.addEventListener('click', () => {
-    if (openModalCallback) openModalCallback(issue);
-  });
-
-  div.addEventListener('dragstart', (e) => {
-    setDraggedCard(div);
-    // planning item acts as a card proxy for basic dragging but has different class
-    div.classList.add('dragging');
-    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'copyMove'; // Allow either
-  });
-  div.addEventListener('dragend', () => {
-    div.classList.remove('dragging');
-    setDraggedCard(null);
-  });
-
-  // Hover highlight integration
-  div.addEventListener('mouseenter', () => {
-    const targetCard = document.querySelector(`.card[data-id="${issue.id}"]`);
-    if (targetCard) targetCard.classList.add('hover-highlight');
-  });
-  div.addEventListener('mouseleave', () => {
-    const targetCard = document.querySelector(`.card[data-id="${issue.id}"]`);
-    if (targetCard) targetCard.classList.remove('hover-highlight');
-  });
-
   return div;
 }
 
 let isFarTermUnscheduledExpanded = false;
 
-function createUnscheduledSection(issues: Issue[]) {
+function createUnscheduledSection(issues: Issue[], opts: PlanningListOptions) {
   const section = document.createElement('div');
   section.className = 'planning-section-unscheduled';
   section.id = 'unscheduled-section';
@@ -402,7 +453,7 @@ function createUnscheduledSection(issues: Issue[]) {
 
   // Render Near Term
   nearTermIssues.forEach(issue => {
-    content.appendChild(createUnscheduledItem(issue));
+    content.appendChild(createUnscheduledItem(issue, opts));
   });
 
   // Render Far Term if exists
@@ -423,7 +474,7 @@ function createUnscheduledSection(issues: Issue[]) {
     farContent.style.display = isFarTermUnscheduledExpanded ? 'flex' : 'none';
 
     farTermIssues.forEach(issue => {
-      farContent.appendChild(createUnscheduledItem(issue));
+      farContent.appendChild(createUnscheduledItem(issue, opts));
     });
 
     farHeader.addEventListener('click', () => {
@@ -442,57 +493,14 @@ function createUnscheduledSection(issues: Issue[]) {
   return section;
 }
 
-function createUnscheduledItem(issue: Issue) {
-  const div = document.createElement('div');
-  div.className = 'planning-item unscheduled';
-  div.draggable = true;
-  div.dataset.id = String(issue.id);
+function createUnscheduledItem(issue: Issue, opts: PlanningListOptions) {
+  const div = createItemBase(issue, 'planning-item unscheduled', opts, 'move');
 
-  // Add Assignee Badge if assigned
-  const assigneeBadge = createAssigneeBadgeElement(issue);
-  if (assigneeBadge) {
-    div.appendChild(assigneeBadge);
-  }
-
-  const titleSpan = document.createElement('span');
-  titleSpan.className = 'planning-item-title';
-  titleSpan.textContent = issue.title;
-
-  div.appendChild(titleSpan);
-
-  // Add deadline badge
-  // Add deadline badge (Effective Deadline)
   // Add deadline badge (Effective Deadline)
   const badge = createDeadlineBadge(issue);
   if (badge) {
     div.appendChild(badge);
   }
-
-  // Click to open modal
-  div.addEventListener('click', () => {
-    if (openModalCallback) openModalCallback(issue);
-  });
-
-  div.addEventListener('dragstart', (e) => {
-    setDraggedCard(div);
-    div.classList.add('dragging');
-    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-  });
-  div.addEventListener('dragend', () => {
-    div.classList.remove('dragging');
-    setDraggedCard(null);
-  });
-
-  // Hover highlight integration
-  div.addEventListener('mouseenter', () => {
-    const targetCard = document.querySelector(`.card[data-id="${issue.id}"]`);
-    if (targetCard) targetCard.classList.add('hover-highlight');
-  });
-  div.addEventListener('mouseleave', () => {
-    const targetCard = document.querySelector(`.card[data-id="${issue.id}"]`);
-    if (targetCard) targetCard.classList.remove('hover-highlight');
-  });
-
   return div;
 }
 

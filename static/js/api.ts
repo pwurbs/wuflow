@@ -1,5 +1,5 @@
 import { singleFlight, errorMessage } from './utils.ts';
-import type { Comment, HistoryEntry, Issue, Label, PositionUpdate, Project, Release, StatusConfig, Task, User } from './models.ts';
+import type { Comment, HistoryEntry, Issue, Label, MyIssue, PositionUpdate, Project, Release, StatusConfig, Task, User } from './models.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Priority } from './domain-constants.ts';
 
@@ -607,6 +607,13 @@ export async function updateStatusConfig(projectId: number, config: Partial<Omit
     const text = await res.text();
     throw new Error(text || 'Failed to update status config');
   }
+  return await res.json();
+}
+
+// The active issues assigned to the current user across all projects (My Work).
+export async function fetchMyIssues(): Promise<MyIssue[]> {
+  const res = await authFetch(`${API_URL}/me/issues`);
+  if (!res.ok) throw new Error(await res.text() || 'Failed to load your issues');
   return await res.json();
 }
 

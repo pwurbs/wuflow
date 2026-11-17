@@ -70,7 +70,8 @@ h1 {
 /* Count badges */
 .sidebar-header .count,
 .column-header .count,
-.backlog-header .count {
+.backlog-header .count,
+.my-work-lane-header .count {
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
 }
@@ -131,6 +132,17 @@ h1 {
 .backlog-card-title {
   font-size: var(--fs-base);
   font-weight: var(--fw-medium);
+}
+
+/* Project lane headers (My Work): stronger than the card titles below them */
+.my-work-lane-name {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+
+/* Secondary line under a title (My Work planning: project name) */
+.planning-item-project {
+  font-size: var(--fs-2xs);
 }
 
 /* Buttons & primary menu actions */

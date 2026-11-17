@@ -1,15 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
-import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard, setupPlanningPanel } from '../components/planning.ts';
+import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard, setupPlanningPanel, buildPlanningList } from '../components/planning.ts';
+import type { Issue } from '../models.ts';
 import * as api from '../api.ts';
 import * as utils from '../utils.ts';
-import { state } from '../state.ts'; // Imported from mock
+import { state, isFilterActive } from '../state.ts'; // Imported from mock
 
 // Mock dependencies
 vi.mock('../utils.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils.ts')>();
   return { byId: actual.byId, bySelector: actual.bySelector, errorMessage: actual.errorMessage, containsTarget: actual.containsTarget, showNotification: vi.fn() };
 });
-import { makeIssue, makeTask } from './fixtures.ts';
+import { makeIssue, makeProject, makeTask, makeUserRef } from './fixtures.ts';
 import { byId, bySelector } from '../utils.ts';
 
 vi.mock('../state.ts', () => ({
@@ -387,6 +388,155 @@ describe('planning.ts', () => {
         expect(utils.showNotification).toHaveBeenCalledWith('Drop failed', 'error');
         expect(refreshApp).toHaveBeenCalled();
       });
+    });
+
+    it('shows the assignee badge before the title of a draggable item, without a second line', () => {
+      state.issues = [makeIssue({
+        id: 1, title: 'Assigned', planned_dates: ['2023-10-10'], status: 'Todo',
+        assignee_id: 3, assignee: makeUserRef({ id: 3, first_name: 'Ada', last_name: 'Lovelace' }),
+      })];
+
+      renderPlanningPanel();
+
+      const item = bySelector(byId('planning-list'), '.planning-item');
+      expect(item.draggable).toBe(true);
+      expect(item.classList.contains('read-only')).toBe(false);
+      expect(item.firstElementChild?.classList.contains('user-badge')).toBe(true);
+      expect(item.firstElementChild?.textContent).toBe('AL');
+      expect(item.querySelector('.planning-item-text')).toBeNull();
+    });
+
+    it('shows "shown/total" while a filter is active, counting unplanned deadlines and planned dates but not Done', () => {
+      state.issues = [
+        makeIssue({ id: 1, title: 'Keep', planned_dates: ['2023-10-10', '2023-10-11'], status: 'Todo' }),
+        makeIssue({ id: 2, title: 'Hidden unplanned', deadline: '2023-10-12', planned_dates: [], status: 'Todo' }),
+        makeIssue({ id: 3, title: 'Hidden done', planned_dates: ['2023-10-10'], status: 'Done' }),
+      ];
+      state.filter.search = 'Keep';
+      vi.mocked(isFilterActive).mockReturnValueOnce(true);
+
+      renderPlanningPanel();
+
+      // shown: Keep's 2 dates; total: Keep's 2 dates + 1 unplanned deadline, Done not counted
+      expect(byId('planning-count').textContent).toBe('2/3');
+    });
+
+    it('makes planned and unplanned items drag sources', async () => {
+      const dragModule = await import('../drag.ts');
+      state.issues = [
+        makeIssue({ id: 1, title: 'Planned', planned_dates: ['2023-10-10'], status: 'Todo' }),
+        makeIssue({ id: 2, title: 'Unplanned', deadline: '2023-10-12', planned_dates: [], status: 'Todo' }),
+      ];
+      renderPlanningPanel();
+
+      const cases: [string, string][] = [['.planning-item[data-id="1"]', 'copyMove'], ['.planning-item.unscheduled', 'move']];
+      for (const [selector, effect] of cases) {
+        const item = bySelector(byId('planning-list'), selector);
+        const dataTransfer = { effectAllowed: '' };
+        item.dispatchEvent(Object.assign(new Event('dragstart'), { dataTransfer }));
+        expect(dragModule.setDraggedCard).toHaveBeenLastCalledWith(item);
+        expect(item.classList.contains('dragging')).toBe(true);
+        expect(dataTransfer.effectAllowed).toBe(effect);
+
+        item.dispatchEvent(new Event('dragend'));
+        expect(dragModule.setDraggedCard).toHaveBeenLastCalledWith(null);
+        expect(item.classList.contains('dragging')).toBe(false);
+      }
+    });
+
+    it('highlights every card of the issue while hovering its item', () => {
+      // Two cards with the same ID: the hidden board and My Work can both show the issue.
+      document.body.insertAdjacentHTML('beforeend', '<div class="card" data-id="1"></div><div class="card" data-id="1"></div><div class="card" data-id="2"></div>');
+      state.issues = [makeIssue({ id: 1, title: 'Planned', planned_dates: ['2023-10-10'], status: 'Todo' })];
+      renderPlanningPanel();
+      const item = bySelector(byId('planning-list'), '.planning-item');
+      const highlighted = () => [...document.querySelectorAll<HTMLElement>('.card.hover-highlight')].map(c => c.dataset.id);
+
+      item.dispatchEvent(new Event('mouseenter'));
+      expect(highlighted()).toEqual(['1', '1']);
+
+      item.dispatchEvent(new Event('mouseleave'));
+      expect(highlighted()).toEqual([]);
+    });
+  });
+
+  describe('buildPlanningList read-only (My Work)', () => {
+    const projectLine = (issue: Issue) => {
+      const el = document.createElement('span');
+      el.className = 'planning-item-project';
+      el.textContent = issue.project?.name ?? '';
+      return el;
+    };
+
+    function buildReadOnly(issues: Issue[], openModal = vi.fn()) {
+      const list = document.createElement('div');
+      document.body.appendChild(list);
+      const count = buildPlanningList(list, issues, { readOnly: true, itemSubline: projectLine, openModal });
+      return { list, count, openModal };
+    }
+
+    it('renders items without drag, drop, remove button or element IDs', async () => {
+      const issue = makeIssue({ id: 1, title: 'Mine', planned_dates: ['2023-10-10', '2023-10-01'], status: 'Todo' });
+      const { list, count } = buildReadOnly([issue]);
+
+      expect(count).toBe(2);
+      expect(list.querySelectorAll('[id]')).toHaveLength(0);
+      expect(list.querySelector('.planning-item-remove')).toBeNull();
+      list.querySelectorAll<HTMLElement>('.planning-item').forEach(item => {
+        expect(item.draggable).toBe(false);
+        expect(item.classList.contains('read-only')).toBe(true);
+      });
+
+      const dragModule = await import('../drag.ts');
+      const dragged = document.createElement('div');
+      dragged.dataset.id = '1';
+      vi.mocked(dragModule.getDraggedCard).mockReturnValue(dragged);
+      bySelector(list, '.planning-day[data-date="2023-10-11"]').dispatchEvent(new Event('drop'));
+      await Promise.resolve();
+      expect(api.updateIssue).not.toHaveBeenCalled();
+    });
+
+    it('shows the project name as a line under the title, without assignee badge', () => {
+      const issue = makeIssue({
+        id: 1, title: 'Mine', planned_dates: ['2023-10-10'], status: 'Todo',
+        assignee_id: 3, assignee: makeUserRef({ id: 3, first_name: 'Ada', last_name: 'Lovelace' }),
+        project: makeProject({ id: 2, name: 'Beta Project' }),
+      });
+      const { list } = buildReadOnly([issue]);
+
+      const item = bySelector(list, '.planning-item');
+      expect(item.querySelector('.user-badge')).toBeNull();
+      const text = bySelector(item, '.planning-item-text');
+      expect([...text.children].map(c => c.className)).toEqual(['planning-item-title', 'planning-item-project']);
+      expect(bySelector(text, '.planning-item-project').textContent).toBe('Beta Project');
+    });
+
+    it('opens the issue on click, also for an unplanned deadline', () => {
+      const planned = makeIssue({ id: 1, title: 'Planned', planned_dates: ['2023-10-10'], status: 'Todo' });
+      const unplanned = makeIssue({ id: 2, title: 'Unplanned', deadline: '2023-10-12', planned_dates: [], status: 'Todo' });
+      const { list, openModal } = buildReadOnly([planned, unplanned]);
+
+      bySelector(list, '.planning-item[data-id="1"]').click();
+      const unscheduled = bySelector(list, '.planning-item.unscheduled');
+      expect(unscheduled.draggable).toBe(false);
+      unscheduled.click();
+
+      expect(openModal).toHaveBeenNthCalledWith(1, planned);
+      expect(openModal).toHaveBeenNthCalledWith(2, unplanned);
+    });
+
+    it('does not collide with the board panel in the same document', () => {
+      state.issues = [makeIssue({ id: 1, title: 'Board issue', planned_dates: ['2023-10-10'], status: 'Todo' })];
+      const { list } = buildReadOnly([makeIssue({ id: 2, title: 'My issue', planned_dates: ['2023-10-10'], status: 'Todo' })]);
+
+      renderPlanningPanel();
+
+      const boardToday = byId('day-2023-10-10');
+      expect(boardToday.textContent).toContain('Board issue');
+      expect(boardToday.textContent).not.toContain('My issue');
+      const myToday = bySelector(list, '.planning-day[data-date="2023-10-10"]');
+      expect(myToday.textContent).toContain('My issue');
+      expect(myToday.textContent).not.toContain('Board issue');
     });
   });
 

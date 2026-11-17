@@ -310,9 +310,10 @@ func GetIssueByIDInProject(ctx context.Context, id, projectID int) (*Issue, erro
 	return &issue, nil
 }
 
-// ProjectExists checks if a project exists.
-func ProjectExists(ctx context.Context, id int) (bool, error) {
-	return existsQuery(ctx, "SELECT COUNT(*) FROM projects WHERE id = ?", id)
+// ProjectAccessible reports whether the project exists and userID may see it (accessibleProjects).
+func ProjectAccessible(ctx context.Context, userID, projectID int) (bool, error) {
+	projectsSQL, projectArgs := accessibleProjects(userID)
+	return existsQuery(ctx, "SELECT COUNT(*) FROM projects WHERE id = ? AND id IN ("+projectsSQL+")", append([]any{projectID}, projectArgs...)...)
 }
 
 // existsQuery runs a SELECT COUNT(*) query and returns true if count > 0.
@@ -499,6 +500,77 @@ func GetArchivedIssuesByProject(ctx context.Context, projectID int) ([]Issue, er
 // GetOpenIssuesByProject retrieves all open (status = Open) issues for a specific project.
 func GetOpenIssuesByProject(ctx context.Context, projectID int) ([]Issue, error) {
 	return queryIssuesByProject(ctx, "GetOpenIssuesByProject", queryOpenIssues, StatusOpen, projectID)
+}
+
+// accessibleProjects returns a subquery selecting the IDs of the projects userID may see,
+// plus its arguments. Every project-access decision goes through it, so a membership rule
+// added here applies to the project-scoped routes and to the cross-project My Work list.
+//
+// TODO(per-project-membership): When the project_users table is introduced, select the
+// user's projects here, e.g. "SELECT project_id FROM project_users WHERE user_id = ?".
+//
+//nolint:unparam // userID and the arguments are unused until per-project membership exists.
+func accessibleProjects(userID int) (string, []any) {
+	_ = userID
+	return "SELECT id FROM projects", nil
+}
+
+// GetMyActiveIssues returns the issues assigned to userID in the active board statuses
+// (To-do, Stage1–4, Done) of all projects the user may see, each with the name of its
+// board column. Three queries regardless of the number of issues: issues, their tasks,
+// the status configs of their projects.
+func GetMyActiveIssues(ctx context.Context, userID int) ([]MyIssue, error) {
+	projectsSQL, projectArgs := accessibleProjects(userID)
+	query := issueSelectBase + ` WHERE i.assignee_id = ? AND i.status NOT IN (?, ?) AND i.project_id IN (` + projectsSQL + `) ORDER BY i.position ASC`
+	args := append([]any{userID, StatusArchive, StatusOpen}, projectArgs...)
+	issues, err := queryIssuesByProject(ctx, "GetMyActiveIssues", query, args...)
+	if err != nil {
+		return nil, err
+	}
+	configs, err := getStatusConfigsForIssues(ctx, issues)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]MyIssue, len(issues))
+	for idx, iss := range issues {
+		cfg, ok := configs[iss.ProjectID]
+		if !ok {
+			cfg = defaultStatusConfig(iss.ProjectID)
+		}
+		result[idx] = MyIssue{Issue: iss, StatusName: cfg.DisplayName(iss.Status)}
+	}
+	return result, nil
+}
+
+// getStatusConfigsForIssues fetches the status config rows of the issues' projects, keyed
+// by project ID. Projects without a row are missing from the map (they use the defaults).
+func getStatusConfigsForIssues(ctx context.Context, issues []Issue) (map[int]StatusConfig, error) {
+	ids := make([]int, len(issues))
+	for i, iss := range issues {
+		ids[i] = iss.ProjectID
+	}
+	jsonIDs, err := json.Marshal(ids)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := DB.QueryContext(ctx,
+		"SELECT project_id, stage1_name, stage2_name, stage3_name, stage4_name FROM project_status_config WHERE project_id IN (SELECT value FROM json_each(?))",
+		string(jsonIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int]StatusConfig)
+	for rows.Next() {
+		var c StatusConfig
+		if err := rows.Scan(&c.ProjectID, &c.Stage1Name, &c.Stage2Name, &c.Stage3Name, &c.Stage4Name); err != nil {
+			return nil, err
+		}
+		result[c.ProjectID] = c
+	}
+	return result, rows.Err()
 }
 
 // GetIssueByID retrieves a single issue by ID, including its associated tasks.
@@ -1574,9 +1646,8 @@ func GetStatusConfig(ctx context.Context, projectID int) (*StatusConfig, error) 
 		 FROM project_status_config WHERE project_id = ?`, projectID,
 	).Scan(&cfg.Stage1Name, &cfg.Stage2Name, &cfg.Stage3Name, &cfg.Stage4Name)
 	if errors.Is(err, sql.ErrNoRows) {
-		cfg.Stage1Name = "Pending"
-		cfg.Stage2Name = "Working"
-		return cfg, nil
+		def := defaultStatusConfig(projectID)
+		return &def, nil
 	}
 	if err != nil {
 		LogError("Database Error: GetStatusConfig", "project_id", projectID, "error", err)

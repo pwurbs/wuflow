@@ -21,6 +21,7 @@ Why wuFlow and full feature overview → [wuflow.dev](https://wuflow.dev)
 ## Features
 - Kanban board with configurable columns per project
 - Daily planner next to the board
+- My Work: your active issues and your plan across all projects
 - Backlog, releases, archive
 - Subtasks with due dates
 - Change history per issue

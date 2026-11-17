@@ -1,6 +1,7 @@
-import { state, setReleases, setStatusConfig } from '../state.ts';
-import { byId, containsTarget, errorMessage, showNotification } from '../utils.ts';
-import { getStatusOptions, getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
+import { state } from '../state.ts';
+import { byId, containsTarget } from '../utils.ts';
+import { getStatusOptions, getStatusLabel, getActiveStatusConfig, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
+import type { StatusNames } from '../status-config.ts';
 import { fetchLabelsByProject, fetchReleases, fetchStatusConfig } from '../api.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import type { Label, Project, Release, User } from '../models.ts';
@@ -57,11 +58,11 @@ function setupCustomDropdown(trigger: HTMLElement, options: HTMLElement, otherOp
   });
 }
 
-export function renderStatusOptions() {
+export function renderStatusOptions(statusNames?: StatusNames) {
   const optionsContainer = byId('status-options');
   optionsContainer.innerHTML = '';
 
-  getStatusOptions().forEach(({ value, label }) => {
+  getStatusOptions(statusNames).forEach(({ value, label }) => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = label;
@@ -160,26 +161,38 @@ export function renderProjectOptions(projects: Project[]) {
   });
 }
 
+// The label, release and status options of one project, as the issue dialog offers them.
+export interface ProjectOptions {
+  projectId: number;
+  labels: Label[];
+  releases: Release[];
+  statusNames: StatusNames;
+}
+
+// The selected project's options from the cache refreshApp fills, or null for any other project.
+export function cachedProjectOptions(projectId: number): ProjectOptions | null {
+  if (projectId !== state.selectedProjectId || state.labelsProjectId !== projectId) return null;
+  return { projectId, labels: state.labels, releases: state.releases, statusNames: getActiveStatusConfig() };
+}
+
+export async function fetchProjectOptions(projectId: number): Promise<ProjectOptions> {
+  const [labels, releases, statusNames] = await Promise.all([
+    fetchLabelsByProject(projectId), fetchReleases(projectId), fetchStatusConfig(projectId),
+  ]);
+  return { projectId, labels, releases, statusNames };
+}
+
 // Fills the label, release and status dropdowns with the given project's options and resets
 // them to their empty values, as the server does when an issue moves to that project.
-export async function loadProjectOptions(projectId: number) {
-  try {
-    const [labels, releases, cfg] = await Promise.all([
-      fetchLabelsByProject(projectId), fetchReleases(projectId), fetchStatusConfig(projectId),
-    ]);
-    renderLabelOptions(labels);
-    byId('label-select', HTMLInputElement).value = '';
-    byId('label-text').textContent = 'No Label';
-    setReleases(releases);
-    renderReleaseOptions(releases, null);
-    setStatusConfig(cfg);
-    renderStatusOptions();
-    byId('status', HTMLInputElement).value = STATUS_OPEN;
-    byId('status-text').textContent = getStatusLabel(STATUS_OPEN);
-    closeOptions(byId('status-options'));
-  } catch (err) {
-    showNotification(errorMessage(err), 'error');
-  }
+export function resetProjectDropdowns(options: ProjectOptions) {
+  renderLabelOptions(options.labels);
+  byId('label-select', HTMLInputElement).value = '';
+  byId('label-text').textContent = 'No Label';
+  renderReleaseOptions(options.releases, null);
+  renderStatusOptions(options.statusNames);
+  byId('status', HTMLInputElement).value = STATUS_OPEN;
+  byId('status-text').textContent = getStatusLabel(STATUS_OPEN, options.statusNames);
+  closeOptions(byId('status-options'));
 }
 
 export function renderAssigneeOptions(users: User[]) {

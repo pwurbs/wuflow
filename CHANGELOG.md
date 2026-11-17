@@ -1,4 +1,12 @@
 
+# 1.5.0
+
+- Added the My Work view: all active issues assigned to you across all projects, in project lanes sorted by urgency, with your personal planning, so you no longer switch projects and filters to see your work
+- The main menu is now grouped into three sections: My Work, the selected project and System
+- The text filter is wider, says what it matches (number, title, description) and finds exactly issue 12 with `#12`
+- Fixed: choosing another project in the issue dialog (for a new issue or a move) no longer shows that project's columns and releases on the board behind the dialog
+- Fixed: users without System Settings no longer see a separator line at the bottom of the main menu
+
 # 1.4.6
 
 - Frontend code converted from JavaScript to TypeScript with strict type checking, including types for all API data and a type check in the test suites and in the build

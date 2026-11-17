@@ -563,6 +563,14 @@ func TestAPIMux(t *testing.T) {
 		t.Errorf("authAPI route should reject missing auth with 401, got %d", rr.Code)
 	}
 
+	// /api/me/issues (My Work) is wrapped with authAPI as well
+	req = httptest.NewRequest("GET", "/api/me/issues", nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("/api/me/issues should reject missing auth with 401, got %d", rr.Code)
+	}
+
 	// commonAPI wiring: POST /api/auth/login without Content-Type → 415
 	// (RequireJSONMiddleware in commonAPI rejects before handler runs).
 	req = httptest.NewRequest("POST", "/api/auth/login", bytes.NewBufferString(`{}`))

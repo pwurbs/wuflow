@@ -90,6 +90,6 @@ test.describe('Landing Page', () => {
   test('sidebar planning panel is visible', async ({ page }) => {
     // Planning panel is visible by default on board view
     await expect(page.locator('#planning-panel')).toBeVisible();
-    await expect(page.locator('.sidebar-header h3:has-text("Planning")')).toBeVisible();
+    await expect(page.locator('.board .sidebar-header h3:has-text("Planning")')).toBeVisible();
   });
 });

@@ -2,6 +2,7 @@ import { fetchHistory, fetchComments, createComment, updateComment, deleteCommen
 import { byId, escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled, errorMessage } from '../utils.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { getStatusLabel } from '../status-config.ts';
+import type { StatusNames } from '../status-config.ts';
 import { userCan, isCommentModerator, ACTION_CREATE_COMMENT, ACTION_UPDATE_COMMENT, ACTION_DELETE_COMMENT } from '../permissions.ts';
 import { state } from '../state.ts';
 import type { Comment, HistoryEntry, Issue, UserRef } from '../models.ts';
@@ -32,6 +33,8 @@ interface ActivityContext {
   // in-progress (unsaved) edit. The new-comment form counts as an edit too.
   activeEditor: null | 'new' | number;
   draft: CommentDraft | null; // null while no editor is open
+  // Column names of the issue's project for status changes; null: the selected project's.
+  statusNames: StatusNames | null;
 }
 
 // Module-level context so tab switching and post-CRUD re-renders don't need to
@@ -44,8 +47,16 @@ const ctx: ActivityContext = {
   activeTab: 'comments',
   readOnly: false,
   activeEditor: null,
-  draft: null
+  draft: null,
+  statusNames: null
 };
+
+// Sets the column names used for status changes in the History tab (set by the issue
+// dialog once it knows the issue project's names) and re-renders the history.
+export function setActivityStatusNames(statusNames: StatusNames | null) {
+  ctx.statusNames = statusNames;
+  if (ctx.issue) renderHistory(els().historyList);
+}
 
 // Monotonic sequence guard against out-of-order async responses. loadActivity,
 // refreshHistory, and refreshComments each bump this before awaiting; if a
@@ -594,7 +605,10 @@ function updatedSentence(d: HistoryEntry['data']) {
   switch (d.field) {
     case 'title': return 'Title: Changed';
     case 'description': return 'Description: Changed';
-    case 'status': return fromTo('Status', 'Changed', d.from && getStatusLabel(d.from), d.to && getStatusLabel(d.to));
+    case 'status': {
+      const names = ctx.statusNames ?? undefined;
+      return fromTo('Status', 'Changed', d.from && getStatusLabel(d.from, names), d.to && getStatusLabel(d.to, names));
+    }
     case 'priority': return fromTo('Priority', 'Changed', d.from, d.to);
     case 'deadline': return fromTo('Deadline', 'Changed', d.from, d.to);
     case 'assignee': return fromTo('Assignee', 'Changed', d.from, d.to);

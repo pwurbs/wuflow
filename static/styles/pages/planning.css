@@ -1,5 +1,6 @@
 /* Planning Panel */
-#planning-list {
+#planning-list,
+#my-work-planning-list {
   display: flex;
   flex-direction: column;
   gap: 8px;

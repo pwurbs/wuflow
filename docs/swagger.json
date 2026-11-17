@@ -336,6 +336,23 @@
           }
         }
       },
+      "MyIssue": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Issue"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status_name": {
+                "type": "string",
+                "description": "Name of the issue's board column in its own project (Todo and Done for those statuses; the status value for a stage without a name)",
+                "example": "Testing"
+              }
+            }
+          }
+        ]
+      },
       "Project": {
         "type": "object",
         "properties": {
@@ -859,6 +876,33 @@
           },
           "400": {
             "description": "Bad Request - password policy violation or current_password missing/incorrect"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/me/issues": {
+      "get": {
+        "summary": "Get the active issues assigned to the current user across all projects (My Work)",
+        "description": "The user is taken only from the session; there is no assignee parameter. Covers all projects the user may access.",
+        "tags": [
+          "Issues"
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of the user's active issues (status Todo, Stage1–Stage4, or Done; excludes Open and Archive), each including their tasks, project and column name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyIssue"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
