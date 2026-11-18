@@ -3,6 +3,7 @@
    projects. A last filler row stretches the bands to the bottom. */
 .my-work-grid {
   --my-work-pill-height: 24px;
+  --my-work-head-z: 10;
   /* From a lane line to the cards, above and below: half the pill on it, then the gap to the cards */
   --my-work-line-to-cards: calc(var(--my-work-pill-height) / 2 + var(--space-4));
 
@@ -50,7 +51,7 @@
   grid-template-columns: subgrid;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: var(--my-work-head-z);
   border-bottom: 1px solid var(--panel-border);
 }
 
@@ -101,7 +102,7 @@
 
 /* The first pill sits on the lower edge of the sticky head, so it must be drawn over the head */
 .my-work-head + .my-work-cell > .my-work-lane-pill {
-  z-index: 11;
+  z-index: calc(var(--my-work-head-z) + 1);
 }
 
 .my-work-lane-icon {

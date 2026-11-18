@@ -270,27 +270,36 @@ function setupEventListeners() {
     });
 }
 
-// filters: which filters the toolbar shows while hideFilter is false (see applyFilterVisibility).
+// The toolbar's filter fields by name. On the releases view the user filter is the owner filter.
+const FILTER_WRAPPERS = {
+    label: 'label-filter-wrapper',
+    priority: 'priority-filter-wrapper',
+    release: 'release-filter-wrapper',
+    user: 'user-filter-wrapper',
+    search: 'search-filter-wrapper',
+    releaseSearch: 'release-search-wrapper',
+} as const;
+type FilterWrapper = keyof typeof FILTER_WRAPPERS;
+
+const ISSUE_FILTERS = ['label', 'priority', 'release', 'user', 'search'] as const;
+
+// filters: the filter fields the view shows; none hides the filter bar.
 const VIEW_CONFIG = {
-    'my-work':         { el: myWorkView,           nav: navMyWork,          hideSidebar: true,  hideFilter: false, hideProjectSelector: true,  filters: 'my-work',  onEnter: () => refreshApp() },
-    'board':           { el: boardView,           nav: navBoard,           hideSidebar: false, hideFilter: false, hideProjectSelector: false, filters: 'issues',   onEnter: () => refreshApp() },
-    'backlog':         { el: backlogView,          nav: navBacklog,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, filters: 'issues',   onEnter: () => refreshApp() },
-    'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, filters: 'issues',   onEnter: () => refreshApp() },
-    'releases':        { el: releasesView,         nav: navReleases,        hideSidebar: true,  hideFilter: false, hideProjectSelector: false, filters: 'releases', onEnter: () => renderReleasesView() },
-    'project-settings':{ el: projectSettingsView,  nav: navProjectSettings, hideSidebar: true,  hideFilter: true,  hideProjectSelector: false, filters: 'issues',   onEnter: () => renderProjectSettingsView() },
-    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  filters: 'issues',   onEnter: () => renderSystemSettingsView() },
+    'my-work':         { el: myWorkView,           nav: navMyWork,          hideSidebar: true,  hideProjectSelector: true,  filters: ['priority', 'search'],     onEnter: () => refreshApp() },
+    'board':           { el: boardView,           nav: navBoard,           hideSidebar: false, hideProjectSelector: false, filters: ISSUE_FILTERS,              onEnter: () => refreshApp() },
+    'backlog':         { el: backlogView,          nav: navBacklog,         hideSidebar: true,  hideProjectSelector: false, filters: ISSUE_FILTERS,              onEnter: () => refreshApp() },
+    'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideProjectSelector: false, filters: ISSUE_FILTERS,              onEnter: () => refreshApp() },
+    'releases':        { el: releasesView,         nav: navReleases,        hideSidebar: true,  hideProjectSelector: false, filters: ['user', 'releaseSearch'],  onEnter: () => renderReleasesView() },
+    'project-settings':{ el: projectSettingsView,  nav: navProjectSettings, hideSidebar: true,  hideProjectSelector: false, filters: [],                         onEnter: () => renderProjectSettingsView() },
+    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideProjectSelector: true,  filters: [],                         onEnter: () => renderSystemSettingsView() },
 } as const;
 
-// issues: label, priority, user, release filter and issue search (project views);
-// releases: owner filter and release search; my-work: priority filter and issue search.
-function applyFilterVisibility(filters: 'issues' | 'releases' | 'my-work') {
-    const issueFilters = filters === 'issues';
-    byId('label-filter-wrapper').classList.toggle('hidden', !issueFilters);
-    byId('priority-filter-wrapper').classList.toggle('hidden', filters === 'releases');
-    byId('release-filter-wrapper').classList.toggle('hidden', !issueFilters);
-    byId('user-filter-wrapper').classList.toggle('hidden', filters === 'my-work');
-    byId('search-filter-wrapper').classList.toggle('hidden', filters === 'releases');
-    byId('release-search-wrapper').classList.toggle('hidden', filters !== 'releases');
+function applyFilterVisibility(shown: readonly FilterWrapper[]) {
+    filterContainer.classList.toggle('hidden', shown.length === 0);
+    const visible = new Set<string>(shown);
+    for (const [name, id] of Object.entries(FILTER_WRAPPERS)) {
+        byId(id).classList.toggle('hidden', !visible.has(name));
+    }
 }
 
 function switchView(view: keyof typeof VIEW_CONFIG) {
@@ -301,7 +310,6 @@ function switchView(view: keyof typeof VIEW_CONFIG) {
     cfg.el.classList.remove('hidden');
     cfg.nav.classList.add('active');
     sidebar.classList.toggle('hidden', cfg.hideSidebar);
-    filterContainer.classList.toggle('hidden', cfg.hideFilter);
     projectSelectorContainer.classList.toggle('hidden', cfg.hideProjectSelector);
     applyFilterVisibility(cfg.filters);
 

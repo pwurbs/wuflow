@@ -51,9 +51,6 @@
 /* Space around the cards of a board column */
 .column-content {
   padding: var(--space-4) var(--board-column-padding-x) var(--space-2);
-}
-
-.column-content {
   flex: 1;
   overflow: visible;
   /* Allow tooltip to overflow */

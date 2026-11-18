@@ -5,7 +5,7 @@ import type { Priority } from '../domain-constants.ts';
 import type { RefreshApp, RerenderView } from '../list-utils.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import { logout, updateCurrentUser } from '../api.ts';
-import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage, containsTarget, sortByName } from '../utils.ts';
+import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage, containsTarget, sortByName, createOption } from '../utils.ts';
 import { validatePasswordPolicy } from './system-settings.ts';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
@@ -72,15 +72,6 @@ interface FilterView<V> {
 
 let rerenderFilteredView: RerenderView = () => {};
 
-function createFilterOption(text: string, onPick: () => void) {
-  const div = document.createElement('div');
-  div.className = 'custom-option';
-  div.textContent = text;
-  div.title = text;
-  div.addEventListener('click', onPick);
-  return div;
-}
-
 function createFilterDropdown<V extends string | number>(name: FilterName) {
   const list = () => byId(`${name}-filter-options`);
 
@@ -94,7 +85,7 @@ function createFilterDropdown<V extends string | number>(name: FilterName) {
     const options = list();
     options.innerHTML = '';
     for (const option of view.options) {
-      options.appendChild(createFilterOption(option.text, () => {
+      options.appendChild(createOption(option.text, () => {
         options.classList.add('hidden');
         apply(view, option.value);
       }));

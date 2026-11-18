@@ -1902,12 +1902,12 @@ func handleCreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// fetchAndEncodeIssues is the shared body for the three issue-list endpoints
-// (active, archived, open) of a project.
-func fetchAndEncodeIssues(ctx context.Context, w http.ResponseWriter, projectID int, name string, fetch func(context.Context, int) ([]Issue, error)) {
-	issues, err := fetch(ctx, projectID)
+// fetchAndEncodeIssues is the shared body of the issue-list endpoints. logArgs identify the
+// list in the error log (e.g. "project_id", id).
+func fetchAndEncodeIssues[T any](w http.ResponseWriter, name string, fetch func() ([]T, error), logArgs ...any) {
+	issues, err := fetch()
 	if err != nil {
-		LogError(name+" failed", "project_id", projectID, "error", err)
+		LogError(name+" failed", append(logArgs, "error", err)...)
 		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
 		return
 	}
@@ -1921,28 +1921,27 @@ func fetchAndEncodeIssues(ctx context.Context, w http.ResponseWriter, projectID 
 // requesting user across all projects. The user comes only from the session.
 func handleListMyIssues(w http.ResponseWriter, r *http.Request) {
 	userID := GetUserIDFromContext(r.Context())
-	issues, err := GetMyActiveIssues(r.Context(), userID)
-	if err != nil {
-		LogError("GetMyActiveIssues failed", "user_id", userID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(headerContentType, contentTypeJSON)
-	if err := json.NewEncoder(w).Encode(issues); err != nil {
-		LogError("handleListMyIssues: failed to encode response", "error", err)
-	}
+	fetchAndEncodeIssues(w, "handleListMyIssues", func() ([]MyIssue, error) {
+		return GetMyActiveIssues(r.Context(), userID)
+	}, "user_id", userID)
 }
 
 func handleProjectActiveIssues(w http.ResponseWriter, r *http.Request, projectID int) {
-	fetchAndEncodeIssues(r.Context(), w, projectID, "handleProjectActiveIssues", GetActiveIssuesByProject)
+	fetchAndEncodeIssues(w, "handleProjectActiveIssues", func() ([]Issue, error) {
+		return GetActiveIssuesByProject(r.Context(), projectID)
+	}, "project_id", projectID)
 }
 
 func handleProjectArchivedIssues(w http.ResponseWriter, r *http.Request, projectID int) {
-	fetchAndEncodeIssues(r.Context(), w, projectID, "handleProjectArchivedIssues", GetArchivedIssuesByProject)
+	fetchAndEncodeIssues(w, "handleProjectArchivedIssues", func() ([]Issue, error) {
+		return GetArchivedIssuesByProject(r.Context(), projectID)
+	}, "project_id", projectID)
 }
 
 func handleProjectOpenIssues(w http.ResponseWriter, r *http.Request, projectID int) {
-	fetchAndEncodeIssues(r.Context(), w, projectID, "handleProjectOpenIssues", GetOpenIssuesByProject)
+	fetchAndEncodeIssues(w, "handleProjectOpenIssues", func() ([]Issue, error) {
+		return GetOpenIssuesByProject(r.Context(), projectID)
+	}, "project_id", projectID)
 }
 
 func handleListReleases(w http.ResponseWriter, r *http.Request, projectID int) {

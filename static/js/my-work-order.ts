@@ -3,6 +3,7 @@
 import { STATUS_TODO, STATUS_DONE, IN_PROGRESS_STATUSES } from './status-config.ts';
 import { PRIORITY_HIGH } from './domain-constants.ts';
 import { getEffectiveDeadlineInfo } from './components/planning.ts';
+import { startOfDay, localISODate } from './utils.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { MyIssue } from './models.ts';
 
@@ -23,16 +24,6 @@ export function categoryOf(status: IssueStatus): MyWorkCategory | null {
   if (status === STATUS_DONE) return 'done';
   if (IN_PROGRESS_STATUSES.includes(status)) return 'inProgress';
   return null;
-}
-
-function localISODate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function startOfDay(d: Date) {
-  const day = new Date(d);
-  day.setHours(0, 0, 0, 0);
-  return day;
 }
 
 // 0 overdue (issue or open-task deadline before today), 1 high priority,

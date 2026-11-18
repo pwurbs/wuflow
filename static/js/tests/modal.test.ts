@@ -70,6 +70,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     containsTarget: actual.containsTarget,
     errorMessage: actual.errorMessage,
     sortByName: actual.sortByName,
+    createOption: actual.createOption,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     updateDateInputStyle: vi.fn(),

@@ -9,6 +9,7 @@ import {
   promptAdminPasswordConfirmation,
   guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
   isErrorToastShown, setAriaDisabled, containsTarget, sortByName,
+  startOfDay, localISODate, createOption,
 } from '../utils.ts';
 import { makeIssue, makeRelease, makeTask, makeUserRef } from './fixtures.ts';
 
@@ -260,6 +261,41 @@ describe('sortByName', () => {
     const input = ['b', 'a'];
     expect(sortByName(input, n => n)).toEqual(['a', 'b']);
     expect(input).toEqual(['b', 'a']);
+  });
+});
+
+describe('startOfDay', () => {
+  it('returns local midnight of the same day, for a date and for a string, without changing the input', () => {
+    const input = new Date(2026, 10, 18, 15, 30, 45, 500);
+    const day = startOfDay(input);
+    expect(day).toEqual(new Date(2026, 10, 18));
+    expect(input.getHours()).toBe(15);
+    expect(startOfDay('2026-11-18T15:30:00').getTime()).toBe(new Date(2026, 10, 18).getTime());
+  });
+});
+
+describe('localISODate', () => {
+  it('formats the local date as YYYY-MM-DD with zero padding', () => {
+    expect(localISODate(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05');
+    expect(localISODate(new Date(2026, 11, 31, 0, 0))).toBe('2026-12-31');
+  });
+});
+
+describe('createOption', () => {
+  it('creates a dropdown option with the text as tooltip that calls onPick on click', () => {
+    const onPick = vi.fn();
+    const option = createOption('A long release name', onPick);
+    expect(option.className).toBe('custom-option');
+    expect(option.textContent).toBe('A long release name');
+    expect(option.title).toBe('A long release name');
+    option.click();
+    expect(onPick).toHaveBeenCalledOnce();
+  });
+
+  it('sets the text as text, not as HTML', () => {
+    const option = createOption('<b>x</b>', () => {});
+    expect(option.querySelector('b')).toBeNull();
+    expect(option.textContent).toBe('<b>x</b>');
   });
 });
 

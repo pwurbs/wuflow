@@ -11,6 +11,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
   return {
     byId: actual.byId, bySelector: actual.bySelector, errorMessage: actual.errorMessage, containsTarget: actual.containsTarget,
     getDeadlineStatus: actual.getDeadlineStatus, getTaskDeadlineStatus: actual.getTaskDeadlineStatus, showNotification: vi.fn(),
+    startOfDay: actual.startOfDay, localISODate: actual.localISODate,
   };
 });
 import { makeIssue, makeProject, makeTask, makeUserRef } from './fixtures.ts';

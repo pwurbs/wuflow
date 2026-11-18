@@ -12,7 +12,7 @@
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   position: relative;
 }
 
@@ -149,7 +149,7 @@
   background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--text-color);
-  padding: 6px var(--search-clear-space) 6px 12px; /* right: room for the clear × */
+  padding: 6px var(--search-clear-space) 6px var(--space-3); /* right: room for the clear × */
   border-radius: 4px;
   cursor: text;
   min-width: 120px;

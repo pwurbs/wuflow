@@ -30,6 +30,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
   sortByName: (await importOriginal<typeof import('../utils.ts')>()).sortByName,
+  createOption: (await importOriginal<typeof import('../utils.ts')>()).createOption,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => String(s ?? '')),

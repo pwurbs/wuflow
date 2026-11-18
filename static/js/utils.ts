@@ -3,10 +3,15 @@
 import { state } from './state.ts';
 import type { Issue, UserRef } from './models.ts';
 
-function startOfDay(date: Date | string) {
+export function startOfDay(date: Date | string) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+// YYYY-MM-DD in local time, the format of planned dates.
+export function localISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Formats a date string as "<locale date> / <locale time>", e.g. for last-login or activity timestamps.
@@ -497,6 +502,16 @@ export function getUserInitials(user: UserRef | null | undefined) {
   }
 
   return '??';
+}
+
+// One option of a custom dropdown. The title shows text that the list's width cuts off.
+export function createOption(text: string, onPick: () => void) {
+  const div = document.createElement('div');
+  div.className = 'custom-option';
+  div.textContent = text;
+  div.title = text;
+  div.addEventListener('click', onPick);
+  return div;
 }
 
 // Order of names in dropdowns: ignores case and accents, compares numbers by value ("1.9" before "1.10").

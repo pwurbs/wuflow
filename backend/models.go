@@ -189,13 +189,20 @@ func defaultStatusConfig(projectID int) StatusConfig {
 // DisplayName returns the board column name of status. A stage without a name (a hidden
 // column) falls back to the status value, as the frontend's getStatusLabel does.
 func (c StatusConfig) DisplayName(status IssueStatus) string {
-	names := map[IssueStatus]string{
-		StatusStage1: c.Stage1Name,
-		StatusStage2: c.Stage2Name,
-		StatusStage3: c.Stage3Name,
-		StatusStage4: c.Stage4Name,
+	var name string
+	switch status {
+	case StatusStage1:
+		name = c.Stage1Name
+	case StatusStage2:
+		name = c.Stage2Name
+	case StatusStage3:
+		name = c.Stage3Name
+	case StatusStage4:
+		name = c.Stage4Name
+	default:
+		// The other statuses have fixed names.
 	}
-	if name := names[status]; name != "" {
+	if name != "" {
 		return name
 	}
 	return string(status)

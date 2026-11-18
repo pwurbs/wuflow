@@ -7,7 +7,7 @@ import { filterIssues } from '../filters.ts';
 import { byId } from '../utils.ts';
 import { createCardElement } from './card.ts';
 import { buildPlanningList, countPlanningEntries } from './planning.ts';
-import { buildLanes, MY_WORK_CATEGORIES } from '../my-work-order.ts';
+import { buildLanes, categoryOf, MY_WORK_CATEGORIES } from '../my-work-order.ts';
 import type { MyWorkCategory, MyWorkLane } from '../my-work-order.ts';
 import type { Issue, MyIssue } from '../models.ts';
 import type { OpenModal } from '../list-utils.ts';
@@ -124,15 +124,15 @@ export function renderMyWork() {
   const filtering = search.trim() !== '' || priority !== null;
   const shownIssues = filterIssues(myIssues, { search, priority });
   const lanes = buildLanes(shownIssues);
-  const allLanes = filtering ? buildLanes(myIssues) : lanes;
 
   // One sticky head for the three category headers, so its lower edge is one line across all bands.
   const head = document.createElement('div');
   head.className = 'my-work-head';
   for (const category of MY_WORK_CATEGORIES) {
     const shown = categoryCount(lanes, category);
+    const total = () => myIssues.filter(issue => categoryOf(issue.status) === category).length;
     // Like the board: "shown/total" while a filter is active.
-    head.appendChild(createCategoryHeader(category, filtering ? `${shown}/${categoryCount(allLanes, category)}` : String(shown)));
+    head.appendChild(createCategoryHeader(category, filtering ? `${shown}/${total()}` : String(shown)));
   }
   grid.appendChild(head);
 

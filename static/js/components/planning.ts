@@ -1,7 +1,7 @@
 import { state, isFilterActive } from '../state.ts';
 import { STATUS_DONE, STATUS_ARCHIVE } from '../status-config.ts';
 import { updateIssue } from '../api.ts';
-import { showNotification, byId, bySelector, errorMessage, containsTarget, getDeadlineStatus, getTaskDeadlineStatus } from '../utils.ts';
+import { showNotification, byId, bySelector, errorMessage, containsTarget, getDeadlineStatus, getTaskDeadlineStatus, startOfDay, localISODate } from '../utils.ts';
 import { getDraggedCard, setDraggedCard } from '../drag.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues } from '../filters.ts';
@@ -65,11 +65,7 @@ export function renderPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenMod
     openModal: (issue) => openModalCallback?.(issue),
   });
 
-  planningCount.textContent = String(count);
-
-  if (isFilterActive()) {
-    planningCount.textContent = `${count}/${countPlanningEntries(state.issues)}`;
-  }
+  planningCount.textContent = isFilterActive() ? `${count}/${countPlanningEntries(state.issues)}` : String(count);
 }
 
 // The total behind "shown/total" while a filter is active: the planning entries of all
@@ -101,15 +97,7 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
   planningList.innerHTML = '';
 
   let count = 0;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const getLocalISODate = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  const today = startOfDay(new Date());
 
   // Day containers by key ('past', 'future' or YYYY-MM-DD), looked up here instead of by
   // document-wide ID because the board and My Work lists are in the DOM at the same time.
@@ -161,7 +149,7 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
     const date = new Date(today);
     date.setDate(today.getDate() + i);
     const dateStr = date.toLocaleDateString(navigator.language, { weekday: 'short', month: 'short', day: 'numeric' });
-    const dateId = getLocalISODate(date);
+    const dateId = localISODate(date);
     addDay(dateStr, dateId);
   }
 
@@ -258,24 +246,16 @@ export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
   const effectiveInfo = getEffectiveDeadlineInfo(issue);
   if (!effectiveInfo) return null;
 
-  const d = new Date(effectiveInfo.date);
-  d.setHours(0, 0, 0, 0);
+  const d = startOfDay(effectiveInfo.date);
 
   const status = effectiveInfo.isTask
     ? getTaskDeadlineStatus(effectiveInfo.date, issue)
     : getDeadlineStatus(issue);
-  let isWarning = status.late;
-  let tooltip: string;
-  if (status.late) {
-    tooltip = status.reason;
-  } else {
-    tooltip = effectiveInfo.isTask ? 'Task Deadline' : 'Deadline';
-  }
-
-  if (isPlannedLate(issue, d, specificDateStr)) {
-    isWarning = true;
-    tooltip = 'Planned late!';
-  }
+  const plannedLate = isPlannedLate(issue, d, specificDateStr);
+  const isWarning = status.late || plannedLate;
+  let tooltip = effectiveInfo.isTask ? 'Task Deadline' : 'Deadline';
+  if (plannedLate) tooltip = 'Planned late!';
+  else if (status.late) tooltip = status.reason;
 
   const badge = document.createElement('span');
   badge.className = `planning-item-deadline ${isWarning ? 'overdue' : ''}`;
@@ -288,9 +268,7 @@ export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
 function isPlannedLate(issue: Issue, deadline: Date, specificDateStr?: string) {
   const plannedStr = specificDateStr ?? [...(issue.planned_dates ?? [])].sort((a, b) => b.localeCompare(a))[0];
   if (!plannedStr) return false;
-  const planned = new Date(plannedStr);
-  planned.setHours(0, 0, 0, 0);
-  return planned > deadline;
+  return startOfDay(plannedStr) > deadline;
 }
 
 function createAssigneeBadgeElement(issue: Issue) {
