@@ -1,7 +1,7 @@
 
 # 1.5.0
 
-- Added the My Work view: all active issues assigned to you across all projects, in project lanes sorted by urgency, with your personal planning, so you no longer switch projects and filters to see your work
+- Added the My Work view: all active issues assigned to you across all projects, in project lanes sorted by progress and urgency, with your personal planning, so you no longer switch projects and filters to see your work
 - The main menu is now grouped into three sections: My Work, the selected project and System
 - The text filter is wider, says what it matches (number, title, description) and finds exactly issue 12 with `#12`
 - Fixed: choosing another project in the issue dialog (for a new issue or a move) no longer shows that project's columns and releases on the board behind the dialog

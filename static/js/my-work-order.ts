@@ -12,7 +12,6 @@ export type MyWorkCategory = typeof MY_WORK_CATEGORIES[number];
 export interface MyWorkLane {
   projectId: number;
   projectName: string;
-  total: number;
   cells: Record<MyWorkCategory, MyIssue[]>;
 }
 
@@ -65,6 +64,12 @@ export function compareUrgency(a: MyIssue, b: MyIssue, today: Date) {
     || a.id - b.id;
 }
 
+// In Progress: the later stage of the project first (Stage4 … Stage1), then by urgency.
+export function compareInProgress(a: MyIssue, b: MyIssue, today: Date) {
+  return IN_PROGRESS_STATUSES.indexOf(b.status) - IN_PROGRESS_STATUSES.indexOf(a.status)
+    || compareUrgency(a, b, today);
+}
+
 // Done: most recently updated first.
 export function compareDone(a: MyIssue, b: MyIssue) {
   return Date.parse(b.updated_at) - Date.parse(a.updated_at) || a.id - b.id;
@@ -81,18 +86,16 @@ export function buildLanes(issues: MyIssue[], today = new Date()): MyWorkLane[] 
       lane = {
         projectId: issue.project_id,
         projectName: issue.project?.name ?? '',
-        total: 0,
         cells: { notStarted: [], inProgress: [], done: [] },
       };
       lanes.set(issue.project_id, lane);
     }
     lane.cells[category].push(issue);
-    lane.total++;
   }
   const sorted = [...lanes.values()].sort((a, b) => a.projectName.localeCompare(b.projectName) || a.projectId - b.projectId);
   for (const lane of sorted) {
     lane.cells.notStarted.sort((a, b) => compareUrgency(a, b, today));
-    lane.cells.inProgress.sort((a, b) => compareUrgency(a, b, today));
+    lane.cells.inProgress.sort((a, b) => compareInProgress(a, b, today));
     lane.cells.done.sort(compareDone);
   }
   return sorted;

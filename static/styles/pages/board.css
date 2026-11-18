@@ -48,9 +48,8 @@
   /* implicit reset */
 }
 
-/* Space around the cards of a board column, also of a My Work cell */
-.column-content,
-.my-work-cell {
+/* Space around the cards of a board column */
+.column-content {
   padding: var(--space-4) var(--board-column-padding-x) var(--space-2);
 }
 

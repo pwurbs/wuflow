@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildLanes, categoryOf, compareUrgency, urgencyRank } from '../my-work-order.ts';
+import { buildLanes, categoryOf, compareInProgress, compareUrgency, urgencyRank } from '../my-work-order.ts';
 import { makeIssue, makeProject, makeTask } from './fixtures.ts';
 import type { MyIssue } from '../models.ts';
 
@@ -36,7 +36,8 @@ describe('buildLanes', () => {
     ], TODAY);
 
     expect(lanes.map(l => l.projectName)).toEqual(['Alpha', 'beta', 'charlie']);
-    expect(lanes.map(l => l.total)).toEqual([2, 1, 1]);
+    expect(lanes[0].cells.notStarted).toHaveLength(1);
+    expect(lanes[0].cells.done).toHaveLength(1);
   });
 
   it('puts each issue into its category and leaves out Open and Archive', () => {
@@ -50,24 +51,27 @@ describe('buildLanes', () => {
     ], TODAY);
 
     expect(titles(lane.cells.notStarted)).toEqual(['todo']);
-    expect(titles(lane.cells.inProgress)).toEqual(['stage1', 'stage4']);
+    expect(titles(lane.cells.inProgress)).toEqual(['stage4', 'stage1']);
     expect(titles(lane.cells.done)).toEqual(['done']);
-    expect(lane.total).toBe(4);
   });
 
   it('has no lanes without issues', () => {
     expect(buildLanes([], TODAY)).toEqual([]);
   });
 
-  it('sorts Not Started and In Progress by urgency, Done by last update', () => {
+  it('sorts Not Started by urgency, In Progress by stage then urgency, Done by last update', () => {
     const [lane] = buildLanes([
-      myIssue({ id: 1, title: 'rest', status: 'Stage1' }),
-      myIssue({ id: 2, title: 'overdue', status: 'Stage2', deadline: '2026-11-16T12:00:00Z' }),
-      myIssue({ id: 3, title: 'done old', status: 'Done', updated_at: '2026-11-01T10:00:00Z' }),
-      myIssue({ id: 4, title: 'done new', status: 'Done', updated_at: '2026-11-15T10:00:00Z' }),
+      myIssue({ id: 1, title: 'todo rest', status: 'Todo' }),
+      myIssue({ id: 2, title: 'todo overdue', status: 'Todo', deadline: '2026-11-16T12:00:00Z' }),
+      myIssue({ id: 3, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-16T12:00:00Z' }),
+      myIssue({ id: 4, title: 'stage3 rest', status: 'Stage3' }),
+      myIssue({ id: 5, title: 'stage3 high', status: 'Stage3', priority: 'High' }),
+      myIssue({ id: 6, title: 'done old', status: 'Done', updated_at: '2026-11-01T10:00:00Z' }),
+      myIssue({ id: 7, title: 'done new', status: 'Done', updated_at: '2026-11-15T10:00:00Z' }),
     ], TODAY);
 
-    expect(titles(lane.cells.inProgress)).toEqual(['overdue', 'rest']);
+    expect(titles(lane.cells.notStarted)).toEqual(['todo overdue', 'todo rest']);
+    expect(titles(lane.cells.inProgress)).toEqual(['stage3 high', 'stage3 rest', 'stage1 overdue']);
     expect(titles(lane.cells.done)).toEqual(['done new', 'done old']);
   });
 });
@@ -115,5 +119,26 @@ describe('compareUrgency', () => {
       myIssue({ id: 10, title: 'id 10' }),
       myIssue({ id: 9, title: 'id 9' }),
     ])).toEqual(['id 9', 'id 10']);
+  });
+});
+
+describe('compareInProgress', () => {
+  const sort = (issues: MyIssue[]) => titles([...issues].sort((a, b) => compareInProgress(a, b, TODAY)));
+
+  it('puts the later stage first, from right to left on the board', () => {
+    expect(sort([
+      myIssue({ id: 1, title: 'stage1', status: 'Stage1' }),
+      myIssue({ id: 2, title: 'stage3', status: 'Stage3' }),
+      myIssue({ id: 3, title: 'stage4', status: 'Stage4' }),
+      myIssue({ id: 4, title: 'stage2', status: 'Stage2' }),
+    ])).toEqual(['stage4', 'stage3', 'stage2', 'stage1']);
+  });
+
+  it('stage wins over urgency, urgency orders within a stage', () => {
+    expect(sort([
+      myIssue({ id: 1, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-01T12:00:00Z' }),
+      myIssue({ id: 2, title: 'stage2 rest', status: 'Stage2' }),
+      myIssue({ id: 3, title: 'stage2 high', status: 'Stage2', priority: 'High' }),
+    ])).toEqual(['stage2 high', 'stage2 rest', 'stage1 overdue']);
   });
 });

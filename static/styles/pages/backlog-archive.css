@@ -245,7 +245,9 @@
   background-color: var(--card-border);
 }
 
-.flow-badge {
+/* Pill on a line: the flow badge here, the project name of a lane in My Work */
+.flow-badge,
+.my-work-lane-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -253,12 +255,15 @@
   border-radius: 20px;
   background-color: var(--column-bg);
   border: 1px solid var(--card-border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.flow-badge {
   color: var(--muted-text);
   font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
   letter-spacing: 0.3px;
-  white-space: nowrap;
-  user-select: none;
 }
 
 .flow-badge svg {

@@ -69,12 +69,12 @@ test.describe('My Work', () => {
       await expect(page.locator(id)).toBeHidden();
     }
 
-    // Lanes: one per project with my issues, alphabetical; B holds my 2 issues.
+    // Lanes: one per project with my issues, alphabetical, each named by a pill in its Not Started cell.
     const laneNames = page.locator('.my-work-lane-name');
     await expect(laneNames.filter({ hasText: projectB })).toHaveCount(1);
     const names = await laneNames.allTextContents();
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
-    await expect(page.locator('.my-work-lane-header', { hasText: projectB }).locator('.count')).toHaveText('2');
+    await expect(page.locator('.my-work-cell[data-category="notStarted"] .my-work-lane-pill', { hasText: projectB })).toBeVisible();
 
     // Columns, and the column name chip only in In Progress.
     await expect(card(page, 'notStarted', t('A todo'))).toBeVisible();

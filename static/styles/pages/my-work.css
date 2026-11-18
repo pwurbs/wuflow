@@ -1,29 +1,33 @@
-/* My Work: one grid of three category bands (2, 1 and 2 board columns wide). Row 1 holds
-   the category headers, then each project has a lane header across the full width and a
-   row of three cells. A last filler row stretches the bands to the bottom. */
+/* My Work: one grid of three category bands, each 2 card lanes wide. Row 1 holds the
+   category headers, then each project has a row of three cells, with a line between two
+   projects. A last filler row stretches the bands to the bottom. */
 .my-work-grid {
+  --my-work-pill-height: 24px;
+  /* From a lane line to the cards, above and below: half the pill on it, then the gap to the cards */
+  --my-work-line-to-cards: calc(var(--my-work-pill-height) / 2 + var(--space-4));
+
   /* Padding and border (2px) of a band, as of a board column */
   --my-work-band-inset: calc(2 * var(--board-column-padding-x) + 2px);
   /* Card width as on the board: a board column minus its inset */
   --my-work-card-min: calc(var(--board-column-min-width) - var(--my-work-band-inset));
   --my-work-card-max: calc(var(--board-column-width) - var(--my-work-band-inset));
-  /* Fixed widths of all bands together: insets, the card gap in each wide band, the gaps between bands */
-  --my-work-fixed: calc(3 * var(--my-work-band-inset) + 2 * var(--card-gap) + 2 * var(--board-column-gap));
+  /* Fixed widths of all bands together: insets, the card gap in each band, the gaps between bands */
+  --my-work-fixed: calc(3 * var(--my-work-band-inset) + 3 * var(--card-gap) + 2 * var(--board-column-gap));
 
-  /* Each band is a fixed track (inset, plus the card gap in a wide band) and a flexible
-     track holding only its cards: 2fr, 1fr, 2fr. So all five card lanes are exactly
-     equal at every width. Band gaps are tracks too, hence no column-gap. */
+  /* Each band is a fixed track (inset plus card gap) and a flexible track holding only its
+     cards, so all six card lanes are exactly equal at every width. Band gaps are tracks
+     too, hence no column-gap. */
   display: grid;
   grid-template-columns:
     [ns-start] calc(var(--my-work-band-inset) + var(--card-gap)) minmax(0, 2fr) [ns-end]
     var(--board-column-gap)
-    [ip-start] var(--my-work-band-inset) minmax(0, 1fr) [ip-end]
+    [ip-start] calc(var(--my-work-band-inset) + var(--card-gap)) minmax(0, 2fr) [ip-end]
     var(--board-column-gap)
     [done-start] calc(var(--my-work-band-inset) + var(--card-gap)) minmax(0, 2fr) [done-end];
   flex: 1 1 0;
   /* Narrow screens as on the board: lanes shrink to a board column's minimum, then the view scrolls */
-  min-width: calc(5 * var(--my-work-card-min) + var(--my-work-fixed));
-  max-width: calc(5 * var(--my-work-card-max) + var(--my-work-fixed));
+  min-width: calc(6 * var(--my-work-card-min) + var(--my-work-fixed));
+  max-width: calc(6 * var(--my-work-card-max) + var(--my-work-fixed));
   min-height: 100%;
 }
 
@@ -39,24 +43,37 @@
   grid-column: done;
 }
 
-/* Category header: the board's .column-header, plus the side and top border a .column gives it */
+/* Sticky head over all bands: its lower edge is the line above the first lane, gaps included */
+.my-work-head {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+/* Category header: the board's .column-header, plus the side and top border a .column gives
+   it. The bottom line comes from .my-work-head. Below the title room for the upper half of
+   the first pill plus a small gap. */
 .my-work-grid .column-header {
   border: 1px solid var(--panel-border);
+  border-bottom: 0;
+  padding-bottom: calc(var(--my-work-pill-height) / 2 + var(--space-2));
 }
 
-/* Padding: shared with the board's .column-content (board.css) */
+/* Cards flow in two columns, row by row. Bottom: each card's own margin (--card-gap) adds to it. */
 .my-work-cell {
-  background-color: var(--column-bg);
-  border-left: 1px solid var(--panel-border);
-  border-right: 1px solid var(--panel-border);
-}
-
-/* Not Started and Done: cards flow in two columns, row by row */
-.my-work-cell--wide {
+  position: relative;
+  padding: var(--my-work-line-to-cards) var(--board-column-padding-x) calc(var(--my-work-line-to-cards) - var(--card-gap));
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: var(--card-gap);
   align-content: start;
+  background-color: var(--column-bg);
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
 }
 
 .my-work-cell--fill {
@@ -69,23 +86,42 @@
   cursor: pointer;
 }
 
-/* Project lane: a separator row across all bands */
-.my-work-lane-header {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  background-color: var(--column-bg);
-  border-top: 1px solid var(--panel-border);
-  border-bottom: 1px solid var(--panel-border);
-  color: var(--text-color);
+/* Project name of a lane: centered on the line above the lane, aligned with the cards below.
+   Shape shared with the backlog's .flow-badge (backlog-archive.css). */
+.my-work-lane-pill {
+  position: absolute;
+  top: 0;
+  left: var(--board-column-padding-x);
+  max-width: calc(100% - 2 * var(--board-column-padding-x));
+  height: var(--my-work-pill-height);
+  transform: translateY(-50%);
+  z-index: 1;
+  color: var(--accent-blue);
+}
+
+/* The first pill sits on the lower edge of the sticky head, so it must be drawn over the head */
+.my-work-head + .my-work-cell > .my-work-lane-pill {
+  z-index: 11;
+}
+
+.my-work-lane-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
 }
 
 .my-work-lane-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Between two project lanes: one thin line across the whole width, gaps included, as under the head */
+.my-work-lane-separator {
+  grid-column: 1 / -1;
+  height: 1px;
+  background-color: var(--panel-border);
 }
 
 .my-work-empty {

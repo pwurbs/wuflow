@@ -18,9 +18,6 @@ const CATEGORY_TITLES: Record<MyWorkCategory, string> = {
   done: 'Done',
 };
 
-// Not Started and Done hold more issues, so their cards flow in two columns.
-const WIDE_CATEGORIES: ReadonlySet<MyWorkCategory> = new Set(['notStarted', 'done']);
-
 // Kept here, not in state.issues: those belong to the selected project.
 let myIssues: MyIssue[] = [];
 let openModalCallback: OpenModal | undefined;
@@ -56,23 +53,31 @@ function createCategoryHeader(category: MyWorkCategory, count: string) {
   return header;
 }
 
-function createLaneHeader(projectName: string, count: number) {
-  const header = document.createElement('div');
-  header.className = 'my-work-lane-header';
+// Folder (Lucide), static markup.
+const FOLDER_ICON = '<svg class="my-work-lane-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>';
+
+// Project name of a lane: a pill on the line above the lane, in its Not Started cell.
+function createLanePill(projectName: string) {
+  const pill = document.createElement('span');
+  pill.className = 'my-work-lane-pill';
+  pill.title = projectName;
+  pill.innerHTML = FOLDER_ICON;
   const name = document.createElement('span');
   name.className = 'my-work-lane-name';
   name.textContent = projectName;
-  name.title = projectName;
-  const countEl = document.createElement('span');
-  countEl.className = 'count';
-  countEl.textContent = String(count);
-  header.append(name, countEl);
-  return header;
+  pill.appendChild(name);
+  return pill;
+}
+
+function createLaneSeparator() {
+  const line = document.createElement('div');
+  line.className = 'my-work-lane-separator';
+  return line;
 }
 
 function createCell(category: MyWorkCategory, extraClass = '') {
   const cell = document.createElement('div');
-  cell.className = `my-work-cell ${WIDE_CATEGORIES.has(category) ? 'my-work-cell--wide' : ''} ${extraClass}`.trim();
+  cell.className = `my-work-cell ${extraClass}`.trim();
   cell.dataset.category = category;
   return cell;
 }
@@ -84,6 +89,16 @@ function createMyWorkCard(issue: MyIssue, category: MyWorkCategory) {
     draggable: false,
     // In Progress groups up to four stages: show which one.
     stageName: category === 'inProgress' ? issue.status_name : undefined,
+  });
+}
+
+// One cell per category; the Not Started cell also carries the project name.
+function createLaneCells(lane: MyWorkLane) {
+  return MY_WORK_CATEGORIES.map(category => {
+    const cell = createCell(category);
+    if (category === 'notStarted') cell.appendChild(createLanePill(lane.projectName));
+    lane.cells[category].forEach(issue => cell.appendChild(createMyWorkCard(issue, category)));
+    return cell;
   });
 }
 
@@ -110,11 +125,15 @@ export function renderMyWork() {
   const lanes = buildLanes(shownIssues);
   const allLanes = searching ? buildLanes(myIssues) : lanes;
 
+  // One sticky head for the three category headers, so its lower edge is one line across all bands.
+  const head = document.createElement('div');
+  head.className = 'my-work-head';
   for (const category of MY_WORK_CATEGORIES) {
     const shown = categoryCount(lanes, category);
     // Like the board: "shown/total" while the search is active.
-    grid.appendChild(createCategoryHeader(category, searching ? `${shown}/${categoryCount(allLanes, category)}` : String(shown)));
+    head.appendChild(createCategoryHeader(category, searching ? `${shown}/${categoryCount(allLanes, category)}` : String(shown)));
   }
+  grid.appendChild(head);
 
   let rows = 1;
   if (lanes.length === 0) {
@@ -124,15 +143,14 @@ export function renderMyWork() {
     grid.appendChild(empty);
     rows++;
   }
-  for (const lane of lanes) {
-    grid.appendChild(createLaneHeader(lane.projectName, lane.total));
-    for (const category of MY_WORK_CATEGORIES) {
-      const cell = createCell(category);
-      lane.cells[category].forEach(issue => cell.appendChild(createMyWorkCard(issue, category)));
-      grid.appendChild(cell);
+  lanes.forEach((lane, index) => {
+    if (index > 0) {
+      grid.appendChild(createLaneSeparator());
+      rows++;
     }
-    rows += 2;
-  }
+    grid.append(...createLaneCells(lane));
+    rows++;
+  });
   for (const category of MY_WORK_CATEGORIES) {
     grid.appendChild(createCell(category, 'my-work-cell--fill'));
   }

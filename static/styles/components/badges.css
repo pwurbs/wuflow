@@ -20,8 +20,7 @@
 /* Count pill next to a column or section heading */
 .column-header .count,
 .sidebar-header .count,
-.backlog-header .count,
-.my-work-lane-header .count {
+.backlog-header .count {
   background-color: var(--hover-bg);
   color: var(--text-color);
   border-radius: 999px;

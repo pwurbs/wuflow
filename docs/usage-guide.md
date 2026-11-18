@@ -152,9 +152,9 @@ My Work shows all active issues assigned to you, from **all projects**, in one p
 <img src="screenshots/my-work.png" alt="My Work" width="1000">
 
 - **Columns**: Not Started (Todo), In Progress (all stages between Todo and Done) and Done. Open (backlog) and archived issues are not shown.
-- **Project lanes**: each project with active issues of yours has its own row, sorted by project name, with the number of your issues.
+- **Project lanes**: each project with active issues of yours has its own row, sorted by project name. The project name stands on the line above its row.
 - **Cards** look like on the board, without the assignee (they are all yours) and without the release. In In Progress, a card shows the column the issue is in within its project (e.g. Testing), because In Progress combines several board columns.
-- **Order**: in Not Started and In Progress, the most urgent issues come first: overdue issues (issue or task deadline), then high priority, then issues planned for today, the next two days or a past day, then the rest. In Done, the most recently changed issues come first.
+- **Order**: in Not Started, the most urgent issues come first: overdue issues (issue or task deadline), then high priority, then issues planned for today, the next two days or a past day, then the rest. In In Progress, the issues closest to Done come first (the board read from right to left: finish work before starting new work), and within the same column the most urgent first. In Done, the most recently changed issues come first.
 - **Editing**: click a card or a planning item to open the issue. Its fields offer the options of the issue's own project, and changes are saved to that project. My Work updates when you close the issue. Cards cannot be dragged here: change the status in the issue, or use the project's board.
 - **Planning**: the planning on the right works like the planning sidebar of the board, but shows your issues of all projects, each with its project name. It is read-only: plan issues in the issue itself or on the project's board.
 - **Filter**: the top bar shows only the text filter. It works like on the board (issue number, title and description) and filters the cards and the planning. The other filters belong to a single project and are not offered here.

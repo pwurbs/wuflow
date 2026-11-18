@@ -56,16 +56,28 @@ describe('My Work view', () => {
     vi.useRealTimers();
   });
 
-  it('shows the three category headers with their totals', () => {
-    const headers = [...document.querySelectorAll('#my-work-grid .column-header')];
+  it('shows the three category headers with their totals in one head', () => {
+    const headers = [...document.querySelectorAll('#my-work-grid > .my-work-head > .column-header')];
     expect(headers.map(h => h.querySelector('h2')?.textContent)).toEqual(['Not Started', 'In Progress', 'Done']);
     expect(headers.map(h => h.querySelector('.count')?.textContent)).toEqual(['1', '2', '1']);
   });
 
-  it('shows one lane per project, alphabetically, with its number of issues', () => {
-    const lanes = [...document.querySelectorAll('.my-work-lane-header')];
-    expect(lanes.map(l => l.querySelector('.my-work-lane-name')?.textContent)).toEqual(['Alpha', 'Beta']);
-    expect(lanes.map(l => l.querySelector('.count')?.textContent)).toEqual(['2', '2']);
+  it('names each project lane, alphabetically, in a pill in its Not Started cell', () => {
+    const pills = [...document.querySelectorAll<HTMLElement>('#my-work-grid .my-work-lane-pill')];
+    expect(pills.map(p => p.textContent)).toEqual(['Alpha', 'Beta']);
+    expect(pills.map(p => p.title)).toEqual(['Alpha', 'Beta']);
+    expect(pills.map(p => p.closest<HTMLElement>('.my-work-cell')?.dataset.category)).toEqual(['notStarted', 'notStarted']);
+    expect(pills[0].querySelector('svg.my-work-lane-icon')).not.toBeNull();
+    // No count per lane: the category headers have them.
+    expect(pills[0].querySelector('.count')).toBeNull();
+  });
+
+  it('draws a separator line only between two lanes', () => {
+    const grid = byId('my-work-grid');
+    const separators = [...grid.querySelectorAll('.my-work-lane-separator')];
+    expect(separators).toHaveLength(1);
+    expect(separators[0].previousElementSibling).toBe(cell(0, 'done'));
+    expect(separators[0].nextElementSibling).toBe(cell(1, 'notStarted'));
   });
 
   it('puts each card into its project lane and category', () => {
@@ -123,7 +135,8 @@ describe('My Work view', () => {
     renderMyWork();
 
     expect(bySelector(document, '.my-work-empty').textContent).toBe('No active issues are assigned to you.');
-    expect(document.querySelectorAll('.my-work-lane-header')).toHaveLength(0);
+    expect(document.querySelectorAll('.my-work-lane-pill')).toHaveLength(0);
+    expect(document.querySelectorAll('.my-work-lane-separator')).toHaveLength(0);
   });
 
   describe('search', () => {

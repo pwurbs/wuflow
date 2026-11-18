@@ -70,8 +70,7 @@ h1 {
 /* Count badges */
 .sidebar-header .count,
 .column-header .count,
-.backlog-header .count,
-.my-work-lane-header .count {
+.backlog-header .count {
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
 }
@@ -134,8 +133,9 @@ h1 {
   font-weight: var(--fw-medium);
 }
 
-/* Project lane headers (My Work): stronger than the card titles below them */
-.my-work-lane-name {
+/* Project name of a lane (My Work): size of the card titles, set apart by the pill's border
+   and the accent color; text font, without the uppercase of the column headers */
+.my-work-lane-pill {
   font-size: var(--fs-base);
   font-weight: var(--fw-semibold);
 }
