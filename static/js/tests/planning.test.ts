@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
 import { getEffectiveDeadlineInfo, createDeadlineBadge, renderPlanningPanel, processDroppedCard, setupPlanningPanel, buildPlanningList } from '../components/planning.ts';
-import type { Issue } from '../models.ts';
+import type { Issue, ReleaseRef } from '../models.ts';
 import * as api from '../api.ts';
 import * as utils from '../utils.ts';
 import { state, isFilterActive } from '../state.ts'; // Imported from mock
@@ -8,7 +8,10 @@ import { state, isFilterActive } from '../state.ts'; // Imported from mock
 // Mock dependencies
 vi.mock('../utils.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils.ts')>();
-  return { byId: actual.byId, bySelector: actual.bySelector, errorMessage: actual.errorMessage, containsTarget: actual.containsTarget, showNotification: vi.fn() };
+  return {
+    byId: actual.byId, bySelector: actual.bySelector, errorMessage: actual.errorMessage, containsTarget: actual.containsTarget,
+    getDeadlineStatus: actual.getDeadlineStatus, getTaskDeadlineStatus: actual.getTaskDeadlineStatus, showNotification: vi.fn(),
+  };
 });
 import { makeIssue, makeProject, makeTask, makeUserRef } from './fixtures.ts';
 import { byId, bySelector } from '../utils.ts';
@@ -171,6 +174,38 @@ describe('planning.ts', () => {
 
       expect(badge.classList.contains('overdue')).toBe(true);
       expect(badge.title).toBe('Planned late!');
+    });
+
+    // Same rules as the deadline on the card (getDeadlineStatus / getTaskDeadlineStatus).
+    const release: ReleaseRef = { id: 1, name: 'R1', status: 'open', release_date: '2023-10-14' };
+
+    it('warns if the issue deadline is after the release date', () => {
+      const badge = createDeadlineBadge(makeIssue({ id: 1, deadline: '2023-10-15', release }));
+      assert(badge);
+
+      expect(badge.classList.contains('overdue')).toBe(true);
+      expect(badge.title).toBe('Past release date!');
+    });
+
+    it('warns if a task deadline without issue deadline is after the release date', () => {
+      const issue = makeIssue({
+        id: 1,
+        release,
+        tasks: [makeTask({ id: 1, deadline: '2023-10-15', done: false })],
+      });
+      const badge = createDeadlineBadge(issue);
+      assert(badge);
+
+      expect(badge.classList.contains('overdue')).toBe(true);
+      expect(badge.title).toBe('Past release date!');
+    });
+
+    it('keeps a deadline before the release date unmarked', () => {
+      const badge = createDeadlineBadge(makeIssue({ id: 1, deadline: '2023-10-13', release }));
+      assert(badge);
+
+      expect(badge.classList.contains('overdue')).toBe(false);
+      expect(badge.title).toBe('Deadline');
     });
   });
 

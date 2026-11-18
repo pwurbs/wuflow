@@ -10,6 +10,7 @@
 - Dropdown lists (filters, project selector, issue dialog, release owner) are now sorted alphabetically, with numbers by value, and long names end in "…" instead of wrapping
 - Fixed: opening a dropdown in the toolbar now closes the one that is open
 - Fixed: an issue archived by dragging it into the Archive section now appears under the current month right away
+- Fixed: the planning sidebar now also marks a deadline red when it is later than the release date, like the card does
 
 # 1.4.6
 

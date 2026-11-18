@@ -1,7 +1,7 @@
 import { state, isFilterActive } from '../state.ts';
 import { STATUS_DONE, STATUS_ARCHIVE } from '../status-config.ts';
 import { updateIssue } from '../api.ts';
-import { showNotification, byId, bySelector, errorMessage, containsTarget } from '../utils.ts';
+import { showNotification, byId, bySelector, errorMessage, containsTarget, getDeadlineStatus, getTaskDeadlineStatus } from '../utils.ts';
 import { getDraggedCard, setDraggedCard } from '../drag.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues } from '../filters.ts';
@@ -258,42 +258,23 @@ export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
   const effectiveInfo = getEffectiveDeadlineInfo(issue);
   if (!effectiveInfo) return null;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   const d = new Date(effectiveInfo.date);
   d.setHours(0, 0, 0, 0);
 
-  let isWarning = d < today;
-  let tooltip;
-
-  if (isWarning) {
-    tooltip = 'Overdue!';
-  } else if (effectiveInfo.isTask) {
-    tooltip = 'Task Deadline';
+  const status = effectiveInfo.isTask
+    ? getTaskDeadlineStatus(effectiveInfo.date, issue)
+    : getDeadlineStatus(issue);
+  let isWarning = status.late;
+  let tooltip: string;
+  if (status.late) {
+    tooltip = status.reason;
   } else {
-    tooltip = 'Deadline';
+    tooltip = effectiveInfo.isTask ? 'Task Deadline' : 'Deadline';
   }
 
-  // Check if THIS specific planned instance is late
-  if (specificDateStr) {
-    const planned = new Date(specificDateStr);
-    planned.setHours(0, 0, 0, 0);
-    if (planned > d) {
-      isWarning = true;
-      tooltip = 'Planned late!';
-    }
-  } else if (issue.planned_dates && issue.planned_dates.length > 0) {
-    // Fallback? Or maybe we don't warn if date is unknown?
-    // Current behavior was: check latest.
-    // Let's keep existing logic ONLY if specificDateStr is not provided (e.g. board view?)
-    const [latestDate] = [...issue.planned_dates].sort((a, b) => b.localeCompare(a));
-    const lastPlan = new Date(latestDate);
-    lastPlan.setHours(0, 0, 0, 0);
-
-    if (lastPlan > d) {
-      isWarning = true;
-      tooltip = 'Planned late!';
-    }
+  if (isPlannedLate(issue, d, specificDateStr)) {
+    isWarning = true;
+    tooltip = 'Planned late!';
   }
 
   const badge = document.createElement('span');
@@ -301,6 +282,15 @@ export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
   badge.textContent = d.toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' });
   badge.title = tooltip;
   return badge;
+}
+
+// Whether the given planned date, or without one the issue's latest planned date, is after the deadline.
+function isPlannedLate(issue: Issue, deadline: Date, specificDateStr?: string) {
+  const plannedStr = specificDateStr ?? [...(issue.planned_dates ?? [])].sort((a, b) => b.localeCompare(a))[0];
+  if (!plannedStr) return false;
+  const planned = new Date(plannedStr);
+  planned.setHours(0, 0, 0, 0);
+  return planned > deadline;
 }
 
 function createAssigneeBadgeElement(issue: Issue) {

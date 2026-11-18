@@ -136,7 +136,7 @@ Deadlines can be assigned to issues and/or tasks. But **planned dates can only b
 - In the **Unplanned Deadlines** box at top of the Planning Sidebar, you see all issues with a deadline that **are not planned yet**. This is a kind of warning, that you should plan these issues.
 - Unplanned issues due 10+ days away are **hidden behind an expandable item**. This shall avoid too much noise in the Unplanned Deadlines box, especially if the due dates are far in the future.
 - **Issue or Task deadlines** are shown in the planning item card. In case of multiple deadlines per issue (issue deadline and task deadline or multiple task deadlines), then only the **earliest deadline** is shown.
-- When a task or issue **deadline is overdue** or if the **planned date is later than the due date**, then the deadline is **red-colored**.
+- The deadline is **red-colored** when it is **overdue**, when it is **later than the release date** of the issue's release, or when the **planned date is later than the deadline**. The tooltip names the reason. Deadlines on the cards follow the same rules, except for the planned date.
 - **Planned items in the past** are shown in a dedicated box "Past Planning". You should **delete these entries or move them to another day**.
 - Issues with status **Done** remain visible in the planning sidebar but are shown **faded with a strikethrough title**, so you can still see what was accomplished without the entry cluttering your active plan. Use the red cross to remove them once you no longer need them.
 - Issues **planned more than 10 days in the future** are collected in a box "Future Planning" at the bottom of the Planning Sidebar.
