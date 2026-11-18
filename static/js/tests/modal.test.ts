@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
 import { setupModal, openModal, closeModal, preventNavigation } from '../components/modal.ts';
-import { renderReleaseOptions, renderLabelOptions, renderProjectOptions, renderAssigneeOptions } from '../components/issue-dropdowns.ts';
+import { renderReleaseOptions, renderLabelOptions, renderProjectOptions, renderAssigneeOptions, renderPriorityOptions } from '../components/issue-dropdowns.ts';
 import * as api from '../api.ts';
 import { state, setCurrentIssue } from '../state.ts';
 import { byId, bySelector } from '../utils.ts';
@@ -3428,6 +3428,24 @@ describe('Issue dialog dropdowns: sort order', () => {
   it('sorts numbers in release names by value', () => {
     renderReleaseOptions([makeRelease({ id: 1, name: 'v1.10' }), makeRelease({ id: 2, name: 'v1.9' })], null);
     expect(texts('release-options')).toEqual(['No Release', 'v1.9', 'v1.10']);
+  });
+
+  it('gives the fixed entries and the priorities their text as tooltip', () => {
+    document.body.insertAdjacentHTML('beforeend', `
+      <span id="priority-text"></span>
+      <div id="priority-options" class="custom-select-options hidden"></div>
+      <input type="hidden" id="priority">
+    `);
+    renderLabelOptions([]);
+    renderReleaseOptions([], null);
+    renderAssigneeOptions([]);
+    renderPriorityOptions();
+    const titles = (id: string) => [...document.querySelectorAll<HTMLElement>(`#${id} .custom-option`)].map(o => o.title);
+    expect(titles('label-options')).toEqual(['No Label']);
+    expect(titles('release-options')).toEqual(['No Release']);
+    expect(titles('assignee-options')).toEqual(['Unassigned', 'Assign to me']);
+    expect(titles('priority-options')).toEqual(texts('priority-options'));
+    expect(titles('priority-options').length).toBeGreaterThan(0);
   });
 });
 

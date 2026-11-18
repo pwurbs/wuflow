@@ -821,6 +821,22 @@ describe('Project Selector', () => {
     expect(opts).toHaveLength(2);
     expect(opts[0].textContent).toBe('Alpha');
     expect(opts[1].textContent).toBe('Beta');
+    expect(opts[1].title).toBe('Beta');
+    expect(opts[1].dataset.value).toBe('2');
+  });
+
+  it('does not pass an option click on to the document', () => {
+    state.selectedProjectId = 1;
+    updateProjectSelectorOptions(projects);
+    const onDocumentClick = vi.fn();
+    document.addEventListener('click', onDocumentClick);
+    try {
+      document.querySelectorAll<HTMLElement>('#project-selector-options .custom-option')[1].click();
+    } finally {
+      document.removeEventListener('click', onDocumentClick);
+    }
+    expect(onDocumentClick).not.toHaveBeenCalled();
+    expect(state.selectedProjectId).toBe(2);
   });
 
   it('lists projects by name but still auto-selects the first project from the server', () => {

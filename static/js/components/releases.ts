@@ -99,22 +99,14 @@ export function renderReleaseOwnerOptions(users: User[]) {
   const container = byId('release-owner-options');
   container.innerHTML = '';
 
-  const noOwnerDiv = document.createElement('div');
-  noOwnerDiv.className = 'custom-option';
-  noOwnerDiv.textContent = 'No Owner';
-  noOwnerDiv.addEventListener('click', () => selectReleaseOwner('', 'No Owner'));
-  container.appendChild(noOwnerDiv);
+  container.appendChild(createOption('No Owner', () => selectReleaseOwner('', 'No Owner')));
 
   const me = state.currentUser;
   if (me) {
-    const meDiv = document.createElement('div');
-    meDiv.className = 'custom-option';
-    meDiv.textContent = 'Assign to me';
-    meDiv.addEventListener('click', () => selectReleaseOwner(
+    container.appendChild(createOption('Assign to me', () => selectReleaseOwner(
       String(me.id),
       `${me.first_name} ${me.last_name}`
-    ));
-    container.appendChild(meDiv);
+    )));
   }
 
   sortByName(users.filter(u => u.active && u.id !== state.currentUser?.id), u => `${u.first_name} ${u.last_name}`).forEach(user => {

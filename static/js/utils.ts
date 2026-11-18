@@ -505,7 +505,7 @@ export function getUserInitials(user: UserRef | null | undefined) {
 }
 
 // One option of a custom dropdown. The title shows text that the list's width cuts off.
-export function createOption(text: string, onPick: () => void) {
+export function createOption(text: string, onPick: (e: MouseEvent) => void) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;

@@ -222,12 +222,7 @@ export function updateProjectSelectorOptions(projects: Project[]) {
 
   // Sorted only for display: the fallback above stays the first project from the server (the default project).
   sortByName(projects, p => p.name).forEach(project => {
-    const option = document.createElement('div');
-    option.className = 'custom-option' + (state.selectedProjectId === project.id ? ' selected' : '');
-    option.dataset.value = String(project.id);
-    option.textContent = project.name;
-    option.title = project.name;
-    option.addEventListener('click', (e) => {
+    const option = createOption(project.name, (e) => {
       e.stopPropagation();
       setSelectedProject(project.id);
       localStorage.setItem('wuflow_selectedProjectId', String(project.id));
@@ -235,6 +230,8 @@ export function updateProjectSelectorOptions(projects: Project[]) {
       optionsDiv.classList.add('hidden');
       if (_onProjectChange) _onProjectChange();
     });
+    option.classList.toggle('selected', state.selectedProjectId === project.id);
+    option.dataset.value = String(project.id);
     optionsDiv.appendChild(option);
   });
 

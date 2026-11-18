@@ -43,7 +43,7 @@
   background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--text-color);
-  padding: 6px 12px;
+  padding: var(--toolbar-control-padding-y) var(--space-3);
   border-radius: 4px;
   cursor: pointer;
   min-width: 120px;
@@ -149,7 +149,7 @@
   background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--text-color);
-  padding: 6px var(--search-clear-space) 6px var(--space-3); /* right: room for the clear × */
+  padding: var(--toolbar-control-padding-y) var(--search-clear-space) var(--toolbar-control-padding-y) var(--space-3); /* right: room for the clear × */
   border-radius: 4px;
   cursor: text;
   min-width: 120px;

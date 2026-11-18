@@ -159,11 +159,7 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
 
   const hasFutureIssues = filteredIssues.some(issue => {
     if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
-    return issue.planned_dates.some(dateStr => {
-      const planned = new Date(dateStr);
-      planned.setHours(0, 0, 0, 0);
-      return planned >= futureCutoff;
-    });
+    return issue.planned_dates.some(dateStr => startOfDay(dateStr) >= futureCutoff);
   });
 
   if (hasFutureIssues) {
@@ -395,8 +391,7 @@ function createUnscheduledSection(issues: Issue[], opts: PlanningListOptions) {
   const content = document.createElement('div');
   content.className = 'planning-section-content';
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfDay(new Date());
   const tenDaysFromNow = new Date(today);
   tenDaysFromNow.setDate(today.getDate() + 10);
 
@@ -406,9 +401,7 @@ function createUnscheduledSection(issues: Issue[], opts: PlanningListOptions) {
   issues.forEach(issue => {
     const info = getEffectiveDeadlineInfo(issue);
     if (info?.date) {
-      const deadline = new Date(info.date);
-      deadline.setHours(0, 0, 0, 0);
-      if (deadline > tenDaysFromNow) {
+      if (startOfDay(info.date) > tenDaysFromNow) {
         farTermIssues.push(issue);
       } else {
         nearTermIssues.push(issue);

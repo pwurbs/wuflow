@@ -73,6 +73,8 @@
   --board-column-min-width: 200px;
   --board-column-gap: 20px;
   --board-column-padding-x: 12px;
+  /* Vertical padding of the toolbar's dropdown triggers and search inputs, so they are equally high */
+  --toolbar-control-padding-y: 6px;
   /* Text filter of the issue views (toolbar) */
   --issue-filter-input-width: 220px;
   /* Dropdown lists grow with their entries up to this width, longer entries end in "…" */

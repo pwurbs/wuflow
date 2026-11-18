@@ -290,6 +290,7 @@ describe('createOption', () => {
     expect(option.title).toBe('A long release name');
     option.click();
     expect(onPick).toHaveBeenCalledOnce();
+    expect(onPick.mock.calls[0][0]).toBeInstanceOf(MouseEvent);
   });
 
   it('sets the text as text, not as HTML', () => {

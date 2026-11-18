@@ -130,9 +130,11 @@ export function renderMyWork() {
   head.className = 'my-work-head';
   for (const category of MY_WORK_CATEGORIES) {
     const shown = categoryCount(lanes, category);
-    const total = () => myIssues.filter(issue => categoryOf(issue.status) === category).length;
     // Like the board: "shown/total" while a filter is active.
-    head.appendChild(createCategoryHeader(category, filtering ? `${shown}/${total()}` : String(shown)));
+    const count = filtering
+      ? `${shown}/${myIssues.filter(issue => categoryOf(issue.status) === category).length}`
+      : String(shown);
+    head.appendChild(createCategoryHeader(category, count));
   }
   grid.appendChild(head);
 

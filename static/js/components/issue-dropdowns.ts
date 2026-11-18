@@ -73,13 +73,9 @@ export function renderPriorityOptions() {
   const optionsContainer = byId('priority-options');
   optionsContainer.innerHTML = '';
   PRIORITY_OPTIONS.forEach(({ text, value }) => {
-    const div = document.createElement('div');
-    div.className = 'custom-option';
-    div.textContent = text;
-    div.addEventListener('click', () => {
+    optionsContainer.appendChild(createOption(text, () => {
       selectOption('priority', 'priority-text', 'priority-options', value, text);
-    });
-    optionsContainer.appendChild(div);
+    }));
   });
 }
 
@@ -87,14 +83,9 @@ export function renderLabelOptions(labels: Label[]) {
   const optionsContainer = byId('label-options');
   optionsContainer.innerHTML = '';
 
-  // No Label Option
-  const noLabelDiv = document.createElement('div');
-  noLabelDiv.className = 'custom-option';
-  noLabelDiv.textContent = 'No Label';
-  noLabelDiv.addEventListener('click', () => {
+  optionsContainer.appendChild(createOption('No Label', () => {
     selectOption('label-select', 'label-text', 'label-options', '', 'No Label');
-  });
-  optionsContainer.appendChild(noLabelDiv);
+  }));
 
   sortByName(labels, l => l.name).forEach(label => {
     optionsContainer.appendChild(createOption(label.name, () => {
@@ -107,13 +98,9 @@ export function renderReleaseOptions(releases: Release[], currentReleaseId: numb
   const optionsContainer = byId('release-options');
   optionsContainer.innerHTML = '';
 
-  const noReleaseDiv = document.createElement('div');
-  noReleaseDiv.className = 'custom-option';
-  noReleaseDiv.textContent = 'No Release';
-  noReleaseDiv.addEventListener('click', () => {
+  optionsContainer.appendChild(createOption('No Release', () => {
     selectOption('release-select', 'release-text', 'release-options', '', 'No Release');
-  });
-  optionsContainer.appendChild(noReleaseDiv);
+  }));
 
   sortByName(releases.filter(r => r.status !== RELEASE_STATUS_CLOSED), r => r.name).forEach(release => {
     optionsContainer.appendChild(createOption(release.name, () => {
@@ -182,25 +169,15 @@ export function renderAssigneeOptions(users: User[]) {
   const optionsContainer = byId('assignee-options');
   optionsContainer.innerHTML = '';
 
-  // Unassigned Option
-  const unassignedDiv = document.createElement('div');
-  unassignedDiv.className = 'custom-option';
-  unassignedDiv.textContent = 'Unassigned';
-  unassignedDiv.addEventListener('click', () => {
+  optionsContainer.appendChild(createOption('Unassigned', () => {
     selectOption('assignee-select', 'assignee-text', 'assignee-options', '', 'Unassigned');
-  });
-  optionsContainer.appendChild(unassignedDiv);
+  }));
 
-  // "Assign to me" Option
   const me = state.currentUser;
   if (me) {
-    const meDiv = document.createElement('div');
-    meDiv.className = 'custom-option';
-    meDiv.textContent = 'Assign to me';
-    meDiv.addEventListener('click', () => {
+    optionsContainer.appendChild(createOption('Assign to me', () => {
       selectOption('assignee-select', 'assignee-text', 'assignee-options', me.id, `${me.first_name} ${me.last_name}`);
-    });
-    optionsContainer.appendChild(meDiv);
+    }));
   }
 
   sortByName(users.filter(u => u.active && u.id !== state.currentUser?.id), u => `${u.first_name} ${u.last_name}`).forEach(user => {

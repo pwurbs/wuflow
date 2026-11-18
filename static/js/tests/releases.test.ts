@@ -166,6 +166,7 @@ describe('releases', () => {
       expect(opts).toHaveLength(2);
       expect(opts[0].textContent).toBe('No Owner');
       expect(opts[1].textContent).toBe('Assign to me');
+      expect([...opts].map(o => o.title)).toEqual(['No Owner', 'Assign to me']);
     });
 
     it('renders active users other than the current user', () => {
