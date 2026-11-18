@@ -1,17 +1,17 @@
 
 # 1.5.0
 
-- Added the My Work view: all active issues assigned to you across all projects, in project lanes sorted by progress and urgency, with your personal planning, so you no longer switch projects and filters to see your work
+- Added the My Work view: all active issues assigned to you across all projects, in project lanes sorted by progress and urgency, with your personal planning
+- The header toolbar is now one bar across the full width, set apart from the board by a line, without empty spaces in My Work and the settings views
+- Dropdown lists (filters, project selector, issue dialog, release owner) are now sorted alphabetically, with numbers by value, and long names end in "…" instead of wrapping
+- The text filter is wider, says what it matches (number, title, description)
 - The main menu is now grouped into three sections: My Work, the selected project and System
-- The text filter is wider, says what it matches (number, title, description) and finds exactly issue 12 with `#12`
+- Added "Unassign" to the card's right-click menu for issues assigned to you
 - Fixed: choosing another project in the issue dialog (for a new issue or a move) no longer shows that project's columns and releases on the board behind the dialog
 - Fixed: users without System Settings no longer see a separator line at the bottom of the main menu
-- Added "Unassign" to the card's right-click menu for issues assigned to you
-- Dropdown lists (filters, project selector, issue dialog, release owner) are now sorted alphabetically, with numbers by value, and long names end in "…" instead of wrapping
 - Fixed: opening a dropdown in the toolbar now closes the one that is open
 - Fixed: an issue archived by dragging it into the Archive section now appears under the current month right away
 - Fixed: the planning sidebar now also marks a deadline red when it is later than the release date, like the card does
-- The header is now one bar across the full width, set apart from the board by a line, without empty spaces in My Work and the settings views. The user menu shows your name, email and role are in the open menu
 - Bumped marked to 18.2.1 and DOMPurify to 3.4.18
 - Bumped Go to 1.27.4
 - Bumped direct Go package dependencies go-sqlite3 and x/crypto
