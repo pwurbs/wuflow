@@ -16,6 +16,12 @@ test.describe('Planning Panel', () => {
     await expect(page.locator('#planning-panel')).toBeVisible();
   });
 
+  test('planning sidebar is a named landmark', async ({ page }) => {
+    const sidebar = page.getByRole('complementary', { name: 'Planning', exact: true });
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.locator('#planning-panel')).toBeVisible();
+  });
+
   test('create issue with planned date appears in planning panel', async ({ page }) => {
     const today = new Date();
     const dateStr = formatDate(today);
