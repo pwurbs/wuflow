@@ -243,5 +243,30 @@ describe('Archive Component', () => {
       expect(issue.status).toBe('Done');
       expect(refreshApp).toHaveBeenCalled();
     });
+
+    it('should group an issue archived by drag under the month the server archived it in', async () => {
+      setupArchiveView(vi.fn(), vi.fn(), () => { void renderArchive(); });
+
+      const list = byId('archive-list');
+      const section = byId('archive-archive-section');
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.id = '97';
+      const dragModule = await import('../drag.ts');
+      vi.mocked(dragModule.getDraggedCard).mockReturnValue(card);
+      // Last changed in October, archived in November
+      const issue = makeIssue({ id: 97, status: 'Done', updated_at: '2026-10-05T10:00:00Z' });
+      state.state.issues = [issue];
+      vi.mocked(api.archiveIssue).mockResolvedValueOnce({ ...issue, status: 'Archive', updated_at: '2026-11-18T10:00:00Z' });
+
+      for (const el of [list, section]) {
+        Object.defineProperty(el, 'offsetParent', { get() { return document.body; } });
+      }
+      list.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      const november = new Date('2026-11-18T10:00:00Z').toLocaleDateString(navigator.language, { month: 'long', year: 'numeric' });
+      await vi.waitFor(() => expect(list.querySelector('.archive-month-header')?.textContent).toBe(november));
+      expect(issue.updated_at).toBe('2026-11-18T10:00:00Z');
+    });
   });
 });

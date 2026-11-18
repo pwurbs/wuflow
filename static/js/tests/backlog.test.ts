@@ -518,6 +518,29 @@ describe('Backlog Component', () => {
       expect(refreshApp).not.toHaveBeenCalled();
     });
 
+    it('should take the issue as the server returns it after a drop on a section header', async () => {
+      const rerenderActiveView = vi.fn();
+      setupBacklogView(vi.fn(), vi.fn(), rerenderActiveView);
+
+      const openSection = byId('backlog-open-section');
+      const issue = makeIssue({ id: 96, status: 'Todo', updated_at: '2026-10-05T10:00:00Z' });
+      state.state.issues = [issue];
+      vi.mocked(api.updateIssue).mockResolvedValueOnce({
+        issue: { ...issue, status: 'Open', updated_at: '2026-11-18T10:00:00Z' }, etag: null, conflict: false
+      });
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.id = '96';
+      vi.mocked(dragModule.getDraggedCard).mockReturnValue(card);
+
+      Object.defineProperty(openSection, 'offsetParent', { get() { return document.body; } });
+      openSection.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => expect(rerenderActiveView).toHaveBeenCalled());
+      expect(issue.updated_at).toBe('2026-11-18T10:00:00Z');
+    });
+
     it('should ignore a planning item dropped on a section (the planning sidebar is not shown here)', async () => {
       setupBacklogView(vi.fn(), vi.fn(), vi.fn());
 

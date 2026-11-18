@@ -260,4 +260,15 @@ describe('getListUpdates', () => {
     expect(archives).toHaveLength(1);
     expect(api.archiveIssue).toHaveBeenCalledWith(5, 1);
   });
+
+  it('takes the archived issue as the server returns it', async () => {
+    const issue = makeIssue({ id: 1, status: 'Done', updated_at: '2026-10-05T10:00:00Z' });
+    vi.mocked(api.archiveIssue).mockResolvedValue({ ...issue, status: 'Archive', updated_at: '2026-11-18T10:00:00Z' });
+    state.issues = [issue];
+    renderList('archive', [1]);
+
+    await Promise.all(getListUpdates('archive', 'Archive').archives);
+
+    expect(issue.updated_at).toBe('2026-11-18T10:00:00Z');
+  });
 });

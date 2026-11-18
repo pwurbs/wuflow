@@ -180,7 +180,7 @@ export function getListUpdates(listId: string, targetStatus: IssueStatus) {
       if (statusChanged || positionChanged) {
         if (targetStatus === STATUS_ARCHIVE) {
           issue.status = targetStatus;
-          result.archives.push(archiveIssue(issue.project_id, issue.id));
+          result.archives.push(archiveIssue(issue.project_id, issue.id).then(saved => Object.assign(issue, saved)));
         } else {
           result.changes.push(applyOrderChange(issue, targetStatus, index));
         }
@@ -250,11 +250,12 @@ export function setupSectionDrop(sectionId: string, targetStatus: IssueStatus, o
 
     issue.status = targetStatus;
     try {
-      if (targetStatus === STATUS_ARCHIVE) {
-        await archiveIssue(issue.project_id, issue.id);
-      } else {
-        await updateIssue(issue.project_id, issue);
-      }
+      // The server's copy carries the fields it sets itself, e.g. updated_at, which the
+      // Archive view groups by.
+      const saved = targetStatus === STATUS_ARCHIVE
+        ? await archiveIssue(issue.project_id, issue.id)
+        : (await updateIssue(issue.project_id, issue)).issue;
+      if (saved) Object.assign(issue, saved);
       rerenderOrRefresh();
       if (onDrop) onDrop(issue);
     } catch (err) {
