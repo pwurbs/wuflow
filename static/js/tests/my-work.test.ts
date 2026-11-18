@@ -30,6 +30,10 @@ const ISSUES: MyIssue[] = [
   myIssue({ id: 4, title: 'Alpha done', status: 'Done', status_name: 'Done' }),
 ];
 
+// Lane order: Beta has two open cards, Alpha one (plus one in Done), so Beta comes first.
+const BETA = 0;
+const ALPHA = 1;
+
 const cell = (laneIndex: number, category: string) =>
   document.querySelectorAll<HTMLElement>(`#my-work-grid .my-work-cell[data-category="${category}"]:not(.my-work-cell--fill)`)[laneIndex];
 const cardTitles = (el: HTMLElement) => [...el.querySelectorAll('.board-card-title')].map(t => t.textContent);
@@ -62,10 +66,10 @@ describe('My Work view', () => {
     expect(headers.map(h => h.querySelector('.count')?.textContent)).toEqual(['1', '2', '1']);
   });
 
-  it('names each project lane, alphabetically, in a pill in its Not Started cell', () => {
+  it('names each project lane in a pill in its Not Started cell, the most open cards first', () => {
     const pills = [...document.querySelectorAll<HTMLElement>('#my-work-grid .my-work-lane-pill')];
-    expect(pills.map(p => p.textContent)).toEqual(['Alpha', 'Beta']);
-    expect(pills.map(p => p.title)).toEqual(['Alpha', 'Beta']);
+    expect(pills.map(p => p.textContent)).toEqual(['Beta', 'Alpha']);
+    expect(pills.map(p => p.title)).toEqual(['Beta', 'Alpha']);
     expect(pills.map(p => p.closest<HTMLElement>('.my-work-cell')?.dataset.category)).toEqual(['notStarted', 'notStarted']);
     expect(pills[0].querySelector('svg.my-work-lane-icon')).not.toBeNull();
     // No count per lane: the category headers have them.
@@ -76,22 +80,22 @@ describe('My Work view', () => {
     const grid = byId('my-work-grid');
     const separators = [...grid.querySelectorAll('.my-work-lane-separator')];
     expect(separators).toHaveLength(1);
-    expect(separators[0].previousElementSibling).toBe(cell(0, 'done'));
-    expect(separators[0].nextElementSibling).toBe(cell(1, 'notStarted'));
+    expect(separators[0].previousElementSibling).toBe(cell(BETA, 'done'));
+    expect(separators[0].nextElementSibling).toBe(cell(ALPHA, 'notStarted'));
   });
 
   it('puts each card into its project lane and category', () => {
-    expect(cardTitles(cell(0, 'inProgress'))).toEqual(['Alpha working']);
-    expect(cardTitles(cell(0, 'done'))).toEqual(['Alpha done']);
-    expect(cardTitles(cell(1, 'notStarted'))).toEqual(['Beta todo']);
-    expect(cardTitles(cell(1, 'inProgress'))).toEqual(['Beta testing']);
+    expect(cardTitles(cell(ALPHA, 'inProgress'))).toEqual(['Alpha working']);
+    expect(cardTitles(cell(ALPHA, 'done'))).toEqual(['Alpha done']);
+    expect(cardTitles(cell(BETA, 'notStarted'))).toEqual(['Beta todo']);
+    expect(cardTitles(cell(BETA, 'inProgress'))).toEqual(['Beta testing']);
   });
 
   it('shows the column name chip only in In Progress, in place of the release', () => {
-    expect(bySelector(cell(1, 'inProgress'), '.stage-chip').textContent).toBe('Testing');
-    expect(bySelector(cell(0, 'inProgress'), '.stage-chip').textContent).toBe('Working');
-    expect(cell(1, 'notStarted').querySelector('.release-chip')).toBeNull();
-    expect(cell(0, 'done').querySelector('.release-chip')).toBeNull();
+    expect(bySelector(cell(BETA, 'inProgress'), '.stage-chip').textContent).toBe('Testing');
+    expect(bySelector(cell(ALPHA, 'inProgress'), '.stage-chip').textContent).toBe('Working');
+    expect(cell(BETA, 'notStarted').querySelector('.release-chip')).toBeNull();
+    expect(cell(ALPHA, 'done').querySelector('.release-chip')).toBeNull();
     expect(byId('my-work-grid').textContent).not.toContain('v9');
   });
 
@@ -103,7 +107,7 @@ describe('My Work view', () => {
       expect(card.draggable).toBe(false);
     });
 
-    bySelector(cell(1, 'inProgress'), '.card').click();
+    bySelector(cell(BETA, 'inProgress'), '.card').click();
     expect(openModal).toHaveBeenCalledWith(expect.objectContaining({ id: 2, project_id: 2 }));
   });
 
@@ -124,9 +128,9 @@ describe('My Work view', () => {
     mergeMyIssue(makeIssue({ ...ISSUES[2], title: 'Renamed', priority: 'High' }));
     renderMyWork();
 
-    expect(cardTitles(cell(0, 'inProgress'))).toEqual(['Renamed']);
+    expect(cardTitles(cell(ALPHA, 'inProgress'))).toEqual(['Renamed']);
     // The column name comes from the list endpoint and is kept.
-    expect(bySelector(cell(0, 'inProgress'), '.stage-chip').textContent).toBe('Working');
+    expect(bySelector(cell(ALPHA, 'inProgress'), '.stage-chip').textContent).toBe('Working');
   });
 
   it('shows a message when no active issues are assigned', async () => {

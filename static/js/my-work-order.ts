@@ -75,7 +75,15 @@ export function compareDone(a: MyIssue, b: MyIssue) {
   return Date.parse(b.updated_at) - Date.parse(a.updated_at) || a.id - b.id;
 }
 
-/** Groups the issues into one lane per project (alphabetical), each split into the three categories. */
+// Open cards of a lane: Not Started and In Progress. Done needs no attention.
+function openCount(lane: MyWorkLane) {
+  return lane.cells.notStarted.length + lane.cells.inProgress.length;
+}
+
+/**
+ * Groups the issues into one lane per project, each split into the three categories. The
+ * project with the most open cards comes first, ties alphabetically.
+ */
 export function buildLanes(issues: MyIssue[], today = new Date()): MyWorkLane[] {
   const lanes = new Map<number, MyWorkLane>();
   for (const issue of issues) {
@@ -92,7 +100,8 @@ export function buildLanes(issues: MyIssue[], today = new Date()): MyWorkLane[] 
     }
     lane.cells[category].push(issue);
   }
-  const sorted = [...lanes.values()].sort((a, b) => a.projectName.localeCompare(b.projectName) || a.projectId - b.projectId);
+  const sorted = [...lanes.values()].sort((a, b) =>
+    openCount(b) - openCount(a) || a.projectName.localeCompare(b.projectName) || a.projectId - b.projectId);
   for (const lane of sorted) {
     lane.cells.notStarted.sort((a, b) => compareUrgency(a, b, today));
     lane.cells.inProgress.sort((a, b) => compareInProgress(a, b, today));

@@ -54,6 +54,11 @@ test.describe('My Work', () => {
     const bTestingId = await createIssueViaAPI(request, projectBId, t('B testing'), {
       status: 'Stage1', assignee_id: me.id, label: { id: labelBId }, release_id: releaseBId,
     });
+    await createIssueViaAPI(request, projectBId, t('B todo'), { status: 'Todo', assignee_id: me.id });
+    // Project C comes first by name, but has fewer open cards than B (1 against 2).
+    const projectC = `aa_${suffix}`;
+    const projectCId = await createProjectViaAPI(request, projectC);
+    await createIssueViaAPI(request, projectCId, t('C todo'), { status: 'Todo', assignee_id: me.id });
     const descriptionWord = `zebra${suffix}`; // in a description only, not in any title
     await createIssueViaAPI(request, projectBId, t('B done'), { status: 'Done', assignee_id: me.id, description: `Contains ${descriptionWord}.` });
 
@@ -70,11 +75,13 @@ test.describe('My Work', () => {
       await expect(page.locator(id)).toBeHidden();
     }
 
-    // Lanes: one per project with my issues, alphabetical, each named by a pill in its Not Started cell.
+    // Lanes: one per project with my issues, each named by a pill in its Not Started cell, the most
+    // open cards first: B (2 open) before C (1 open), although C comes first by name.
     const laneNames = page.locator('.my-work-lane-name');
     await expect(laneNames.filter({ hasText: projectB })).toHaveCount(1);
     const names = await laneNames.allTextContents();
-    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    expect(names.indexOf(projectB)).toBeGreaterThan(-1);
+    expect(names.indexOf(projectB)).toBeLessThan(names.indexOf(projectC));
     await expect(page.locator('.my-work-cell[data-category="notStarted"] .my-work-lane-pill', { hasText: projectB })).toBeVisible();
 
     // Columns, and the column name chip only in In Progress.

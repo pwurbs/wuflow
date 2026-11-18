@@ -27,7 +27,22 @@ describe('categoryOf', () => {
 });
 
 describe('buildLanes', () => {
-  it('makes one lane per project with issues, sorted by project name', () => {
+  it('puts the project with the most open cards first; Done does not count', () => {
+    const alpha = makeProject({ id: 1, name: 'Alpha' });
+    const wide = makeProject({ id: 2, name: 'Wide' });
+    const lanes = buildLanes([
+      myIssue({ id: 1, project_id: 1, project: alpha, status: 'Todo' }),
+      myIssue({ id: 2, project_id: 1, project: alpha, status: 'Done' }),
+      myIssue({ id: 3, project_id: 1, project: alpha, status: 'Done' }),
+      myIssue({ id: 4, project_id: 2, project: wide, status: 'Todo' }),
+      myIssue({ id: 5, project_id: 2, project: wide, status: 'Stage2' }),
+    ], TODAY);
+
+    // Alpha has more issues (3), but only one open; Wide has two open.
+    expect(lanes.map(l => l.projectName)).toEqual(['Wide', 'Alpha']);
+  });
+
+  it('sorts lanes with the same number of open cards by project name', () => {
     const lanes = buildLanes([
       myIssue({ id: 1, project_id: 3, project: makeProject({ id: 3, name: 'charlie' }) }),
       myIssue({ id: 2, project_id: 1, project: makeProject({ id: 1, name: 'Alpha' }) }),
