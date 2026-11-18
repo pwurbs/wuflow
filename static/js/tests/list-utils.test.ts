@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
 
 vi.mock('../api.ts', () => ({ updateIssue: vi.fn(), updateIssuePositions: vi.fn(), archiveIssue: vi.fn() }));
 vi.mock('../utils.ts', async (importOriginal) => ({
@@ -10,7 +10,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
 vi.mock('../drag.ts', () => ({ getDraggedCard: vi.fn(), getDragAfterElement: vi.fn() }));
 vi.mock('../state.ts', () => ({ state: { issues: [] } }));
 
-import { handleTogglePriority, handleAssignToMe, handleMoveTop, applyOrderChange, saveIssueOrder, getListUpdates } from '../list-utils.ts';
+import { handleTogglePriority, handleSetAssignee, assigneeCallbacks, handleMoveTop, applyOrderChange, saveIssueOrder, getListUpdates } from '../list-utils.ts';
 import { showNotification } from '../utils.ts';
 import { state } from '../state.ts';
 import * as api from '../api.ts';
@@ -49,7 +49,7 @@ describe('handleTogglePriority', () => {
   });
 });
 
-describe('handleAssignToMe', () => {
+describe('handleSetAssignee', () => {
   beforeEach(() => vi.clearAllMocks());
 
   const currentUser = makeUser({ id: 42, first_name: 'Alice', last_name: 'Smith' });
@@ -57,23 +57,77 @@ describe('handleAssignToMe', () => {
   it('sets assignee_id and assignee on the issue', async () => {
     const issue = makeIssue({ id: 1, assignee_id: null });
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
-    await handleAssignToMe(issue, currentUser, vi.fn());
+    await handleSetAssignee(issue, currentUser, vi.fn());
     expect(issue.assignee_id).toBe(42);
     expect(issue.assignee).toBe(currentUser);
+  });
+
+  it('removes the assignee with null', async () => {
+    const issue = makeIssue({ id: 1, assignee_id: 42, assignee: currentUser });
+    vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
+    await handleSetAssignee(issue, null, vi.fn());
+    expect(issue.assignee_id).toBeNull();
+    expect(issue.assignee).toBeUndefined();
+    expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ assignee_id: null }));
+  });
+
+  it('restores the old assignee when saving fails', async () => {
+    const issue = makeIssue({ id: 1, assignee_id: 42, assignee: currentUser });
+    vi.mocked(api.updateIssue).mockRejectedValue(new Error('fail'));
+    await handleSetAssignee(issue, null, vi.fn());
+    expect(issue.assignee_id).toBe(42);
+    expect(issue.assignee).toBe(currentUser);
+    expect(showNotification).toHaveBeenCalledWith('fail', 'error');
   });
 
   it('calls refresh on success', async () => {
     const refresh = vi.fn();
     vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
-    await handleAssignToMe(makeIssue({ id: 1 }), currentUser, refresh);
+    await handleSetAssignee(makeIssue({ id: 1 }), currentUser, refresh);
     expect(refresh).toHaveBeenCalled();
   });
 
   it('calls refresh on error', async () => {
     const refresh = vi.fn();
     vi.mocked(api.updateIssue).mockRejectedValue(new Error('fail'));
-    await handleAssignToMe(makeIssue({ id: 1 }), currentUser, refresh);
+    await handleSetAssignee(makeIssue({ id: 1 }), currentUser, refresh);
     expect(refresh).toHaveBeenCalled();
+  });
+});
+
+describe('assigneeCallbacks', () => {
+  const me = makeUser({ id: 42, first_name: 'Alice', last_name: 'Smith' });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({});
+    state.currentUser = me;
+  });
+
+  it('offers Unassign on the current user\'s own issue, which removes the assignee', async () => {
+    const issue = makeIssue({ id: 1, assignee_id: 42, assignee: me });
+    const cb = assigneeCallbacks(issue);
+    expect(cb.onAssignToMe).toBeUndefined();
+    assert(cb.onUnassign);
+    await cb.onUnassign();
+    expect(issue.assignee_id).toBeNull();
+  });
+
+  it.each([
+    ['unassigned', null],
+    ['assigned to someone else', 7],
+  ])('offers Assign to me on an issue %s, which assigns the current user', async (_, assigneeId) => {
+    const issue = makeIssue({ id: 1, assignee_id: assigneeId });
+    const cb = assigneeCallbacks(issue);
+    expect(cb.onUnassign).toBeUndefined();
+    assert(cb.onAssignToMe);
+    await cb.onAssignToMe();
+    expect(issue.assignee_id).toBe(42);
+  });
+
+  it('offers neither without a current user', () => {
+    state.currentUser = null;
+    expect(assigneeCallbacks(makeIssue({ id: 1, assignee_id: 42 }))).toEqual({});
   });
 });
 

@@ -73,6 +73,8 @@
   --board-column-padding-x: 12px;
   /* Text filter of the issue views (toolbar) */
   --issue-filter-input-width: 220px;
+  /* Dropdown lists grow with their entries up to this width, longer entries end in "…" */
+  --dropdown-options-max-width: 200px;
 
   /* Space between cards: below each card, and between the two card columns of My Work */
   --card-gap: 8px;

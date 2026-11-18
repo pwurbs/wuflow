@@ -6,6 +6,9 @@
 - The text filter is wider, says what it matches (number, title, description) and finds exactly issue 12 with `#12`
 - Fixed: choosing another project in the issue dialog (for a new issue or a move) no longer shows that project's columns and releases on the board behind the dialog
 - Fixed: users without System Settings no longer see a separator line at the bottom of the main menu
+- Added "Unassign" to the card's right-click menu for issues assigned to you
+- Dropdown lists (filters, project selector, issue dialog, release owner) are now sorted alphabetically, with numbers by value, and long names end in "…" instead of wrapping
+- Fixed: opening a dropdown in the toolbar now closes the one that is open
 
 # 1.4.6
 

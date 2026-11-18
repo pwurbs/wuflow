@@ -16,7 +16,9 @@ export interface CardCallbacks {
   onMoveTop?: (() => unknown) | null;
   onMoveBottom?: (() => unknown) | null;
   onTogglePriority?: () => unknown;
+  // At most one of the two is set: Unassign replaces Assign to me in the menu.
   onAssignToMe?: () => unknown;
+  onUnassign?: () => unknown;
 }
 
 // The ways My Work shows a board card differently; the defaults give the project board's card.
@@ -92,7 +94,7 @@ export function createCardElement(issue: Issue, isBoard = false, callbacks: Card
     document.querySelectorAll(`.planning-item[data-id="${issue.id}"]`).forEach(el => el.classList.remove('hover-highlight'));
   });
 
-  const hasContextActions = callbacks.onMoveTop || callbacks.onMoveBottom || callbacks.onTogglePriority || callbacks.onAssignToMe;
+  const hasContextActions = callbacks.onMoveTop || callbacks.onMoveBottom || callbacks.onTogglePriority || callbacks.onAssignToMe || callbacks.onUnassign;
   if (hasContextActions) {
     card.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -126,11 +128,9 @@ export function createCardElement(issue: Issue, isBoard = false, callbacks: Card
         }
       ];
 
-      items.push({
-        label: 'Assign to me',
-        disabled: !callbacks.onAssignToMe,
-        action: () => callbacks.onAssignToMe?.()
-      });
+      items.push(callbacks.onUnassign
+        ? { label: 'Unassign', action: () => callbacks.onUnassign?.() }
+        : { label: 'Assign to me', disabled: !callbacks.onAssignToMe, action: () => callbacks.onAssignToMe?.() });
 
       showCardContextMenu(e.clientX, e.clientY, items);
     });

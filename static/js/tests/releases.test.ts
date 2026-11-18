@@ -29,6 +29,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
+  sortByName: (await importOriginal<typeof import('../utils.ts')>()).sortByName,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => String(s ?? '')),
@@ -175,6 +176,15 @@ describe('releases', () => {
       const opts = document.querySelectorAll<HTMLElement>('#release-owner-options .custom-option');
       expect(opts).toHaveLength(3); // No Owner + Assign to me + Bob
       expect(opts[2].textContent).toBe('Bob Jones');
+    });
+
+    it('sorts users by full name after the fixed entries', () => {
+      renderReleaseOwnerOptions([
+        makeUser({ id: 2, first_name: 'Sarah', last_name: 'Chen', active: true }),
+        makeUser({ id: 3, first_name: 'Lena', last_name: 'Hoffmann', active: true }),
+      ]);
+      const texts = [...document.querySelectorAll<HTMLElement>('#release-owner-options .custom-option')].map(o => o.textContent);
+      expect(texts).toEqual(['No Owner', 'Assign to me', 'Lena Hoffmann', 'Sarah Chen']);
     });
 
     it('excludes the current user from the list of selectable users', () => {

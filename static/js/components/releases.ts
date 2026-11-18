@@ -1,7 +1,7 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { sortReleasesByDate } from '../list-utils.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector, errorMessage, containsTarget } from '../utils.ts';
+import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector, errorMessage, containsTarget, sortByName } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
 import type { Issue, Release, User } from '../models.ts';
@@ -117,10 +117,11 @@ export function renderReleaseOwnerOptions(users: User[]) {
     container.appendChild(meDiv);
   }
 
-  users.filter(u => u.active && u.id !== state.currentUser?.id).forEach(user => {
+  sortByName(users.filter(u => u.active && u.id !== state.currentUser?.id), u => `${u.first_name} ${u.last_name}`).forEach(user => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = `${user.first_name} ${user.last_name}`;
+    div.title = div.textContent;
     div.addEventListener('click', () => selectReleaseOwner(String(user.id), `${user.first_name} ${user.last_name}`));
     container.appendChild(div);
   });

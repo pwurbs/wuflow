@@ -1,5 +1,5 @@
 import { state } from '../state.ts';
-import { byId, containsTarget } from '../utils.ts';
+import { byId, containsTarget, sortByName } from '../utils.ts';
 import { getStatusOptions, getStatusLabel, getActiveStatusConfig, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import type { StatusNames } from '../status-config.ts';
 import { fetchLabelsByProject, fetchReleases, fetchStatusConfig } from '../api.ts';
@@ -66,6 +66,7 @@ export function renderStatusOptions(statusNames?: StatusNames) {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = label;
+    div.title = label;
     div.addEventListener('click', () => {
       selectOption('status', 'status-text', 'status-options', value, label);
     });
@@ -100,10 +101,11 @@ export function renderLabelOptions(labels: Label[]) {
   });
   optionsContainer.appendChild(noLabelDiv);
 
-  labels.forEach(label => {
+  sortByName(labels, l => l.name).forEach(label => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = label.name;
+    div.title = label.name;
 
     div.addEventListener('click', () => {
       selectOption('label-select', 'label-text', 'label-options', label.id, label.name);
@@ -124,10 +126,11 @@ export function renderReleaseOptions(releases: Release[], currentReleaseId: numb
   });
   optionsContainer.appendChild(noReleaseDiv);
 
-  releases.filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
+  sortByName(releases.filter(r => r.status !== RELEASE_STATUS_CLOSED), r => r.name).forEach(release => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = release.name;
+    div.title = release.name;
     div.addEventListener('click', () => {
       selectOption('release-select', 'release-text', 'release-options', release.id, release.name);
     });
@@ -150,10 +153,11 @@ export function renderProjectOptions(projects: Project[]) {
   const optionsContainer = byId('project-options');
   optionsContainer.innerHTML = '';
 
-  projects.forEach(project => {
+  sortByName(projects, p => p.name).forEach(project => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = project.name;
+    div.title = project.name;
     div.addEventListener('click', () => {
       selectOption('project-select', 'project-text', 'project-options', project.id, project.name);
     });
@@ -220,10 +224,11 @@ export function renderAssigneeOptions(users: User[]) {
     optionsContainer.appendChild(meDiv);
   }
 
-  users.filter(u => u.active && u.id !== state.currentUser?.id).forEach(user => {
+  sortByName(users.filter(u => u.active && u.id !== state.currentUser?.id), u => `${u.first_name} ${u.last_name}`).forEach(user => {
     const div = document.createElement('div');
     div.className = 'custom-option';
     div.textContent = `${user.first_name} ${user.last_name}`;
+    div.title = div.textContent;
 
     div.addEventListener('click', () => {
       selectOption('assignee-select', 'assignee-text', 'assignee-options', user.id, `${user.first_name} ${user.last_name}`);

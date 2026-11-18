@@ -499,6 +499,13 @@ export function getUserInitials(user: UserRef | null | undefined) {
   return '??';
 }
 
+// Order of names in dropdowns: ignores case and accents, compares numbers by value ("1.9" before "1.10").
+const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
+export function sortByName<T>(items: readonly T[], nameOf: (item: T) => string): T[] {
+  return [...items].sort((a, b) => nameCollator.compare(nameOf(a), nameOf(b)));
+}
+
 export function getUnusedColor(usedColors: string[]) {
   const colors = [
     '#EF5350', '#EC407A', '#AB47BC', '#7E57C2', '#5C6BC0',

@@ -82,8 +82,7 @@ vi.mock('../list-utils.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../list-utils.ts')>()),
   handleMoveTop:        vi.fn(),
   handleMoveBottom:     vi.fn(),
-  handleTogglePriority: vi.fn(),
-  handleAssignToMe:     vi.fn()
+  handleTogglePriority: vi.fn()
 }));
 
 vi.mock('../components/planning.ts', () => ({
@@ -432,7 +431,7 @@ describe('Board Component', () => {
       expect(listUtils.handleTogglePriority).toHaveBeenCalledWith(issues[0], expect.any(Function));
     });
 
-    it('should pass onAssignToMe only when user is not the assignee', () => {
+    it('should pass Unassign on own issues and Assign to me on the others', () => {
       state.state.currentUser = makeUser({ id: 99, first_name: 'Me', last_name: 'User' });
       const issues = [
         makeIssue({ id: 1, status: 'Todo', position: 0, assignee_id: 99 }),
@@ -445,14 +444,13 @@ describe('Board Component', () => {
 
       renderBoard(undefined, undefined, rerender);
 
-      const optionsAssigned   = cardOptions(1);
-      const optionsUnassigned = cardOptions(2);
+      const optionsOwn   = cardOptions(1);
+      const optionsOther = cardOptions(2);
 
-      expect(optionsAssigned.onAssignToMe).toBeUndefined();
-      assert(optionsUnassigned.onAssignToMe);
-
-      optionsUnassigned.onAssignToMe();
-      expect(listUtils.handleAssignToMe).toHaveBeenCalledWith(issues[1], state.state.currentUser, rerender);
+      expect(optionsOwn.onAssignToMe).toBeUndefined();
+      expect(optionsOwn.onUnassign).toBeTypeOf('function');
+      expect(optionsOther.onAssignToMe).toBeTypeOf('function');
+      expect(optionsOther.onUnassign).toBeUndefined();
     });
 
     it('should not process dragover if dragged element is not a card', () => {

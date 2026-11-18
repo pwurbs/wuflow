@@ -4,6 +4,7 @@ import { PRIORITY_NORMAL, PRIORITY_HIGH } from './domain-constants.ts';
 import { STATUS_ARCHIVE } from './status-config.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Issue, Release, User } from './models.ts';
+import type { CardCallbacks } from './components/card.ts';
 import { getDraggedCard, getDraggedCardOrigin, getDragAfterElement } from './drag.ts';
 import { byId, showNotification, errorMessage, containsTarget } from './utils.ts';
 
@@ -71,11 +72,20 @@ export async function handleTogglePriority(issue: Issue, rerenderCallback?: Rere
   }
 }
 
-export async function handleAssignToMe(issue: Issue, currentUser: User, rerenderCallback?: RerenderView) {
+// The card's assign entry: "Unassign" on the current user's own issues, otherwise "Assign to me".
+export function assigneeCallbacks(issue: Issue, rerenderCallback?: RerenderView): Pick<CardCallbacks, 'onAssignToMe' | 'onUnassign'> {
+  const me = state.currentUser;
+  if (!me) return {};
+  if (issue.assignee_id === me.id) return { onUnassign: () => handleSetAssignee(issue, null, rerenderCallback) };
+  return { onAssignToMe: () => handleSetAssignee(issue, me, rerenderCallback) };
+}
+
+// Sets the assignee to the given user, or removes it (null).
+export async function handleSetAssignee(issue: Issue, user: User | null, rerenderCallback?: RerenderView) {
   const originalAssigneeId = issue.assignee_id;
   const originalAssignee = issue.assignee;
-  issue.assignee_id = currentUser.id;
-  issue.assignee = currentUser;
+  issue.assignee_id = user?.id ?? null;
+  issue.assignee = user ?? undefined;
   try {
     await updateIssue(issue.project_id, issue);
     if (rerenderCallback) rerenderCallback();

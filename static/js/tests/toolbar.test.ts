@@ -22,6 +22,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
+  sortByName: (await importOriginal<typeof import('../utils.ts')>()).sortByName,
   showNotification: vi.fn(),
   getUserInitials: vi.fn((user) => (user.first_name[0] + user.last_name[0]).toUpperCase()),
   debounce: vi.fn((fn) => fn),
@@ -350,6 +351,14 @@ describe('Label Filter', () => {
     expect(opts[1].textContent).toBe('Bug');
   });
 
+  it('sorts labels by name, ignoring case, after "No Label", with the full name as tooltip', () => {
+    updateLabelFilterOptions([
+      makeLabel({ id: 1, name: 'feature' }), makeLabel({ id: 2, name: 'Bug' }), makeLabel({ id: 3, name: 'Zebra' }),
+    ]);
+    expect([...document.querySelectorAll<HTMLElement>('#label-filter-options .custom-option')].map(o => o.textContent)).toEqual(['No Label', 'Bug', 'feature', 'Zebra']);
+    expect(document.querySelectorAll<HTMLElement>('#label-filter-options .custom-option')[1].title).toBe('Bug');
+  });
+
   it('shows arrow icon and "Label" text when no filter is active', () => {
     updateLabelFilterOptions([]);
     const btn = byId('label-filter-btn');
@@ -489,18 +498,76 @@ describe('Priority Filter', () => {
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
   });
 
-  it('closes the label dropdown when priority dropdown is opened', () => {
-    const labelOpts = byId('label-filter-options');
-    labelOpts.classList.remove('hidden');
-    byId('priority-filter-btn').click();
-    expect(labelOpts.classList.contains('hidden')).toBe(true);
-  });
-
   it('closes dropdown on outside click', () => {
     const optionsDiv = byId('priority-filter-options');
     optionsDiv.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
+  });
+});
+
+// ─── Only one toolbar dropdown open ────────────────────────────────────────────
+
+describe('Toolbar dropdowns', () => {
+  const lists: Record<string, string> = {
+    'label-filter-btn':    'label-filter-options',
+    'priority-filter-btn': 'priority-filter-options',
+    'user-filter-btn':     'user-filter-options',
+    'release-filter-btn':  'release-filter-options',
+    'project-selector-btn': 'project-selector-options',
+    'user-menu-btn':       'user-menu-dropdown',
+  };
+  const isOpen = (id: string) => !byId(id).classList.contains('hidden');
+
+  beforeEach(() => {
+    document.body.innerHTML = ['label', 'priority', 'user', 'release'].map(n => `
+      <div id="${n}-filter-wrapper">
+        <button id="${n}-filter-btn"></button>
+        <div id="${n}-filter-options" class="hidden"></div>
+      </div>
+    `).join('') + `
+      <div id="project-selector-wrapper">
+        <button id="project-selector-btn"><span id="project-selector-text"></span></button>
+        <div id="project-selector-options" class="hidden"></div>
+      </div>
+      <button id="user-menu-btn"><span id="current-user-email"></span></button>
+      <div id="user-menu-dropdown" class="hidden">
+        <button id="user-menu-password"></button>
+        <button id="user-menu-logout"></button>
+      </div>
+      <div id="password-modal" class="hidden">
+        <form id="password-form">
+          <input type="password" id="current-password">
+          <input type="password" id="new-password">
+          <input type="password" id="confirm-new-password">
+          <div id="password-modal-error" class="hidden"></div>
+          <button type="button" id="password-cancel-btn">Cancel</button>
+        </form>
+      </div>
+    `;
+    initLabelFilter(vi.fn());
+    initPriorityFilter(vi.fn());
+    initUserFilter(vi.fn());
+    initReleaseFilter(vi.fn());
+    initProjectSelector(vi.fn());
+    setupUserMenu(makeUser({ first_name: 'Alice', last_name: 'Smith' }));
+  });
+
+  it.each(Object.keys(lists))('opening %s closes every other open list and keeps its own open', (btnId) => {
+    const others = Object.keys(lists).filter(id => id !== btnId);
+    byId(others[0]).click();
+    expect(isOpen(lists[others[0]])).toBe(true);
+
+    byId(btnId).click();
+
+    expect(isOpen(lists[btnId])).toBe(true);
+    for (const other of others) expect(isOpen(lists[other])).toBe(false);
+  });
+
+  it('keeps the project list open on a click inside it', () => {
+    byId('project-selector-btn').click();
+    byId('project-selector-options').click();
+    expect(isOpen('project-selector-options')).toBe(true);
   });
 });
 
@@ -535,6 +602,15 @@ describe('User Filter', () => {
     expect(opts[1].textContent).toBe('Unassigned');
     expect(opts[2].textContent).toBe('Alice Smith');
     expect(opts[3].textContent).toBe('Carol White');
+  });
+
+  it('sorts users by full name after the fixed entries', () => {
+    updateUserFilterOptions([
+      makeUser({ id: 1, first_name: 'Sarah', last_name: 'Chen', active: true }),
+      makeUser({ id: 2, first_name: 'admin', last_name: 'User', active: true }),
+      makeUser({ id: 3, first_name: 'Lena', last_name: 'Hoffmann', active: true }),
+    ]);
+    expect([...document.querySelectorAll<HTMLElement>('#user-filter-options .custom-option')].map(o => o.textContent)).toEqual(['My Issues', 'Unassigned', 'admin User', 'Lena Hoffmann', 'Sarah Chen']);
   });
 
   it('shows arrow icon and "Assignee" text when no filter is active', () => {
@@ -645,6 +721,14 @@ describe('Project Selector', () => {
     expect(opts).toHaveLength(2);
     expect(opts[0].textContent).toBe('Alpha');
     expect(opts[1].textContent).toBe('Beta');
+  });
+
+  it('lists projects by name but still auto-selects the first project from the server', () => {
+    updateProjectSelectorOptions([
+      makeProject({ id: 1, name: 'personal' }), makeProject({ id: 2, name: 'wuflow' }), makeProject({ id: 3, name: 'jobs' }),
+    ]);
+    expect([...document.querySelectorAll<HTMLElement>('#project-selector-options .custom-option')].map(o => o.textContent)).toEqual(['jobs', 'personal', 'wuflow']);
+    expect(state.selectedProjectId).toBe(1);
   });
 
   it('marks the currently selected project with "selected" class', () => {
@@ -918,6 +1002,13 @@ describe('Release Filter', () => {
     expect(opts[0].textContent).toBe('No Release');
     expect(opts[1].textContent).toBe('v1.0');
     expect(opts[2].textContent).toBe('v2.0');
+  });
+
+  it('sorts numbers in release names by value', () => {
+    updateReleaseFilterOptions([
+      makeRelease({ id: 1, name: 'v1.10' }), makeRelease({ id: 2, name: 'v1.9' }), makeRelease({ id: 3, name: 'v1.2' }),
+    ]);
+    expect([...document.querySelectorAll<HTMLElement>('#release-filter-options .custom-option')].map(o => o.textContent)).toEqual(['No Release', 'v1.2', 'v1.9', 'v1.10']);
   });
 
   it('shows arrow icon and "Release" text when no filter is active', () => {

@@ -8,7 +8,7 @@ import {
   getDeadlineStatus, getTaskDeadlineStatus,
   promptAdminPasswordConfirmation,
   guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
-  isErrorToastShown, setAriaDisabled, containsTarget,
+  isErrorToastShown, setAriaDisabled, containsTarget, sortByName,
 } from '../utils.ts';
 import { makeIssue, makeRelease, makeTask, makeUserRef } from './fixtures.ts';
 
@@ -247,6 +247,19 @@ describe('debounce', () => {
     vi.advanceTimersByTime(100);
 
     expect(func).toHaveBeenCalledWith('second');
+  });
+});
+
+describe('sortByName', () => {
+  it('ignores case and accents and compares numbers by value', () => {
+    const names = ['b', 'Ä', 'v1.10', 'a', 'v1.9', 'B'];
+    expect(sortByName(names, n => n)).toEqual(['Ä', 'a', 'b', 'B', 'v1.9', 'v1.10']);
+  });
+
+  it('returns a new array and leaves the input unchanged', () => {
+    const input = ['b', 'a'];
+    expect(sortByName(input, n => n)).toEqual(['a', 'b']);
+    expect(input).toEqual(['b', 'a']);
   });
 });
 

@@ -120,6 +120,7 @@
   left: 0;
   min-width: 100%;
   /* Match trigger width or wider */
+  max-width: var(--dropdown-options-max-width);
   max-height: 300px;
   overflow-y: auto;
   background-color: var(--column-bg);
@@ -136,6 +137,9 @@
   cursor: pointer;
   color: var(--text-color);
   transition: background-color 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .custom-option:hover {

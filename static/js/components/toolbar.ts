@@ -5,7 +5,7 @@ import type { Priority } from '../domain-constants.ts';
 import type { RefreshApp, RerenderView } from '../list-utils.ts';
 import { PRIORITY_OPTIONS, RELEASE_STATUS_CLOSED } from '../domain-constants.ts';
 import { logout, updateCurrentUser } from '../api.ts';
-import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage, containsTarget } from '../utils.ts';
+import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage, containsTarget, sortByName } from '../utils.ts';
 import { validatePasswordPolicy } from './system-settings.ts';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
@@ -51,8 +51,7 @@ export function initLabelFilter(rerenderView: RerenderView) {
   const labelFilterBtn = byId('label-filter-btn');
   const labelFilterOptions = byId('label-filter-options');
 
-  labelFilterBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  labelFilterBtn.addEventListener('click', () => {
     labelFilterOptions.classList.toggle('hidden');
   });
 
@@ -73,7 +72,7 @@ export function updateLabelFilterOptions(labels: Label[]) {
   const noLabelOption = createLabelOption('No Label', '__no_label__');
   labelFilterOptions.appendChild(noLabelOption);
 
-  labels.forEach(label => {
+  sortByName(labels, l => l.name).forEach(label => {
     const option = createLabelOption(label.name, label.id);
     labelFilterOptions.appendChild(option);
   });
@@ -93,6 +92,7 @@ function createLabelOption(text: string, value: Filter['labelId']) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
+  div.title = text;
   div.addEventListener('click', () => {
     setFilterLabel(value || null);
     byId('label-filter-options').classList.add('hidden');
@@ -112,11 +112,7 @@ export function initPriorityFilter(rerenderView: RerenderView) {
   const priorityFilterBtn = byId('priority-filter-btn');
   const priorityFilterOptions = byId('priority-filter-options');
 
-  priorityFilterBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-
-    byId('label-filter-options').classList.add('hidden');
-
+  priorityFilterBtn.addEventListener('click', () => {
     priorityFilterOptions.classList.toggle('hidden');
   });
 
@@ -174,8 +170,7 @@ export function initUserFilter(rerenderView: RerenderView) {
   const userFilterBtn = byId('user-filter-btn');
   const userFilterOptions = byId('user-filter-options');
 
-  userFilterBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  userFilterBtn.addEventListener('click', () => {
     userFilterOptions.classList.toggle('hidden');
   });
 
@@ -211,7 +206,7 @@ export function updateUserFilterOptions(users: User[], context: 'issues' | 'rele
   const unassignedOption = createUserOption(unassignedLabel, 'unassigned', setFilter);
   userFilterOptions.appendChild(unassignedOption);
 
-  users.filter(u => u.active).forEach(user => {
+  sortByName(users.filter(u => u.active), u => `${u.first_name} ${u.last_name}`).forEach(user => {
     const option = createUserOption(`${user.first_name} ${user.last_name}`, user.id, setFilter);
     userFilterOptions.appendChild(option);
   });
@@ -229,6 +224,7 @@ function createUserOption(text: string, value: UserFilter, setFilter: (value: Us
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
+  div.title = text;
   div.addEventListener('click', () => {
     setFilter(value);
     byId('user-filter-options').classList.add('hidden');
@@ -248,8 +244,7 @@ export function initReleaseFilter(rerenderView: RerenderView) {
   const releaseFilterBtn = byId('release-filter-btn');
   const releaseFilterOptions = byId('release-filter-options');
 
-  releaseFilterBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  releaseFilterBtn.addEventListener('click', () => {
     releaseFilterOptions.classList.toggle('hidden');
   });
 
@@ -270,7 +265,7 @@ export function updateReleaseFilterOptions(releases: Release[]) {
   const noReleaseOption = createReleaseOption('No Release', '__no_release__');
   releaseFilterOptions.appendChild(noReleaseOption);
 
-  releases.filter(r => r.status !== RELEASE_STATUS_CLOSED).sort((a, b) => a.name.localeCompare(b.name)).forEach(release => {
+  sortByName(releases.filter(r => r.status !== RELEASE_STATUS_CLOSED), r => r.name).forEach(release => {
     const option = createReleaseOption(release.name, release.id);
     releaseFilterOptions.appendChild(option);
   });
@@ -290,6 +285,7 @@ function createReleaseOption(text: string, value: Filter['releaseId']) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
+  div.title = text;
   div.addEventListener('click', () => {
     setFilterRelease(value);
     byId('release-filter-options').classList.add('hidden');
@@ -305,6 +301,7 @@ let _onProjectChange: RefreshApp | null = null;
 export function initProjectSelector(onProjectChange: RefreshApp) {
   _onProjectChange = onProjectChange;
 
+  const wrapper = byId('project-selector-wrapper');
   const btn = byId('project-selector-btn');
   const optionsDiv = byId('project-selector-options');
 
@@ -317,13 +314,14 @@ export function initProjectSelector(onProjectChange: RefreshApp) {
     }
   }
 
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  btn.addEventListener('click', () => {
     optionsDiv.classList.toggle('hidden');
   });
 
-  document.addEventListener('click', () => {
-    optionsDiv.classList.add('hidden');
+  document.addEventListener('click', (e) => {
+    if (!containsTarget(wrapper, e.target)) {
+      optionsDiv.classList.add('hidden');
+    }
   });
 }
 
@@ -348,11 +346,13 @@ export function updateProjectSelectorOptions(projects: Project[]) {
     if (_onProjectChange) _onProjectChange();
   }
 
-  projects.forEach(project => {
+  // Sorted only for display: the fallback above stays the first project from the server (the default project).
+  sortByName(projects, p => p.name).forEach(project => {
     const option = document.createElement('div');
     option.className = 'custom-option' + (state.selectedProjectId === project.id ? ' selected' : '');
     option.dataset.value = String(project.id);
     option.textContent = project.name;
+    option.title = project.name;
     option.addEventListener('click', (e) => {
       e.stopPropagation();
       setSelectedProject(project.id);
@@ -393,8 +393,7 @@ export function setupUserMenu(user: User) {
   userEmailSpan.appendChild(badge);
   userEmailSpan.appendChild(document.createTextNode(`${user.email} (${user.role})`));
 
-  userMenuBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  userMenuBtn.addEventListener('click', () => {
     userMenuDropdown.classList.toggle('hidden');
   });
 

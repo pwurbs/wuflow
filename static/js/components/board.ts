@@ -4,7 +4,7 @@ import { createCardElement, type CardCallbacks } from './card.ts';
 import { getDraggedCard, getDragAfterElement, getDraggedCardOrigin, setDragSuccess, getDragSuccess } from '../drag.ts';
 import { filterIssues, sortByPosition } from '../filters.ts';
 import { getBoardColumns, STATUS_OPEN } from '../status-config.ts';
-import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, applyOrderChange, saveIssueOrder, showSaveFailure } from '../list-utils.ts';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, assigneeCallbacks, applyOrderChange, saveIssueOrder, showSaveFailure } from '../list-utils.ts';
 import { renderPlanningPanel } from './planning.ts';
 import { bySelector } from '../utils.ts';
 import type { IssueStatus } from '../status-config.ts';
@@ -90,12 +90,9 @@ export function renderBoard(refreshApp?: RefreshApp, openModal?: OpenModal, rere
         },
         onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInColumn, rerenderActiveViewCallback, refreshAppCallback),
         onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInColumn, rerenderActiveViewCallback, refreshAppCallback),
-        onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback)
+        onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback),
+        ...assigneeCallbacks(issue, rerenderActiveViewCallback)
       };
-      const me = state.currentUser;
-      if (me && issue.assignee_id !== me.id) {
-        cardCallbacks.onAssignToMe = () => handleAssignToMe(issue, me, rerenderActiveViewCallback);
-      }
       const card = createCardElement(issue, true, cardCallbacks);
       columns[issue.status].appendChild(card);
       counts[issue.status]++;

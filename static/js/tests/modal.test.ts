@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, assert } from 'vitest';
 import { setupModal, openModal, closeModal, preventNavigation } from '../components/modal.ts';
-import { renderReleaseOptions } from '../components/issue-dropdowns.ts';
+import { renderReleaseOptions, renderLabelOptions, renderProjectOptions, renderAssigneeOptions } from '../components/issue-dropdowns.ts';
 import * as api from '../api.ts';
 import { state, setCurrentIssue } from '../state.ts';
 import { byId, bySelector } from '../utils.ts';
@@ -69,6 +69,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     bySelector: actual.bySelector,
     containsTarget: actual.containsTarget,
     errorMessage: actual.errorMessage,
+    sortByName: actual.sortByName,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     updateDateInputStyle: vi.fn(),
@@ -3391,6 +3392,43 @@ describe('Project context of the issue dialog', () => {
 });
 
 // ─── renderReleaseOptions ──────────────────────────────────────────────────────
+
+describe('Issue dialog dropdowns: sort order', () => {
+  const texts = (id: string) => [...document.querySelectorAll<HTMLElement>(`#${id} .custom-option`)].map(o => o.textContent);
+
+  beforeEach(() => {
+    document.body.innerHTML = ['label', 'project', 'assignee', 'release'].map(n => `
+      <span id="${n}-text"></span>
+      <div id="${n}-options" class="custom-select-options hidden"></div>
+      <input type="hidden" id="${n}-select">
+    `).join('');
+    state.currentUser = makeUser({ id: 1, first_name: 'Me', last_name: 'User' });
+  });
+
+  it('sorts labels by name, ignoring case, after "No Label"', () => {
+    renderLabelOptions([makeLabel({ id: 1, name: 'feature' }), makeLabel({ id: 2, name: 'Bug' })]);
+    expect(texts('label-options')).toEqual(['No Label', 'Bug', 'feature']);
+  });
+
+  it('sorts projects by name', () => {
+    renderProjectOptions([makeProject({ id: 1, name: 'personal' }), makeProject({ id: 2, name: 'jobs' })]);
+    expect(texts('project-options')).toEqual(['jobs', 'personal']);
+  });
+
+  it('sorts assignees by full name after "Unassigned" and "Assign to me", with the full name as tooltip', () => {
+    renderAssigneeOptions([
+      makeUser({ id: 2, first_name: 'Sarah', last_name: 'Chen', active: true }),
+      makeUser({ id: 3, first_name: 'Lena', last_name: 'Hoffmann', active: true }),
+    ]);
+    expect(texts('assignee-options')).toEqual(['Unassigned', 'Assign to me', 'Lena Hoffmann', 'Sarah Chen']);
+    expect(document.querySelectorAll<HTMLElement>('#assignee-options .custom-option')[2].title).toBe('Lena Hoffmann');
+  });
+
+  it('sorts numbers in release names by value', () => {
+    renderReleaseOptions([makeRelease({ id: 1, name: 'v1.10' }), makeRelease({ id: 2, name: 'v1.9' })], null);
+    expect(texts('release-options')).toEqual(['No Release', 'v1.9', 'v1.10']);
+  });
+});
 
 describe('renderReleaseOptions', () => {
   beforeEach(() => {

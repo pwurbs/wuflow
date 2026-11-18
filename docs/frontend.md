@@ -27,7 +27,7 @@ Each file in `static/js/` is an ES module. Paths relative to `static/js/`:
 - **`api.ts`**: Backend API interaction, with the types of the request bodies
 - **`session.ts`**: Re-login dialog, session check on return to the tab, connection banner
 - **`filters.ts`**: Pure functions for filtering and sorting issues (extracted for testability)
-- **`list-utils.ts`**: List actions shared by Board, Backlog and Archive (move to top/bottom, priority, assign to me, saving the order after drag and drop)
+- **`list-utils.ts`**: List actions shared by Board, Backlog and Archive (move to top/bottom, priority, assign to me or unassign, saving the order after drag and drop)
 - **`drag.ts`**: Shared drag state for cards and tasks, drop position calculation
 - **`context-menu.ts`**: Context menu of the cards
 - **`permissions.ts`**: Mirror of the backend policy, used only to show or hide UI elements (the backend enforces authorization)

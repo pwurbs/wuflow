@@ -4,7 +4,7 @@ import { RELEASE_STATUS_OPEN } from '../domain-constants.ts';
 import { updateIssue } from '../api.ts';
 import { ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { createCardElement, type CardCallbacks } from './card.ts';
-import { handleMoveTop, handleMoveBottom, handleTogglePriority, handleAssignToMe, getListUpdates, saveIssueOrder, setupSectionDrop, showSaveFailure, setupListDrag, sortReleasesByDate } from '../list-utils.ts';
+import { handleMoveTop, handleMoveBottom, handleTogglePriority, assigneeCallbacks, getListUpdates, saveIssueOrder, setupSectionDrop, showSaveFailure, setupListDrag, sortReleasesByDate } from '../list-utils.ts';
 import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 import type { Issue } from '../models.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
@@ -128,12 +128,9 @@ export async function renderBacklog(refreshApp?: RefreshApp, openModal?: OpenMod
       openModal:        openModalCallback,
       onMoveTop:        isFirst ? null : () => handleMoveTop(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),
       onMoveBottom:     isLast  ? null : () => handleMoveBottom(issue, issuesInList, rerenderActiveViewCallback, refreshAppCallback),
-      onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback)
+      onTogglePriority: () => handleTogglePriority(issue, rerenderActiveViewCallback),
+      ...assigneeCallbacks(issue, rerenderActiveViewCallback)
     };
-    const me = state.currentUser;
-    if (me && issue.assignee_id !== me.id) {
-      cb.onAssignToMe = () => handleAssignToMe(issue, me, rerenderActiveViewCallback);
-    }
     return cb;
   }
 

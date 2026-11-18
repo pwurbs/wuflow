@@ -274,21 +274,36 @@ test.describe('Board Functionality', () => {
       await page.keyboard.press('Escape');
     });
 
-    test('Assign to me becomes disabled after self-assignment', async ({ page }) => {
+    test('Assign to me switches to Unassign after self-assignment, and back', async ({ page }) => {
       const title = `Self Assign ${Date.now()}`;
       await createIssue(page, { title, status: 'Todo' });
 
       const card = page.locator(`.column[data-status="Todo"] .board-card:has-text("${title}")`);
+      const assignItem   = page.locator('.card-context-menu-item:has-text("Assign to me")');
+      const unassignItem = page.locator('.card-context-menu-item:has-text("Unassign")');
+      const isIssuePut = (r: { url(): string; request(): { method(): string } }) =>
+        r.url().includes('/issues/') && r.request().method() === 'PUT';
 
-      const updateDone = page.waitForResponse(r =>
-        r.url().includes('/issues/') && r.request().method() === 'PUT'
-      );
+      let updateDone = page.waitForResponse(isIssuePut);
       await card.click({ button: 'right' });
-      await page.locator('.card-context-menu-item:has-text("Assign to me")').click();
+      await expect(unassignItem).toHaveCount(0);
+      await assignItem.click();
       await updateDone;
+      await expect(card.locator('.user-badge')).toBeVisible();
 
+      updateDone = page.waitForResponse(isIssuePut);
       await card.click({ button: 'right' });
-      await expect(page.locator('.card-context-menu-item:has-text("Assign to me")')).toBeDisabled();
+      await expect(assignItem).toHaveCount(0);
+      await unassignItem.click();
+      expect((await updateDone).status()).toBe(200);
+      await expect(card.locator('.user-badge')).toHaveCount(0);
+
+      // The server state, not only the local one: after a reload the issue is still unassigned
+      await page.reload();
+      await expect(card).toBeVisible();
+      await expect(card.locator('.user-badge')).toHaveCount(0);
+      await card.click({ button: 'right' });
+      await expect(assignItem).toBeEnabled();
       await page.keyboard.press('Escape');
     });
 

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { test, expect } from './fixtures';
 import { createIssue, createRelease, navigateTo, selectAssignee, selectStatus, openIssueByTitle } from './helpers/test-utils';
 
@@ -160,6 +161,58 @@ test.describe('Filtering and Search', () => {
 
     await expect(page.locator('.board-card:has-text("' + title1 + '")')).toBeVisible();
     await expect(page.locator('.board-card:has-text("' + title2 + '")')).toBeVisible();
+  });
+
+  test('opening a filter list closes the one that is open', async ({ page }) => {
+    await page.click('#label-filter-btn');
+    await expect(page.locator('#label-filter-options')).toBeVisible();
+
+    await page.click('#priority-filter-btn');
+    await expect(page.locator('#priority-filter-options')).toBeVisible();
+    await expect(page.locator('#label-filter-options')).toBeHidden();
+
+    await page.click('#project-selector-btn');
+    await expect(page.locator('#project-selector-options')).toBeVisible();
+    await expect(page.locator('#priority-filter-options')).toBeHidden();
+  });
+
+  test('long names in a filter list end in "…" instead of wrapping', async ({ page, workerServer }) => {
+    const firstName = 'Maximiliane';
+    const lastName = `Langenbach-Oberhausen${Date.now()}`;
+    const fullName = `${firstName} ${lastName}`;
+    const createResp = await page.request.post('/api/users', {
+      data: {
+        email: `long_name_${Date.now()}@example.com`,
+        first_name: firstName,
+        last_name: lastName,
+        password: `${crypto.randomBytes(16).toString('hex')}U1!`,
+        role: 'user',
+        active: true,
+      }
+    });
+    expect(createResp.status()).toBe(201);
+    const createdUser = await createResp.json();
+
+    try {
+      await page.reload();
+      await page.click('#user-filter-btn');
+      const longOption  = page.locator('#user-filter-options .custom-option', { hasText: firstName });
+      const shortOption = page.locator('#user-filter-options .custom-option', { hasText: 'My Issues' });
+      await expect(longOption).toBeVisible();
+      await expect(longOption).toHaveAttribute('title', fullName);
+
+      const long  = await longOption.evaluate(el => ({ height: el.clientHeight, cut: el.scrollWidth > el.clientWidth }));
+      const short = await shortOption.evaluate(el => el.clientHeight);
+      expect(long.cut).toBe(true);        // shortened with "…"
+      expect(long.height).toBe(short);    // still one line
+      const listWidth = await page.locator('#user-filter-options').evaluate(el => el.getBoundingClientRect().width);
+      expect(listWidth).toBeLessThanOrEqual(200);
+    } finally {
+      const deactivateResp = await page.request.put(`/api/users/${createdUser.id}`, {
+        data: { ...createdUser, active: false, admin_password: workerServer.adminPassword }
+      });
+      expect(deactivateResp.status()).toBe(200);
+    }
   });
 
   test('filter issues by "My Issues" on board, backlog and archive', async ({ page }) => {

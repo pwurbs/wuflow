@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createCardElement } from '../components/card.ts';
 import { makeIssue, makeRelease, makeTask, makeUserRef } from './fixtures.ts';
 import { bySelector } from '../utils.ts';
@@ -72,5 +72,40 @@ describe('createCardElement options (My Work)', () => {
 
     expect(card.querySelector('img')).toBeNull();
     expect(bySelector(card, '.stage-chip').textContent).toBe('<img src=x onerror=alert(1)>');
+  });
+});
+
+describe('createCardElement context menu: assign entry', () => {
+  function menuItems(callbacks: Parameters<typeof createCardElement>[2]) {
+    const card = createCardElement(issue, true, { onTogglePriority: vi.fn(), ...callbacks });
+    card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    return [...document.querySelectorAll<HTMLButtonElement>('.card-context-menu-item')];
+  }
+
+  it('shows Unassign instead of Assign to me when the card has onUnassign', () => {
+    const onUnassign = vi.fn();
+    const items = menuItems({ onUnassign });
+
+    expect(items.map(i => i.textContent)).not.toContain('Assign to me');
+    const unassign = items.find(i => i.textContent === 'Unassign');
+    expect(unassign?.disabled).toBe(false);
+    unassign?.click();
+    expect(onUnassign).toHaveBeenCalled();
+  });
+
+  it('shows Assign to me when the card has onAssignToMe', () => {
+    const onAssignToMe = vi.fn();
+    const items = menuItems({ onAssignToMe });
+
+    expect(items.map(i => i.textContent)).not.toContain('Unassign');
+    const assign = items.find(i => i.textContent === 'Assign to me');
+    expect(assign?.disabled).toBe(false);
+    assign?.click();
+    expect(onAssignToMe).toHaveBeenCalled();
+  });
+
+  it('shows Assign to me disabled without either callback', () => {
+    const assign = menuItems({}).find(i => i.textContent === 'Assign to me');
+    expect(assign?.disabled).toBe(true);
   });
 });

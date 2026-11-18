@@ -222,6 +222,11 @@
   width: 100%;
 }
 
+/* Lists stay within the sidebar so they never reach past the dialog's edge */
+.modal-sidebar .custom-select-options {
+  max-width: 100%;
+}
+
 /* Chip Styles */
 .planned-dates-container {
   display: flex;
