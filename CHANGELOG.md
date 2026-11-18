@@ -12,6 +12,10 @@
 - Fixed: an issue archived by dragging it into the Archive section now appears under the current month right away
 - Fixed: the planning sidebar now also marks a deadline red when it is later than the release date, like the card does
 - The header is now one bar across the full width, set apart from the board by a line, without empty spaces in My Work and the settings views. The user menu shows your name, email and role are in the open menu
+- Bumped marked to 18.2.1 and DOMPurify to 3.4.18
+- Bumped Go to 1.27.4
+- Bumped direct Go package dependencies go-sqlite3 and x/crypto
+- Bumped the Docker base images to Node 24.22.3 and Alpine 3.24.4
 
 # 1.4.6
 

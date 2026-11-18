@@ -3,7 +3,7 @@
 # Builds the frontend with Vite. The output is plain HTML/JS/CSS and does not
 # depend on the target architecture, so this stage runs on the build platform
 # only, even in multi-arch builds.
-FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.2-alpine3.24 AS frontend
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.3-alpine3.24 AS frontend
 
 WORKDIR /app/static/js
 
@@ -18,7 +18,7 @@ RUN npm run build
 
 #------- Build stage ---------------------------------------------------------
 # Use Alpine-based Go image to match the runtime and ensure musl libc compatibility for CGO
-FROM docker.io/library/golang:1.27.3-alpine3.24 AS builder
+FROM docker.io/library/golang:1.27.4-alpine3.24 AS builder
 
 # Arguments for cross-compilation
 ARG TARGETOS
@@ -49,7 +49,7 @@ RUN CGO_ENABLED=1 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
 #------- Package stage ---------------------------------------------------------
 
 # Slim Alpine image
-FROM docker.io/library/alpine:3.24.3
+FROM docker.io/library/alpine:3.24.4
 
 # Create a non-login, non-root user and group
 # Pinned to uid/gid 999 to match the previous Debian-based image, so existing
