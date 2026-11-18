@@ -48,7 +48,7 @@ test.describe('My Work', () => {
 
     const t = (name: string) => `${name} ${suffix}`;
     await createIssueViaAPI(request, DEFAULT_PROJECT_ID, t('A todo'), { status: 'Todo', assignee_id: me.id });
-    await createIssueViaAPI(request, DEFAULT_PROJECT_ID, t('A working'), { status: 'Stage2', assignee_id: me.id });
+    await createIssueViaAPI(request, DEFAULT_PROJECT_ID, t('A working'), { status: 'Stage2', assignee_id: me.id, priority: 'High' });
     await createIssueViaAPI(request, DEFAULT_PROJECT_ID, t('A other'), { status: 'Todo', assignee_id: other.id });
     await createIssueViaAPI(request, DEFAULT_PROJECT_ID, t('A open'), { status: 'Open', assignee_id: me.id });
     const bTestingId = await createIssueViaAPI(request, projectBId, t('B testing'), {
@@ -62,10 +62,11 @@ test.describe('My Work', () => {
     await expect(page.locator('#project-selector-text')).not.toHaveText(projectB);
 
     await navigateTo(page, 'my-work');
-    // Toolbar: only the issue search, no project selector and no project filters.
+    // Toolbar: only the priority filter and the issue search, no project selector and no project filters.
     await expect(page.locator('#project-selector-container')).toBeHidden();
+    await expect(page.locator('#priority-filter-wrapper')).toBeVisible();
     await expect(page.locator('#search-filter-wrapper')).toBeVisible();
-    for (const id of ['#label-filter-wrapper', '#priority-filter-wrapper', '#user-filter-wrapper', '#release-filter-wrapper', '#release-search-wrapper']) {
+    for (const id of ['#label-filter-wrapper', '#user-filter-wrapper', '#release-filter-wrapper', '#release-search-wrapper']) {
       await expect(page.locator(id)).toBeHidden();
     }
 
@@ -92,6 +93,18 @@ test.describe('My Work', () => {
     await expect(page.locator('#my-work-grid .card')).toHaveCount(1);
     await expect(card(page, 'done', t('B done'))).toBeVisible();
     await expect(page.locator('#my-work-grid .column-header[data-category="done"] .count')).toHaveText(/^1\/\d+$/);
+    await page.fill('#search-input', '');
+    await expect(card(page, 'notStarted', t('A todo'))).toBeVisible();
+
+    // The priority filter, combined with the search for this test's issues: only my High issue,
+    // the lane of project B disappears.
+    await page.fill('#search-input', suffix);
+    await page.click('#priority-filter-btn');
+    await page.click('#priority-filter-options .custom-option:has-text("High")');
+    await expect(page.locator('#my-work-grid .card')).toHaveCount(1);
+    await expect(card(page, 'inProgress', t('A working'))).toBeVisible();
+    await expect(laneNames.filter({ hasText: projectB })).toHaveCount(0);
+    await page.click('#priority-filter-btn .toolbar-icon-clear');
     await page.fill('#search-input', '');
     await expect(card(page, 'notStarted', t('A todo'))).toBeVisible();
 

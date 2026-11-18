@@ -272,7 +272,7 @@ function setupEventListeners() {
 
 // filters: which filters the toolbar shows while hideFilter is false (see applyFilterVisibility).
 const VIEW_CONFIG = {
-    'my-work':         { el: myWorkView,           nav: navMyWork,          hideSidebar: true,  hideFilter: false, hideProjectSelector: true,  systemSettings: false, filters: 'search',   onEnter: () => refreshApp() },
+    'my-work':         { el: myWorkView,           nav: navMyWork,          hideSidebar: true,  hideFilter: false, hideProjectSelector: true,  systemSettings: false, filters: 'my-work',  onEnter: () => refreshApp() },
     'board':           { el: boardView,           nav: navBoard,           hideSidebar: false, hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
     'backlog':         { el: backlogView,          nav: navBacklog,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
     'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
@@ -282,13 +282,13 @@ const VIEW_CONFIG = {
 } as const;
 
 // issues: label, priority, user, release filter and issue search (project views);
-// releases: owner filter and release search; search: only the issue search (My Work).
-function applyFilterVisibility(filters: 'issues' | 'releases' | 'search') {
+// releases: owner filter and release search; my-work: priority filter and issue search.
+function applyFilterVisibility(filters: 'issues' | 'releases' | 'my-work') {
     const issueFilters = filters === 'issues';
     byId('label-filter-wrapper').classList.toggle('hidden', !issueFilters);
-    byId('priority-filter-wrapper').classList.toggle('hidden', !issueFilters);
+    byId('priority-filter-wrapper').classList.toggle('hidden', filters === 'releases');
     byId('release-filter-wrapper').classList.toggle('hidden', !issueFilters);
-    byId('user-filter-wrapper').classList.toggle('hidden', filters === 'search');
+    byId('user-filter-wrapper').classList.toggle('hidden', filters === 'my-work');
     byId('search-filter-wrapper').classList.toggle('hidden', filters === 'releases');
     byId('release-search-wrapper').classList.toggle('hidden', filters !== 'releases');
 }

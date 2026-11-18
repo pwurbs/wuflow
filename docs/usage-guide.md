@@ -157,7 +157,7 @@ My Work shows all active issues assigned to you, from **all projects**, in one p
 - **Order**: in Not Started, the most urgent issues come first: overdue issues (issue or task deadline), then high priority, then issues planned for today, the next two days or a past day, then the rest. In In Progress, the issues closest to Done come first (the board read from right to left: finish work before starting new work), and within the same column the most urgent first. In Done, the most recently changed issues come first.
 - **Editing**: click a card or a planning item to open the issue. Its fields offer the options of the issue's own project, and changes are saved to that project. My Work updates when you close the issue. Cards cannot be dragged here: change the status in the issue, or use the project's board.
 - **Planning**: the planning on the right works like the planning sidebar of the board, but shows your issues of all projects, each with its project name. It is read-only: plan issues in the issue itself or on the project's board.
-- **Filter**: the top bar shows only the text filter. It works like on the board (issue number, title and description) and filters the cards and the planning. The other filters belong to a single project and are not offered here.
+- **Filter**: the top bar shows the priority filter and the text filter. Both work like on the board (the text filter checks issue number, title and description) and filter the cards and the planning. Projects without a matching issue disappear. The other filters belong to a single project and are not offered here.
 
 ## The Backlog View
 

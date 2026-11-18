@@ -119,19 +119,20 @@ function categoryCount(lanes: MyWorkLane[], category: MyWorkCategory) {
 export function renderMyWork() {
   const grid = byId('my-work-grid');
   grid.innerHTML = '';
-  // Only the issue search of the toolbar applies: the other filters belong to the selected project.
-  const searching = state.filter.search.trim() !== '';
-  const shownIssues = filterIssues(myIssues, { search: state.filter.search });
+  // Only the issue search and the priority filter apply: the other filters belong to the selected project.
+  const { search, priority } = state.filter;
+  const filtering = search.trim() !== '' || priority !== null;
+  const shownIssues = filterIssues(myIssues, { search, priority });
   const lanes = buildLanes(shownIssues);
-  const allLanes = searching ? buildLanes(myIssues) : lanes;
+  const allLanes = filtering ? buildLanes(myIssues) : lanes;
 
   // One sticky head for the three category headers, so its lower edge is one line across all bands.
   const head = document.createElement('div');
   head.className = 'my-work-head';
   for (const category of MY_WORK_CATEGORIES) {
     const shown = categoryCount(lanes, category);
-    // Like the board: "shown/total" while the search is active.
-    head.appendChild(createCategoryHeader(category, searching ? `${shown}/${categoryCount(allLanes, category)}` : String(shown)));
+    // Like the board: "shown/total" while a filter is active.
+    head.appendChild(createCategoryHeader(category, filtering ? `${shown}/${categoryCount(allLanes, category)}` : String(shown)));
   }
   grid.appendChild(head);
 
@@ -139,7 +140,7 @@ export function renderMyWork() {
   if (lanes.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'my-work-empty';
-    empty.textContent = myIssues.length > 0 ? 'No issues match the search.' : 'No active issues are assigned to you.';
+    empty.textContent = myIssues.length > 0 ? 'No issues match the filters.' : 'No active issues are assigned to you.';
     grid.appendChild(empty);
     rows++;
   }
@@ -162,5 +163,5 @@ export function renderMyWork() {
     itemSubline: createProjectSubline,
     openModal: openIssue,
   });
-  byId('my-work-planning-count').textContent = searching ? `${count}/${countPlanningEntries(myIssues)}` : String(count);
+  byId('my-work-planning-count').textContent = filtering ? `${count}/${countPlanningEntries(myIssues)}` : String(count);
 }

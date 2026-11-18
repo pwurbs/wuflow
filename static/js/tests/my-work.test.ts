@@ -139,9 +139,10 @@ describe('My Work view', () => {
     expect(document.querySelectorAll('.my-work-lane-separator')).toHaveLength(0);
   });
 
-  describe('search', () => {
+  describe('filters', () => {
     afterEach(() => {
       state.filter.search = '';
+      state.filter.priority = null;
       state.filter.labelId = null;
     });
 
@@ -157,6 +158,31 @@ describe('My Work view', () => {
       expect(byId('my-work-planning-count').textContent).toBe('1/1');
     });
 
+    it('filters cards, lanes and planning by priority and shows "shown/total"', () => {
+      mergeMyIssue(makeIssue({ ...ISSUES[1], priority: 'High' }));
+      state.filter.priority = 'High';
+      renderMyWork();
+
+      expect(cardTitles(byId('my-work-grid'))).toEqual(['Beta testing']);
+      expect([...document.querySelectorAll('.my-work-lane-name')].map(l => l.textContent)).toEqual(['Beta']);
+      expect(document.querySelectorAll('.my-work-lane-separator')).toHaveLength(0);
+      const counts = [...document.querySelectorAll('#my-work-grid .column-header .count')].map(c => c.textContent);
+      expect(counts).toEqual(['0/1', '1/2', '0/1']);
+      // The only planned issue (Alpha working) has normal priority.
+      expect(byId('my-work-planning-list').querySelector('.planning-item')).toBeNull();
+      expect(byId('my-work-planning-count').textContent).toBe('0/1');
+    });
+
+    it('combines the priority filter with the search', () => {
+      mergeMyIssue(makeIssue({ ...ISSUES[1], priority: 'High' }));
+      mergeMyIssue(makeIssue({ ...ISSUES[2], priority: 'High' }));
+      state.filter.priority = 'High'; // leaves out Beta todo
+      state.filter.search = 'beta'; // leaves out Alpha working
+      renderMyWork();
+
+      expect(cardTitles(byId('my-work-grid'))).toEqual(['Beta testing']);
+    });
+
     it('ignores the project filters of the toolbar', () => {
       state.filter.labelId = 99; // a label filter set on a project board
       renderMyWork();
@@ -169,7 +195,15 @@ describe('My Work view', () => {
       state.filter.search = 'no such text';
       renderMyWork();
 
-      expect(bySelector(document, '.my-work-empty').textContent).toBe('No issues match the search.');
+      expect(bySelector(document, '.my-work-empty').textContent).toBe('No issues match the filters.');
+    });
+
+    it('says so when no issue has the chosen priority', () => {
+      state.filter.priority = 'High';
+      renderMyWork();
+
+      expect(bySelector(document, '.my-work-empty').textContent).toBe('No issues match the filters.');
+      expect(document.querySelectorAll('#my-work-grid .column-header .count')[0].textContent).toBe('0/1');
     });
   });
 
