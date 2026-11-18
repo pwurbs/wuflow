@@ -205,7 +205,7 @@ test.describe('User Management', () => {
     await expect(adminRow.locator('.settings-entry-badge.sysadmin')).toContainText('Sysadmin');
   });
 
-  test('Header User Menu displays badge and email correctly', async ({ page }) => {
+  test('Header User Menu shows badge and name, email and role in the open menu', async ({ page }) => {
     // Already on System Settings page from beforeEach (which means logged in)
     const userMenuBtn = page.locator('#user-menu-btn');
     await expect(userMenuBtn).toBeVisible();
@@ -215,8 +215,12 @@ test.describe('User Management', () => {
     await expect(badge).toBeVisible();
     await expect(badge).toHaveText(/^[A-Z]{2}$/);
 
-    // Check for email text
-    await expect(userMenuBtn).toContainText(adminEmail);
+    // The button shows the name, not the email
+    await expect(userMenuBtn.locator('.user-menu-fullname')).not.toBeEmpty();
+    await expect(userMenuBtn).not.toContainText(adminEmail);
+
+    await userMenuBtn.click();
+    await expect(page.locator('#user-menu-identity')).toHaveText(`${adminEmail} (sysadmin)`);
   });
 
   test('User Management list displays badges', async ({ page }) => {

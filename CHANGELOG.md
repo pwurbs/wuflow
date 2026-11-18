@@ -11,6 +11,7 @@
 - Fixed: opening a dropdown in the toolbar now closes the one that is open
 - Fixed: an issue archived by dragging it into the Archive section now appears under the current month right away
 - Fixed: the planning sidebar now also marks a deadline red when it is later than the release date, like the card does
+- The header is now one bar across the full width, set apart from the board by a line, without empty spaces in My Work and the settings views. The user menu shows your name, email and role are in the open menu
 
 # 1.4.6
 

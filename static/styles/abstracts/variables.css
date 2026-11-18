@@ -63,7 +63,9 @@
 
   /* Spacing scale (padding, gaps), steps of 4px. Only the steps in use are defined; older
      files still use literal values. */
+  --space-1: 4px;
   --space-2: 8px;
+  --space-3: 12px;
   --space-4: 16px;
 
   /* Board columns, shared with the My Work grid so its cards are as wide as on the board */
@@ -75,6 +77,10 @@
   --issue-filter-input-width: 220px;
   /* Dropdown lists grow with their entries up to this width, longer entries end in "…" */
   --dropdown-options-max-width: 200px;
+  /* Name in the user menu button, longer names end in "…" */
+  --user-menu-name-max-width: 180px;
+  /* Room on the right of a search field for its clear × */
+  --search-clear-space: 28px;
 
   /* Space between cards: below each card, and between the two card columns of My Work */
   --card-gap: 8px;

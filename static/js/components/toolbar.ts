@@ -9,8 +9,10 @@ import { byId, showNotification, getUserInitials, onGuardedSubmit, errorMessage,
 import { validatePasswordPolicy } from './system-settings.ts';
 
 // Updates a filter button to show the active selection (with a clear ×) or the default state (with ▼).
+// The accessible name contains the visible text (WCAG 2.5.3), so it follows the button's text.
 function updateFilterButtonState(btn: HTMLElement, defaultText: string, selectedText: string | null, clearHandler: () => void) {
   btn.innerHTML = '';
+  btn.setAttribute('aria-label', selectedText ?? `Filter by ${defaultText}`);
   if (selectedText == null) {
     const textSpan = document.createElement('span');
     textSpan.textContent = defaultText;
@@ -40,258 +42,151 @@ function updateFilterButtonState(btn: HTMLElement, defaultText: string, selected
   }
 }
 
-// ─── Label Filter ──────────────────────────────────────────────────────────────
-
-let labelRefreshCallback: RerenderView | undefined;
-
-export function initLabelFilter(rerenderView: RerenderView) {
-  labelRefreshCallback = rerenderView;
-
-  const labelFilterContainer = byId('label-filter-wrapper');
-  const labelFilterBtn = byId('label-filter-btn');
-  const labelFilterOptions = byId('label-filter-options');
-
-  labelFilterBtn.addEventListener('click', () => {
-    labelFilterOptions.classList.toggle('hidden');
+// Toolbar dropdowns: the button toggles the list, a click outside the container closes it.
+// Opening one list therefore closes every other one.
+function bindDropdown(container: HTMLElement, button: HTMLElement, list: HTMLElement) {
+  button.addEventListener('click', () => {
+    list.classList.toggle('hidden');
   });
-
   document.addEventListener('click', (e) => {
-    if (!containsTarget(labelFilterContainer, e.target)) {
-      labelFilterOptions.classList.add('hidden');
+    if (!containsTarget(container, e.target)) {
+      list.classList.add('hidden');
     }
   });
 }
 
-export function updateLabelFilterOptions(labels: Label[]) {
-  const labelFilterBtn = byId('label-filter-btn');
-  const labelFilterOptions = byId('label-filter-options');
-  const currentVal = state.filter.labelId;
+// ─── Filters (label, priority, user, release) ──────────────────────────────────
+// Each filter is a single-select dropdown with the markup `<name>-filter-wrapper/-btn/-options`.
+// The update functions below only build the option list, the dropdown does the rest.
 
-  labelFilterOptions.innerHTML = '';
+type FilterName = 'label' | 'priority' | 'user' | 'release';
 
-  const noLabelOption = createLabelOption('No Label', '__no_label__');
-  labelFilterOptions.appendChild(noLabelOption);
+interface FilterOption<V> { value: V; text: string }
 
-  sortByName(labels, l => l.name).forEach(label => {
-    const option = createLabelOption(label.name, label.id);
-    labelFilterOptions.appendChild(option);
-  });
-
-  let labelSelectedText: string | null = null;
-  if (currentVal != null) {
-    const labelText = currentVal === '__no_label__' ? 'No Label' : (labels.find(l => l.id === currentVal)?.name ?? 'Unknown');
-    labelSelectedText = `Label: ${labelText}`;
-  }
-  updateFilterButtonState(labelFilterBtn, 'Label', labelSelectedText, () => {
-    setFilterLabel(null);
-    if (labelRefreshCallback) labelRefreshCallback();
-  });
+interface FilterView<V> {
+  label: string;                        // button text without a selection, prefix with one
+  options: readonly FilterOption<V>[];
+  selected: () => V | null;
+  select: (value: V | null) => void;
 }
 
-function createLabelOption(text: string, value: Filter['labelId']) {
+let rerenderFilteredView: RerenderView = () => {};
+
+function createFilterOption(text: string, onPick: () => void) {
   const div = document.createElement('div');
   div.className = 'custom-option';
   div.textContent = text;
   div.title = text;
-  div.addEventListener('click', () => {
-    setFilterLabel(value || null);
-    byId('label-filter-options').classList.add('hidden');
-    if (labelRefreshCallback) labelRefreshCallback();
-  });
+  div.addEventListener('click', onPick);
   return div;
 }
 
-// ─── Priority Filter ───────────────────────────────────────────────────────────
+function createFilterDropdown<V extends string | number>(name: FilterName) {
+  const list = () => byId(`${name}-filter-options`);
 
-let priorityRefreshCallback: RerenderView | undefined;
+  function apply(view: FilterView<V>, value: V | null) {
+    view.select(value);
+    render(view);
+    rerenderFilteredView();
+  }
 
-export function initPriorityFilter(rerenderView: RerenderView) {
-  priorityRefreshCallback = rerenderView;
-
-  const priorityFilterContainer = byId('priority-filter-wrapper');
-  const priorityFilterBtn = byId('priority-filter-btn');
-  const priorityFilterOptions = byId('priority-filter-options');
-
-  priorityFilterBtn.addEventListener('click', () => {
-    priorityFilterOptions.classList.toggle('hidden');
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!containsTarget(priorityFilterContainer, e.target)) {
-      priorityFilterOptions.classList.add('hidden');
+  function render(view: FilterView<V>) {
+    const options = list();
+    options.innerHTML = '';
+    for (const option of view.options) {
+      options.appendChild(createFilterOption(option.text, () => {
+        options.classList.add('hidden');
+        apply(view, option.value);
+      }));
     }
-  });
+    const selected = view.selected();
+    const selectedText = selected == null
+      ? null
+      : `${view.label}: ${view.options.find(o => o.value === selected)?.text ?? 'Unknown'}`;
+    updateFilterButtonState(byId(`${name}-filter-btn`), view.label, selectedText, () => apply(view, null));
+  }
 
+  return {
+    bind: () => bindDropdown(byId(`${name}-filter-wrapper`), byId(`${name}-filter-btn`), list()),
+    render,
+  };
+}
+
+const labelFilter = createFilterDropdown<NonNullable<Filter['labelId']>>('label');
+const priorityFilter = createFilterDropdown<Priority>('priority');
+const userFilter = createFilterDropdown<UserFilter>('user');
+const releaseFilter = createFilterDropdown<NonNullable<Filter['releaseId']>>('release');
+
+export function initToolbarFilters(rerenderView: RerenderView) {
+  rerenderFilteredView = rerenderView;
+  for (const filter of [labelFilter, priorityFilter, userFilter, releaseFilter]) filter.bind();
   updatePriorityFilterOptions();
 }
 
+export function updateLabelFilterOptions(labels: Label[]) {
+  labelFilter.render({
+    label: 'Label',
+    options: [
+      { value: '__no_label__', text: 'No Label' },
+      ...sortByName(labels, l => l.name).map(l => ({ value: l.id, text: l.name })),
+    ],
+    selected: () => state.filter.labelId,
+    select: setFilterLabel,
+  });
+}
+
 export function updatePriorityFilterOptions() {
-  const priorityFilterBtn = byId('priority-filter-btn');
-  const priorityFilterOptions = byId('priority-filter-options');
-  const currentVal = state.filter.priority;
-
-  priorityFilterOptions.innerHTML = '';
-
-  const priorities = PRIORITY_OPTIONS;
-
-  priorities.forEach(prio => {
-    const option = createPriorityOption(prio.text, prio.value);
-    priorityFilterOptions.appendChild(option);
-  });
-
-  updateFilterButtonState(priorityFilterBtn, 'Priority', currentVal ? `Priority: ${currentVal}` : null, () => {
-    setFilterPriority(null);
-    updatePriorityFilterOptions();
-    if (priorityRefreshCallback) priorityRefreshCallback();
+  priorityFilter.render({
+    label: 'Priority',
+    options: PRIORITY_OPTIONS,
+    selected: () => state.filter.priority,
+    select: setFilterPriority,
   });
 }
 
-function createPriorityOption(text: string, value: Priority) {
-  const div = document.createElement('div');
-  div.className = 'custom-option';
-  div.textContent = text;
-  div.addEventListener('click', () => {
-    setFilterPriority(value);
-    byId('priority-filter-options').classList.add('hidden');
-    updatePriorityFilterOptions();
-    if (priorityRefreshCallback) priorityRefreshCallback();
-  });
-  return div;
-}
-
-// ─── User Filter ───────────────────────────────────────────────────────────────
-
-let userRefreshCallback: RerenderView | undefined;
-
-export function initUserFilter(rerenderView: RerenderView) {
-  userRefreshCallback = rerenderView;
-
-  const userFilterContainer = byId('user-filter-wrapper');
-  const userFilterBtn = byId('user-filter-btn');
-  const userFilterOptions = byId('user-filter-options');
-
-  userFilterBtn.addEventListener('click', () => {
-    userFilterOptions.classList.toggle('hidden');
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!containsTarget(userFilterContainer, e.target)) {
-      userFilterOptions.classList.add('hidden');
-    }
-  });
-}
-
-function resolveFilterLabel(currentVal: UserFilter, users: User[], myLabel: string, unassignedLabel: string) {
-  if (currentVal === 'me') return myLabel;
-  if (currentVal === 'unassigned') return unassignedLabel;
-  const user = users.find(u => u.id === currentVal);
-  return user ? `${user.first_name} ${user.last_name}` : 'User';
-}
-
+// context 'releases': the same dropdown filters releases by owner.
 export function updateUserFilterOptions(users: User[], context: 'issues' | 'releases' = 'issues') {
-  const userFilterBtn = byId('user-filter-btn');
-  const userFilterOptions = byId('user-filter-options');
   const isReleases = context === 'releases';
-  const currentVal = isReleases ? state.filter.releaseOwnerFilter : state.filter.assigneeId;
-  const setFilter = isReleases ? setFilterReleaseOwner : setFilterAssignee;
-  const myLabel = isReleases ? 'My Releases' : 'My Issues';
-  const unassignedLabel = isReleases ? 'No Owner' : 'Unassigned';
-  const buttonLabel = isReleases ? 'Owner' : 'Assignee';
-
-  userFilterOptions.innerHTML = '';
-
-  const myIssuesOption = createUserOption(myLabel, 'me', setFilter);
-  userFilterOptions.appendChild(myIssuesOption);
-
-  const unassignedOption = createUserOption(unassignedLabel, 'unassigned', setFilter);
-  userFilterOptions.appendChild(unassignedOption);
-
-  sortByName(users.filter(u => u.active), u => `${u.first_name} ${u.last_name}`).forEach(user => {
-    const option = createUserOption(`${user.first_name} ${user.last_name}`, user.id, setFilter);
-    userFilterOptions.appendChild(option);
-  });
-
-  const userSelectedText = currentVal == null
-    ? null
-    : `${buttonLabel}: ${resolveFilterLabel(currentVal, users, myLabel, unassignedLabel)}`;
-  updateFilterButtonState(userFilterBtn, buttonLabel, userSelectedText, () => {
-    setFilter(null);
-    if (userRefreshCallback) userRefreshCallback();
-  });
-}
-
-function createUserOption(text: string, value: UserFilter, setFilter: (value: UserFilter | null) => void) {
-  const div = document.createElement('div');
-  div.className = 'custom-option';
-  div.textContent = text;
-  div.title = text;
-  div.addEventListener('click', () => {
-    setFilter(value);
-    byId('user-filter-options').classList.add('hidden');
-    if (userRefreshCallback) userRefreshCallback();
-  });
-  return div;
-}
-
-// ─── Release Filter ────────────────────────────────────────────────────────────
-
-let releaseRefreshCallback: RerenderView | undefined;
-
-export function initReleaseFilter(rerenderView: RerenderView) {
-  releaseRefreshCallback = rerenderView;
-
-  const releaseFilterContainer = byId('release-filter-wrapper');
-  const releaseFilterBtn = byId('release-filter-btn');
-  const releaseFilterOptions = byId('release-filter-options');
-
-  releaseFilterBtn.addEventListener('click', () => {
-    releaseFilterOptions.classList.toggle('hidden');
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!containsTarget(releaseFilterContainer, e.target)) {
-      releaseFilterOptions.classList.add('hidden');
-    }
+  const fullName = (u: User) => `${u.first_name} ${u.last_name}`;
+  userFilter.render({
+    label: isReleases ? 'Owner' : 'Assignee',
+    options: [
+      { value: 'me', text: isReleases ? 'My Releases' : 'My Issues' },
+      { value: 'unassigned', text: isReleases ? 'No Owner' : 'Unassigned' },
+      ...sortByName(users.filter(u => u.active), fullName).map(u => ({ value: u.id, text: fullName(u) })),
+    ],
+    selected: () => isReleases ? state.filter.releaseOwnerFilter : state.filter.assigneeId,
+    select: isReleases ? setFilterReleaseOwner : setFilterAssignee,
   });
 }
 
 export function updateReleaseFilterOptions(releases: Release[]) {
-  const releaseFilterBtn = byId('release-filter-btn');
-  const releaseFilterOptions = byId('release-filter-options');
-  const currentVal = state.filter.releaseId;
-
-  releaseFilterOptions.innerHTML = '';
-
-  const noReleaseOption = createReleaseOption('No Release', '__no_release__');
-  releaseFilterOptions.appendChild(noReleaseOption);
-
-  sortByName(releases.filter(r => r.status !== RELEASE_STATUS_CLOSED), r => r.name).forEach(release => {
-    const option = createReleaseOption(release.name, release.id);
-    releaseFilterOptions.appendChild(option);
-  });
-
-  let releaseSelectedText: string | null = null;
-  if (currentVal != null) {
-    const releaseText = currentVal === '__no_release__' ? 'No Release' : (releases.find(r => r.id === currentVal)?.name ?? 'Unknown');
-    releaseSelectedText = `Release: ${releaseText}`;
-  }
-  updateFilterButtonState(releaseFilterBtn, 'Release', releaseSelectedText, () => {
-    setFilterRelease(null);
-    if (releaseRefreshCallback) releaseRefreshCallback();
+  releaseFilter.render({
+    label: 'Release',
+    options: [
+      { value: '__no_release__', text: 'No Release' },
+      ...sortByName(releases.filter(r => r.status !== RELEASE_STATUS_CLOSED), r => r.name).map(r => ({ value: r.id, text: r.name })),
+    ],
+    selected: () => state.filter.releaseId,
+    select: setFilterRelease,
   });
 }
 
-function createReleaseOption(text: string, value: Filter['releaseId']) {
-  const div = document.createElement('div');
-  div.className = 'custom-option';
-  div.textContent = text;
-  div.title = text;
-  div.addEventListener('click', () => {
-    setFilterRelease(value);
-    byId('release-filter-options').classList.add('hidden');
-    if (releaseRefreshCallback) releaseRefreshCallback();
+// ─── Search fields ─────────────────────────────────────────────────────────────
+
+// The × of the filter dropdowns for a search field: shown while the field has text, a click empties
+// the field and fires `input`, so the field's own search handler runs as on typing.
+// Returns the show/hide sync for code that sets the field's value itself.
+export function bindSearchClear(input: HTMLInputElement, clear: HTMLElement) {
+  const sync = () => clear.classList.toggle('hidden', input.value === '');
+  input.addEventListener('input', sync);
+  clear.addEventListener('click', () => {
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
   });
-  return div;
+  sync();
+  return sync;
 }
 
 // ─── Project Selector ──────────────────────────────────────────────────────────
@@ -300,10 +195,6 @@ let _onProjectChange: RefreshApp | null = null;
 
 export function initProjectSelector(onProjectChange: RefreshApp) {
   _onProjectChange = onProjectChange;
-
-  const wrapper = byId('project-selector-wrapper');
-  const btn = byId('project-selector-btn');
-  const optionsDiv = byId('project-selector-options');
 
   // Restore last selected project from browser storage
   const stored = localStorage.getItem('wuflow_selectedProjectId');
@@ -314,15 +205,7 @@ export function initProjectSelector(onProjectChange: RefreshApp) {
     }
   }
 
-  btn.addEventListener('click', () => {
-    optionsDiv.classList.toggle('hidden');
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!containsTarget(wrapper, e.target)) {
-      optionsDiv.classList.add('hidden');
-    }
-  });
+  bindDropdown(byId('project-selector-wrapper'), byId('project-selector-btn'), byId('project-selector-options'));
 }
 
 export function updateProjectSelectorOptions(projects: Project[]) {
@@ -380,29 +263,22 @@ function updateProjectButtonLabel(btn: HTMLElement, projectName: string) {
 export function setupUserMenu(user: User) {
   const userMenuBtn = byId('user-menu-btn');
   const userMenuDropdown = byId('user-menu-dropdown');
-  const userEmailSpan = byId('current-user-email');
+  const nameSpan = byId('current-user');
 
   const badge = document.createElement('div');
   badge.className = 'user-badge';
   badge.textContent = getUserInitials(user);
 
-  userEmailSpan.innerHTML = '';
-  userEmailSpan.style.display = 'flex';
-  userEmailSpan.style.alignItems = 'center';
-  userEmailSpan.style.gap = '8px';
-  userEmailSpan.appendChild(badge);
-  userEmailSpan.appendChild(document.createTextNode(`${user.email} (${user.role})`));
+  // The button shows the full name, the open menu adds email and role.
+  const fullName = `${user.first_name} ${user.last_name}`.trim() || user.email;
+  const nameText = document.createElement('span');
+  nameText.className = 'user-menu-fullname';
+  nameText.textContent = fullName;
+  nameText.title = fullName;
+  nameSpan.replaceChildren(badge, nameText);
+  byId('user-menu-identity').textContent = `${user.email} (${user.role})`;
 
-  userMenuBtn.addEventListener('click', () => {
-    userMenuDropdown.classList.toggle('hidden');
-  });
-
-  document.addEventListener('click', (e) => {
-    const inside = containsTarget(userMenuBtn, e.target) || containsTarget(userMenuDropdown, e.target);
-    if (!inside) {
-      userMenuDropdown.classList.add('hidden');
-    }
-  });
+  bindDropdown(byId('user-menu-container'), userMenuBtn, userMenuDropdown);
 
   byId('user-menu-logout').addEventListener('click', () => {
     void logout();

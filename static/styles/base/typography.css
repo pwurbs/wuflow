@@ -119,6 +119,7 @@ h1 {
 .modal-content.confirm p,
 .admin-confirm-body p,
 .dropdown-item,
+.user-menu-identity,
 #new-comment-body,
 .comment-edit-input {
   font-family: var(--font-sans);
@@ -147,7 +148,6 @@ h1 {
 
 /* Buttons & primary menu actions */
 .btn,
-.user-menu-btn,
 .login-btn,
 .settings-entry-title {
   font-family: var(--font-sans);

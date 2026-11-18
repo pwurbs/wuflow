@@ -1,43 +1,30 @@
-/* Toolbar */
+/* Toolbar: part of the header bar. Project and filter follow the logo, the user menu sits at the
+   right edge. Hidden sections take no space, so no view leaves a gap. */
 .toolbar {
   flex: 1;
   display: flex;
-  align-items: center;
-  background-color: var(--column-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-panel);
-  padding: 0 4px;
+  align-items: baseline;
   position: relative;
 }
 
+/* Close together within a section, wider between sections (padding), so the groups read as groups */
 .toolbar-section {
   display: flex;
-  align-items: center;
-  gap: 24px;
+  align-items: baseline;
+  gap: var(--space-2);
   padding: 8px 16px;
   position: relative;
 }
 
-.toolbar-divider {
-  flex: 1;
-  align-self: stretch;
-  position: relative;
-  background: none;
-}
-
-.toolbar-divider::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background-color: var(--card-border);
+/* Separator line between project and filter. The user menu needs none: the free space separates it. */
+#project-selector-container:not(.hidden) + #filter-container {
+  border-left: 1px solid var(--card-border);
 }
 
 .toolbar-label {
   color: var(--accent-blue);
   text-transform: uppercase;
+  margin-right: var(--space-1);
 }
 
 .toolbar-input-wrapper {
@@ -162,7 +149,7 @@
   background-color: var(--input-bg);
   border: 1px solid var(--card-border);
   color: var(--text-color);
-  padding: 6px 12px;
+  padding: 6px var(--search-clear-space) 6px 12px; /* right: room for the clear × */
   border-radius: 4px;
   cursor: text;
   min-width: 120px;
@@ -181,30 +168,23 @@
   border-color: var(--accent-blue);
 }
 
+/* Search fields clear with the same × as the filter dropdowns (.toolbar-icon-clear, see
+   bindSearchClear in toolbar.ts) instead of the browser's own button */
+.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-clear {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .search-input:focus {
   outline: none;
   border-color: var(--accent-blue);
   background-color: var(--input-bg-focus);
 }
 
-/* Extra left gap for the filter items that follow the first (label) filter */
-#priority-filter-wrapper,
-#user-filter-wrapper,
-#search-filter-wrapper {
-  margin-left: 10px;
-}
-
-/* Filter section stays natural width; dividers carry the flexible space */
-#filter-container.toolbar-section {
-  justify-content: center;
-}
-
-/* System Settings / Project Settings views: hide dividers and right-align the user menu */
-.toolbar--system-settings .toolbar-divider {
-  display: none;
-}
-
-.toolbar--system-settings {
-  flex: 0 0 auto;
-  margin-left: auto;
-}

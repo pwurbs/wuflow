@@ -13,9 +13,12 @@
   min-width: 0;
 }
 
+/* Header bar across the full width: the line below separates it from the views */
 header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--card-border);
   margin-bottom: 20px;
   position: relative;
   gap: 20px;
@@ -69,18 +72,20 @@ header {
 }
 
 /* Logo / brand */
+/* Inline layout, not flex: the row's baseline is then the text's, so the header can align the
+   toolbar labels to "wuFlow" and the version (header align-items: baseline). */
 .logo-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: block;
 }
 
 .logo-img {
   height: 48px;
+  vertical-align: middle;
+  margin-right: var(--space-3);
 }
 
 .logo-title-group {
-  display: flex;
+  display: inline-flex;
   align-items: baseline;
   gap: 8px;
 }

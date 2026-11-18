@@ -13,7 +13,7 @@ import { setupMyWorkView, loadMyIssues, renderMyWork, mergeMyIssue } from './com
 import { setupSession } from './session.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from './issue-lists.ts';
 import { byId, bySelector, debounce, errorMessage, showNotification } from './utils.ts';
-import { initLabelFilter, updateLabelFilterOptions, initPriorityFilter, updatePriorityFilterOptions, initUserFilter, updateUserFilterOptions, initReleaseFilter, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.ts';
+import { initToolbarFilters, bindSearchClear, updateLabelFilterOptions, updatePriorityFilterOptions, updateUserFilterOptions, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.ts';
 
 // DOM Elements
 const navBoard = byId('nav-board');
@@ -33,9 +33,9 @@ const projectSettingsView = byId('project-settings-view');
 const sidebar = bySelector(boardView, '.sidebar'); // the board's planning panel (My Work has its own)
 const filterContainer = byId('filter-container');
 const projectSelectorContainer = byId('project-selector-container');
-const toolbar = bySelector(document, '.toolbar');
 const searchInput = byId('search-input', HTMLInputElement);
 const releaseSearchInput = byId('release-search-input', HTMLInputElement);
+let syncReleaseSearchClear = () => {}; // set in setupEventListeners
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -64,10 +64,7 @@ async function init() {
     }
 
     setupEventListeners();
-    initLabelFilter(rerenderActiveView);
-    initPriorityFilter(rerenderActiveView);
-    initUserFilter(rerenderActiveView);
-    initReleaseFilter(rerenderActiveView);
+    initToolbarFilters(rerenderActiveView);
     initProjectSelector(refreshApp);
     setupBoardView(refreshApp, openModal, rerenderActiveView);
     setupBacklogView(refreshApp, openModal, rerenderActiveView);
@@ -262,6 +259,9 @@ function setupEventListeners() {
         void renderReleasesView();
     }, 300));
 
+    bindSearchClear(searchInput, byId('search-clear'));
+    syncReleaseSearchClear = bindSearchClear(releaseSearchInput, byId('release-search-clear'));
+
     // Custom Events
     document.addEventListener('nav-to-release', (e) => {
         if (!(e instanceof CustomEvent)) return;
@@ -272,13 +272,13 @@ function setupEventListeners() {
 
 // filters: which filters the toolbar shows while hideFilter is false (see applyFilterVisibility).
 const VIEW_CONFIG = {
-    'my-work':         { el: myWorkView,           nav: navMyWork,          hideSidebar: true,  hideFilter: false, hideProjectSelector: true,  systemSettings: false, filters: 'my-work',  onEnter: () => refreshApp() },
-    'board':           { el: boardView,           nav: navBoard,           hideSidebar: false, hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
-    'backlog':         { el: backlogView,          nav: navBacklog,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
-    'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => refreshApp() },
-    'releases':        { el: releasesView,         nav: navReleases,        hideSidebar: true,  hideFilter: false, hideProjectSelector: false, systemSettings: false, filters: 'releases', onEnter: () => renderReleasesView() },
-    'project-settings':{ el: projectSettingsView,  nav: navProjectSettings, hideSidebar: true,  hideFilter: true,  hideProjectSelector: false, systemSettings: false, filters: 'issues',   onEnter: () => renderProjectSettingsView() },
-    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  systemSettings: true,  filters: 'issues',   onEnter: () => renderSystemSettingsView() },
+    'my-work':         { el: myWorkView,           nav: navMyWork,          hideSidebar: true,  hideFilter: false, hideProjectSelector: true,  filters: 'my-work',  onEnter: () => refreshApp() },
+    'board':           { el: boardView,           nav: navBoard,           hideSidebar: false, hideFilter: false, hideProjectSelector: false, filters: 'issues',   onEnter: () => refreshApp() },
+    'backlog':         { el: backlogView,          nav: navBacklog,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, filters: 'issues',   onEnter: () => refreshApp() },
+    'archive':         { el: archiveView,          nav: navArchive,         hideSidebar: true,  hideFilter: false, hideProjectSelector: false, filters: 'issues',   onEnter: () => refreshApp() },
+    'releases':        { el: releasesView,         nav: navReleases,        hideSidebar: true,  hideFilter: false, hideProjectSelector: false, filters: 'releases', onEnter: () => renderReleasesView() },
+    'project-settings':{ el: projectSettingsView,  nav: navProjectSettings, hideSidebar: true,  hideFilter: true,  hideProjectSelector: false, filters: 'issues',   onEnter: () => renderProjectSettingsView() },
+    'system-settings': { el: systemSettingsView,   nav: navSystemSettings,  hideSidebar: true,  hideFilter: true,  hideProjectSelector: true,  filters: 'issues',   onEnter: () => renderSystemSettingsView() },
 } as const;
 
 // issues: label, priority, user, release filter and issue search (project views);
@@ -303,7 +303,6 @@ function switchView(view: keyof typeof VIEW_CONFIG) {
     sidebar.classList.toggle('hidden', cfg.hideSidebar);
     filterContainer.classList.toggle('hidden', cfg.hideFilter);
     projectSelectorContainer.classList.toggle('hidden', cfg.hideProjectSelector);
-    toolbar.classList.toggle('toolbar--system-settings', cfg.systemSettings);
     applyFilterVisibility(cfg.filters);
 
     const isReleases = view === 'releases';
@@ -315,6 +314,7 @@ function switchView(view: keyof typeof VIEW_CONFIG) {
         setFilterReleaseOwner(null);
         setFilterReleaseSearch('');
         releaseSearchInput.value = '';
+        syncReleaseSearchClear();
     }
 
     void cfg.onEnter();

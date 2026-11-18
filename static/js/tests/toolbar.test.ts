@@ -35,10 +35,12 @@ vi.mock('../components/system-settings.ts', () => ({
 }));
 
 import {
-  initLabelFilter, updateLabelFilterOptions,
-  initPriorityFilter, updatePriorityFilterOptions,
-  initUserFilter, updateUserFilterOptions,
-  initReleaseFilter, updateReleaseFilterOptions,
+  initToolbarFilters,
+  bindSearchClear,
+  updateLabelFilterOptions,
+  updatePriorityFilterOptions,
+  updateUserFilterOptions,
+  updateReleaseFilterOptions,
   initProjectSelector, updateProjectSelectorOptions,
   setupUserMenu,
 } from '../components/toolbar.ts';
@@ -48,6 +50,31 @@ import type { Issue, User } from '../models.ts';
 import type { Filter } from '../state.ts';
 
 // ─── Shared Fixtures ───────────────────────────────────────────────────────────
+
+const filterNames = ['label', 'priority', 'user', 'release'];
+const filterMarkup = filterNames.map(n => `
+  <div id="${n}-filter-wrapper">
+    <button id="${n}-filter-btn"></button>
+    <div id="${n}-filter-options" class="hidden"></div>
+  </div>
+`).join('');
+
+const userMenuMarkup = `
+  <div id="user-menu-container">
+    <button id="user-menu-btn"><span id="current-user"></span></button>
+    <div id="user-menu-dropdown" class="hidden">
+      <div id="user-menu-identity"></div>
+      <button id="user-menu-password">Password</button>
+      <button id="user-menu-logout">Log Out</button>
+    </div>
+  </div>
+`;
+
+// Mounts all four toolbar filters, as initToolbarFilters binds them together.
+function mountToolbarFilters(rerender: () => void) {
+  document.body.innerHTML = filterMarkup;
+  initToolbarFilters(rerender);
+}
 
 const createIssue = (overrides: Partial<Issue> = {}) => makeIssue({
   title: 'Default Title',
@@ -334,13 +361,7 @@ describe('Label Filter', () => {
   beforeEach(() => {
     state.filter.labelId = null;
     refreshApp = vi.fn();
-    document.body.innerHTML = `
-      <div id="label-filter-wrapper">
-        <button id="label-filter-btn"></button>
-        <div id="label-filter-options" class="hidden"></div>
-      </div>
-    `;
-    initLabelFilter(refreshApp);
+    mountToolbarFilters(refreshApp);
   });
 
   it('populates "No Label" option plus all label options', () => {
@@ -413,6 +434,17 @@ describe('Label Filter', () => {
     expect(state.filter.labelId).toBe('__no_label__');
   });
 
+  it('shows the picked label in the button and removes it on clear, without a further update call', () => {
+    updateLabelFilterOptions([makeLabel({ id: 1, name: 'Bug' })]);
+    document.querySelectorAll<HTMLElement>('#label-filter-options .custom-option')[1].click();
+    const btn = byId('label-filter-btn');
+    expect(btn.textContent).toContain('Label: Bug');
+
+    bySelector(btn, '.toolbar-icon-clear').click();
+    expect(btn.textContent).toBe('Label▼');
+    expect(btn.classList.contains('has-selection')).toBe(false);
+  });
+
   it('toggles dropdown on button click', () => {
     const optionsDiv = byId('label-filter-options');
     const btn = byId('label-filter-btn');
@@ -439,14 +471,7 @@ describe('Priority Filter', () => {
   beforeEach(() => {
     state.filter.priority = null;
     refreshApp = vi.fn();
-    document.body.innerHTML = `
-      <div id="priority-filter-wrapper">
-        <button id="priority-filter-btn"></button>
-        <div id="priority-filter-options" class="hidden"></div>
-      </div>
-      <div id="label-filter-options" class="hidden"></div>
-    `;
-    initPriorityFilter(refreshApp);
+    mountToolbarFilters(refreshApp);
   });
 
   it('populates Normal and High options', () => {
@@ -454,6 +479,11 @@ describe('Priority Filter', () => {
     expect(opts).toHaveLength(2);
     expect(opts[0].textContent).toBe('Normal');
     expect(opts[1].textContent).toBe('High');
+  });
+
+  it('gives each option its text as tooltip, like the other filters', () => {
+    const opts = document.querySelectorAll<HTMLElement>('#priority-filter-options .custom-option');
+    expect([...opts].map(o => o.title)).toEqual(['Normal', 'High']);
   });
 
   it('shows arrow icon and "Priority" text when no filter is active', () => {
@@ -520,20 +550,10 @@ describe('Toolbar dropdowns', () => {
   const isOpen = (id: string) => !byId(id).classList.contains('hidden');
 
   beforeEach(() => {
-    document.body.innerHTML = ['label', 'priority', 'user', 'release'].map(n => `
-      <div id="${n}-filter-wrapper">
-        <button id="${n}-filter-btn"></button>
-        <div id="${n}-filter-options" class="hidden"></div>
-      </div>
-    `).join('') + `
+    document.body.innerHTML = filterMarkup + userMenuMarkup + `
       <div id="project-selector-wrapper">
         <button id="project-selector-btn"><span id="project-selector-text"></span></button>
         <div id="project-selector-options" class="hidden"></div>
-      </div>
-      <button id="user-menu-btn"><span id="current-user-email"></span></button>
-      <div id="user-menu-dropdown" class="hidden">
-        <button id="user-menu-password"></button>
-        <button id="user-menu-logout"></button>
       </div>
       <div id="password-modal" class="hidden">
         <form id="password-form">
@@ -545,10 +565,7 @@ describe('Toolbar dropdowns', () => {
         </form>
       </div>
     `;
-    initLabelFilter(vi.fn());
-    initPriorityFilter(vi.fn());
-    initUserFilter(vi.fn());
-    initReleaseFilter(vi.fn());
+    initToolbarFilters(vi.fn());
     initProjectSelector(vi.fn());
     setupUserMenu(makeUser({ first_name: 'Alice', last_name: 'Smith' }));
   });
@@ -584,13 +601,7 @@ describe('User Filter', () => {
   beforeEach(() => {
     state.filter.assigneeId = null;
     refreshApp = vi.fn();
-    document.body.innerHTML = `
-      <div id="user-filter-wrapper">
-        <button id="user-filter-btn"></button>
-        <div id="user-filter-options" class="hidden"></div>
-      </div>
-    `;
-    initUserFilter(refreshApp);
+    mountToolbarFilters(refreshApp);
   });
 
   it('populates My Issues, Unassigned, and active users only', () => {
@@ -676,6 +687,94 @@ describe('User Filter', () => {
     optionsDiv.classList.remove('hidden');
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(optionsDiv.classList.contains('hidden')).toBe(true);
+  });
+
+  it('names the button for screen readers with its visible text', () => {
+    updateUserFilterOptions(mockUsers);
+    const btn = byId('user-filter-btn');
+    expect(btn.getAttribute('aria-label')).toBe('Filter by Assignee');
+
+    bySelector(document, '#user-filter-options .custom-option').click(); // My Issues
+    expect(btn.getAttribute('aria-label')).toBe('Assignee: My Issues');
+  });
+
+  it('shows "Unknown" for a user id that is not in the list', () => {
+    state.filter.assigneeId = 999;
+    updateUserFilterOptions(mockUsers);
+    expect(byId('user-filter-btn').textContent).toContain('Assignee: Unknown');
+  });
+
+  describe('in the releases view', () => {
+    beforeEach(() => {
+      state.filter.releaseOwnerFilter = null;
+    });
+
+    it('offers My Releases and No Owner and labels the button "Owner"', () => {
+      updateUserFilterOptions(mockUsers, 'releases');
+      const texts = [...document.querySelectorAll<HTMLElement>('#user-filter-options .custom-option')].map(o => o.textContent);
+      expect(texts.slice(0, 2)).toEqual(['My Releases', 'No Owner']);
+      expect(byId('user-filter-btn').textContent).toContain('Owner');
+    });
+
+    it('sets the owner filter, not the assignee filter, and shows the choice in the button', () => {
+      updateUserFilterOptions(mockUsers, 'releases');
+      document.querySelectorAll<HTMLElement>('#user-filter-options .custom-option')[1].click(); // No Owner
+      expect(state.filter.releaseOwnerFilter).toBe('unassigned');
+      expect(state.filter.assigneeId).toBeNull();
+      expect(byId('user-filter-btn').textContent).toContain('Owner: No Owner');
+      expect(refreshApp).toHaveBeenCalled();
+    });
+  });
+});
+
+// ─── Search field clear × ──────────────────────────────────────────────────────
+
+describe('bindSearchClear', () => {
+  let input: HTMLInputElement;
+  let clear: HTMLElement;
+  let onInput: Mock;
+  let sync: () => void;
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <input type="search" id="search">
+      <span id="clear" class="toolbar-icon-clear hidden">×</span>
+    `;
+    input = byId('search', HTMLInputElement);
+    clear = byId('clear');
+    onInput = vi.fn();
+    input.addEventListener('input', onInput);
+    sync = bindSearchClear(input, clear);
+  });
+
+  const typeText = (text: string) => {
+    input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  it('shows the × only while the field has text', () => {
+    expect(clear.classList.contains('hidden')).toBe(true);
+    typeText('bug');
+    expect(clear.classList.contains('hidden')).toBe(false);
+    typeText('');
+    expect(clear.classList.contains('hidden')).toBe(true);
+  });
+
+  it('empties the field on click and fires input, so the search runs as on typing', () => {
+    typeText('bug');
+    onInput.mockClear();
+    clear.click();
+    expect(input.value).toBe('');
+    expect(onInput).toHaveBeenCalledTimes(1);
+    expect(clear.classList.contains('hidden')).toBe(true);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('hides the × via the returned sync when code empties the field', () => {
+    typeText('bug');
+    input.value = '';
+    sync();
+    expect(clear.classList.contains('hidden')).toBe(true);
   });
 });
 
@@ -807,12 +906,7 @@ describe('User Menu', () => {
   const mockUser = makeUser({ email: 'alice@example.com', role: 'admin', first_name: 'Alice', last_name: 'Smith' });
 
   beforeEach(() => {
-    document.body.innerHTML = `
-      <button id="user-menu-btn"><span id="current-user-email"></span></button>
-      <div id="user-menu-dropdown" class="hidden">
-        <button id="user-menu-password">Password</button>
-        <button id="user-menu-logout">Log Out</button>
-      </div>
+    document.body.innerHTML = userMenuMarkup + `
       <div id="password-modal" class="hidden">
         <form id="password-form">
           <input type="password" id="current-password">
@@ -826,12 +920,27 @@ describe('User Menu', () => {
     `;
   });
 
-  it('renders user initials badge and email in the menu button', () => {
+  it('shows initials badge and full name in the button, email and role in the open menu', () => {
     setupUserMenu(mockUser);
-    const emailSpan = byId('current-user-email');
-    expect(emailSpan.querySelector('.user-badge')).not.toBeNull();
-    expect(emailSpan.textContent).toContain('alice@example.com');
-    expect(emailSpan.textContent).toContain('admin');
+    const button = byId('current-user');
+    expect(button.querySelector('.user-badge')?.textContent).toBe('AS');
+    expect(bySelector(button, '.user-menu-fullname').textContent).toBe('Alice Smith');
+    expect(button.textContent).not.toContain('alice@example.com');
+    expect(byId('user-menu-identity').textContent).toBe('alice@example.com (admin)');
+  });
+
+  it('shows the email in the button when the user has no name', async () => {
+    const { getUserInitials } = await import('../utils.ts');
+    vi.mocked(getUserInitials).mockReturnValueOnce('?'); // the file's mock needs names
+    setupUserMenu(makeUser({ email: 'noname@example.com', first_name: '', last_name: '' }));
+    expect(bySelector(document, '.user-menu-fullname').textContent).toBe('noname@example.com');
+  });
+
+  it('stays open on a click inside the menu container outside the button and list', () => {
+    setupUserMenu(mockUser);
+    byId('user-menu-btn').click();
+    byId('user-menu-identity').click();
+    expect(byId('user-menu-dropdown').classList.contains('hidden')).toBe(false);
   });
 
   it('toggles dropdown visibility on user menu button click', () => {
@@ -982,13 +1091,7 @@ describe('Release Filter', () => {
   beforeEach(() => {
     state.filter.releaseId = null;
     refreshApp = vi.fn();
-    document.body.innerHTML = `
-      <div id="release-filter-wrapper">
-        <button id="release-filter-btn"></button>
-        <div id="release-filter-options" class="hidden"></div>
-      </div>
-    `;
-    initReleaseFilter(refreshApp);
+    mountToolbarFilters(refreshApp);
   });
 
   afterEach(() => {

@@ -18,7 +18,7 @@ wuFlow is built with a clearly arranged layout that combines all relevant inform
 - **My Work**: Your active issues across all projects in one view, with your personal planning (see [The My Work View](#the-my-work-view))
 - **Board** (Main view): Displays issues in the usual Kanban style with configurable columns. You can freely drag and drop issues between columns and change the order within one column. Click on an issue card to view and adapt details.
 - **Planning Sidebar**: Placed on the right, this simple calendar view allows you to plan issues by dragging them to a specific date. This allows you additionally to plan issues and tasks over the next 10 days, keeping an eye on upcoming deadlines.
-- **User Menu**: In the top right corner, there is the menu of the currently logged in user. Currently, password management and log out is available.
+- **User Menu**: In the top right corner, there is the menu of the currently logged in user, shown with its name. Opened, it shows the email and role, password management and log out.
 - **Project Selection**: Select the project for which you want to see issues on the boards and in the planning sidebar.
 - **Filter Bar**: Placed above the board, this bar allows you to filter by label, priority, assignee, release, and text. The text filter matches the issue number, title and description; `#12` matches exactly issue 12, `12` every number containing 12. The filter influences the shown issue cards and planning entries.
 - **Backlog / Archive View**: Switches the main area to a list-based layout for managing open issues (Backlog) or completed and archived issues (Archive).

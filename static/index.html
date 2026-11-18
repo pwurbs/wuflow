@@ -40,15 +40,13 @@
                     </div>
                 </div>
 
-                <div class="toolbar-divider"></div>
-
                 <!-- Filter -->
                 <div id="filter-container" class="toolbar-section">
                     <span class="toolbar-label">Filter</span>
                     <!-- Label Filter Wrapper -->
                     <div id="label-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
-                        <button id="label-filter-btn" class="custom-select-trigger"
-                            aria-label="Filter by label">Label</button>
+                        <!-- aria-label: set from the visible text in toolbar.ts -->
+                        <button id="label-filter-btn" class="custom-select-trigger">Label</button>
                         <div id="label-filter-options" class="custom-select-options hidden">
                             <!-- Options injected here -->
                         </div>
@@ -56,8 +54,7 @@
 
                     <!-- Priority Filter Wrapper -->
                     <div id="priority-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
-                        <button id="priority-filter-btn" class="custom-select-trigger"
-                            aria-label="Filter by priority">Priority</button>
+                        <button id="priority-filter-btn" class="custom-select-trigger">Priority</button>
                         <div id="priority-filter-options" class="custom-select-options hidden">
                             <!-- Options injected here -->
                         </div>
@@ -65,8 +62,7 @@
 
                     <!-- User Filter Wrapper -->
                     <div id="user-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
-                        <button id="user-filter-btn" class="custom-select-trigger"
-                            aria-label="Filter by user">User</button>
+                        <button id="user-filter-btn" class="custom-select-trigger">Assignee</button>
                         <div id="user-filter-options" class="custom-select-options hidden">
                             <!-- Options injected here -->
                         </div>
@@ -74,8 +70,7 @@
 
                     <!-- Release Filter Wrapper -->
                     <div id="release-filter-wrapper" class="toolbar-input-wrapper custom-select-wrapper">
-                        <button id="release-filter-btn" class="custom-select-trigger"
-                            aria-label="Filter by release">Release</button>
+                        <button id="release-filter-btn" class="custom-select-trigger">Release</button>
                         <div id="release-filter-options" class="custom-select-options hidden">
                             <!-- Options injected here -->
                         </div>
@@ -87,23 +82,23 @@
                         <input type="search" id="search-input" placeholder="Number, title, description…" class="search-input"
                             maxlength="50" autocomplete="off" aria-label="Filter issues by number, title or description"
                             title="Shows only issues whose number (e.g. 12 or #12), title or description contains the text">
+                        <span id="search-clear" class="toolbar-icon-clear search-clear hidden" title="Clear search">&times;</span>
                     </div>
                     <div id="release-search-wrapper" class="toolbar-input-wrapper hidden">
                         <input type="search" id="release-search-input" placeholder="Search releases..." class="search-input"
                             maxlength="50" autocomplete="off" aria-label="Search releases">
+                        <span id="release-search-clear" class="toolbar-icon-clear search-clear hidden" title="Clear search">&times;</span>
                     </div>
                 </div>
 
-                <div class="toolbar-divider"></div>
-
                 <!-- User Menu -->
-                <div class="user-menu-container toolbar-section">
-                    <span class="toolbar-label">User</span>
-                    <button id="user-menu-btn" class="user-menu-btn">
-                        <span id="current-user-email"></span>
-                        <span class="dropdown-arrow">▼</span>
+                <div id="user-menu-container" class="user-menu-container toolbar-section">
+                    <button id="user-menu-btn" class="custom-select-trigger">
+                        <span id="current-user" class="user-menu-name"></span>
+                        <span class="toolbar-icon-arrow">▼</span>
                     </button>
                     <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
+                        <div id="user-menu-identity" class="user-menu-identity"></div>
                         <button id="user-menu-password" class="dropdown-item">Password</button>
                         <button id="user-menu-logout" class="dropdown-item danger">Log Out</button>
                     </div>

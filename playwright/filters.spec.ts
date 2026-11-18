@@ -35,6 +35,22 @@ test.describe('Filtering and Search', () => {
     await expect(page.locator('.board-card:has-text("Gamma Issue")')).toBeVisible();
   });
 
+  test('the × in the search field empties it and shows all issues again', async ({ page }) => {
+    await createIssue(page, { title: 'Clear Alpha', status: 'Todo' });
+    await createIssue(page, { title: 'Clear Beta', status: 'Todo' });
+    const clear = page.locator('#search-clear');
+    await expect(clear).toBeHidden();
+
+    await page.fill('#search-input', 'Clear Alpha');
+    await expect(clear).toBeVisible();
+    await expect(page.locator('.board-card:has-text("Clear Beta")')).toBeHidden();
+
+    await clear.click();
+    await expect(page.locator('#search-input')).toHaveValue('');
+    await expect(clear).toBeHidden();
+    await expect(page.locator('.board-card:has-text("Clear Beta")')).toBeVisible();
+  });
+
   test('filter issues by priority', async ({ page }) => {
     // Create issues with different priorities
     await createIssue(page, { title: 'High Priority Issue', status: 'Todo', priority: 'High' });

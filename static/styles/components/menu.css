@@ -104,36 +104,40 @@
 }
 
 /* User Menu */
+/* Right edge flush with the views below, as the logo is on the left */
 .user-menu-container.toolbar-section {
-  gap: 12px;
+  margin-left: auto;
+  padding-right: 0;
 }
 
-.user-menu-btn {
+/* The name sets the button's baseline (the toolbar aligns on it), the avatar is only centered */
+.user-menu-name {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: var(--column-bg);
-  border: 1px solid var(--card-border);
-  padding: 6px 12px;
-  border-radius: 4px;
-  /* Match custom-select-trigger */
-  cursor: pointer;
-  color: var(--text-color);
-  transition: border-color 0.2s;
-  min-width: 120px;
-  white-space: nowrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/* The avatar (20px) is taller than a text line (17px): reaching into the padding keeps the
+   button as high as the filter dropdowns next to it */
+.user-menu-name .user-badge {
+  align-self: center;
+  margin-block: -1.5px;
+}
+
+.user-menu-fullname {
+  max-width: var(--user-menu-name-max-width);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.user-menu-btn:hover {
-  border-color: var(--accent-blue);
-  /* Match custom-select-trigger */
-}
-
-.dropdown-arrow {
-  font-size: var(--fs-2xs);
-  opacity: 0.6;
+/* Who is logged in: first line of the open user menu, not clickable */
+.user-menu-identity {
+  padding: var(--space-2) var(--space-3);
+  color: var(--muted-text);
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: var(--space-1);
+  white-space: nowrap;
 }
 
 .user-menu-dropdown {
