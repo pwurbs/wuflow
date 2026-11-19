@@ -477,8 +477,9 @@ func GetOpenIssuesByProject(ctx context.Context, projectID int) ([]Issue, error)
 }
 
 // accessibleProjects returns a subquery selecting the IDs of the projects userID may see,
-// plus its arguments. Every project-access decision goes through it, so a membership rule
-// added here applies to the project-scoped routes and to the cross-project My Work list.
+// plus its arguments. ProjectAccessible (all project-scoped routes) and GetMyActiveIssues use it.
+// The paths that do not are listed in docs/backend-architecture.md ("checkProjectAccess — the
+// future-membership hook").
 //
 // TODO(per-project-membership): When the project_users table is introduced, select the
 // user's projects here, e.g. "SELECT project_id FROM project_users WHERE user_id = ?".

@@ -111,7 +111,9 @@ This helper sits at the single chokepoint reached by all project-scoped factorie
 - `ProjectAccessible`, called by `checkProjectAccess` for every project-scoped route.
 - `GetMyActiveIssues` (`GET /api/me/issues`), which lists issues across projects and filters them by the same subquery.
 
-When the `project_users` table lands, the membership rule goes into `accessibleProjects` (marked `TODO(per-project-membership)`) and applies to both. Not covered by it: `GET /api/projects` and the target project of a move (`POST …/move`), which do not go through `checkProjectAccess`.
+When the `project_users` table lands, the membership rule goes into `accessibleProjects` (marked `TODO(per-project-membership)`) and applies to both.
+
+Two paths do not use it yet and must be switched to it then: `GET /api/projects` (`GetAllProjects`) and the target project of a move (`POST …/move`, checked only with `GetProjectByID`). Today this changes nothing, because all users may access all projects.
 
 ## Inner handler conventions
 
