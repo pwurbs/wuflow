@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -55,7 +56,6 @@ var ErrDuplicateReleaseName = errors.New("release name already exists")
 
 // errUniqueConstraintFailed is the SQLite error text for UNIQUE constraint violations.
 const errUniqueConstraintFailed = "UNIQUE constraint failed"
-const dbErrPrefix = "Database Error: "
 
 // InitDB initializes the database connection and creates tables if they don't exist.
 func InitDB(ctx context.Context, dataSourceName string) error {
@@ -73,18 +73,15 @@ func InitDB(ctx context.Context, dataSourceName string) error {
 	var err error
 	DB, err = sql.Open("sqlite3", dsn)
 	if err != nil {
-		LogError("Failed to open database", "error", err)
-		return err
+		return fmt.Errorf("failed to open database: %w", err)
 	}
 
 	if err = DB.PingContext(ctx); err != nil {
-		LogError("Failed to ping database", "error", err)
-		return err
+		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	if _, err := DB.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
-		LogError("Failed to set WAL mode", "error", err)
-		return err
+		return fmt.Errorf("failed to set WAL mode: %w", err)
 	}
 
 	if err := createTables(ctx); err != nil {
@@ -104,14 +101,12 @@ func createTables(ctx context.Context) error {
 		description TEXT NOT NULL DEFAULT ''
 	);`
 	if _, err := DB.ExecContext(ctx, createProjectsTable); err != nil {
-		LogError("Failed to create projects table", "error", err)
-		return err
+		return fmt.Errorf("failed to create projects table: %w", err)
 	}
 
 	// Seed the default project
 	if _, err := DB.ExecContext(ctx, `INSERT OR IGNORE INTO projects(id, name, description) VALUES(?, 'default', 'Default project')`, DefaultProjectID); err != nil {
-		LogError("Failed to seed default project", "error", err)
-		return err
+		return fmt.Errorf("failed to seed default project: %w", err)
 	}
 
 	createReleasesTable := `
@@ -132,8 +127,7 @@ func createTables(ctx context.Context) error {
 		UNIQUE(project_id, name)
 	);`
 	if _, err := DB.ExecContext(ctx, createReleasesTable); err != nil {
-		LogError("Failed to create releases table", "error", err)
-		return err
+		return fmt.Errorf("failed to create releases table: %w", err)
 	}
 
 	createIssuesTable := `
@@ -176,13 +170,11 @@ func createTables(ctx context.Context) error {
 	);`
 
 	if _, err := DB.ExecContext(ctx, createIssuesTable); err != nil {
-		LogError("Failed to create issues table", "error", err)
-		return err
+		return fmt.Errorf("failed to create issues table: %w", err)
 	}
 
 	if _, err := DB.ExecContext(ctx, createTasksTable); err != nil {
-		LogError("Failed to create tasks table", "error", err)
-		return err
+		return fmt.Errorf("failed to create tasks table: %w", err)
 	}
 
 	createLabelsTable := `
@@ -194,8 +186,7 @@ func createTables(ctx context.Context) error {
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
 	if _, err := DB.ExecContext(ctx, createLabelsTable); err != nil {
-		LogError("Failed to create labels table", "error", err)
-		return err
+		return fmt.Errorf("failed to create labels table: %w", err)
 	}
 
 	createStatusConfigTable := `
@@ -208,8 +199,7 @@ func createTables(ctx context.Context) error {
 		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 	);`
 	if _, err := DB.ExecContext(ctx, createStatusConfigTable); err != nil {
-		LogError("Failed to create project_status_config table", "error", err)
-		return err
+		return fmt.Errorf("failed to create project_status_config table: %w", err)
 	}
 
 	createUsersTable := `
@@ -226,8 +216,7 @@ func createTables(ctx context.Context) error {
 		last_login DATETIME
 	);`
 	if _, err := DB.ExecContext(ctx, createUsersTable); err != nil {
-		LogError("Failed to create users table", "error", err)
-		return err
+		return fmt.Errorf("failed to create users table: %w", err)
 	}
 
 	createSessionsTable := `
@@ -241,13 +230,11 @@ func createTables(ctx context.Context) error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
 	if _, err := DB.ExecContext(ctx, createSessionsTable); err != nil {
-		LogError("Failed to create sessions table", "error", err)
-		return err
+		return fmt.Errorf("failed to create sessions table: %w", err)
 	}
 	// Create index on user_id to speed up session revocation by user (e.g., logout all devices)
 	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);"); err != nil {
-		LogError("Failed to create index on sessions(user_id)", "error", err)
-		return err
+		return fmt.Errorf("failed to create index on sessions(user_id): %w", err)
 	}
 
 	if err := createActivityTables(ctx); err != nil {
@@ -259,8 +246,7 @@ func createTables(ctx context.Context) error {
 	}
 	// Create index on session_token after migrations so the column is guaranteed to exist on existing DBs.
 	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);"); err != nil {
-		LogError("Failed to create index on sessions(session_token)", "error", err)
-		return err
+		return fmt.Errorf("failed to create index on sessions(session_token): %w", err)
 	}
 	return nil
 }
@@ -298,13 +284,11 @@ func GetIssueByIDInProject(ctx context.Context, id, projectID int) (*Issue, erro
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetIssueByIDInProject", "id", id, "project_id", projectID, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetIssueByIDInProject: %w", err)
 	}
 	tasks, err := GetTasksByIssueID(ctx, issue.ID)
 	if err != nil {
-		LogError("Database Error: GetIssueByIDInProject GetTasksByIssueID", "id", id, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetIssueByIDInProject GetTasksByIssueID: %w", err)
 	}
 	issue.Tasks = tasks
 	return &issue, nil
@@ -320,8 +304,7 @@ func ProjectAccessible(ctx context.Context, userID, projectID int) (bool, error)
 func existsQuery(ctx context.Context, query string, args ...any) (bool, error) {
 	var count int
 	if err := DB.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
-		LogError("Database Error: existence check", "error", err)
-		return false, err
+		return false, fmt.Errorf("existence check: %w", err)
 	}
 	return count > 0, nil
 }
@@ -330,8 +313,7 @@ func existsQuery(ctx context.Context, query string, args ...any) (bool, error) {
 func checkRowsAffected(res sql.Result, caller string, notFoundErr error) error {
 	rows, err := res.RowsAffected()
 	if err != nil {
-		LogError("Database Error: "+caller+" RowsAffected", "error", err)
-		return err
+		return fmt.Errorf("%s RowsAffected: %w", caller, err)
 	}
 	if rows == 0 {
 		return notFoundErr
@@ -348,8 +330,7 @@ func CreateIssue(ctx context.Context, i *Issue) error {
 	var maxPos sql.NullInt64
 	err := DB.QueryRowContext(ctx, "SELECT MAX(position) FROM issues WHERE status = ?", i.Status).Scan(&maxPos)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		LogError("Database Error: CreateIssue MaxPos", "error", err)
-		return err
+		return fmt.Errorf("CreateIssue MaxPos: %w", err)
 	}
 	i.Position = int(maxPos.Int64) + 1
 	i.UpdatedAt = time.Now().UTC()
@@ -374,8 +355,7 @@ func CreateIssue(ctx context.Context, i *Issue) error {
 	if i.PlannedDates != nil {
 		b, err := json.Marshal(i.PlannedDates)
 		if err != nil {
-			LogError("Database Error: CreateIssue Marshal Dates", "error", err)
-			return err
+			return fmt.Errorf("CreateIssue Marshal Dates: %w", err)
 		}
 		plannedDatesJSON = string(b)
 	}
@@ -385,14 +365,12 @@ func CreateIssue(ctx context.Context, i *Issue) error {
 		i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, creatorID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt,
 	)
 	if err != nil {
-		LogError("Database Error: CreateIssue", "error", err)
-		return err
+		return fmt.Errorf("CreateIssue: %w", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateIssue LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateIssue LastInsertId: %w", err)
 	}
 	i.ID = int(id)
 	return nil
@@ -454,8 +432,7 @@ func getTasksForIssues(ctx context.Context, issues []Issue) (map[int][]Task, err
 func queryIssuesByProject(ctx context.Context, caller string, query string, args ...any) ([]Issue, error) {
 	rows, err := DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		LogError(dbErrPrefix+caller, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", caller, err)
 	}
 	defer rows.Close()
 
@@ -463,21 +440,18 @@ func queryIssuesByProject(ctx context.Context, caller string, query string, args
 	for rows.Next() {
 		i, err := scanIssueRow(rows)
 		if err != nil {
-			LogError(dbErrPrefix+caller+" Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("%s Scan: %w", caller, err)
 		}
 		issues = append(issues, i)
 	}
 	if err := rows.Err(); err != nil {
-		LogError(dbErrPrefix+caller+" Rows", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("%s Rows: %w", caller, err)
 	}
 
 	if len(issues) > 0 {
 		tasksByIssue, err := getTasksForIssues(ctx, issues)
 		if err != nil {
-			LogError(dbErrPrefix+caller+" GetTasks", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("%s GetTasks: %w", caller, err)
 		}
 		for idx := range issues {
 			issues[idx].Tasks = tasksByIssue[issues[idx].ID]
@@ -581,14 +555,12 @@ func GetIssueByID(ctx context.Context, id int) (*Issue, error) {
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetIssueByID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetIssueByID: %w", err)
 	}
 
 	tasks, err := GetTasksByIssueID(ctx, issue.ID)
 	if err != nil {
-		LogError("Database Error: GetIssueByID GetTasksByIssueID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetIssueByID GetTasksByIssueID: %w", err)
 	}
 	issue.Tasks = tasks
 
@@ -609,8 +581,7 @@ func UpdateIssue(ctx context.Context, i *Issue) error {
 	if i.PlannedDates != nil {
 		b, err := json.Marshal(i.PlannedDates)
 		if err != nil {
-			LogError("Database Error: UpdateIssue Marshal Dates", "error", err)
-			return err
+			return fmt.Errorf("UpdateIssue Marshal Dates: %w", err)
 		}
 		plannedDatesJSON = string(b)
 	}
@@ -625,8 +596,7 @@ func UpdateIssue(ctx context.Context, i *Issue) error {
 		i.Title, i.Description, i.Status, i.Position, i.Deadline, plannedDatesJSON, i.Priority, labelID, i.AssigneeID, updaterID, i.ProjectID, i.ReleaseID, i.UpdatedAt, i.ID,
 	)
 	if err != nil {
-		LogError("Database Error: UpdateIssue", "error", err)
-		return err
+		return fmt.Errorf("UpdateIssue: %w", err)
 	}
 
 	return checkRowsAffected(res, "UpdateIssue", ErrIssueNotFound)
@@ -637,8 +607,7 @@ func UpdateIssue(ctx context.Context, i *Issue) error {
 func UpdateIssuePosition(ctx context.Context, id, position int) error {
 	res, err := DB.ExecContext(ctx, "UPDATE issues SET position = ? WHERE id = ?", position, id)
 	if err != nil {
-		LogError("Database Error: UpdateIssuePosition", "error", err)
-		return err
+		return fmt.Errorf("UpdateIssuePosition: %w", err)
 	}
 	return checkRowsAffected(res, "UpdateIssuePosition", ErrIssueNotFound)
 }
@@ -668,8 +637,7 @@ func UpdateTaskPositions(ctx context.Context, issueID int, updates []PositionUpd
 func applyPositionUpdates(ctx context.Context, caller, query string, updates []PositionUpdate, notFoundErr error, scopeArgs ...any) error {
 	tx, err := DB.BeginTx(ctx, nil)
 	if err != nil {
-		LogError(dbErrPrefix+caller+" BeginTx", "error", err)
-		return err
+		return fmt.Errorf("%s BeginTx: %w", caller, err)
 	}
 	// Undoes all writes if the function returns before Commit, e.g. on an error.
 	// After a successful Commit there is nothing left to undo, so this changes nothing.
@@ -677,8 +645,7 @@ func applyPositionUpdates(ctx context.Context, caller, query string, updates []P
 
 	stmt, err := tx.PrepareContext(ctx, query)
 	if err != nil {
-		LogError(dbErrPrefix+caller+" Prepare", "error", err)
-		return err
+		return fmt.Errorf("%s Prepare: %w", caller, err)
 	}
 	defer func() { _ = stmt.Close() }()
 
@@ -686,8 +653,7 @@ func applyPositionUpdates(ctx context.Context, caller, query string, updates []P
 		args := append([]any{u.Position, u.ID}, scopeArgs...)
 		res, err := stmt.ExecContext(ctx, args...)
 		if err != nil {
-			LogError(dbErrPrefix+caller, "id", u.ID, "error", err)
-			return err
+			return fmt.Errorf("%s id=%d: %w", caller, u.ID, err)
 		}
 		if err := checkRowsAffected(res, caller, notFoundErr); err != nil {
 			return err
@@ -695,8 +661,7 @@ func applyPositionUpdates(ctx context.Context, caller, query string, updates []P
 	}
 
 	if err := tx.Commit(); err != nil {
-		LogError(dbErrPrefix+caller+" Commit", "error", err)
-		return err
+		return fmt.Errorf("%s Commit: %w", caller, err)
 	}
 	return nil
 }
@@ -705,8 +670,7 @@ func applyPositionUpdates(ctx context.Context, caller, query string, updates []P
 func DeleteIssue(ctx context.Context, id int) error {
 	res, err := DB.ExecContext(ctx, "DELETE FROM issues WHERE id = ?", id)
 	if err != nil {
-		LogError("Database Error: DeleteIssue", "error", err)
-		return err
+		return fmt.Errorf("DeleteIssue: %w", err)
 	}
 
 	return checkRowsAffected(res, "DeleteIssue", ErrIssueNotFound)
@@ -716,8 +680,7 @@ func DeleteIssue(ctx context.Context, id int) error {
 func CreateTask(ctx context.Context, t *Task) error {
 	exists, err := existsQuery(ctx, "SELECT COUNT(*) FROM issues WHERE id = ?", t.IssueID)
 	if err != nil {
-		LogError("Database Error: CreateTask CheckIssue", "error", err)
-		return err
+		return fmt.Errorf("CreateTask CheckIssue: %w", err)
 	}
 	if !exists {
 		return ErrIssueNotFound
@@ -727,8 +690,7 @@ func CreateTask(ctx context.Context, t *Task) error {
 	var maxPos sql.NullInt64
 	err = DB.QueryRowContext(ctx, "SELECT MAX(position) FROM tasks WHERE issue_id = ?", t.IssueID).Scan(&maxPos)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		LogError("Database Error: CreateTask MaxPos", "error", err)
-		return err
+		return fmt.Errorf("CreateTask MaxPos: %w", err)
 	}
 	t.Position = int(maxPos.Int64) + 1
 	t.UpdatedAt = time.Now().UTC()
@@ -738,14 +700,12 @@ func CreateTask(ctx context.Context, t *Task) error {
 		t.IssueID, t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt,
 	)
 	if err != nil {
-		LogError("Database Error: CreateTask", "error", err)
-		return err
+		return fmt.Errorf("CreateTask: %w", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateTask LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateTask LastInsertId: %w", err)
 	}
 	t.ID = int(id)
 	return nil
@@ -768,8 +728,7 @@ func scanTaskRow(s issueScanner) (Task, error) {
 func GetTasksByIssueID(ctx context.Context, issueID int) ([]Task, error) {
 	rows, err := DB.QueryContext(ctx, "SELECT id, issue_id, title, done, position, deadline, created_at, updated_at FROM tasks WHERE issue_id = ? ORDER BY position ASC", issueID)
 	if err != nil {
-		LogError("Database Error: GetTasksByIssueID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetTasksByIssueID: %w", err)
 	}
 	defer rows.Close()
 
@@ -777,14 +736,12 @@ func GetTasksByIssueID(ctx context.Context, issueID int) ([]Task, error) {
 	for rows.Next() {
 		t, err := scanTaskRow(rows)
 		if err != nil {
-			LogError("Database Error: GetTasksByIssueID Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetTasksByIssueID Scan: %w", err)
 		}
 		tasks = append(tasks, t)
 	}
 	if err := rows.Err(); err != nil {
-		LogError("Database Error: GetTasksByIssueID Rows", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetTasksByIssueID Rows: %w", err)
 	}
 	return tasks, nil
 }
@@ -800,8 +757,7 @@ func UpdateTask(ctx context.Context, t *Task, issueID int) error {
 		t.Title, t.Done, t.Position, t.Deadline, t.UpdatedAt, t.ID, issueID,
 	)
 	if err != nil {
-		LogError("Database Error: UpdateTask", "error", err)
-		return err
+		return fmt.Errorf("UpdateTask: %w", err)
 	}
 	return checkRowsAffected(res, "UpdateTask", ErrTaskNotFound)
 }
@@ -811,8 +767,7 @@ func UpdateTask(ctx context.Context, t *Task, issueID int) error {
 func DeleteTask(ctx context.Context, id, issueID int) error {
 	res, err := DB.ExecContext(ctx, "DELETE FROM tasks WHERE id = ? AND issue_id = ?", id, issueID)
 	if err != nil {
-		LogError("Database Error: DeleteTask", "error", err)
-		return err
+		return fmt.Errorf("DeleteTask: %w", err)
 	}
 
 	return checkRowsAffected(res, "DeleteTask", ErrTaskNotFound)
@@ -834,12 +789,10 @@ func createActivityTables(ctx context.Context) error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 	);`
 	if _, err := DB.ExecContext(ctx, createIssueHistoryTable); err != nil {
-		LogError("Failed to create issue_history table", "error", err)
-		return err
+		return fmt.Errorf("failed to create issue_history table: %w", err)
 	}
 	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_issue_history_issue ON issue_history(issue_id, created_at, id);"); err != nil {
-		LogError("Failed to create index on issue_history(issue_id)", "error", err)
-		return err
+		return fmt.Errorf("failed to create index on issue_history(issue_id): %w", err)
 	}
 
 	createIssueCommentsTable := `
@@ -855,12 +808,10 @@ func createActivityTables(ctx context.Context) error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 	);`
 	if _, err := DB.ExecContext(ctx, createIssueCommentsTable); err != nil {
-		LogError("Failed to create issue_comments table", "error", err)
-		return err
+		return fmt.Errorf("failed to create issue_comments table: %w", err)
 	}
 	if _, err := DB.ExecContext(ctx, "CREATE INDEX IF NOT EXISTS idx_issue_comments_issue ON issue_comments(issue_id, created_at, id);"); err != nil {
-		LogError("Failed to create index on issue_comments(issue_id)", "error", err)
-		return err
+		return fmt.Errorf("failed to create index on issue_comments(issue_id): %w", err)
 	}
 	return nil
 }
@@ -879,21 +830,18 @@ func nullableUserID(id *int) any {
 func CreateHistoryEntry(ctx context.Context, h *HistoryEntry) error {
 	dataJSON, err := json.Marshal(h.Data)
 	if err != nil {
-		LogError("Database Error: CreateHistoryEntry Marshal", "error", err)
-		return err
+		return fmt.Errorf("CreateHistoryEntry Marshal: %w", err)
 	}
 	res, err := DB.ExecContext(ctx,
 		"INSERT INTO issue_history(issue_id, user_id, event, data) VALUES(?, ?, ?, ?)",
 		h.IssueID, nullableUserID(h.UserID), h.Event, string(dataJSON),
 	)
 	if err != nil {
-		LogError("Database Error: CreateHistoryEntry", "error", err)
-		return err
+		return fmt.Errorf("CreateHistoryEntry: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateHistoryEntry LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateHistoryEntry LastInsertId: %w", err)
 	}
 	h.ID = int(id)
 	return nil
@@ -911,8 +859,7 @@ func GetHistoryByIssueID(ctx context.Context, issueID int) ([]HistoryEntry, erro
 			" FROM issue_history t "+activityUserJoin+
 			" WHERE t.issue_id = ? ORDER BY t.created_at ASC, t.id ASC", issueID)
 	if err != nil {
-		LogError("Database Error: GetHistoryByIssueID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetHistoryByIssueID: %w", err)
 	}
 	defer rows.Close()
 
@@ -922,13 +869,11 @@ func GetHistoryByIssueID(ctx context.Context, issueID int) ([]HistoryEntry, erro
 		var dataJSON string
 		dest, finish := activityActorScanDest()
 		if err := rows.Scan(&h.ID, &h.IssueID, dest[0], &h.Event, &dataJSON, &h.CreatedAt, dest[1], dest[2], dest[3], dest[4]); err != nil {
-			LogError("Database Error: GetHistoryByIssueID Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetHistoryByIssueID Scan: %w", err)
 		}
 		h.UserID, h.User = finish()
 		if err := json.Unmarshal([]byte(dataJSON), &h.Data); err != nil {
-			LogError("Database Error: GetHistoryByIssueID Unmarshal", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetHistoryByIssueID Unmarshal: %w", err)
 		}
 		history = append(history, h)
 	}
@@ -975,13 +920,11 @@ func CreateComment(ctx context.Context, c *Comment) error {
 		c.IssueID, nullableUserID(c.UserID), c.Body, c.CreatedAt, c.UpdatedAt,
 	)
 	if err != nil {
-		LogError("Database Error: CreateComment", "error", err)
-		return err
+		return fmt.Errorf("CreateComment: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateComment LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateComment LastInsertId: %w", err)
 	}
 	c.ID = int(id)
 	return nil
@@ -994,8 +937,7 @@ func GetCommentsByIssueID(ctx context.Context, issueID int) ([]Comment, error) {
 			" FROM issue_comments t "+activityUserJoin+
 			" WHERE t.issue_id = ? ORDER BY t.created_at ASC, t.id ASC", issueID)
 	if err != nil {
-		LogError("Database Error: GetCommentsByIssueID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetCommentsByIssueID: %w", err)
 	}
 	defer rows.Close()
 
@@ -1004,8 +946,7 @@ func GetCommentsByIssueID(ctx context.Context, issueID int) ([]Comment, error) {
 		var c Comment
 		dest, finish := activityActorScanDest()
 		if err := rows.Scan(&c.ID, &c.IssueID, dest[0], &c.Body, &c.Edited, &c.CreatedAt, &c.UpdatedAt, dest[1], dest[2], dest[3], dest[4]); err != nil {
-			LogError("Database Error: GetCommentsByIssueID Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetCommentsByIssueID Scan: %w", err)
 		}
 		c.UserID, c.User = finish()
 		comments = append(comments, c)
@@ -1027,8 +968,7 @@ func GetCommentByID(ctx context.Context, id, issueID int) (*Comment, error) {
 		return nil, ErrCommentNotFound
 	}
 	if err != nil {
-		LogError("Database Error: GetCommentByID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetCommentByID: %w", err)
 	}
 	c.UserID, c.User = finish()
 	return &c, nil
@@ -1047,8 +987,7 @@ func UpdateComment(ctx context.Context, id, issueID int, authorID *int, body str
 	}
 	res, err := DB.ExecContext(ctx, query, args...)
 	if err != nil {
-		LogError("Database Error: UpdateComment", "error", err)
-		return err
+		return fmt.Errorf("UpdateComment: %w", err)
 	}
 	return checkRowsAffected(res, "UpdateComment", ErrCommentNotFound)
 }
@@ -1063,8 +1002,7 @@ func DeleteComment(ctx context.Context, id, issueID int, authorID *int) error {
 	}
 	res, err := DB.ExecContext(ctx, query, args...)
 	if err != nil {
-		LogError("Database Error: DeleteComment", "error", err)
-		return err
+		return fmt.Errorf("DeleteComment: %w", err)
 	}
 	return checkRowsAffected(res, "DeleteComment", ErrCommentNotFound)
 }
@@ -1073,14 +1011,12 @@ func DeleteComment(ctx context.Context, id, issueID int, authorID *int) error {
 func CreateLabel(ctx context.Context, l *Label) error {
 	res, err := DB.ExecContext(ctx, "INSERT INTO labels(name, color, project_id) VALUES(?, ?, ?)", l.Name, l.Color, l.ProjectID)
 	if err != nil {
-		LogError("Database Error: CreateLabel", "error", err)
-		return err
+		return fmt.Errorf("CreateLabel: %w", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateLabel LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateLabel LastInsertId: %w", err)
 	}
 	l.ID = int(id)
 	return nil
@@ -1090,8 +1026,7 @@ func CreateLabel(ctx context.Context, l *Label) error {
 func GetLabelsByProject(ctx context.Context, projectID int) ([]Label, error) {
 	rows, err := DB.QueryContext(ctx, "SELECT id, name, color, project_id FROM labels WHERE project_id = ? ORDER BY name ASC", projectID)
 	if err != nil {
-		LogError("Database Error: GetLabelsByProject", "project_id", projectID, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetLabelsByProject: %w", err)
 	}
 	defer rows.Close()
 
@@ -1099,14 +1034,12 @@ func GetLabelsByProject(ctx context.Context, projectID int) ([]Label, error) {
 	for rows.Next() {
 		var l Label
 		if err := rows.Scan(&l.ID, &l.Name, &l.Color, &l.ProjectID); err != nil {
-			LogError("Database Error: GetLabelsByProject Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetLabelsByProject Scan: %w", err)
 		}
 		labels = append(labels, l)
 	}
 	if err := rows.Err(); err != nil {
-		LogError("Database Error: GetLabelsByProject Rows", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetLabelsByProject Rows: %w", err)
 	}
 	return labels, nil
 }
@@ -1115,8 +1048,7 @@ func GetLabelsByProject(ctx context.Context, projectID int) ([]Label, error) {
 func DeleteLabel(ctx context.Context, labelID, projectID int) error {
 	res, err := DB.ExecContext(ctx, "DELETE FROM labels WHERE id = ? AND project_id = ?", labelID, projectID)
 	if err != nil {
-		LogError("Database Error: DeleteLabel", "error", err)
-		return err
+		return fmt.Errorf("DeleteLabel: %w", err)
 	}
 
 	return checkRowsAffected(res, "DeleteLabel", ErrLabelNotFound)
@@ -1133,21 +1065,18 @@ func CreateProject(ctx context.Context, p *Project) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
 		}
-		LogError("Database Error: CreateProject", "error", err)
-		return err
+		return fmt.Errorf("CreateProject: %w", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateProject LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateProject LastInsertId: %w", err)
 	}
 	p.ID = int(id)
 
 	// Seed default column/status config for the new project.
 	if _, err := DB.ExecContext(ctx, `INSERT OR IGNORE INTO project_status_config (project_id) VALUES (?)`, p.ID); err != nil {
-		LogError("Database Error: CreateProject seed status config", "error", err)
-		return err
+		return fmt.Errorf("CreateProject seed status config: %w", err)
 	}
 	return nil
 }
@@ -1156,8 +1085,7 @@ func CreateProject(ctx context.Context, p *Project) error {
 func GetAllProjects(ctx context.Context) ([]Project, error) {
 	rows, err := DB.QueryContext(ctx, "SELECT id, name, description FROM projects ORDER BY id ASC")
 	if err != nil {
-		LogError("Database Error: GetAllProjects", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetAllProjects: %w", err)
 	}
 	defer rows.Close()
 
@@ -1165,14 +1093,12 @@ func GetAllProjects(ctx context.Context) ([]Project, error) {
 	for rows.Next() {
 		var p Project
 		if err := rows.Scan(&p.ID, &p.Name, &p.Description); err != nil {
-			LogError("Database Error: GetAllProjects Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetAllProjects Scan: %w", err)
 		}
 		projects = append(projects, p)
 	}
 	if err := rows.Err(); err != nil {
-		LogError("Database Error: GetAllProjects Rows", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetAllProjects Rows: %w", err)
 	}
 	return projects, nil
 }
@@ -1187,8 +1113,7 @@ func GetProjectByID(ctx context.Context, id int) (*Project, error) {
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetProjectByID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetProjectByID: %w", err)
 	}
 	return &p, nil
 }
@@ -1200,8 +1125,7 @@ func UpdateProject(ctx context.Context, p *Project) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateProjectName
 		}
-		LogError("Database Error: UpdateProject", "error", err)
-		return err
+		return fmt.Errorf("UpdateProject: %w", err)
 	}
 
 	return checkRowsAffected(res, "UpdateProject", ErrProjectNotFound)
@@ -1211,8 +1135,7 @@ func UpdateProject(ctx context.Context, p *Project) error {
 func DeleteProject(ctx context.Context, id int) error {
 	res, err := DB.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", id)
 	if err != nil {
-		LogError("Database Error: DeleteProject", "error", err)
-		return err
+		return fmt.Errorf("DeleteProject: %w", err)
 	}
 
 	return checkRowsAffected(res, "DeleteProject", ErrProjectNotFound)
@@ -1223,8 +1146,7 @@ func CountIssuesByProject(ctx context.Context, projectID int) (int, error) {
 	var count int
 	err := DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM issues WHERE project_id = ?", projectID).Scan(&count)
 	if err != nil {
-		LogError("Database Error: CountIssuesByProject", "project_id", projectID, "error", err)
-		return 0, err
+		return 0, fmt.Errorf("CountIssuesByProject: %w", err)
 	}
 	return count, nil
 }
@@ -1320,14 +1242,12 @@ func CreateUser(ctx context.Context, u *User) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateEmail
 		}
-		LogError("Database Error: CreateUser", "error", err)
-		return err
+		return fmt.Errorf("CreateUser: %w", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateUser LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateUser LastInsertId: %w", err)
 	}
 	u.ID = int(id)
 	return nil
@@ -1344,8 +1264,7 @@ func GetUserByEmail(ctx context.Context, email string) (*User, error) {
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetUserByEmail", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetUserByEmail: %w", err)
 	}
 	if lastLogin.Valid {
 		u.LastLogin = &lastLogin.Time
@@ -1364,8 +1283,7 @@ func GetUserByID(ctx context.Context, id int) (*User, error) {
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetUserByID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetUserByID: %w", err)
 	}
 	if lastLogin.Valid {
 		u.LastLogin = &lastLogin.Time
@@ -1377,8 +1295,7 @@ func GetUserByID(ctx context.Context, id int) (*User, error) {
 func GetAllUsers(ctx context.Context) ([]User, error) {
 	rows, err := DB.QueryContext(ctx, "SELECT id, email, first_name, last_name, role, active, created_at, updated_at, last_login FROM users ORDER BY id ASC")
 	if err != nil {
-		LogError("Database Error: GetAllUsers", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetAllUsers: %w", err)
 	}
 	defer rows.Close()
 
@@ -1387,8 +1304,7 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 		var u User
 		var lastLogin sql.NullTime
 		if err := rows.Scan(&u.ID, &u.Email, &u.FirstName, &u.LastName, &u.Role, &u.Active, &u.CreatedAt, &u.UpdatedAt, &lastLogin); err != nil {
-			LogError("Database Error: GetAllUsers Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetAllUsers Scan: %w", err)
 		}
 		if lastLogin.Valid {
 			u.LastLogin = &lastLogin.Time
@@ -1396,8 +1312,7 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 		users = append(users, u)
 	}
 	if err := rows.Err(); err != nil {
-		LogError("Database Error: GetAllUsers Rows", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetAllUsers Rows: %w", err)
 	}
 	return users, nil
 }
@@ -1406,9 +1321,9 @@ func GetAllUsers(ctx context.Context) ([]User, error) {
 func UpdateUserLastLogin(ctx context.Context, userID int) error {
 	_, err := DB.ExecContext(ctx, "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", userID)
 	if err != nil {
-		LogError("Database Error: UpdateUserLastLogin", "error", err)
+		return fmt.Errorf("UpdateUserLastLogin: %w", err)
 	}
-	return err
+	return nil
 }
 
 // lastActiveSysAdminCond matches a users row that is the last active sysadmin. It is
@@ -1446,8 +1361,7 @@ func UpdateUser(ctx context.Context, u *User) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateEmail
 		}
-		LogError("Database Error: UpdateUser", "error", err)
-		return err
+		return fmt.Errorf("UpdateUser: %w", err)
 	}
 
 	return userWriteErr(res, "UpdateUser", func() (bool, error) { return UserExists(ctx, u.ID) })
@@ -1463,8 +1377,7 @@ func UpdateUser(ctx context.Context, u *User) error {
 func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, error) {
 	tx, err := DB.BeginTx(ctx, nil)
 	if err != nil {
-		LogError(dbErrPrefix+"DeleteUser BeginTx", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteUser BeginTx: %w", err)
 	}
 	// Undoes all writes if the function returns before Commit.
 	defer func() { _ = tx.Rollback() }()
@@ -1474,8 +1387,7 @@ func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, e
 		"INSERT INTO issue_history(issue_id, user_id, event, data) SELECT id, ?, ?, json_object('field', 'assignee', 'from', ?) FROM issues WHERE assignee_id = ?",
 		actor, EventUpdated, userName+" (user deleted)", id,
 	); err != nil {
-		LogError(dbErrPrefix+"DeleteUser history", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteUser history: %w", err)
 	}
 
 	unassign, err := tx.ExecContext(ctx,
@@ -1483,25 +1395,21 @@ func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, e
 		actor, time.Now().UTC(), id,
 	)
 	if err != nil {
-		LogError(dbErrPrefix+"DeleteUser unassign", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteUser unassign: %w", err)
 	}
 	unassigned, err := unassign.RowsAffected()
 	if err != nil {
-		LogError(dbErrPrefix+"DeleteUser unassign", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteUser unassign: %w", err)
 	}
 
 	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ? AND NOT "+lastActiveSysAdminCond, id, RoleSysAdmin, RoleSysAdmin)
 	if err != nil {
-		LogError(dbErrPrefix+"DeleteUser", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteUser: %w", err)
 	}
 	userExists := func() (bool, error) {
 		var count int
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE id = ?", id).Scan(&count); err != nil {
-			LogError(dbErrPrefix+"DeleteUser existence check", "error", err)
-			return false, err
+			return false, fmt.Errorf("DeleteUser existence check: %w", err)
 		}
 		return count > 0, nil
 	}
@@ -1510,8 +1418,7 @@ func DeleteUser(ctx context.Context, id, actorID int, userName string) (int64, e
 	}
 
 	if err := tx.Commit(); err != nil {
-		LogError(dbErrPrefix+"DeleteUser Commit", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteUser Commit: %w", err)
 	}
 	return unassigned, nil
 }
@@ -1521,8 +1428,7 @@ func CountUsers(ctx context.Context) (int, error) {
 	var count int
 	err := DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
 	if err != nil {
-		LogError("Database Error: CountUsers", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("CountUsers: %w", err)
 	}
 	return count, nil
 }
@@ -1543,14 +1449,12 @@ func CreateSession(ctx context.Context, s *Session) error {
 		s.UserID, s.SessionToken, s.TokenHash, s.ExpiresAt, s.CreatedAt,
 	)
 	if err != nil {
-		LogError("Database Error: CreateSession", "error", err)
-		return err
+		return fmt.Errorf("CreateSession: %w", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateSession LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateSession LastInsertId: %w", err)
 	}
 	s.ID = int(id)
 	return nil
@@ -1566,8 +1470,7 @@ func GetSessionByID(ctx context.Context, id int) (*Session, error) {
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetSessionByID", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetSessionByID: %w", err)
 	}
 	return &s, nil
 }
@@ -1582,8 +1485,7 @@ func GetSessionByToken(ctx context.Context, token string) (*Session, error) {
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetSessionByToken", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetSessionByToken: %w", err)
 	}
 	return &s, nil
 }
@@ -1592,8 +1494,7 @@ func GetSessionByToken(ctx context.Context, token string) (*Session, error) {
 func UpdateSession(ctx context.Context, s *Session) error {
 	res, err := DB.ExecContext(ctx, "UPDATE sessions SET token_hash = ?, expires_at = ? WHERE id = ?", s.TokenHash, s.ExpiresAt, s.ID)
 	if err != nil {
-		LogError("Database Error: UpdateSession", "error", err)
-		return err
+		return fmt.Errorf("UpdateSession: %w", err)
 	}
 
 	return checkRowsAffected(res, "UpdateSession", ErrSessionNotFound)
@@ -1603,8 +1504,7 @@ func UpdateSession(ctx context.Context, s *Session) error {
 func DeleteSession(ctx context.Context, id int) error {
 	res, err := DB.ExecContext(ctx, "DELETE FROM sessions WHERE id = ?", id)
 	if err != nil {
-		LogError("Database Error: DeleteSession", "error", err)
-		return err
+		return fmt.Errorf("DeleteSession: %w", err)
 	}
 
 	return checkRowsAffected(res, "DeleteSession", ErrSessionNotFound)
@@ -1614,8 +1514,7 @@ func DeleteSession(ctx context.Context, id int) error {
 func DeleteSessionsByUserID(ctx context.Context, userID int) error {
 	_, err := DB.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", userID)
 	if err != nil {
-		LogError("Database Error: DeleteSessionsByUserID", "error", err)
-		return err
+		return fmt.Errorf("DeleteSessionsByUserID: %w", err)
 	}
 	return nil
 }
@@ -1625,14 +1524,12 @@ func DeleteExpiredSessions(ctx context.Context) (int64, error) {
 	// Use time.Now() so the driver formats it consistently with how sessions were inserted
 	res, err := DB.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at < ?", time.Now().UTC())
 	if err != nil {
-		LogError("Database Error: DeleteExpiredSessions", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteExpiredSessions: %w", err)
 	}
 
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		LogError("Database Error: DeleteExpiredSessions RowsAffected", "error", err)
-		return 0, err
+		return 0, fmt.Errorf("DeleteExpiredSessions RowsAffected: %w", err)
 	}
 	return rowsAffected, nil
 }
@@ -1650,8 +1547,7 @@ func GetStatusConfig(ctx context.Context, projectID int) (*StatusConfig, error) 
 		return &def, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetStatusConfig", "project_id", projectID, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetStatusConfig: %w", err)
 	}
 	return cfg, nil
 }
@@ -1673,13 +1569,11 @@ func CreateRelease(ctx context.Context, r *Release) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateReleaseName
 		}
-		LogError("Database Error: CreateRelease", "error", err)
-		return err
+		return fmt.Errorf("CreateRelease: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		LogError("Database Error: CreateRelease LastInsertId", "error", err)
-		return err
+		return fmt.Errorf("CreateRelease LastInsertId: %w", err)
 	}
 	r.ID = int(id)
 	return nil
@@ -1695,8 +1589,7 @@ func GetReleasesByProject(ctx context.Context, projectID int) ([]Release, error)
 		 WHERE r.project_id = ? ORDER BY r.created_at DESC`, projectID,
 	)
 	if err != nil {
-		LogError("Database Error: GetReleasesByProject", "project_id", projectID, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetReleasesByProject: %w", err)
 	}
 	defer rows.Close()
 
@@ -1704,14 +1597,12 @@ func GetReleasesByProject(ctx context.Context, projectID int) ([]Release, error)
 	for rows.Next() {
 		r, err := scanRelease(rows)
 		if err != nil {
-			LogError("Database Error: GetReleasesByProject Scan", "error", err)
-			return nil, err
+			return nil, fmt.Errorf("GetReleasesByProject Scan: %w", err)
 		}
 		releases = append(releases, r)
 	}
 	if err := rows.Err(); err != nil {
-		LogError("Database Error: GetReleasesByProject Rows", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetReleasesByProject Rows: %w", err)
 	}
 	return releases, nil
 }
@@ -1762,8 +1653,7 @@ func GetReleaseByID(ctx context.Context, id int) (*Release, error) {
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetReleaseByID", "id", id, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetReleaseByID: %w", err)
 	}
 	hydrateRelease(&r, f)
 	return &r, nil
@@ -1780,8 +1670,7 @@ func UpdateRelease(ctx context.Context, r *Release) error {
 		if strings.Contains(err.Error(), errUniqueConstraintFailed) {
 			return ErrDuplicateReleaseName
 		}
-		LogError("Database Error: UpdateRelease", "id", r.ID, "error", err)
-		return err
+		return fmt.Errorf("UpdateRelease: %w", err)
 	}
 	return checkRowsAffected(res, "UpdateRelease", ErrReleaseNotFound)
 }
@@ -1790,8 +1679,7 @@ func UpdateRelease(ctx context.Context, r *Release) error {
 func DeleteRelease(ctx context.Context, id int) error {
 	res, err := DB.ExecContext(ctx, `DELETE FROM releases WHERE id = ?`, id)
 	if err != nil {
-		LogError("Database Error: DeleteRelease", "id", id, "error", err)
-		return err
+		return fmt.Errorf("DeleteRelease: %w", err)
 	}
 	return checkRowsAffected(res, "DeleteRelease", ErrReleaseNotFound)
 }
@@ -1803,8 +1691,7 @@ func ReopenRelease(ctx context.Context, id int) error {
 		ReleaseStatusOpen, now, id, ReleaseStatusClosed,
 	)
 	if err != nil {
-		LogError("Database Error: ReopenRelease", "id", id, "error", err)
-		return err
+		return fmt.Errorf("ReopenRelease: %w", err)
 	}
 	return checkRowsAffected(res, "ReopenRelease", ErrReleaseNotFound)
 }
@@ -1816,8 +1703,7 @@ func TriggerRelease(ctx context.Context, id int, archiveDone bool) error {
 		ReleaseStatusClosed, now, now, id, ReleaseStatusOpen,
 	)
 	if err != nil {
-		LogError("Database Error: TriggerRelease", "id", id, "error", err)
-		return err
+		return fmt.Errorf("TriggerRelease: %w", err)
 	}
 	if err := checkRowsAffected(res, "TriggerRelease", ErrReleaseNotFound); err != nil {
 		return err
@@ -1827,8 +1713,7 @@ func TriggerRelease(ctx context.Context, id int, archiveDone bool) error {
 			`UPDATE issues SET status = ?, updated_at = ? WHERE release_id = ? AND status = ?`,
 			StatusArchive, now, id, StatusDone,
 		); err != nil {
-			LogError("Database Error: TriggerRelease archive done issues", "id", id, "error", err)
-			return err
+			return fmt.Errorf("TriggerRelease archive done issues: %w", err)
 		}
 	}
 	return nil
@@ -1860,8 +1745,7 @@ func GetReleaseByIDInProject(ctx context.Context, id, projectID int) (*Release, 
 		return nil, nil
 	}
 	if err != nil {
-		LogError("Database Error: GetReleaseByIDInProject", "id", id, "project_id", projectID, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("GetReleaseByIDInProject: %w", err)
 	}
 	hydrateRelease(&r, f)
 	return &r, nil
@@ -1887,7 +1771,7 @@ func UpsertStatusConfig(ctx context.Context, cfg *StatusConfig) error {
 		cfg.ProjectID, cfg.Stage1Name, cfg.Stage2Name, cfg.Stage3Name, cfg.Stage4Name,
 	)
 	if err != nil {
-		LogError("Database Error: UpsertStatusConfig", "project_id", cfg.ProjectID, "error", err)
+		return fmt.Errorf("UpsertStatusConfig: %w", err)
 	}
-	return err
+	return nil
 }

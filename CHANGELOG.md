@@ -1,4 +1,8 @@
 
+# 1.5.1
+
+- Each backend error now appears only once in the log, and requests closed by the browser show as 499 in the access log instead of as errors
+
 # 1.5.0
 
 - Added the My Work view: all active issues assigned to you across all projects, in project lanes sorted by progress and urgency, with your personal planning

@@ -303,6 +303,7 @@ describe('system-settings.ts component', () => {
       const user = makeUser({ id: 1, email: 'edit@test.com', first_name: 'E', last_name: 'D', role: 'user', active: true });
       vi.mocked(api.fetchUsers).mockResolvedValue([user]);
 
+      setupSystemSettingsView();
       await renderSystemSettingsView();
 
       bySelector(document, '.settings-entry').click();

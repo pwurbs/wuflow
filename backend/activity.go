@@ -35,7 +35,11 @@ func isCommentModerator(role UserRole) bool {
 // the freshly-fetched issue so callers can reuse it instead of re-fetching.
 func recordIssueEditHistory(ctx context.Context, old *Issue, issueID, userID int) *Issue {
 	updated, err := GetIssueByID(ctx, issueID)
-	if err != nil || updated == nil {
+	if err != nil {
+		LogError("recordIssueEditHistory: GetIssueByID failed, history not recorded", "issue_id", issueID, "error", err)
+		return nil
+	}
+	if updated == nil {
 		return nil
 	}
 	for _, d := range diffIssueFields(old, updated) {

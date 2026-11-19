@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -5745,7 +5746,7 @@ func TestWriteUserUpdateError(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
-			writeUserUpdateError(rr, tc.err)
+			writeUserUpdateError(context.Background(), rr, "UpdateUser", tc.err)
 			if rr.Code != tc.wantCode {
 				t.Errorf(wrongStatusCode, rr.Code, tc.wantCode)
 			}
@@ -5830,5 +5831,190 @@ func TestHandleListMyIssuesDBError(t *testing.T) {
 	}
 	if body := rr.Body.String(); body != errMsgInternalServerError+"\n" {
 		t.Errorf("expected the generic error message, got %q", body)
+	}
+}
+
+// --- Error logging: each failure logged once, client aborts not as errors ---
+
+const testFailure = "boom"
+
+// logEntries parses the captured JSON log lines.
+func logEntries(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var entries []map[string]any
+	for line := range strings.SplitSeq(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var e map[string]any
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("log line is not JSON: %q", line)
+		}
+		entries = append(entries, e)
+	}
+	return entries
+}
+
+// An aborted request logs at DEBUG and sets 499, a timeout stays an error.
+func TestWriteInternalError(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	expired, cancelExpired := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelExpired()
+	cases := []struct {
+		name      string
+		ctx       context.Context
+		wantCode  int
+		wantLevel string
+		wantBody  string
+	}{
+		{"server error", context.Background(), http.StatusInternalServerError, "ERROR", errMsgInternalServerError},
+		{"client closed request", canceled, statusClientClosedRequest, "DEBUG", ""},
+		{"request timeout", expired, http.StatusInternalServerError, "ERROR", errMsgInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf, restore := captureLogsAt(t, slog.LevelDebug)
+			defer restore()
+			rr := httptest.NewRecorder()
+			writeInternalError(tc.ctx, rr, "op failed", errors.New(testFailure), "id", 7)
+			if rr.Code != tc.wantCode {
+				t.Errorf(wrongStatusCode, rr.Code, tc.wantCode)
+			}
+			if got := strings.TrimSpace(rr.Body.String()); got != tc.wantBody {
+				t.Errorf("body = %q, want %q", got, tc.wantBody)
+			}
+			entries := logEntries(t, buf)
+			if len(entries) != 1 {
+				t.Fatalf("want one log line, got %d: %s", len(entries), buf)
+			}
+			if e := entries[0]; e["level"] != tc.wantLevel || e["error"] != testFailure || e["id"] != float64(7) {
+				t.Errorf("want one %s line with error and id, got %v", tc.wantLevel, e)
+			}
+		})
+	}
+}
+
+// A DB failure appears once in the log: from the handler, with the DB function's context.
+func TestDBFailureLoggedOnce(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	if _, err := DB.Exec("DROP TABLE labels"); err != nil {
+		t.Fatal(err)
+	}
+	buf, restore := captureLogsAt(t, slog.LevelDebug)
+	defer restore()
+
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, httptest.NewRequest("GET", "/api/projects/1/labels", nil))
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+	entries := logEntries(t, buf)
+	if len(entries) != 1 || entries[0]["level"] != "ERROR" || entries[0]["msg"] != "GetLabelsByProject failed" ||
+		!strings.Contains(fmt.Sprint(entries[0]["error"]), "GetLabelsByProject: ") {
+		t.Errorf("want one ERROR line from the handler with the DB context, got %s", buf)
+	}
+}
+
+// A request the client closed is no error: no WARN or ERROR line, and the access log shows 499.
+func TestClientClosedRequestNotLoggedAsError(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	buf, restore := captureLogsAt(t, slog.LevelDebug)
+	defer restore()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	rr := httptest.NewRecorder()
+	WithLogging(testAPI).ServeHTTP(rr, httptest.NewRequest("GET", "/api/projects/1/issues/active", nil).WithContext(ctx))
+
+	if rr.Code != statusClientClosedRequest {
+		t.Errorf(wrongStatusCode, rr.Code, statusClientClosedRequest)
+	}
+	var access map[string]any
+	for _, e := range logEntries(t, buf) {
+		if e["level"] == "WARN" || e["level"] == "ERROR" {
+			t.Errorf("unexpected %s line: %v", e["level"], e)
+		}
+		if e["msg"] == "HTTP Request" {
+			access = e
+		}
+	}
+	if access == nil || access["status"] != float64(statusClientClosedRequest) {
+		t.Errorf("want the access log with status 499, got %s", buf)
+	}
+}
+
+// The re-fetch after a release write used to answer 500 without any log line.
+func TestRespondWithUpdatedReleaseLogsFailure(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	buf, restore := captureLogs(t)
+	defer restore()
+
+	rr := httptest.NewRecorder()
+	respondWithUpdatedRelease(context.Background(), rr, 999, "handlePutRelease", testEmail)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+	entries := logEntries(t, buf)
+	if len(entries) != 1 || entries[0]["level"] != "ERROR" || entries[0]["error"] != ErrReleaseNotFound.Error() {
+		t.Errorf("want one ERROR line naming the missing release, got %s", buf)
+	}
+}
+
+// swapClosedDB replaces DB with a closed one until the test ends.
+func swapClosedDB(t *testing.T) {
+	t.Helper()
+	oldDB := DB
+	t.Cleanup(func() { DB = oldDB })
+	closedDB, err := sql.Open("sqlite3", sqliteMemoryDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closedDB.Close()
+	DB = closedDB
+}
+
+// The admin lookup failure keeps its cause in the one ERROR line.
+func TestVerifyAdminPasswordLogsDBCause(t *testing.T) {
+	swapClosedDB(t)
+	buf, restore := captureLogs(t)
+	defer restore()
+
+	rr := httptest.NewRecorder()
+	if verifyAdminPasswordOrRespond(rr, httptest.NewRequest("DELETE", apiIssues1, nil), testEmail, testPassword, "DeleteIssue") {
+		t.Fatal("want false on a DB failure")
+	}
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+	entries := logEntries(t, buf)
+	if len(entries) != 1 || entries[0]["level"] != "ERROR" ||
+		!strings.Contains(fmt.Sprint(entries[0]["error"]), errAdminCheckDB.Error()+": GetUserByEmail: ") {
+		t.Errorf("want one ERROR line with the DB cause, got %s", buf)
+	}
+}
+
+// Logout is best-effort, but a failed session lookup is no longer silent.
+func TestLogoutLogsSessionLookupFailure(t *testing.T) {
+	token, _, err := GenerateRefreshToken("session-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	swapClosedDB(t)
+	buf, restore := captureLogs(t)
+	defer restore()
+
+	req := httptest.NewRequest("POST", apiAuthLogout, nil)
+	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: token})
+	revokeSessionFromCookie(req)
+
+	entries := logEntries(t, buf)
+	if len(entries) != 1 || entries[0]["level"] != "WARN" || entries[0]["msg"] != "Logout: failed to look up session" {
+		t.Errorf("want one WARN line for the lookup failure, got %s", buf)
 	}
 }

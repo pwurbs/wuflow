@@ -225,9 +225,15 @@ func TestWithLogging(t *testing.T) {
 // code emits an expected warning.
 func captureLogs(t *testing.T) (*bytes.Buffer, func()) {
 	t.Helper()
+	return captureLogsAt(t, slog.LevelWarn)
+}
+
+// captureLogsAt is captureLogs for every line at level and above.
+func captureLogsAt(t *testing.T, level slog.Level) (*bytes.Buffer, func()) {
+	t.Helper()
 	buf := &bytes.Buffer{}
 	orig := safeLogger
-	safeLogger = slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	safeLogger = slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: level}))
 	return buf, func() { safeLogger = orig }
 }
 

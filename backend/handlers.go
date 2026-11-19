@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -58,25 +59,53 @@ var errAdminCheckDB = errors.New("internal admin count check failed")
 // password passed validation — an internal error (→ 500), not a client error.
 var errPasswordHash = errors.New("failed to hash password")
 
-// writeUserUpdateError sends internal failures (admin count query, password hashing)
+// statusClientClosedRequest is nginx's status for a request the client closed before
+// the answer. No client receives it, it only marks the abort in the access log.
+const statusClientClosedRequest = 499
+
+// writeInternalError logs err once and answers 500. If the client has closed the
+// request, the failure follows from that: it logs at DEBUG and sets
+// statusClientClosedRequest instead.
+func writeInternalError(ctx context.Context, w http.ResponseWriter, msg string, err error, args ...any) {
+	args = append(slices.Clip(args), "error", err)
+	if errors.Is(ctx.Err(), context.Canceled) {
+		LogDebug(msg+" (client closed request)", args...)
+		w.WriteHeader(statusClientClosedRequest)
+		return
+	}
+	LogError(msg, args...)
+	http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+}
+
+// writeUserUpdateError sends internal failures (admin account lookup, password hashing)
 // as a generic 500 and validation errors with their message as 400.
-func writeUserUpdateError(w http.ResponseWriter, err error) {
+func writeUserUpdateError(ctx context.Context, w http.ResponseWriter, logPrefix string, err error, args ...any) {
 	if errors.Is(err, errAdminCheckDB) || errors.Is(err, errPasswordHash) {
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, logPrefix+" failed", err, args...)
 		return
 	}
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 
+// warnPasswordRejected logs a new password that failed validation. A hashing
+// failure is internal and is logged by writeUserUpdateError instead.
+func warnPasswordRejected(logPrefix string, err error, args ...any) {
+	if !errors.Is(err, errPasswordHash) {
+		LogWarn(logPrefix+": password validation failed", append(slices.Clip(args), "error", err)...)
+	}
+}
+
 // verifyAdminPassword confirms adminEmail's account matches providedPassword,
-// used to re-authenticate an admin before a sensitive action. Returns
-// errAdminCheckDB if the admin's account can't be loaded (existing sentinel,
-// already handled via errors.Is by callers), or a plain error if the password
-// is missing or incorrect.
+// used to re-authenticate an admin before a sensitive action. Returns an error
+// wrapping errAdminCheckDB if the admin's account can't be loaded (callers check
+// it via errors.Is), or a plain error if the password is missing or incorrect.
 func verifyAdminPassword(ctx context.Context, adminEmail, providedPassword string) error {
 	adminUser, err := GetUserByEmail(ctx, adminEmail)
-	if err != nil || adminUser == nil {
-		return errAdminCheckDB
+	if err != nil {
+		return fmt.Errorf("%w: %w", errAdminCheckDB, err)
+	}
+	if adminUser == nil {
+		return fmt.Errorf("%w: requesting user not found", errAdminCheckDB)
 	}
 	if providedPassword == "" || !CheckPassword(adminUser.PasswordHash, providedPassword) {
 		return errors.New(errMsgAdminPasswordRequired)
@@ -106,8 +135,7 @@ func requireAdminPassword(w http.ResponseWriter, r *http.Request, userEmail, log
 func verifyAdminPasswordOrRespond(w http.ResponseWriter, r *http.Request, userEmail, password, logPrefix string, extraLogArgs ...any) bool {
 	if err := verifyAdminPassword(r.Context(), userEmail, password); err != nil {
 		if errors.Is(err, errAdminCheckDB) {
-			LogError(logPrefix+": failed to load requesting user", "user_email", userEmail)
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			writeInternalError(r.Context(), w, logPrefix+": failed to load requesting user", err, "user_email", userEmail)
 			return false
 		}
 		args := append(append([]any{}, extraLogArgs...), "user_email", userEmail)
@@ -175,8 +203,7 @@ func checkProjectAccess(w http.ResponseWriter, r *http.Request) (int, bool) {
 	}
 	exists, err := ProjectAccessible(r.Context(), GetUserIDFromContext(r.Context()), pID)
 	if err != nil {
-		LogError("checkProjectAccess: ProjectAccessible failed", "project_id", pID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "checkProjectAccess: ProjectAccessible failed", err, "project_id", pID)
 		return 0, false
 	}
 	if !exists {
@@ -293,8 +320,7 @@ func withIssue(action Action, h issueHandler) http.HandlerFunc {
 		}
 		issue, err := GetIssueByIDInProject(r.Context(), issueID, projectID)
 		if err != nil {
-			LogError("withIssue: GetIssueByIDInProject failed", "issue_id", issueID, "project_id", projectID, "error", err)
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			writeInternalError(r.Context(), w, "withIssue: GetIssueByIDInProject failed", err, "issue_id", issueID, "project_id", projectID)
 			return
 		}
 		if issue == nil {
@@ -325,8 +351,7 @@ func withIssueResource(action Action, h issueResHandler) http.HandlerFunc {
 		}
 		issue, err := GetIssueByIDInProject(r.Context(), issueID, projectID)
 		if err != nil {
-			LogError("withIssueResource: GetIssueByIDInProject failed", "issue_id", issueID, "project_id", projectID, "error", err)
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			writeInternalError(r.Context(), w, "withIssueResource: GetIssueByIDInProject failed", err, "issue_id", issueID, "project_id", projectID)
 			return
 		}
 		if issue == nil {
@@ -342,7 +367,7 @@ func withIssueResource(action Action, h issueResHandler) http.HandlerFunc {
 }
 
 // checkAssignee verifies AssigneeID against the DB
-func checkAssignee(ctx context.Context, w http.ResponseWriter, i *Issue, current *Issue, userEmail string) bool {
+func checkAssignee(ctx context.Context, w http.ResponseWriter, i, current *Issue, userEmail string) bool {
 	if i.AssigneeID == nil {
 		return true
 	}
@@ -351,8 +376,7 @@ func checkAssignee(ctx context.Context, w http.ResponseWriter, i *Issue, current
 		// New assignee: must exist and be active
 		active, err := UserExistsAndActive(ctx, *i.AssigneeID)
 		if err != nil {
-			LogError("Validate: UserExistsAndActive failed", "error", err, "user_email", userEmail)
-			http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+			writeInternalError(ctx, w, "Validate: UserExistsAndActive failed", err, "user_email", userEmail)
 			return false
 		}
 		if !active {
@@ -366,8 +390,7 @@ func checkAssignee(ctx context.Context, w http.ResponseWriter, i *Issue, current
 	// Same assignee: must exist (can be inactive now)
 	exists, err := UserExists(ctx, *i.AssigneeID)
 	if err != nil {
-		LogError("Validate: UserExists failed", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, "Validate: UserExists failed", err, "user_email", userEmail)
 		return false
 	}
 	if !exists {
@@ -387,8 +410,7 @@ func checkLabel(ctx context.Context, w http.ResponseWriter, i *Issue, userEmail 
 
 	exists, err := LabelExistsInProject(ctx, i.Label.ID, i.ProjectID)
 	if err != nil {
-		LogError("Validate: LabelExistsInProject failed", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, "Validate: LabelExistsInProject failed", err, "user_email", userEmail)
 		return false
 	}
 	if !exists {
@@ -407,8 +429,7 @@ func checkRelease(ctx context.Context, w http.ResponseWriter, i *Issue, userEmai
 	}
 	exists, err := ReleaseExistsInProject(ctx, *i.ReleaseID, i.ProjectID)
 	if err != nil {
-		LogError("Validate: ReleaseExistsInProject failed", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, "Validate: ReleaseExistsInProject failed", err, "user_email", userEmail)
 		return false
 	}
 	if !exists {
@@ -438,15 +459,13 @@ func handleCreateIssue(w http.ResponseWriter, r *http.Request, projectID int) {
 	}
 
 	if err := CreateIssue(r.Context(), &i); err != nil {
-		LogError("CreateIssue failed", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateIssue failed", err, "user_email", userEmail)
 		return
 	}
 
 	created, err := GetIssueByID(r.Context(), i.ID)
 	if err != nil {
-		LogError("CreateIssue: failed to fetch created issue", "id", i.ID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateIssue: failed to fetch created issue", err, "id", i.ID, "user_email", userEmail)
 		return
 	}
 
@@ -466,8 +485,7 @@ func handleCreateIssue(w http.ResponseWriter, r *http.Request, projectID int) {
 func handleGetIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	issue, err := GetIssueByIDInProject(r.Context(), id, projectID)
 	if err != nil {
-		LogError("GetIssueByIDInProject failed", "id", id, "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetIssueByIDInProject failed", err, "id", id, "project_id", projectID)
 		return
 	}
 	if issue == nil {
@@ -496,8 +514,7 @@ func handleIssueArchiveToggle(w http.ResponseWriter, r *http.Request, projectID,
 
 	current, err := GetIssueByIDInProject(r.Context(), id, projectID)
 	if err != nil {
-		LogError("GetIssueByIDInProject failed for "+opts.logAction, "id", id, "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetIssueByIDInProject failed for "+opts.logAction, err, "id", id, "project_id", projectID, "user_email", userEmail)
 		return
 	}
 	if current == nil {
@@ -511,8 +528,7 @@ func handleIssueArchiveToggle(w http.ResponseWriter, r *http.Request, projectID,
 	}
 	current.Status = opts.newStatus
 	if err := UpdateIssue(r.Context(), current); err != nil {
-		LogError("UpdateIssue failed for "+opts.logAction, "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateIssue failed for "+opts.logAction, err, "id", id, "user_email", userEmail)
 		return
 	}
 	recordHistory(r.Context(), id, GetUserIDFromContext(r.Context()), opts.event, ChangeData{})
@@ -554,8 +570,7 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 
 	current, err := GetIssueByIDInProject(r.Context(), id, projectID)
 	if err != nil {
-		LogError("GetIssueByIDInProject failed for move", "id", id, "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetIssueByIDInProject failed for move", err, "id", id, "project_id", projectID, "user_email", userEmail)
 		return
 	}
 	if current == nil {
@@ -587,8 +602,7 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 
 	newProject, err := GetProjectByID(r.Context(), req.NewProjectID)
 	if err != nil {
-		LogError("GetProjectByID failed for move", "new_project_id", req.NewProjectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetProjectByID failed for move", err, "new_project_id", req.NewProjectID, "user_email", userEmail)
 		return
 	}
 	if newProject == nil {
@@ -605,8 +619,7 @@ func handleMoveIssue(w http.ResponseWriter, r *http.Request, projectID, id int) 
 	moved.UpdaterID = &updaterID
 
 	if err := UpdateIssue(r.Context(), &moved); err != nil {
-		LogError("UpdateIssue failed for move", "id", id, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateIssue failed for move", err, "id", id)
 		return
 	}
 
@@ -659,7 +672,7 @@ func issueContentHash(i *Issue) string {
 // persistIssueUpdate routes to UpdateIssuePosition (no timestamp recorded) when only position
 // changed, or UpdateIssue (full update with timestamp) when content changed.
 // Returns false if an error response was already sent.
-func persistIssueUpdate(ctx context.Context, w http.ResponseWriter, i *Issue, current *Issue, userEmail string) bool {
+func persistIssueUpdate(ctx context.Context, w http.ResponseWriter, i, current *Issue, userEmail string) bool {
 	if issueContentHash(i) == issueContentHash(current) {
 		if i.Position != current.Position {
 			if err := UpdateIssuePosition(ctx, i.ID, i.Position); err != nil {
@@ -667,8 +680,7 @@ func persistIssueUpdate(ctx context.Context, w http.ResponseWriter, i *Issue, cu
 					http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 					return false
 				}
-				LogError("UpdateIssuePosition failed", "id", i.ID, "error", err, "user_email", userEmail)
-				http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+				writeInternalError(ctx, w, "UpdateIssuePosition failed", err, "id", i.ID, "user_email", userEmail)
 				return false
 			}
 		}
@@ -679,8 +691,7 @@ func persistIssueUpdate(ctx context.Context, w http.ResponseWriter, i *Issue, cu
 			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 			return false
 		}
-		LogError("UpdateIssue failed", "id", i.ID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, "UpdateIssue failed", err, "id", i.ID, "user_email", userEmail)
 		return false
 	}
 	return true
@@ -690,8 +701,7 @@ func persistIssueUpdate(ctx context.Context, w http.ResponseWriter, i *Issue, cu
 func handlePutIssue(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	current, err := GetIssueByIDInProject(r.Context(), id, projectID)
 	if err != nil {
-		LogError("GetIssueByIDInProject failed for put", "id", id, "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetIssueByIDInProject failed for put", err, "id", id, "project_id", projectID)
 		return
 	}
 	if current == nil {
@@ -766,8 +776,7 @@ func handlePutIssuePositions(w http.ResponseWriter, r *http.Request, projectID i
 			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("UpdateIssuePositions failed", "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateIssuePositions failed", err, "project_id", projectID, "user_email", userEmail)
 		return
 	}
 	LogInfo("Issue positions updated", "project_id", projectID, "count", len(updates), "user_email", userEmail)
@@ -796,8 +805,7 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, projectID, id int
 
 	issue, err := GetIssueByIDInProject(r.Context(), id, projectID)
 	if err != nil {
-		LogError("GetIssueByIDInProject failed for delete check", "id", id, "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetIssueByIDInProject failed for delete check", err, "id", id, "project_id", projectID, "user_email", userEmail)
 		return
 	}
 	if issue == nil {
@@ -819,8 +827,7 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, projectID, id int
 			http.Error(w, errMsgIssueNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("DeleteIssue failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteIssue failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	LogInfo("Issue deleted", "id", id, "user_email", userEmail)
@@ -828,7 +835,7 @@ func handleDeleteIssue(w http.ResponseWriter, r *http.Request, projectID, id int
 }
 
 // handleCreateTask handles POST /api/projects/{pId}/issues/{iId}/tasks.
-func handleCreateTask(w http.ResponseWriter, r *http.Request, _ int, issueID int, issue *Issue) {
+func handleCreateTask(w http.ResponseWriter, r *http.Request, _, issueID int, issue *Issue) {
 	var t Task
 	if !decodeAndValidate(w, r, &t, validateTask) {
 		return
@@ -844,8 +851,7 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 	}
 
 	if err := CreateTask(r.Context(), &t); err != nil {
-		LogError("CreateTask failed", "issue_id", issueID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateTask failed", err, "issue_id", issueID, "user_email", userEmail)
 		return
 	}
 	recordHistory(r.Context(), issueID, GetUserIDFromContext(r.Context()), EventTask, ChangeData{Field: "task_added", Detail: "Task: Added '" + t.Title + "'"})
@@ -861,7 +867,7 @@ func handleCreateTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 // Unlike handlePutIssue, this does not check If-Match/ETag: concurrent edits to the same
 // task are last-write-wins, the only conflict feedback being ErrTaskNotFound (404) if the
 // task was deleted by someone else first. Known/intentional, not an oversight.
-func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, issue *Issue) {
+func handlePutTask(w http.ResponseWriter, r *http.Request, _, issueID, id int, issue *Issue) {
 	var t Task
 	if !decodeAndValidate(w, r, &t, validateTask) {
 		return
@@ -883,8 +889,7 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("UpdateTask failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateTask failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	if cd := taskUpdateChange(oldTask, &t); cd.Field != "" {
@@ -899,7 +904,7 @@ func handlePutTask(w http.ResponseWriter, r *http.Request, _ int, issueID, id in
 
 // handlePutTaskPositions saves a reorder of an issue's tasks in one request.
 // Only positions change; no history entry is recorded.
-func handlePutTaskPositions(w http.ResponseWriter, r *http.Request, _ int, issueID int, issue *Issue) {
+func handlePutTaskPositions(w http.ResponseWriter, r *http.Request, _, issueID int, issue *Issue) {
 	var updates []PositionUpdate
 	if !decodeAndValidate(w, r, &updates, validatePositionUpdates) {
 		return
@@ -918,8 +923,7 @@ func handlePutTaskPositions(w http.ResponseWriter, r *http.Request, _ int, issue
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("UpdateTaskPositions failed", "issue_id", issueID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateTaskPositions failed", err, "issue_id", issueID, "user_email", userEmail)
 		return
 	}
 	LogInfo("Task positions updated", "issue_id", issueID, "count", len(updates), "user_email", userEmail)
@@ -927,7 +931,7 @@ func handlePutTaskPositions(w http.ResponseWriter, r *http.Request, _ int, issue
 }
 
 // handleDeleteTask removes a task.
-func handleDeleteTask(w http.ResponseWriter, r *http.Request, _ int, issueID int, id int, issue *Issue) {
+func handleDeleteTask(w http.ResponseWriter, r *http.Request, _, issueID, id int, issue *Issue) {
 	if issue.Status == StatusArchive {
 		http.Error(w, "Tasks of archived issues cannot be deleted", http.StatusForbidden)
 		return
@@ -942,8 +946,7 @@ func handleDeleteTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 			http.Error(w, errMsgTaskNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("DeleteTask failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteTask failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	deletedTitle := "a task"
@@ -956,11 +959,10 @@ func handleDeleteTask(w http.ResponseWriter, r *http.Request, _ int, issueID int
 }
 
 // handleListHistory returns an issue's audit trail (oldest first).
-func handleListHistory(w http.ResponseWriter, r *http.Request, _ int, issueID int, _ *Issue) {
+func handleListHistory(w http.ResponseWriter, r *http.Request, _, issueID int, _ *Issue) {
 	history, err := GetHistoryByIssueID(r.Context(), issueID)
 	if err != nil {
-		LogError("GetHistoryByIssueID failed", "issue_id", issueID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetHistoryByIssueID failed", err, "issue_id", issueID)
 		return
 	}
 	w.Header().Set(headerContentType, contentTypeJSON)
@@ -970,11 +972,10 @@ func handleListHistory(w http.ResponseWriter, r *http.Request, _ int, issueID in
 }
 
 // handleListComments returns an issue's comments (oldest first).
-func handleListComments(w http.ResponseWriter, r *http.Request, _ int, issueID int, _ *Issue) {
+func handleListComments(w http.ResponseWriter, r *http.Request, _, issueID int, _ *Issue) {
 	comments, err := GetCommentsByIssueID(r.Context(), issueID)
 	if err != nil {
-		LogError("GetCommentsByIssueID failed", "issue_id", issueID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetCommentsByIssueID failed", err, "issue_id", issueID)
 		return
 	}
 	w.Header().Set(headerContentType, contentTypeJSON)
@@ -984,7 +985,7 @@ func handleListComments(w http.ResponseWriter, r *http.Request, _ int, issueID i
 }
 
 // handleCreateComment adds a comment to a non-archived issue.
-func handleCreateComment(w http.ResponseWriter, r *http.Request, _ int, issueID int, issue *Issue) {
+func handleCreateComment(w http.ResponseWriter, r *http.Request, _, issueID int, issue *Issue) {
 	var c Comment
 	if !decodeAndValidate(w, r, &c, validateComment) {
 		return
@@ -1002,8 +1003,7 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request, _ int, issueID 
 	c.UserID = &userID
 
 	if err := CreateComment(r.Context(), &c); err != nil {
-		LogError("CreateComment failed", "issue_id", issueID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateComment failed", err, "issue_id", issueID, "user_email", userEmail)
 		return
 	}
 
@@ -1026,7 +1026,7 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request, _ int, issueID 
 // Unlike handlePutIssue, this does not check If-Match/ETag: concurrent edits to the same
 // comment are last-write-wins, the only conflict feedback being ErrCommentNotFound (404)
 // if the comment was deleted by someone else first. Known/intentional, not an oversight.
-func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, issue *Issue) {
+func handlePutComment(w http.ResponseWriter, r *http.Request, _, issueID, id int, issue *Issue) {
 	var c Comment
 	if !decodeAndValidate(w, r, &c, validateComment) {
 		return
@@ -1047,15 +1047,13 @@ func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id
 			http.Error(w, errMsgCommentNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("UpdateComment failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateComment failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 
 	updated, err := GetCommentByID(r.Context(), id, issueID)
 	if err != nil {
-		LogError("handlePutComment: failed to fetch updated comment", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "handlePutComment: failed to fetch updated comment", err, "id", id, "user_email", userEmail)
 		return
 	}
 	LogInfo("Comment updated", "id", id, "issue_id", issueID, "user_email", userEmail)
@@ -1066,7 +1064,7 @@ func handlePutComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id
 }
 
 // handleDeleteComment removes a comment, with the same author/admin scope as edit.
-func handleDeleteComment(w http.ResponseWriter, r *http.Request, _ int, issueID, id int, issue *Issue) {
+func handleDeleteComment(w http.ResponseWriter, r *http.Request, _, issueID, id int, issue *Issue) {
 	userEmail := GetEmailFromContext(r.Context())
 
 	if issue.Status == StatusArchive {
@@ -1082,8 +1080,7 @@ func handleDeleteComment(w http.ResponseWriter, r *http.Request, _ int, issueID,
 			http.Error(w, errMsgCommentNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("DeleteComment failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteComment failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	LogInfo("Comment deleted", "id", id, "issue_id", issueID, "user_email", userEmail)
@@ -1114,8 +1111,7 @@ func commentAuthorFilter(r *http.Request) *int {
 func handleListLabels(w http.ResponseWriter, r *http.Request, projectID int) {
 	labels, err := GetLabelsByProject(r.Context(), projectID)
 	if err != nil {
-		LogError("GetLabelsByProject failed", "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetLabelsByProject failed", err, "project_id", projectID)
 		return
 	}
 	w.Header().Set(headerContentType, contentTypeJSON)
@@ -1133,8 +1129,7 @@ func handleCreateLabel(w http.ResponseWriter, r *http.Request, projectID int) {
 	l.ProjectID = projectID
 	userEmail := GetEmailFromContext(r.Context())
 	if err := CreateLabel(r.Context(), &l); err != nil {
-		LogError("CreateLabel failed", "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateLabel failed", err, "project_id", projectID, "user_email", userEmail)
 		return
 	}
 	LogInfo("Label created", "id", l.ID, "project_id", projectID, "user_email", userEmail)
@@ -1159,8 +1154,7 @@ func handleDeleteLabel(w http.ResponseWriter, r *http.Request, projectID, labelI
 			http.Error(w, errMsgLabelNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("DeleteLabel failed", "label_id", labelID, "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteLabel failed", err, "label_id", labelID, "project_id", projectID)
 		return
 	}
 	LogInfo("Label deleted", "label_id", labelID, "project_id", projectID, "user_email", userEmail)
@@ -1171,8 +1165,7 @@ func handleDeleteLabel(w http.ResponseWriter, r *http.Request, projectID, labelI
 func handleGetStatusConfig(w http.ResponseWriter, r *http.Request, projectID int) {
 	cfg, err := GetStatusConfig(r.Context(), projectID)
 	if err != nil {
-		LogError("GetStatusConfig failed", "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetStatusConfig failed", err, "project_id", projectID)
 		return
 	}
 	w.Header().Set(headerContentType, contentTypeJSON)
@@ -1190,8 +1183,7 @@ func handleUpdateStatusConfig(w http.ResponseWriter, r *http.Request, projectID 
 	cfg.ProjectID = projectID
 	userEmail := GetEmailFromContext(r.Context())
 	if err := UpsertStatusConfig(r.Context(), &cfg); err != nil {
-		LogError("UpsertStatusConfig failed", "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpsertStatusConfig failed", err, "project_id", projectID, "user_email", userEmail)
 		return
 	}
 	LogInfo("Status config updated", "project_id", projectID, "user_email", userEmail)
@@ -1253,8 +1245,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	user, err := GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
-		LogError("Login: database error", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "Login: database error", err)
 		return
 	}
 	if user == nil {
@@ -1284,8 +1275,7 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// Use Auth Service to create session
 	session, accessToken, refreshToken, err := CreateUserSession(r.Context(), user)
 	if err != nil {
-		LogError("Login: failed to create session", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "Login: failed to create session", err)
 		return
 	}
 
@@ -1335,7 +1325,11 @@ func revokeSessionFromCookie(r *http.Request) {
 		return
 	}
 	session, err := GetSessionByToken(r.Context(), sessionToken)
-	if err != nil || session == nil {
+	if err != nil {
+		LogWarn("Logout: failed to look up session", "error", err)
+		return
+	}
+	if session == nil {
 		return
 	}
 	if err := RevokeSession(r.Context(), session.ID); err != nil {
@@ -1423,8 +1417,7 @@ func HandleUpdateSelf(w http.ResponseWriter, r *http.Request) {
 func handleGetCurrentUser(ctx context.Context, w http.ResponseWriter, userID int) {
 	user, err := GetUserByID(ctx, userID)
 	if err != nil {
-		LogError("CurrentUser: database error", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, "CurrentUser: database error", err)
 		return
 	}
 	if user == nil {
@@ -1444,8 +1437,7 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 	// Load existing user first
 	existing, err := GetUserByID(r.Context(), userID)
 	if err != nil {
-		LogError("UpdateSelf: database error", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateSelf: database error", err)
 		return
 	}
 	if existing == nil {
@@ -1471,16 +1463,15 @@ func handleUpdateSelf(w http.ResponseWriter, r *http.Request, userID int) {
 			return
 		}
 		if err := updateUserPassword(existing, req.Password); err != nil {
-			LogError("UpdateSelf: password error", "error", err)
-			writeUserUpdateError(w, err)
+			warnPasswordRejected("UpdateSelf", err, "user_id", userID)
+			writeUserUpdateError(r.Context(), w, "UpdateSelf", err, "user_id", userID)
 			return
 		}
 	}
 
 	// Persist changes
 	if err := UpdateUser(r.Context(), existing); err != nil {
-		LogError("UpdateSelf: database error", "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateSelf: database error", err)
 		return
 	}
 
@@ -1546,8 +1537,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := GetAllUsers(r.Context())
 	if err != nil {
 		userEmail := GetEmailFromContext(r.Context())
-		LogError("ListUsers: database error", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "ListUsers: database error", err, "admin_email", userEmail)
 		return
 	}
 
@@ -1587,8 +1577,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := HashPassword(req.Password)
 	if err != nil {
-		LogError("CreateUser: failed to hash password", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateUser: failed to hash password", err, "admin_email", userEmail)
 		return
 	}
 	user.PasswordHash = hash
@@ -1599,8 +1588,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Email already exists", http.StatusConflict)
 			return
 		}
-		LogError("CreateUser: database error", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateUser: database error", err, "admin_email", userEmail)
 		return
 	}
 
@@ -1617,8 +1605,7 @@ func handleGetUser(w http.ResponseWriter, r *http.Request, id int) {
 
 	user, err := GetUserByID(r.Context(), id)
 	if err != nil {
-		LogError("GetUser: database error", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetUser: database error", err, "admin_email", userEmail)
 		return
 	}
 	if user == nil {
@@ -1639,8 +1626,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 	// Load existing user first
 	existing, err := GetUserByID(r.Context(), id)
 	if err != nil {
-		LogError("UpdateUser: database error", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateUser: database error", err, "admin_email", userEmail)
 		return
 	}
 	if existing == nil {
@@ -1656,7 +1642,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 
 	revokeSessions, err := validateAndPrepareUserUpdate(r.Context(), existing, req, userEmail)
 	if err != nil {
-		writeUserUpdateError(w, err)
+		writeUserUpdateError(r.Context(), w, "UpdateUser", err, "target_id", id, "admin_email", userEmail)
 		return
 	}
 
@@ -1671,8 +1657,7 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request, id int) {
 			http.Error(w, errMsgLastSysAdmin, http.StatusBadRequest)
 			return
 		}
-		LogError("UpdateUser: database error", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateUser: database error", err, "admin_email", userEmail)
 		return
 	}
 
@@ -1710,8 +1695,7 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request, id int) {
 
 	target, err := GetUserByID(r.Context(), id)
 	if err != nil {
-		LogError("DeleteUser: database error", "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteUser: database error", err, "admin_email", userEmail)
 		return
 	}
 	if target == nil {
@@ -1732,8 +1716,7 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request, id int) {
 			http.Error(w, errMsgLastSysAdmin, http.StatusBadRequest)
 			return
 		}
-		LogError("DeleteUser failed", "target_id", id, "error", err, "admin_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteUser failed", err, "target_id", id, "admin_email", userEmail)
 		return
 	}
 
@@ -1777,7 +1760,7 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	if req.Password != "" || roleRank(req.Role) > roleRank(originalRole) || req.Active != originalActive || emailChanged {
 		if err := verifyAdminPassword(ctx, userEmail, req.AdminPassword); err != nil {
 			if errors.Is(err, errAdminCheckDB) {
-				return false, errAdminCheckDB
+				return false, err
 			}
 			LogWarn("UpdateUser: admin password confirmation failed", "admin_email", userEmail, "target_id", existing.ID)
 			return false, errors.New(errMsgAdminPasswordRequired)
@@ -1785,7 +1768,7 @@ func validateAndPrepareUserUpdate(ctx context.Context, existing *User, req userR
 	}
 
 	if err := updateUserPassword(existing, req.Password); err != nil {
-		LogError("UpdateUser: password error", "error", err, "admin_email", userEmail)
+		warnPasswordRejected("UpdateUser", err, "admin_email", userEmail)
 		return false, err
 	}
 
@@ -1815,11 +1798,27 @@ func updateUserPassword(user *User, newPassword string) error {
 func respondWithUpdatedIssue(ctx context.Context, w http.ResponseWriter, id int, actionLog, userEmail string) {
 	updated, err := GetIssueByID(ctx, id)
 	if err != nil {
-		LogError("GetIssueByID failed after update", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, "GetIssueByID failed after update", err, "id", id, "user_email", userEmail)
 		return
 	}
 	respondWithIssue(w, updated, actionLog, userEmail)
+}
+
+// respondWithUpdatedRelease fetches the release after a write and encodes it. name is
+// the calling handler for the log.
+func respondWithUpdatedRelease(ctx context.Context, w http.ResponseWriter, id int, name, userEmail string) {
+	updated, err := GetReleaseByID(ctx, id)
+	if err == nil && updated == nil {
+		err = ErrReleaseNotFound
+	}
+	if err != nil {
+		writeInternalError(ctx, w, name+": failed to fetch updated release", err, "id", id, "user_email", userEmail)
+		return
+	}
+	w.Header().Set(headerContentType, contentTypeJSON)
+	if err := json.NewEncoder(w).Encode(updated); err != nil {
+		LogError(name+": failed to encode response", "error", err)
+	}
 }
 
 // respondWithIssue sets ETag, logs the action, and writes the JSON response for an
@@ -1864,8 +1863,7 @@ func handleListProjects(w http.ResponseWriter, r *http.Request) {
 	projects, err := GetAllProjects(r.Context())
 	if err != nil {
 		userEmail := GetEmailFromContext(r.Context())
-		LogError("ListProjects: database error", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "ListProjects: database error", err, "user_email", userEmail)
 		return
 	}
 
@@ -1889,8 +1887,7 @@ func handleCreateProject(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Project name already exists", http.StatusConflict)
 			return
 		}
-		LogError("CreateProject failed", "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateProject failed", err, "user_email", userEmail)
 		return
 	}
 
@@ -1904,11 +1901,10 @@ func handleCreateProject(w http.ResponseWriter, r *http.Request) {
 
 // fetchAndEncodeIssues is the shared body of the issue-list endpoints. logArgs identify the
 // list in the error log (e.g. "project_id", id).
-func fetchAndEncodeIssues[T any](w http.ResponseWriter, name string, fetch func() ([]T, error), logArgs ...any) {
+func fetchAndEncodeIssues[T any](ctx context.Context, w http.ResponseWriter, name string, fetch func() ([]T, error), logArgs ...any) {
 	issues, err := fetch()
 	if err != nil {
-		LogError(name+" failed", append(logArgs, "error", err)...)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(ctx, w, name+" failed", err, logArgs...)
 		return
 	}
 	w.Header().Set(headerContentType, contentTypeJSON)
@@ -1921,25 +1917,25 @@ func fetchAndEncodeIssues[T any](w http.ResponseWriter, name string, fetch func(
 // requesting user across all projects. The user comes only from the session.
 func handleListMyIssues(w http.ResponseWriter, r *http.Request) {
 	userID := GetUserIDFromContext(r.Context())
-	fetchAndEncodeIssues(w, "handleListMyIssues", func() ([]MyIssue, error) {
+	fetchAndEncodeIssues(r.Context(), w, "handleListMyIssues", func() ([]MyIssue, error) {
 		return GetMyActiveIssues(r.Context(), userID)
 	}, "user_id", userID)
 }
 
 func handleProjectActiveIssues(w http.ResponseWriter, r *http.Request, projectID int) {
-	fetchAndEncodeIssues(w, "handleProjectActiveIssues", func() ([]Issue, error) {
+	fetchAndEncodeIssues(r.Context(), w, "handleProjectActiveIssues", func() ([]Issue, error) {
 		return GetActiveIssuesByProject(r.Context(), projectID)
 	}, "project_id", projectID)
 }
 
 func handleProjectArchivedIssues(w http.ResponseWriter, r *http.Request, projectID int) {
-	fetchAndEncodeIssues(w, "handleProjectArchivedIssues", func() ([]Issue, error) {
+	fetchAndEncodeIssues(r.Context(), w, "handleProjectArchivedIssues", func() ([]Issue, error) {
 		return GetArchivedIssuesByProject(r.Context(), projectID)
 	}, "project_id", projectID)
 }
 
 func handleProjectOpenIssues(w http.ResponseWriter, r *http.Request, projectID int) {
-	fetchAndEncodeIssues(w, "handleProjectOpenIssues", func() ([]Issue, error) {
+	fetchAndEncodeIssues(r.Context(), w, "handleProjectOpenIssues", func() ([]Issue, error) {
 		return GetOpenIssuesByProject(r.Context(), projectID)
 	}, "project_id", projectID)
 }
@@ -1947,8 +1943,7 @@ func handleProjectOpenIssues(w http.ResponseWriter, r *http.Request, projectID i
 func handleListReleases(w http.ResponseWriter, r *http.Request, projectID int) {
 	releases, err := GetReleasesByProject(r.Context(), projectID)
 	if err != nil {
-		LogError("GetReleasesByProject failed", "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetReleasesByProject failed", err, "project_id", projectID)
 		return
 	}
 	w.Header().Set(headerContentType, contentTypeJSON)
@@ -1969,8 +1964,7 @@ func handleCreateRelease(w http.ResponseWriter, r *http.Request, projectID int) 
 			http.Error(w, errMsgDuplicateReleaseName, http.StatusConflict)
 			return
 		}
-		LogError("CreateRelease failed", "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "CreateRelease failed", err, "project_id", projectID, "user_email", userEmail)
 		return
 	}
 	LogInfo("Release created", "id", rel.ID, "project_id", projectID, "user_email", userEmail)
@@ -1984,8 +1978,7 @@ func handleCreateRelease(w http.ResponseWriter, r *http.Request, projectID int) 
 func handleGetRelease(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	rel, err := GetReleaseByIDInProject(r.Context(), id, projectID)
 	if err != nil {
-		LogError("GetReleaseByIDInProject failed", "id", id, "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetReleaseByIDInProject failed", err, "id", id, "project_id", projectID)
 		return
 	}
 	if rel == nil {
@@ -2008,8 +2001,7 @@ func handlePutRelease(w http.ResponseWriter, r *http.Request, projectID, id int)
 	userEmail := GetEmailFromContext(r.Context())
 	current, err := GetReleaseByIDInProject(r.Context(), id, projectID)
 	if err != nil {
-		LogError("GetReleaseByIDInProject failed", "id", id, "project_id", projectID, "error", err)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetReleaseByIDInProject failed", err, "id", id, "project_id", projectID)
 		return
 	}
 	if current == nil {
@@ -2030,27 +2022,17 @@ func handlePutRelease(w http.ResponseWriter, r *http.Request, projectID, id int)
 			http.Error(w, errMsgDuplicateReleaseName, http.StatusConflict)
 			return
 		}
-		LogError("UpdateRelease failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateRelease failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	LogInfo("Release updated", "id", id, "user_email", userEmail)
-	updated, err := GetReleaseByID(r.Context(), id)
-	if err != nil || updated == nil {
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(headerContentType, contentTypeJSON)
-	if err := json.NewEncoder(w).Encode(updated); err != nil {
-		LogError("handlePutRelease: failed to encode response", "error", err)
-	}
+	respondWithUpdatedRelease(r.Context(), w, id, "handlePutRelease", userEmail)
 }
 
 func handleDeleteRelease(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	userEmail := GetEmailFromContext(r.Context())
 	if rel, err := GetReleaseByIDInProject(r.Context(), id, projectID); err != nil {
-		LogError("GetReleaseByIDInProject failed for delete", "id", id, "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetReleaseByIDInProject failed for delete", err, "id", id, "project_id", projectID, "user_email", userEmail)
 		return
 	} else if rel == nil {
 		http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
@@ -2066,8 +2048,7 @@ func handleDeleteRelease(w http.ResponseWriter, r *http.Request, projectID, id i
 			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("DeleteRelease failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteRelease failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	LogInfo("Release deleted", "id", id, "user_email", userEmail)
@@ -2085,8 +2066,7 @@ func handleTriggerRelease(w http.ResponseWriter, r *http.Request, projectID, id 
 	}
 	userEmail := GetEmailFromContext(r.Context())
 	if rel, err := GetReleaseByIDInProject(r.Context(), id, projectID); err != nil {
-		LogError("GetReleaseByIDInProject failed for trigger", "id", id, "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetReleaseByIDInProject failed for trigger", err, "id", id, "project_id", projectID, "user_email", userEmail)
 		return
 	} else if rel == nil {
 		http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
@@ -2097,27 +2077,17 @@ func handleTriggerRelease(w http.ResponseWriter, r *http.Request, projectID, id 
 			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("TriggerRelease failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "TriggerRelease failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	LogInfo("Release triggered", "id", id, "archive_done", body.ArchiveDone, "user_email", userEmail)
-	updated, err := GetReleaseByID(r.Context(), id)
-	if err != nil || updated == nil {
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(headerContentType, contentTypeJSON)
-	if err := json.NewEncoder(w).Encode(updated); err != nil {
-		LogError("handleTriggerRelease: failed to encode response", "error", err)
-	}
+	respondWithUpdatedRelease(r.Context(), w, id, "handleTriggerRelease", userEmail)
 }
 
 func handleReopenRelease(w http.ResponseWriter, r *http.Request, projectID, id int) {
 	userEmail := GetEmailFromContext(r.Context())
 	if rel, err := GetReleaseByIDInProject(r.Context(), id, projectID); err != nil {
-		LogError("GetReleaseByIDInProject failed for reopen", "id", id, "project_id", projectID, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "GetReleaseByIDInProject failed for reopen", err, "id", id, "project_id", projectID, "user_email", userEmail)
 		return
 	} else if rel == nil {
 		http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
@@ -2128,20 +2098,11 @@ func handleReopenRelease(w http.ResponseWriter, r *http.Request, projectID, id i
 			http.Error(w, errMsgReleaseNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("ReopenRelease failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "ReopenRelease failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	LogInfo("Release reopened", "id", id, "user_email", userEmail)
-	updated, err := GetReleaseByID(r.Context(), id)
-	if err != nil || updated == nil {
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(headerContentType, contentTypeJSON)
-	if err := json.NewEncoder(w).Encode(updated); err != nil {
-		LogError("handleReopenRelease: failed to encode response", "error", err)
-	}
+	respondWithUpdatedRelease(r.Context(), w, id, "handleReopenRelease", userEmail)
 }
 
 func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {
@@ -2164,8 +2125,7 @@ func handleUpdateProject(w http.ResponseWriter, r *http.Request, id int) {
 			http.Error(w, "Project name already exists", http.StatusConflict)
 			return
 		}
-		LogError("UpdateProject failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "UpdateProject failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 
@@ -2199,8 +2159,7 @@ func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
 	// Prevent deleting projects that still have issues
 	count, err := CountIssuesByProject(r.Context(), id)
 	if err != nil {
-		LogError("DeleteProject: CountIssuesByProject failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteProject: CountIssuesByProject failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 	if count > 0 {
@@ -2215,8 +2174,7 @@ func handleDeleteProject(w http.ResponseWriter, r *http.Request, id int) {
 			http.Error(w, errMsgProjectNotFound, http.StatusNotFound)
 			return
 		}
-		LogError("DeleteProject failed", "id", id, "error", err, "user_email", userEmail)
-		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		writeInternalError(r.Context(), w, "DeleteProject failed", err, "id", id, "user_email", userEmail)
 		return
 	}
 

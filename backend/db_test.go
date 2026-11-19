@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -1986,5 +1988,36 @@ func TestProjectAccessible(t *testing.T) {
 	ok, err = ProjectAccessible(context.Background(), 1, 999)
 	if err != nil || ok {
 		t.Errorf("missing project: expected not accessible, got %v (err %v)", ok, err)
+	}
+}
+
+// DB helpers return their failure with its context and leave logging to the caller.
+func TestDBErrorsWrappedNotLogged(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	buf, restore := captureLogsAt(t, slog.LevelDebug)
+	defer restore()
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := GetLabelsByProject(canceled, 1); !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "GetLabelsByProject: ") {
+		t.Errorf("want a wrapped context.Canceled naming GetLabelsByProject, got %v", err)
+	}
+
+	// The ID of the failing row is known only inside applyPositionUpdates.
+	if _, err := DB.Exec("CREATE TRIGGER fail_position BEFORE UPDATE OF position ON issues BEGIN SELECT RAISE(ABORT, 'boom'); END"); err != nil {
+		t.Fatal(err)
+	}
+	issue := &Issue{Title: "T", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+	err := UpdateIssuePositions(context.Background(), 1, []PositionUpdate{{ID: issue.ID, Position: 5}})
+	if want := fmt.Sprintf("UpdateIssuePositions id=%d: ", issue.ID); err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("want an error containing %q, got %v", want, err)
+	}
+
+	if buf.Len() != 0 {
+		t.Errorf("DB helpers must not log, got %s", buf)
 	}
 }

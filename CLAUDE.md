@@ -66,7 +66,8 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   only. Exception: Markdown is sanitized in the frontend (docs/markdown-security.md).
 - Secrets (passwords, password hashes, session/JWT tokens, the secret key) must never appear in API
   responses, logs or error messages. Check every new output path for this.
-- Errors: handle each error once — return it or log it, not both. Backend: the client gets a
+- Errors: handle each error once — return it (wrapped with %w) or log it, not both (docs/backend-architecture.md
+  "Errors and logging"); 500 responses go through `writeInternalError`. Backend: the client gets a
   validation message (400) or a generic `errMsg…` constant; internal details go only to the log
   (`LogError`). Every successful write logs `LogInfo` with resource ID and `user_email` (audit
   trail). Log via `LogDebug`/`LogInfo`/`LogWarn`/`LogError` (backend/utils.go) with key-value

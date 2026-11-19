@@ -136,6 +136,21 @@ Conventions:
 - Ownership-check helpers follow the pattern `XBelongsToProject(projectID, xID) (bool, error)` (named `XExistsInProject` for historical reasons). When adding a new project-scoped resource, add one.
 - Use `existsQuery(ctx, "SELECT COUNT(*) FROM … WHERE …", args...)` for boolean existence checks; it already handles the count/error pattern.
 
+## Errors and logging
+
+Each error is logged once, where it ends, that is where it is no longer returned:
+
+| Nr | Case | How |
+|----|------|-----|
+| 1 | The caller can handle the error (`db.go`, `auth.go`) | Return it wrapped with `%w` and the context only this level knows: function, step, IDs the caller lacks, e.g. `fmt.Errorf("%s id=%d: %w", caller, u.ID, err)`. Don't log. |
+| 2 | The error ends in a 500 response | `writeInternalError(ctx, w, msg, err, args...)` in `handlers.go`. It logs the one ERROR line and sends `errMsgInternalServerError`. |
+| 3 | The error ends without a 500: response already sent, best-effort writes (history, `last_login`), startup | `LogError` directly. |
+| 4 | Expected failures (4xx) | `LogWarn`. |
+
+`%w` keeps `errors.Is` working for `sql.ErrNoRows`, the `Err…` sentinels and `context.Canceled`. The wrapped text goes only to the log, never to the client.
+
+**Client aborts.** If the client closed the request (`ctx.Err()` is `context.Canceled`), `writeInternalError` logs at DEBUG and sets status 499 (as nginx does). Nobody receives that response, so the access log shows the abort as 499 instead of 500. A request that hits the timeout of `TimeoutMiddleware` (`context.DeadlineExceeded`) stays an ERROR with 500.
+
 ## Context propagation
 
 Every DB helper in `db.go` takes `ctx context.Context` as its first parameter and uses the `*Context` variants of `database/sql` (`QueryRowContext`, `QueryContext`, `ExecContext`, `BeginTx`). Handlers pass `r.Context()` down; startup-time callers (`InitDB`, `EnsureInitialAdmin`, `DeleteExpiredSessions` in `server.go`) pass `context.Background()`.
