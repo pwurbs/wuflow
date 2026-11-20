@@ -251,13 +251,23 @@ func TimeoutMiddleware(timeout time.Duration) func(http.Handler) http.Handler {
 	}
 }
 
-// buildAPIMux is the canonical API table: every line below is method, path,
+func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Handler) *http.ServeMux {
+	mux := http.NewServeMux()
+	registerAPIRoutes(mux, version, commonAPI, authAPI)
+	return mux
+}
+
+// routeRegistrar is the part of *http.ServeMux the route table needs. Tests
+// pass a recorder to get the list of registered routes.
+type routeRegistrar interface {
+	Handle(pattern string, handler http.Handler)
+}
+
+// registerAPIRoutes is the canonical API table: every line below is method, path,
 // factory-wrapped handler. Method dispatch (and 405 responses) is delegated to
 // the mux. Literal segments like /issues/active take priority over /issues/{id}
 // automatically (Go 1.22 mux behavior).
-func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Handler) *http.ServeMux {
-	mux := http.NewServeMux()
-
+func registerAPIRoutes(mux routeRegistrar, version string, commonAPI, authAPI func(http.Handler) http.Handler) {
 	hf := func(method, pattern string, h http.HandlerFunc, wrap func(http.Handler) http.Handler) {
 		mux.Handle(method+" "+pattern, wrap(h))
 	}
@@ -336,8 +346,6 @@ func buildAPIMux(version string, commonAPI, authAPI func(http.Handler) http.Hand
 
 	// --- Misc -----------------------------------------------------------------
 	hf("GET", "/api/version", HandleGetVersion(version), authAPI)
-
-	return mux
 }
 
 // HandleLoginHTML serves the login page.

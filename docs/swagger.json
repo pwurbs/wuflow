@@ -808,8 +808,21 @@
         "tags": ["Authentication"],
         "security": [],
         "responses": {
-          "204": {
-            "description": "No Content"
+          "200": {
+            "description": "Logged out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Logged out"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2682,7 +2695,6 @@
       "get": {
         "summary": "Get app version",
         "tags": ["System"],
-        "security": [],
         "responses": {
           "200": {
             "description": "Version info",
@@ -2698,6 +2710,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized"
           }
         }
       }

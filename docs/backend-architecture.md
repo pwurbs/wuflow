@@ -38,7 +38,7 @@ Four slots, left to right:
 | `handler` | `withRole(ActionListUsers, handleListUsers)` | The factory wraps an inner handler with permission + path-var + ownership checks. See the [Factories](#factories) section. |
 | `wrap` | `authAPI` | The outer middleware chain. Use `authAPI` for protected routes, `commonAPI` for the three public auth endpoints. |
 
-`hf` is a tiny helper in `buildAPIMux` that just calls `mux.Handle(method+" "+pattern, wrap(handler))`. So at runtime a request travels through the layers in this order (outside → in):
+`hf` is a tiny helper in `registerAPIRoutes` that just calls `mux.Handle(method+" "+pattern, wrap(handler))`. So at runtime a request travels through the layers in this order (outside → in):
 
 ```
 authAPI:  Logging → CSP → ValidatePath → LimitBody → RequireJSON → Auth → UserRateLimit
@@ -174,4 +174,4 @@ What this buys:
 3. If it's project-scoped with a resource ID, add an `XBelongsToProject` helper in `db.go` (first parameter `ctx context.Context`, SQL via `*Context` variants).
 4. If the role-based permission is new, add the `Action` constant and policy row in `permissions.go`.
 5. Tests: invoke via `testAPI.ServeHTTP(rr, req)` so the factory chain runs. Add an ownership-404 test for any new project-scoped resource.
-6. Update [api.md](api.md) (handler-mapping table + per-endpoint section) and [swagger.json](swagger.json).
+6. Update [api.md](api.md) (handler-mapping table + per-endpoint section) and [swagger.json](swagger.json). In swagger.json, a route limited to admin or sysadmin needs `x-required-role`, a public one `"security": []`. `TestRouteRoleMatrix` and `TestRouteLoginRequired` (`server_test.go`) fail if a registered route is missing there or its role or login requirement differs from swagger.json.

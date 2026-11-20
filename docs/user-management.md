@@ -45,11 +45,11 @@ Three roles are available, ordered from least to most privileged:
 
 ### Authorization Concept
 
-Authorization is enforced by a single **allowlist policy table** in `backend/permissions.go`. Every HTTP operation is mapped to a named action constant (e.g. `ActionArchiveIssue`), and each action explicitly lists the roles that may perform it. The `Can(role, action)` function is the sole entry point — no role logic lives in individual handlers.
+Authorization is enforced by a single **allowlist policy table** in `backend/permissions.go`. Every HTTP operation is mapped to a named action constant (e.g. `ActionArchiveIssue`), and each action explicitly lists the roles that may perform it. The `Can(role, action)` function decides every role-to-action question. The one rule beyond that is comment ownership: a regular user may edit or delete only their own comments, Admin and Sysadmin any comment. The comment handlers apply it via `isCommentModerator` (`backend/activity.go`).
 
-Each handler evaluates `Can()` at the **method-dispatch level**, before any database access. A missing or insufficient role always results in `403 Forbidden` before any side effects occur.
+`Can()` is evaluated in the route wrappers (`withRole`, `withProject`, …) before the handler runs and before any database access. A missing or insufficient role always results in `403 Forbidden` before any side effects occur. A regular user acting on someone else's comment gets `404 Not Found` instead (see [api.md](api.md), Update/Delete Comment).
 
-The frontend mirrors this policy in `static/js/permissions.ts` via `userCan(user, action)`. UI elements (archive/delete buttons, drag-drop targets) are hidden or blocked on the client side, while the backend remains the authoritative enforcement point.
+The frontend mirrors this policy in `static/js/permissions.ts` via `userCan(user, action)`, and the comment ownership rule via `isCommentModerator`. UI elements (archive/delete buttons, drag-drop targets) are hidden or blocked on the client side, while the backend remains the authoritative enforcement point.
 
 ## Initial Sysadmin
 

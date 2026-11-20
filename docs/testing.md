@@ -22,6 +22,7 @@ Additionally, the whole repository is under security monitoring using [snyk.io](
 ## Backend Unit Testing (Go)
 All business logic, database interactions (via interfaces), and API handlers must be covered by unit tests.
 * **Focus:** Edge cases, error handling, and data validation (Title, Name, Color).
+* **Route permissions:** Every registered API route is checked against [swagger.json](swagger.json) for each role and without login (see [backend-architecture.md](backend-architecture.md#adding-a-new-endpoint--checklist), step 6).
  
 ## Fuzz Testing (Go)
 We use Go's native fuzzing (`go test -fuzz`) to discover edge-case panics and security bypasses in our validation logic.

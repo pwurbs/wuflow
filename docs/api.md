@@ -60,7 +60,7 @@ Every route is registered with Go 1.22 method+path syntax in `backend/server.go`
 | `/projects/:pId/releases/:id` | DELETE | `handleDeleteRelease` | Admin | Delete a release |
 | `/projects/:pId/releases/:id/release` | POST | `handleTriggerRelease` | Admin | Publish (close) a release |
 | `/projects/:pId/releases/:id/reopen` | POST | `handleReopenRelease` | Admin | Reopen a closed release |
-| `/version` | GET | `Anonymous Func` | Public | Get app version |
+| `/version` | GET | `HandleGetVersion` | Required | Get app version |
 
 Resources looked up by `{id}` under `/projects/:pId/` are verified to belong to the named project — a request for an issue/release/task in another project returns `404`. Tasks additionally verify that `{id}` belongs to the `{iId}` named in the URL; cross-issue references return `404`.
 
@@ -91,7 +91,7 @@ Authenticates a user and sets HTTPOnly cookies for access and refresh tokens.
 ### Logout
 Clears authentication cookies.
 - **POST** `/auth/logout`
-- **Response**: `204 No Content`
+- **Response**: `200 OK` with `{"message": "Logged out"}`
 
 ### Refresh Token
 Refreshes the access token using the refresh token cookie.

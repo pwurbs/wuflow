@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -1068,6 +1070,134 @@ func TestNeuteredFileSystem(t *testing.T) {
 			}
 			if f != nil {
 				f.Close()
+			}
+		})
+	}
+}
+
+// recordingMux registers routes on a real mux and remembers their patterns.
+type recordingMux struct {
+	*http.ServeMux
+	patterns []string
+}
+
+func (m *recordingMux) Handle(pattern string, h http.Handler) {
+	m.patterns = append(m.patterns, pattern)
+	m.ServeMux.Handle(pattern, h)
+}
+
+// swaggerOperation is the part of a docs/swagger.json operation the route tests read.
+type swaggerOperation struct {
+	Security     *[]json.RawMessage `json:"security"` // set and empty = public
+	RequiredRole UserRole           `json:"x-required-role"`
+}
+
+// requiredRank is the rank of x-required-role (roleRank in models.go); without the field every role may.
+func (op swaggerOperation) requiredRank() int {
+	if op.RequiredRole == "" {
+		return roleRank(RoleUser)
+	}
+	return roleRank(op.RequiredRole)
+}
+
+// loadSwaggerOperations returns the operations of docs/swagger.json, keyed like a mux pattern ("GET /api/version").
+func loadSwaggerOperations(t *testing.T) map[string]swaggerOperation {
+	t.Helper()
+	data, err := os.ReadFile("../docs/swagger.json")
+	if err != nil {
+		t.Fatalf("read swagger.json: %v", err)
+	}
+	var doc struct {
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("parse swagger.json: %v", err)
+	}
+	ops := map[string]swaggerOperation{}
+	for path, items := range doc.Paths {
+		for _, method := range []string{"get", "post", "put", "delete"} {
+			raw, ok := items[method]
+			if !ok {
+				continue
+			}
+			var op swaggerOperation
+			if err := json.Unmarshal(raw, &op); err != nil {
+				t.Fatalf("parse %s %s: %v", method, path, err)
+			}
+			if op.requiredRank() < 0 {
+				t.Errorf("%s %s: unknown x-required-role %q", method, path, op.RequiredRole)
+			}
+			ops[strings.ToUpper(method)+" /api"+path] = op
+		}
+	}
+	return ops
+}
+
+// routeRequest builds a request for a mux pattern with made-up IDs and an empty JSON body.
+func routeRequest(pattern string) *http.Request {
+	method, path, _ := strings.Cut(pattern, " ")
+	path = regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, "999")
+	req := httptest.NewRequest(method, path, strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
+// TestRouteRoleMatrix checks every registered API route against docs/swagger.json:
+// the route lists must match, and a role below x-required-role must get 403, any
+// other role not. Can() runs in the route wrappers before any lookup, so made-up
+// IDs are enough: an allowed request ends with 404 or 400.
+func TestRouteRoleMatrix(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ops := loadSwaggerOperations(t)
+	identity := func(h http.Handler) http.Handler { return h }
+	rec := &recordingMux{ServeMux: http.NewServeMux()}
+	registerAPIRoutes(rec, "test", identity, identity)
+
+	registered := map[string]bool{}
+	for _, p := range rec.patterns {
+		registered[p] = true
+		if _, ok := ops[p]; !ok {
+			t.Errorf("route %q is missing in swagger.json", p)
+		}
+	}
+	for p := range ops {
+		if !registered[p] {
+			t.Errorf("swagger.json operation %q is not registered", p)
+		}
+	}
+
+	api := withTestRole(rec)
+	for _, pattern := range rec.patterns {
+		op := ops[pattern]
+		for _, role := range []UserRole{RoleUser, RoleAdmin, RoleSysAdmin} {
+			t.Run(pattern+"/"+string(role), func(t *testing.T) {
+				req := routeRequest(pattern)
+				req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, role))
+				rr := httptest.NewRecorder()
+				api.ServeHTTP(rr, req)
+				wantForbidden := roleRank(role) < op.requiredRank()
+				if (rr.Code == http.StatusForbidden) != wantForbidden {
+					t.Errorf("got %d, want 403 = %v (x-required-role %q)", rr.Code, wantForbidden, op.RequiredRole)
+				}
+			})
+		}
+	}
+}
+
+// TestRouteLoginRequired: every operation swagger.json does not mark as public
+// (security: []) must answer 401 without a session in the production middleware chain.
+func TestRouteLoginRequired(t *testing.T) {
+	mux := APIMux("test")
+	for pattern, op := range loadSwaggerOperations(t) {
+		if op.Security != nil && len(*op.Security) == 0 {
+			continue
+		}
+		t.Run(pattern, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, routeRequest(pattern))
+			if rr.Code != http.StatusUnauthorized {
+				t.Errorf("got %d without a session, want 401", rr.Code)
 			}
 		})
 	}
