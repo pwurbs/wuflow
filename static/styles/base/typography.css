@@ -141,6 +141,11 @@ h1 {
   font-weight: var(--fw-semibold);
 }
 
+/* Empty-list message (My Work): size of the card titles it stands in for, regular weight */
+.my-work-empty {
+  font-size: var(--fs-base);
+}
+
 /* Secondary line under a title (My Work planning: project name) */
 .planning-item-project {
   font-size: var(--fs-2xs);

@@ -116,6 +116,13 @@ function categoryCount(lanes: MyWorkLane[], category: MyWorkCategory) {
   return lanes.reduce((sum, lane) => sum + lane.cells[category].length, 0);
 }
 
+function createEmptyMessage() {
+  const empty = document.createElement('div');
+  empty.className = 'my-work-empty';
+  empty.textContent = myIssues.length > 0 ? 'No issues match the filters.' : 'No active issues are assigned to you.';
+  return empty;
+}
+
 export function renderMyWork() {
   const grid = byId('my-work-grid');
   grid.innerHTML = '';
@@ -139,13 +146,6 @@ export function renderMyWork() {
   grid.appendChild(head);
 
   let rows = 1;
-  if (lanes.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'my-work-empty';
-    empty.textContent = myIssues.length > 0 ? 'No issues match the filters.' : 'No active issues are assigned to you.';
-    grid.appendChild(empty);
-    rows++;
-  }
   lanes.forEach((lane, index) => {
     if (index > 0) {
       grid.appendChild(createLaneSeparator());
@@ -155,7 +155,10 @@ export function renderMyWork() {
     rows++;
   });
   for (const category of MY_WORK_CATEGORIES) {
-    grid.appendChild(createCell(category, 'my-work-cell--fill'));
+    const fill = createCell(category, 'my-work-cell--fill');
+    // Without lanes the message sits where the first cards would be, so the bands stay whole.
+    if (lanes.length === 0 && category === 'notStarted') fill.appendChild(createEmptyMessage());
+    grid.appendChild(fill);
   }
   // Content rows take their height, the filler row the rest, so the bands reach the bottom.
   grid.style.gridTemplateRows = `repeat(${rows}, auto) 1fr`;

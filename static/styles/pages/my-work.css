@@ -125,13 +125,10 @@
   background-color: var(--panel-border);
 }
 
+/* Message without lanes, in the Not Started filler cell across both card lanes */
 .my-work-empty {
   grid-column: 1 / -1;
-  padding: var(--space-4);
   color: var(--muted-text);
-  background-color: var(--column-bg);
-  border-left: 1px solid var(--panel-border);
-  border-right: 1px solid var(--panel-border);
 }
 
 /* Planning item: title with the project name as a second line */

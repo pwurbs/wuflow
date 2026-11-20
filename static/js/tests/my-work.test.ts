@@ -138,7 +138,11 @@ describe('My Work view', () => {
     await loadMyIssues();
     renderMyWork();
 
-    expect(bySelector(document, '.my-work-empty').textContent).toBe('No active issues are assigned to you.');
+    const empty = bySelector(document, '.my-work-empty');
+    expect(empty.textContent).toBe('No active issues are assigned to you.');
+    // Inside the Not Started band, not a row across all bands: head plus filler row only.
+    expect(empty.parentElement?.matches('.my-work-cell--fill[data-category="notStarted"]')).toBe(true);
+    expect(byId('my-work-grid').style.gridTemplateRows).toBe('repeat(1, auto) 1fr');
     expect(document.querySelectorAll('.my-work-lane-pill')).toHaveLength(0);
     expect(document.querySelectorAll('.my-work-lane-separator')).toHaveLength(0);
   });
