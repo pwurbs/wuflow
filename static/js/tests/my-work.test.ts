@@ -128,9 +128,11 @@ describe('My Work view', () => {
     mergeMyIssue(makeIssue({ ...ISSUES[2], title: 'Renamed', priority: 'High' }));
     renderMyWork();
 
-    expect(cardTitles(cell(ALPHA, 'inProgress'))).toEqual(['Renamed']);
+    // With a High issue, Alpha now comes before Beta.
+    expect([...document.querySelectorAll('.my-work-lane-name')].map(l => l.textContent)).toEqual(['Alpha', 'Beta']);
+    expect(cardTitles(cell(0, 'inProgress'))).toEqual(['Renamed']);
     // The column name comes from the list endpoint and is kept.
-    expect(bySelector(cell(ALPHA, 'inProgress'), '.stage-chip').textContent).toBe('Working');
+    expect(bySelector(cell(0, 'inProgress'), '.stage-chip').textContent).toBe('Working');
   });
 
   it('shows a message when no active issues are assigned', async () => {

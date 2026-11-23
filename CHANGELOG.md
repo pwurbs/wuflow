@@ -1,6 +1,7 @@
 
 # 1.5.1
 
+- My Work now lists projects with high priority issues first, the one with the nearest deadline at the top, and shows the cards in the order of the project's board
 - Each backend error now appears only once in the log, and requests closed by the browser show as 499 in the access log instead of as errors
 - Fixed: deadlines, planned dates and release dates now show the picked day in every time zone (west of UTC they showed the day before), and a release no longer counts as overdue on its release date
 - The API now returns deadlines and release start and release dates as `YYYY-MM-DD` instead of timestamps, and requests may still send timestamps. Existing dates are converted on upgrade: a deadline set in the app from UTC+13 or further east may move to the day before

@@ -1,15 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { buildLanes, categoryOf, compareInProgress, compareUrgency, urgencyRank } from '../my-work-order.ts';
+import { buildLanes, categoryOf } from '../my-work-order.ts';
 import { makeIssue, makeProject, makeTask } from './fixtures.ts';
 import type { MyIssue } from '../models.ts';
-
-const TODAY = new Date('2026-11-17T10:00:00');
 
 function myIssue(overrides: Partial<MyIssue> = {}): MyIssue {
   return { ...makeIssue({ status: 'Todo', project: makeProject({ id: 1, name: 'Alpha' }) }), status_name: 'Todo', ...overrides };
 }
 
+// An issue in its own project, for lane order tests.
+function inProject(id: number, name: string, overrides: Partial<MyIssue> = {}) {
+  return myIssue({ project_id: id, project: makeProject({ id, name }), ...overrides });
+}
+
 const titles = (issues: MyIssue[]) => issues.map(i => i.title);
+const laneNames = (issues: MyIssue[]) => buildLanes(issues).map(l => l.projectName);
 
 describe('categoryOf', () => {
   it.each([
@@ -27,34 +31,6 @@ describe('categoryOf', () => {
 });
 
 describe('buildLanes', () => {
-  it('puts the project with the most open cards first; Done does not count', () => {
-    const alpha = makeProject({ id: 1, name: 'Alpha' });
-    const wide = makeProject({ id: 2, name: 'Wide' });
-    const lanes = buildLanes([
-      myIssue({ id: 1, project_id: 1, project: alpha, status: 'Todo' }),
-      myIssue({ id: 2, project_id: 1, project: alpha, status: 'Done' }),
-      myIssue({ id: 3, project_id: 1, project: alpha, status: 'Done' }),
-      myIssue({ id: 4, project_id: 2, project: wide, status: 'Todo' }),
-      myIssue({ id: 5, project_id: 2, project: wide, status: 'Stage2' }),
-    ], TODAY);
-
-    // Alpha has more issues (3), but only one open; Wide has two open.
-    expect(lanes.map(l => l.projectName)).toEqual(['Wide', 'Alpha']);
-  });
-
-  it('sorts lanes with the same number of open cards by project name', () => {
-    const lanes = buildLanes([
-      myIssue({ id: 1, project_id: 3, project: makeProject({ id: 3, name: 'charlie' }) }),
-      myIssue({ id: 2, project_id: 1, project: makeProject({ id: 1, name: 'Alpha' }) }),
-      myIssue({ id: 3, project_id: 2, project: makeProject({ id: 2, name: 'beta' }) }),
-      myIssue({ id: 4, project_id: 1, project: makeProject({ id: 1, name: 'Alpha' }), status: 'Done' }),
-    ], TODAY);
-
-    expect(lanes.map(l => l.projectName)).toEqual(['Alpha', 'beta', 'charlie']);
-    expect(lanes[0].cells.notStarted).toHaveLength(1);
-    expect(lanes[0].cells.done).toHaveLength(1);
-  });
-
   it('puts each issue into its category and leaves out Open and Archive', () => {
     const [lane] = buildLanes([
       myIssue({ id: 1, title: 'todo', status: 'Todo' }),
@@ -63,7 +39,7 @@ describe('buildLanes', () => {
       myIssue({ id: 4, title: 'done', status: 'Done' }),
       myIssue({ id: 5, title: 'open', status: 'Open' }),
       myIssue({ id: 6, title: 'archived', status: 'Archive' }),
-    ], TODAY);
+    ]);
 
     expect(titles(lane.cells.notStarted)).toEqual(['todo']);
     expect(titles(lane.cells.inProgress)).toEqual(['stage4', 'stage1']);
@@ -71,109 +47,122 @@ describe('buildLanes', () => {
   });
 
   it('has no lanes without issues', () => {
-    expect(buildLanes([], TODAY)).toEqual([]);
+    expect(buildLanes([])).toEqual([]);
+  });
+});
+
+describe('buildLanes: lane order', () => {
+  it('puts a project with a High issue before a bigger one without', () => {
+    expect(laneNames([
+      inProject(1, 'Wide', { id: 1 }),
+      inProject(1, 'Wide', { id: 2 }),
+      inProject(1, 'Wide', { id: 3, status: 'Stage1' }),
+      inProject(2, 'Small', { id: 4, priority: 'High' }),
+    ])).toEqual(['Small', 'Wide']);
   });
 
-  it('sorts Not Started by urgency, In Progress by stage then urgency, Done by last update', () => {
+  it('orders projects with High issues by the nearest deadline of these, overdue first, none last', () => {
+    expect(laneNames([
+      inProject(1, 'No deadline', { id: 1, priority: 'High' }),
+      inProject(2, 'Later', { id: 2, priority: 'High', deadline: '2026-12-20' }),
+      inProject(3, 'Overdue', { id: 3, priority: 'High', deadline: '2026-01-05' }),
+      inProject(4, 'Sooner', { id: 4, priority: 'High', deadline: '2026-12-01' }),
+    ])).toEqual(['Overdue', 'Sooner', 'Later', 'No deadline']);
+  });
+
+  it('takes the earliest deadline of all High issues of a project', () => {
+    expect(laneNames([
+      inProject(1, 'Alpha', { id: 1, priority: 'High', deadline: '2026-12-10' }),
+      inProject(2, 'Beta', { id: 2, priority: 'High', deadline: '2026-12-20' }),
+      inProject(2, 'Beta', { id: 3, priority: 'High', deadline: '2026-12-05' }),
+    ])).toEqual(['Beta', 'Alpha']);
+  });
+
+  it('counts the deadline of an open task, not of a done one', () => {
+    expect(laneNames([
+      inProject(1, 'Alpha', { id: 1, priority: 'High', deadline: '2026-12-10' }),
+      inProject(2, 'Beta', { id: 2, priority: 'High', tasks: [makeTask({ done: false, deadline: '2026-12-01' })] }),
+      inProject(3, 'Gamma', { id: 3, priority: 'High', tasks: [makeTask({ done: true, deadline: '2026-11-01' })] }),
+    ])).toEqual(['Beta', 'Alpha', 'Gamma']);
+  });
+
+  it('puts the project with more High issues first when the deadlines are equal', () => {
+    expect(laneNames([
+      inProject(1, 'Alpha', { id: 1, priority: 'High' }),
+      inProject(2, 'Beta', { id: 2, priority: 'High' }),
+      inProject(2, 'Beta', { id: 3, priority: 'High' }),
+    ])).toEqual(['Beta', 'Alpha']);
+  });
+
+  it('ignores deadlines and planned dates of Normal issues', () => {
+    expect(laneNames([
+      inProject(1, 'Alpha', { id: 1, deadline: '2026-01-05', planned_dates: ['2026-01-05'] }),
+      inProject(2, 'Beta', { id: 2 }),
+      inProject(2, 'Beta', { id: 3 }),
+    ])).toEqual(['Beta', 'Alpha']);
+  });
+
+  it('ignores High issues in Done', () => {
+    expect(laneNames([
+      inProject(1, 'Alpha', { id: 1, priority: 'High', status: 'Done', deadline: '2026-01-05' }),
+      inProject(2, 'Beta', { id: 2 }),
+    ])).toEqual(['Beta', 'Alpha']);
+  });
+
+  it('puts the project with the most open cards first when no project has High issues; Done does not count', () => {
+    expect(laneNames([
+      inProject(1, 'Alpha', { id: 1 }),
+      inProject(1, 'Alpha', { id: 2, status: 'Done' }),
+      inProject(1, 'Alpha', { id: 3, status: 'Done' }),
+      inProject(2, 'Wide', { id: 4 }),
+      inProject(2, 'Wide', { id: 5, status: 'Stage2' }),
+    ])).toEqual(['Wide', 'Alpha']);
+  });
+
+  it('sorts lanes that are equal otherwise by project name', () => {
+    expect(laneNames([
+      inProject(3, 'charlie', { id: 1 }),
+      inProject(1, 'Alpha', { id: 2 }),
+      inProject(2, 'beta', { id: 3 }),
+    ])).toEqual(['Alpha', 'beta', 'charlie']);
+  });
+});
+
+describe('buildLanes: order within a cell', () => {
+  it('keeps the board order in every category, in In Progress after the stage', () => {
     const [lane] = buildLanes([
-      myIssue({ id: 1, title: 'todo rest', status: 'Todo' }),
-      myIssue({ id: 2, title: 'todo overdue', status: 'Todo', deadline: '2026-11-16' }),
-      myIssue({ id: 3, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-16' }),
-      myIssue({ id: 4, title: 'stage3 rest', status: 'Stage3' }),
-      myIssue({ id: 5, title: 'stage3 high', status: 'Stage3', priority: 'High' }),
-      myIssue({ id: 6, title: 'done old', status: 'Done', updated_at: '2026-11-01T10:00:00Z' }),
-      myIssue({ id: 7, title: 'done new', status: 'Done', updated_at: '2026-11-15T10:00:00Z' }),
-    ], TODAY);
+      myIssue({ id: 1, title: 'todo pos 2', status: 'Todo', position: 2 }),
+      myIssue({ id: 2, title: 'todo pos 1 overdue high', status: 'Todo', position: 1, priority: 'High', deadline: '2026-01-05' }),
+      myIssue({ id: 3, title: 'todo pos 0', status: 'Todo', position: 0 }),
+      myIssue({ id: 4, title: 'stage1 pos 0 high', status: 'Stage1', position: 0, priority: 'High' }),
+      myIssue({ id: 5, title: 'stage3 pos 1', status: 'Stage3', position: 1 }),
+      myIssue({ id: 6, title: 'stage3 pos 0', status: 'Stage3', position: 0 }),
+      myIssue({ id: 7, title: 'done pos 1 new', status: 'Done', position: 1, updated_at: '2026-11-15T10:00:00Z' }),
+      myIssue({ id: 8, title: 'done pos 0 old', status: 'Done', position: 0, updated_at: '2026-11-01T10:00:00Z' }),
+    ]);
 
-    expect(titles(lane.cells.notStarted)).toEqual(['todo overdue', 'todo rest']);
-    expect(titles(lane.cells.inProgress)).toEqual(['stage3 high', 'stage3 rest', 'stage1 overdue']);
-    expect(titles(lane.cells.done)).toEqual(['done new', 'done old']);
+    expect(titles(lane.cells.notStarted)).toEqual(['todo pos 0', 'todo pos 1 overdue high', 'todo pos 2']);
+    expect(titles(lane.cells.inProgress)).toEqual(['stage3 pos 0', 'stage3 pos 1', 'stage1 pos 0 high']);
+    expect(titles(lane.cells.done)).toEqual(['done pos 0 old', 'done pos 1 new']);
   });
-});
-
-describe('urgencyRank', () => {
-  it.each<[string, Partial<MyIssue>, number]>([
-    ['issue deadline before today', { deadline: '2026-11-16' }, 0],
-    ['open task deadline before today', { tasks: [makeTask({ done: false, deadline: '2026-11-10' })] }, 0],
-    ['high priority', { priority: 'High' }, 1],
-    ['overdue wins over high priority', { priority: 'High', deadline: '2026-11-16' }, 0],
-    ['planned today', { planned_dates: ['2026-11-17'] }, 2],
-    ['planned the day after tomorrow', { planned_dates: ['2026-11-19'] }, 2],
-    ['missed plan (planned in the past)', { planned_dates: ['2026-11-01'] }, 2],
-    ['planned in three days', { planned_dates: ['2026-11-20'] }, 3],
-    ['deadline today is not overdue', { deadline: '2026-11-17' }, 3],
-    ['done task with past deadline does not count', { tasks: [makeTask({ done: true, deadline: '2026-11-10' })] }, 3],
-    ['nothing urgent', {}, 3],
-  ])('%s → %i', (_, overrides, rank) => {
-    expect(urgencyRank(myIssue(overrides), TODAY)).toBe(rank);
-  });
-});
-
-describe('compareUrgency', () => {
-  const sort = (issues: MyIssue[]) => titles([...issues].sort((a, b) => compareUrgency(a, b, TODAY)));
-
-  it('orders by rank: overdue, high priority, planned soon, rest', () => {
-    expect(sort([
-      myIssue({ id: 1, title: 'rest' }),
-      myIssue({ id: 2, title: 'planned soon', planned_dates: ['2026-11-18'] }),
-      myIssue({ id: 3, title: 'high', priority: 'High' }),
-      myIssue({ id: 4, title: 'overdue', deadline: '2026-11-01' }),
-    ])).toEqual(['overdue', 'high', 'planned soon', 'rest']);
-  });
-
-  it('breaks ties by the earliest date, then by board position, then by ID', () => {
-    expect(sort([
-      myIssue({ id: 5, title: 'later overdue', deadline: '2026-11-15' }),
-      myIssue({ id: 6, title: 'earlier overdue', deadline: '2026-11-01' }),
-    ])).toEqual(['earlier overdue', 'later overdue']);
-    expect(sort([
-      myIssue({ id: 7, title: 'position 2', position: 2 }),
-      myIssue({ id: 8, title: 'position 1', position: 1 }),
-    ])).toEqual(['position 1', 'position 2']);
-    expect(sort([
-      myIssue({ id: 10, title: 'id 10' }),
-      myIssue({ id: 9, title: 'id 9' }),
-    ])).toEqual(['id 9', 'id 10']);
-  });
-
-  it('compares deadlines and planned dates as the same calendar days', () => {
-    // Rank 3 for both: the plan lies beyond "soon", the deadline is not overdue.
-    expect(sort([
-      myIssue({ id: 1, title: 'deadline 25th', deadline: '2026-11-25', position: 1 }),
-      myIssue({ id: 2, title: 'planned 24th', planned_dates: ['2026-11-24'], position: 2 }),
-    ])).toEqual(['planned 24th', 'deadline 25th']);
-    // The same day on both sides is a tie, decided by position.
-    expect(sort([
-      myIssue({ id: 3, title: 'planned 25th', planned_dates: ['2026-11-25'], position: 2 }),
-      myIssue({ id: 4, title: 'deadline 25th', deadline: '2026-11-25', position: 1 }),
-    ])).toEqual(['deadline 25th', 'planned 25th']);
-  });
-
-  it('puts issues without any date after those with one', () => {
-    expect(sort([
-      myIssue({ id: 1, title: 'no date', position: 1 }),
-      myIssue({ id: 2, title: 'deadline', deadline: '2026-12-31', position: 2 }),
-    ])).toEqual(['deadline', 'no date']);
-  });
-});
-
-describe('compareInProgress', () => {
-  const sort = (issues: MyIssue[]) => titles([...issues].sort((a, b) => compareInProgress(a, b, TODAY)));
 
   it('puts the later stage first, from right to left on the board', () => {
-    expect(sort([
+    const [lane] = buildLanes([
       myIssue({ id: 1, title: 'stage1', status: 'Stage1' }),
       myIssue({ id: 2, title: 'stage3', status: 'Stage3' }),
       myIssue({ id: 3, title: 'stage4', status: 'Stage4' }),
       myIssue({ id: 4, title: 'stage2', status: 'Stage2' }),
-    ])).toEqual(['stage4', 'stage3', 'stage2', 'stage1']);
+    ]);
+
+    expect(titles(lane.cells.inProgress)).toEqual(['stage4', 'stage3', 'stage2', 'stage1']);
   });
 
-  it('stage wins over urgency, urgency orders within a stage', () => {
-    expect(sort([
-      myIssue({ id: 1, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-01' }),
-      myIssue({ id: 2, title: 'stage2 rest', status: 'Stage2' }),
-      myIssue({ id: 3, title: 'stage2 high', status: 'Stage2', priority: 'High' }),
-    ])).toEqual(['stage2 high', 'stage2 rest', 'stage1 overdue']);
+  it('breaks ties of the board position by ID', () => {
+    const [lane] = buildLanes([
+      myIssue({ id: 10, title: 'id 10', position: 0 }),
+      myIssue({ id: 9, title: 'id 9', position: 0 }),
+    ]);
+
+    expect(titles(lane.cells.notStarted)).toEqual(['id 9', 'id 10']);
   });
 });

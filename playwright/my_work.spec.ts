@@ -56,10 +56,10 @@ test.describe('My Work', () => {
       status: 'Stage1', assignee_id: me.id, label: { id: labelBId }, release_id: releaseBId,
     });
     await createIssueViaAPI(request, projectBId, t('B todo'), { status: 'Todo', assignee_id: me.id });
-    // Project C comes first by name, but has fewer open cards than B (1 against 2).
-    const projectC = `aa_${suffix}`;
+    // Project C comes after B by name and has fewer open cards (1 against 2), but a High issue.
+    const projectC = `zz_${suffix}`;
     const projectCId = await createProjectViaAPI(request, projectC);
-    await createIssueViaAPI(request, projectCId, t('C todo'), { status: 'Todo', assignee_id: me.id });
+    await createIssueViaAPI(request, projectCId, t('C todo'), { status: 'Todo', assignee_id: me.id, priority: 'High' });
     const descriptionWord = `zebra${suffix}`; // in a description only, not in any title
     await createIssueViaAPI(request, projectBId, t('B done'), { status: 'Done', assignee_id: me.id, description: `Contains ${descriptionWord}.` });
 
@@ -76,13 +76,13 @@ test.describe('My Work', () => {
       await expect(page.locator(id)).toBeHidden();
     }
 
-    // Lanes: one per project with my issues, each named by a pill in its Not Started cell, the most
-    // open cards first: B (2 open) before C (1 open), although C comes first by name.
+    // Lanes: one per project with my issues, each named by a pill in its Not Started cell. Projects
+    // with High issues first: C before B, although B has more open cards and comes first by name.
     const laneNames = page.locator('.my-work-lane-name');
     await expect(laneNames.filter({ hasText: projectB })).toHaveCount(1);
     const names = await laneNames.allTextContents();
-    expect(names.indexOf(projectB)).toBeGreaterThan(-1);
-    expect(names.indexOf(projectB)).toBeLessThan(names.indexOf(projectC));
+    expect(names.indexOf(projectC)).toBeGreaterThan(-1);
+    expect(names.indexOf(projectC)).toBeLessThan(names.indexOf(projectB));
     await expect(page.locator('.my-work-cell[data-category="notStarted"] .my-work-lane-pill', { hasText: projectB })).toBeVisible();
 
     // Columns, and the column name chip only in In Progress.
@@ -104,13 +104,14 @@ test.describe('My Work', () => {
     await page.fill('#search-input', '');
     await expect(card(page, 'notStarted', t('A todo'))).toBeVisible();
 
-    // The priority filter, combined with the search for this test's issues: only my High issue,
+    // The priority filter, combined with the search for this test's issues: only my High issues,
     // the lane of project B disappears.
     await page.fill('#search-input', suffix);
     await page.click('#priority-filter-btn');
     await page.click('#priority-filter-options .custom-option:has-text("High")');
-    await expect(page.locator('#my-work-grid .card')).toHaveCount(1);
+    await expect(page.locator('#my-work-grid .card')).toHaveCount(2);
     await expect(card(page, 'inProgress', t('A working'))).toBeVisible();
+    await expect(card(page, 'notStarted', t('C todo'))).toBeVisible();
     await expect(laneNames.filter({ hasText: projectB })).toHaveCount(0);
     await page.click('#priority-filter-btn .toolbar-icon-clear');
     await page.fill('#search-input', '');

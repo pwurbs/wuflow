@@ -3,7 +3,6 @@
 import { STATUS_TODO, STATUS_DONE, IN_PROGRESS_STATUSES } from './status-config.ts';
 import { PRIORITY_HIGH } from './domain-constants.ts';
 import { getEffectiveDeadlineInfo } from './components/planning.ts';
-import { localISODate, addDaysISO } from './utils.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { MyIssue } from './models.ts';
 
@@ -16,9 +15,6 @@ export interface MyWorkLane {
   cells: Record<MyWorkCategory, MyIssue[]>;
 }
 
-// A planned date up to this many days ahead counts as "soon".
-const SOON_DAYS = 2;
-
 export function categoryOf(status: IssueStatus): MyWorkCategory | null {
   if (status === STATUS_TODO) return 'notStarted';
   if (status === STATUS_DONE) return 'done';
@@ -26,64 +22,55 @@ export function categoryOf(status: IssueStatus): MyWorkCategory | null {
   return null;
 }
 
-// 0 overdue (issue or open-task deadline before today), 1 high priority,
-// 2 planned for today or soon (or a missed plan), 3 the rest.
-export function urgencyRank(issue: MyIssue, today: Date) {
-  const todayStr = localISODate(today);
-  const deadline = getEffectiveDeadlineInfo(issue);
-  if (deadline && deadline.date < todayStr) return 0;
-  if (issue.priority === PRIORITY_HIGH) return 1;
-  const soonStr = addDaysISO(todayStr, SOON_DAYS);
-  if (issue.planned_dates?.some(d => d <= soonStr)) return 2;
-  return 3;
+// Cells keep the order of the project's board: the user arranges the cards there.
+function compareBoardOrder(a: MyIssue, b: MyIssue) {
+  return a.position - b.position || a.id - b.id;
 }
 
-// Earliest of the effective deadline and the planned dates (YYYY-MM-DD), null without any.
-function earliestDate(issue: MyIssue) {
-  const dates = [...issue.planned_dates ?? []];
-  const deadline = getEffectiveDeadlineInfo(issue);
-  if (deadline) dates.push(deadline.date);
-  return dates.toSorted((x, y) => x.localeCompare(y))[0] ?? null;
-}
-
-// For ties within a rank: the earlier date first, issues without a date last.
-function compareEarliestDate(a: MyIssue, b: MyIssue) {
-  const da = earliestDate(a);
-  const db = earliestDate(b);
-  if (da === db) return 0;
-  if (da === null) return 1;
-  if (db === null) return -1;
-  return da < db ? -1 : 1;
-}
-
-export function compareUrgency(a: MyIssue, b: MyIssue, today: Date) {
-  return urgencyRank(a, today) - urgencyRank(b, today)
-    || compareEarliestDate(a, b)
-    || a.position - b.position
-    || a.id - b.id;
-}
-
-// In Progress: the later stage of the project first (Stage4 … Stage1), then by urgency.
-export function compareInProgress(a: MyIssue, b: MyIssue, today: Date) {
+// In Progress: the later stage first (Stage4 … Stage1, the board read from right to left),
+// then the board order within a stage.
+function compareInProgress(a: MyIssue, b: MyIssue) {
   return IN_PROGRESS_STATUSES.indexOf(b.status) - IN_PROGRESS_STATUSES.indexOf(a.status)
-    || compareUrgency(a, b, today);
+    || compareBoardOrder(a, b);
 }
 
-// Done: most recently updated first.
-export function compareDone(a: MyIssue, b: MyIssue) {
-  return Date.parse(b.updated_at) - Date.parse(a.updated_at) || a.id - b.id;
+interface LaneRank {
+  highCount: number;
+  nextHighDeadline: string | null; // YYYY-MM-DD, the earliest effective deadline of the High issues
+  openCount: number;
 }
 
-// Open cards of a lane: Not Started and In Progress. Done needs no attention.
-function openCount(lane: MyWorkLane) {
-  return lane.cells.notStarted.length + lane.cells.inProgress.length;
+// Only open cards (Not Started, In Progress) count: Done needs no attention.
+function laneRank(lane: MyWorkLane): LaneRank {
+  const open = [...lane.cells.notStarted, ...lane.cells.inProgress];
+  const deadlines = open
+    .filter(issue => issue.priority === PRIORITY_HIGH)
+    .map(issue => getEffectiveDeadlineInfo(issue)?.date ?? null);
+  const dated = deadlines.filter(d => d !== null).toSorted((x, y) => x.localeCompare(y));
+  return { highCount: deadlines.length, nextHighDeadline: dated[0] ?? null, openCount: open.length };
+}
+
+// The earlier deadline first (an overdue one is the earliest), no deadline last.
+function compareDeadline(a: string | null, b: string | null) {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a.localeCompare(b);
+}
+
+function compareLanes(a: LaneRank, b: LaneRank) {
+  return Number(b.highCount > 0) - Number(a.highCount > 0)
+    || compareDeadline(a.nextHighDeadline, b.nextHighDeadline)
+    || b.highCount - a.highCount
+    || b.openCount - a.openCount;
 }
 
 /**
- * Groups the issues into one lane per project, each split into the three categories. The
- * project with the most open cards comes first, ties alphabetically.
+ * Groups the issues into one lane per project, each split into the three categories. Projects
+ * with High issues come first, by the nearest deadline of these, then by their number; then the
+ * project with the most open cards, then by name. Cells keep the board order.
  */
-export function buildLanes(issues: MyIssue[], today = new Date()): MyWorkLane[] {
+export function buildLanes(issues: MyIssue[]): MyWorkLane[] {
   const lanes = new Map<number, MyWorkLane>();
   for (const issue of issues) {
     const category = categoryOf(issue.status);
@@ -99,12 +86,15 @@ export function buildLanes(issues: MyIssue[], today = new Date()): MyWorkLane[] 
     }
     lane.cells[category].push(issue);
   }
-  const sorted = [...lanes.values()].sort((a, b) =>
-    openCount(b) - openCount(a) || a.projectName.localeCompare(b.projectName) || a.projectId - b.projectId);
+  const sorted = [...lanes.values()]
+    .map(lane => ({ lane, rank: laneRank(lane) }))
+    .sort((a, b) => compareLanes(a.rank, b.rank)
+      || a.lane.projectName.localeCompare(b.lane.projectName) || a.lane.projectId - b.lane.projectId)
+    .map(({ lane }) => lane);
   for (const lane of sorted) {
-    lane.cells.notStarted.sort((a, b) => compareUrgency(a, b, today));
-    lane.cells.inProgress.sort((a, b) => compareInProgress(a, b, today));
-    lane.cells.done.sort(compareDone);
+    lane.cells.notStarted.sort(compareBoardOrder);
+    lane.cells.inProgress.sort(compareInProgress);
+    lane.cells.done.sort(compareBoardOrder);
   }
   return sorted;
 }
