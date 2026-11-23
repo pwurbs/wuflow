@@ -330,9 +330,9 @@ export function setupListDrag(listId: string, targetStatus: IssueStatus, options
 
 export function sortReleasesByDate(releases: Release[]) {
   return releases.slice().sort((a, b) => {
-    const da = a.release_date ? new Date(a.release_date) : null;
-    const db = b.release_date ? new Date(b.release_date) : null;
-    if (da && db) return da.getTime() - db.getTime();
+    const da = a.release_date;
+    const db = b.release_date;
+    if (da && db) return da.localeCompare(db);
     if (da) return -1;
     if (db) return 1;
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();

@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.ts';
-import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, toDateInputValue, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, bySelector, errorMessage } from '../utils.ts';
+import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, bySelector, errorMessage, dateYearAccepted } from '../utils.ts';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.ts';
 import { PRIORITY_NORMAL, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import type { Priority } from '../domain-constants.ts';
@@ -574,7 +574,7 @@ function saveIssueChanges(getChanges: (issue: Issue) => IssueChanges, successMes
   });
 }
 
-function validateIssueForm(title: string, description: string) {
+function validateIssueForm(title: string, description: string, deadline: string | null) {
   if (!title) {
     showNotification('Title is required.', 'error');
     byId('title', HTMLInputElement).focus();
@@ -589,7 +589,7 @@ function validateIssueForm(title: string, description: string) {
     showNotification(`Description must not exceed ${MAX_DESC_LENGTH} characters.`, 'error');
     return false;
   }
-  return true;
+  return dateYearAccepted(deadline, 'Deadline');
 }
 
 function getIssueDataFromForm(): IssueWrite & { project_id: number } {
@@ -604,7 +604,7 @@ function getIssueDataFromForm(): IssueWrite & { project_id: number } {
   return {
     title,
     description,
-    deadline: deadlineVal ? new Date(deadlineVal + 'T12:00:00') : null,
+    deadline: deadlineVal || null,
     planned_dates: getPlannedDatesFromDOM(),
     // The hidden inputs only ever hold a value of the status and priority dropdowns.
     status: byId('status', HTMLInputElement).value as IssueStatus,
@@ -619,7 +619,7 @@ function getIssueDataFromForm(): IssueWrite & { project_id: number } {
 
 async function handleIssueSubmit() {
   const issueData = getIssueDataFromForm();
-  if (!validateIssueForm(issueData.title, issueData.description)) return;
+  if (!validateIssueForm(issueData.title, issueData.description, issueData.deadline ?? null)) return;
 
   try {
     if (state.currentIssue) {
@@ -1022,7 +1022,7 @@ function revertSidebarControls() {
 
 function setDeadlineInput(issue: Issue) {
   const deadlineInput = byId('deadline', HTMLInputElement);
-  deadlineInput.value = toDateInputValue(issue.deadline);
+  deadlineInput.value = issue.deadline ?? '';
   updateDateInputStyle(deadlineInput);
 }
 
@@ -1055,7 +1055,11 @@ function savePlannedDates(getChanges: (issue: Issue) => IssueChanges, successMes
 
 async function handleDeadlineChange(rawValue: string) {
   if (!state.currentIssue) return;
-  const dateVal = rawValue ? new Date(rawValue + 'T12:00:00') : null;
+  const dateVal = rawValue === '' ? null : rawValue;
+  if (!dateYearAccepted(dateVal, 'Deadline')) {
+    setDeadlineInput(state.currentIssue);
+    return;
+  }
   if (!(await saveSidebarField({ deadline: dateVal }, null, byId('deadline', HTMLInputElement)))) return;
   const dlStatus = getDeadlineStatus({ deadline: dateVal, release: state.currentIssue.release });
   byId('deadline-display').classList.toggle('overdue', dlStatus.late);
@@ -1170,8 +1174,7 @@ function refreshTaskDeadlineStyles() {
     const display = li.querySelector('.task-deadline-display');
     const container = li.querySelector<HTMLElement>('.task-deadline-container');
     if (!input || !display || !container) return;
-    const deadline = input.value ? new Date(input.value + 'T12:00:00') : null;
-    const status = getTaskDeadlineStatus(deadline, state.currentIssue);
+    const status = getTaskDeadlineStatus(input.value || null, state.currentIssue);
     display.classList.toggle('overdue', status.late);
     container.title = status.late ? status.reason : 'Set Deadline';
     if (status.late) lateCount++;
@@ -1197,12 +1200,13 @@ async function handleTaskSubmit() {
     showNotification(`Task title must not exceed ${MAX_TITLE_LENGTH} characters.`, 'error');
     return false;
   }
+  if (!dateYearAccepted(deadlineInput.value, 'Task deadline')) return false;
 
   const taskData = {
     issue_id: state.currentIssue.id,
     title: titleInput.value,
     done: false,
-    deadline: deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00') : null,
+    deadline: deadlineInput.value || null,
     position: state.currentIssue.tasks ? state.currentIssue.tasks.length : 0
   };
 

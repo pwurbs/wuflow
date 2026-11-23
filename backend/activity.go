@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"strings"
-	"time"
 )
 
 // recordHistory appends one immutable audit-trail entry for an issue. It is
@@ -80,11 +79,11 @@ func diffIssueFields(old, updated *Issue) []ChangeData {
 	return changes
 }
 
-func deadlineStr(t *time.Time) string {
-	if t == nil {
+func deadlineStr(d *CalendarDate) string {
+	if d == nil {
 		return ""
 	}
-	return t.Format("2006-01-02")
+	return string(*d)
 }
 
 func assigneeName(i *Issue) string {

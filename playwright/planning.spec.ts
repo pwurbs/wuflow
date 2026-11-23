@@ -1,15 +1,7 @@
 import { test, expect } from './fixtures';
-import { createIssue, selectAssignee, waitForIssueSave } from './helpers/test-utils';
+import { createIssue, selectAssignee, waitForIssueSave, localISODate, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Planning Panel', () => {
-  // Helper to format date as YYYY-MM-DD for input and ID matching
-  const formatDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   test.beforeEach(async ({ page, login }) => {
     await login();
     // Planning panel is now always visible on board view
@@ -24,7 +16,7 @@ test.describe('Planning Panel', () => {
 
   test('create issue with planned date appears in planning panel', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
 
     await createIssue(page, {
       title: 'Planned Issue 1',
@@ -47,8 +39,8 @@ test.describe('Planning Panel', () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
-    const todayStr = formatDate(today);
-    const tomorrowStr = formatDate(tomorrow);
+    const todayStr = localISODate(today);
+    const tomorrowStr = localISODate(tomorrow);
 
     // Create issue for today
     await createIssue(page, {
@@ -82,7 +74,7 @@ test.describe('Planning Panel', () => {
 
   test('multiple issues on same date are grouped together', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
 
     // Create first issue
     await createIssue(page, {
@@ -106,7 +98,7 @@ test.describe('Planning Panel', () => {
   test('past planned dates appear in Past section', async ({ page }) => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const dateStr = formatDate(yesterday);
+    const dateStr = localISODate(yesterday);
 
     await createIssue(page, {
       title: 'Past Issue',
@@ -121,7 +113,7 @@ test.describe('Planning Panel', () => {
 
   test('remove from plan via button', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
 
     await createIssue(page, {
       title: 'To Be Removed',
@@ -149,8 +141,8 @@ test.describe('Planning Panel', () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
-    const todayStr = formatDate(today);
-    const tomorrowStr = formatDate(tomorrow);
+    const todayStr = localISODate(today);
+    const tomorrowStr = localISODate(tomorrow);
 
     await createIssue(page, {
       title: 'Move Me',
@@ -179,7 +171,7 @@ test.describe('Planning Panel', () => {
 
   test('issue with deadline shows deadline badge', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
 
     // Create issue with both planned date and deadline
     await createIssue(page, {
@@ -199,7 +191,7 @@ test.describe('Planning Panel', () => {
 
   test('unscheduled section shows issues with deadline but no planned date', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
 
     // Create issue with deadline but no planned date
     await createIssue(page, {
@@ -217,7 +209,7 @@ test.describe('Planning Panel', () => {
 
   test('drag unscheduled issue to day slot assigns planned date', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
     const uniqueTitle = 'Schedule Me ' + Date.now(); // Unique title for isolation
 
     // Create unscheduled issue with deadline
@@ -259,7 +251,7 @@ test.describe('Planning Panel', () => {
 
   test('click planning item opens edit modal', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
 
     await createIssue(page, {
       title: 'Click Me',
@@ -284,7 +276,7 @@ test.describe('Planning Panel', () => {
     const pastSection = page.locator('#day-past');
 
     // Today's box is always rendered, in the same pass as the past section.
-    await expect(page.locator(`#day-${formatDate(new Date())}`)).toBeVisible();
+    await expect(page.locator(`#day-${localISODate(new Date())}`)).toBeVisible();
 
     if (await pastSection.isVisible()) {
       // Clear all items in past section
@@ -303,7 +295,7 @@ test.describe('Planning Panel', () => {
 
   test('unscheduled section is hidden when empty', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
     const uniqueTitle = 'Hide Test ' + Date.now(); // Unique title for isolation
 
     // Create a fresh issue with deadline (appears in unscheduled)
@@ -340,15 +332,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('future planned dates appear in Future section', async ({ page }) => {
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 15);
-
-    // Manual format to avoid timezone issues or helper dependency if outside scope
-    // Helper `formatDate` is available in scope.
-    const year = futureDate.getFullYear();
-    const month = String(futureDate.getMonth() + 1).padStart(2, '0');
-    const day = String(futureDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = isoDateFromToday(15);
 
     await createIssue(page, {
       title: 'Future Issue',
@@ -375,12 +359,7 @@ test.describe('Planning Panel', () => {
     await page.fill('#new-task-title', 'Subtask with Deadline');
 
     // Set deadline for task (Tomorrow)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const year = tomorrow.getFullYear();
-    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
-    const day = String(tomorrow.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = isoDateFromToday(1);
 
     await page.fill('#new-task-deadline', dateStr);
     await page.click('#add-task-btn');
@@ -416,9 +395,7 @@ test.describe('Planning Panel', () => {
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Set deadline to Tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateStr1 = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const dateStr1 = isoDateFromToday(1);
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
@@ -427,9 +404,7 @@ test.describe('Planning Panel', () => {
     await savePromise1;
 
     // Set planned date to Day After Tomorrow
-    const dayAfter = new Date();
-    dayAfter.setDate(dayAfter.getDate() + 2);
-    const dateStr2 = `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
+    const dateStr2 = isoDateFromToday(2);
 
     const savePromise2 = waitForIssueSave(page);
     await page.fill('#planned-date-picker', dateStr2, { force: true });
@@ -462,17 +437,13 @@ test.describe('Planning Panel', () => {
     await expect(page.locator('#issue-modal')).toBeVisible();
 
     // Set planned date to Tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    const dateStr = isoDateFromToday(1);
     await page.fill('#planned-date-picker', dateStr, { force: true });
 
     // Add task with deadline (Day after tomorrow to avoid warning)
     await page.fill('#new-task-title', 'Subtask for Badge');
 
-    const dayAfter = new Date();
-    dayAfter.setDate(dayAfter.getDate() + 2);
-    const dateStr2 = `${dayAfter.getFullYear()}-${String(dayAfter.getMonth() + 1).padStart(2, '0')}-${String(dayAfter.getDate()).padStart(2, '0')}`;
+    const dateStr2 = isoDateFromToday(2);
 
     await page.fill('#new-task-deadline', dateStr2);
     await page.click('#add-task-btn');
@@ -500,8 +471,8 @@ test.describe('Planning Panel', () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
-    const todayStr = formatDate(today);
-    const tomorrowStr = formatDate(tomorrow);
+    const todayStr = localISODate(today);
+    const tomorrowStr = localISODate(tomorrow);
 
     await createIssue(page, {
       title: 'Multi-Day Issue',
@@ -523,7 +494,7 @@ test.describe('Planning Panel', () => {
     // Must have a deadline to appear in Unscheduled section
     const deadline = new Date();
     deadline.setDate(deadline.getDate() + 5);
-    const deadlineStr = formatDate(deadline);
+    const deadlineStr = localISODate(deadline);
 
     await createIssue(page, {
       title: title,
@@ -539,7 +510,7 @@ test.describe('Planning Panel', () => {
     // Ensure Future section is visible via trigger issue
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 20); // Far future
-    const futureDateStr = formatDate(futureDate);
+    const futureDateStr = localISODate(futureDate);
 
     await createIssue(page, {
       title: 'Trigger Future Box',
@@ -577,8 +548,8 @@ test.describe('Planning Panel', () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
-    const todayStr = formatDate(today);
-    const tomorrowStr = formatDate(tomorrow);
+    const todayStr = localISODate(today);
+    const tomorrowStr = localISODate(tomorrow);
 
     // Deadline is today
     await createIssue(page, {
@@ -609,8 +580,8 @@ test.describe('Planning Panel', () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
-    const todayStr = formatDate(today);
-    const tomorrowStr = formatDate(tomorrow);
+    const todayStr = localISODate(today);
+    const tomorrowStr = localISODate(tomorrow);
 
     await createIssue(page, {
       title: 'Partial Remove Test',
@@ -637,8 +608,8 @@ test.describe('Planning Panel', () => {
     const dayBeforeYesterday = new Date();
     dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
 
-    const dateStr1 = formatDate(yesterday);
-    const dateStr2 = formatDate(dayBeforeYesterday);
+    const dateStr1 = localISODate(yesterday);
+    const dateStr2 = localISODate(dayBeforeYesterday);
 
     await createIssue(page, {
       title: 'Dedupe Past Test',
@@ -655,15 +626,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('unplanned issue with distant deadline is hidden behind collapsed header', async ({ page }) => {
-    const today = new Date();
-    const distantDate = new Date(today);
-    distantDate.setDate(today.getDate() + 15);
-
-    // Format date manually
-    const year = distantDate.getFullYear();
-    const month = String(distantDate.getMonth() + 1).padStart(2, '0');
-    const day = String(distantDate.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    const dateStr = isoDateFromToday(15);
 
     const uniqueTitle = 'Distant Deadline ' + Date.now();
 
@@ -680,11 +643,15 @@ test.describe('Planning Panel', () => {
     // The header should be visible
     const toggleHeader = unscheduledSection.locator('.planning-section-subheader');
     await expect(toggleHeader).toBeVisible();
-    await expect(toggleHeader).toContainText('10+ days away [1]');
-
     // The item should be in the DOM but hidden
-    const item = unscheduledSection.locator('.planning-item', { hasText: uniqueTitle });
+    const farContent = unscheduledSection.locator('.far-term');
+    const item = farContent.locator('.planning-item', { hasText: uniqueTitle });
+    await expect(item).toBeAttached();
     await expect(item).toBeHidden();
+
+    // Other tests of this worker may leave distant deadlines too, so the header counts what is behind it.
+    const farCount = await farContent.locator('.planning-item').count();
+    await expect(toggleHeader).toContainText(`10+ days away [${farCount}]`);
 
     // Click to expand
     await toggleHeader.click();
@@ -695,7 +662,7 @@ test.describe('Planning Panel', () => {
 
   test('assignee badge initials on planning card', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
     const title = `Planning Badge Test ${Date.now()}`;
 
     await createIssue(page, {
@@ -729,7 +696,7 @@ test.describe('Planning Panel', () => {
 
   test('done issue shows as completed in planning sidebar', async ({ page }) => {
     const today = new Date();
-    const dateStr = formatDate(today);
+    const dateStr = localISODate(today);
 
     await createIssue(page, {
       title: 'Done Completion Test',
@@ -759,7 +726,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('hovering a planning item highlights a high-priority card with the blue border', async ({ page }) => {
-    const dateStr = formatDate(new Date());
+    const dateStr = localISODate(new Date());
     await createIssue(page, { title: 'Prio Highlight Test', status: 'Todo', priority: 'High', plannedDate: dateStr });
 
     const card = page.locator('.column[data-status="Todo"] .board-card:has-text("Prio Highlight Test")');

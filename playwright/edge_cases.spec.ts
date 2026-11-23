@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, openIssueByTitle, navigateTo } from './helpers/test-utils';
+import { createIssue, createRelease, openIssueByTitle, navigateTo, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Edge Cases and Validation', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -149,8 +149,7 @@ test.describe('Edge Cases and Validation', () => {
 
   test('data persists after page reload', async ({ page }) => {
     // Create an issue with various properties
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = isoDateFromToday(1);
 
     // First create a label
     await navigateTo(page, 'project-settings');
@@ -163,7 +162,7 @@ test.describe('Edge Cases and Validation', () => {
       description: 'This issue should persist',
       status: 'Working',
       priority: 'High',
-      deadline: tomorrow.toISOString().split('T')[0],
+      deadline: tomorrow,
       label: 'PersistLabel'
     });
 
@@ -197,7 +196,7 @@ test.describe('Edge Cases and Validation', () => {
 
     // Check deadline
     const deadlineValue = await page.locator('#deadline').inputValue();
-    expect(deadlineValue).toBe(tomorrow.toISOString().split('T')[0]);
+    expect(deadlineValue).toBe(tomorrow);
 
     // Check task exists
     await expect(page.locator('#task-list .task-title-input[value="Persistent Task"]')).toBeVisible();

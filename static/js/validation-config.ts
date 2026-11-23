@@ -11,6 +11,8 @@ export const MAX_PROJECT_DESC_LEN = 100;
 export const MAX_STATUS_NAME_LEN  = 15;
 export const MAX_RELEASE_NAME_LEN = 20;
 export const MAX_RELEASE_DESC_LEN = 200;
+export const MIN_DATE_YEAR        = 2000;
+export const MAX_DATE_YEAR        = 2100;
 
 // Mirror of backend compiled regexes in validation.go
 export const EMAIL_REGEX       = /^[^\s@]+@[^\s@]+$/;

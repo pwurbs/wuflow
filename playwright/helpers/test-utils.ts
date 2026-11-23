@@ -15,6 +15,20 @@ export interface IssueData {
   label?: string;
 }
 
+// YYYY-MM-DD of the local day d falls on. Tests and browser share the time zone (except where
+// a test sets timezoneId), so this is the day the app shows. Never use toISOString(): it gives
+// the UTC day, which differs from the local one around midnight.
+export function localISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// The local calendar day `days` from today, as YYYY-MM-DD.
+export function isoDateFromToday(days = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return localISODate(d);
+}
+
 /**
  * Opens the New Issue modal
  */
@@ -250,6 +264,12 @@ export async function createIssueViaAPI(
   expect(res.status()).toBe(201);
   const body = await res.json();
   return body.id;
+}
+
+/** Deletes an issue via API, as cleanup for an issue other tests would otherwise count. */
+export async function deleteIssueViaAPI(request: APIRequestContext, projectId: number, issueId: number, adminPassword: string): Promise<void> {
+  const res = await request.delete(`/api/projects/${projectId}/issues/${issueId}`, { data: { admin_password: adminPassword } });
+  expect(res.status()).toBe(204);
 }
 
 /** Creates a release inside the given project via API; returns its id. */

@@ -656,9 +656,9 @@ func issueContentHash(i *Issue) string {
 	if i.AssigneeID != nil {
 		assigneeID = *i.AssigneeID
 	}
-	var deadline string
+	var deadline CalendarDate
 	if i.Deadline != nil {
-		deadline = i.Deadline.UTC().Format(time.RFC3339)
+		deadline = *i.Deadline
 	}
 	var releaseID int
 	if i.ReleaseID != nil {

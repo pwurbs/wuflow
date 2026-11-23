@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, toDateInputValue, guardSubmit, bySelector, errorMessage } from '../utils.ts';
+import { escapeHtml, showNotification, showConfirm, initCharCounter, getTaskDeadlineStatus, formatISODate, guardSubmit, bySelector, errorMessage, dateYearAccepted } from '../utils.ts';
 import { MAX_TITLE_LENGTH } from '../validation-config.ts';
 import { updateTask, deleteTask } from '../api.ts'; // Ensure createTask is imported
 import { setDraggedTask } from '../drag.ts';
@@ -8,7 +8,7 @@ import type { Issue, Task } from '../models.ts';
 
 // Calendar icon plus the short date; without a deadline the icon alone opens the date picker.
 function taskDeadlineHTML(deadline: string | null) {
-  const date = deadline ? new Date(deadline).toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' }) : '';
+  const date = deadline ? formatISODate(deadline, { month: 'short', day: 'numeric' }) : '';
   return `<span class="icon-calendar" aria-hidden="true"></span>${date}`;
 }
 
@@ -43,7 +43,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
                 <div class="task-actions">
                     <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="${dlStatus.late ? dlStatus.reason : 'Set Deadline'}">
                         <span class="task-deadline task-deadline-display${dlStatus.late ? ' overdue' : ''}">${taskDeadlineHTML(task.deadline)}</span>
-                        <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${toDateInputValue(task.deadline)}">
+                        <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${escapeHtml(task.deadline ?? '')}">
                     </div>
                     <div class="delete-task-btn" title="Delete Task">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -190,8 +190,12 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
       deadlineContainer.addEventListener('click', () => deadlineInput.showPicker());
       deadlineInput.addEventListener('change', async () => {
         if (!userCan(state.currentUser, ACTION_UPDATE_TASK)) return;
+        if (!dateYearAccepted(deadlineInput.value, 'Task deadline')) {
+          deadlineInput.value = task.deadline ?? '';
+          return;
+        }
         const prevDeadline = task.deadline;
-        task.deadline = deadlineInput.value ? new Date(deadlineInput.value + 'T12:00:00').toISOString() : null;
+        task.deadline = deadlineInput.value || null;
         try {
           await updateTask(currentIssue.project_id, currentIssue.id, task);
           const display = bySelector(li, '.task-deadline-display');
@@ -204,7 +208,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         } catch (err) {
           task.deadline = prevDeadline; // revert local state
-          deadlineInput.value = toDateInputValue(prevDeadline);
+          deadlineInput.value = prevDeadline ?? '';
           showNotification(errorMessage(err), 'error');
         }
       });

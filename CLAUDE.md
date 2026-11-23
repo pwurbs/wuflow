@@ -38,6 +38,7 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   in the matching layer (docs/testing.md) — existing tests that merely keep passing don't count.
   Go logic/handlers → `backend/*_test.go`, frontend code with decisions → `static/js/tests/`, user-visible
   flows → `playwright/`.
+- Go tests: one `_test.go` per production file. Only fuzzing (`fuzz_test.go`) and shared test helpers (`helpers_test.go`) have their own file.
 - After a production code change, run the existing suites first, before writing new tests.
 - Classify every failure: expected (the test asserts behaviour the change intentionally altered)
   or regression. There is no third class: a failure the change doesn't explain is a regression,

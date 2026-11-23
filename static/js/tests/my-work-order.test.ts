@@ -77,8 +77,8 @@ describe('buildLanes', () => {
   it('sorts Not Started by urgency, In Progress by stage then urgency, Done by last update', () => {
     const [lane] = buildLanes([
       myIssue({ id: 1, title: 'todo rest', status: 'Todo' }),
-      myIssue({ id: 2, title: 'todo overdue', status: 'Todo', deadline: '2026-11-16T12:00:00Z' }),
-      myIssue({ id: 3, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-16T12:00:00Z' }),
+      myIssue({ id: 2, title: 'todo overdue', status: 'Todo', deadline: '2026-11-16' }),
+      myIssue({ id: 3, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-16' }),
       myIssue({ id: 4, title: 'stage3 rest', status: 'Stage3' }),
       myIssue({ id: 5, title: 'stage3 high', status: 'Stage3', priority: 'High' }),
       myIssue({ id: 6, title: 'done old', status: 'Done', updated_at: '2026-11-01T10:00:00Z' }),
@@ -93,16 +93,16 @@ describe('buildLanes', () => {
 
 describe('urgencyRank', () => {
   it.each<[string, Partial<MyIssue>, number]>([
-    ['issue deadline before today', { deadline: '2026-11-16T12:00:00Z' }, 0],
-    ['open task deadline before today', { tasks: [makeTask({ done: false, deadline: '2026-11-10T12:00:00Z' })] }, 0],
+    ['issue deadline before today', { deadline: '2026-11-16' }, 0],
+    ['open task deadline before today', { tasks: [makeTask({ done: false, deadline: '2026-11-10' })] }, 0],
     ['high priority', { priority: 'High' }, 1],
-    ['overdue wins over high priority', { priority: 'High', deadline: '2026-11-16T12:00:00Z' }, 0],
+    ['overdue wins over high priority', { priority: 'High', deadline: '2026-11-16' }, 0],
     ['planned today', { planned_dates: ['2026-11-17'] }, 2],
     ['planned the day after tomorrow', { planned_dates: ['2026-11-19'] }, 2],
     ['missed plan (planned in the past)', { planned_dates: ['2026-11-01'] }, 2],
     ['planned in three days', { planned_dates: ['2026-11-20'] }, 3],
-    ['deadline today is not overdue', { deadline: '2026-11-17T12:00:00Z' }, 3],
-    ['done task with past deadline does not count', { tasks: [makeTask({ done: true, deadline: '2026-11-10T12:00:00Z' })] }, 3],
+    ['deadline today is not overdue', { deadline: '2026-11-17' }, 3],
+    ['done task with past deadline does not count', { tasks: [makeTask({ done: true, deadline: '2026-11-10' })] }, 3],
     ['nothing urgent', {}, 3],
   ])('%s → %i', (_, overrides, rank) => {
     expect(urgencyRank(myIssue(overrides), TODAY)).toBe(rank);
@@ -117,14 +117,14 @@ describe('compareUrgency', () => {
       myIssue({ id: 1, title: 'rest' }),
       myIssue({ id: 2, title: 'planned soon', planned_dates: ['2026-11-18'] }),
       myIssue({ id: 3, title: 'high', priority: 'High' }),
-      myIssue({ id: 4, title: 'overdue', deadline: '2026-11-01T12:00:00Z' }),
+      myIssue({ id: 4, title: 'overdue', deadline: '2026-11-01' }),
     ])).toEqual(['overdue', 'high', 'planned soon', 'rest']);
   });
 
   it('breaks ties by the earliest date, then by board position, then by ID', () => {
     expect(sort([
-      myIssue({ id: 5, title: 'later overdue', deadline: '2026-11-15T12:00:00Z' }),
-      myIssue({ id: 6, title: 'earlier overdue', deadline: '2026-11-01T12:00:00Z' }),
+      myIssue({ id: 5, title: 'later overdue', deadline: '2026-11-15' }),
+      myIssue({ id: 6, title: 'earlier overdue', deadline: '2026-11-01' }),
     ])).toEqual(['earlier overdue', 'later overdue']);
     expect(sort([
       myIssue({ id: 7, title: 'position 2', position: 2 }),
@@ -134,6 +134,26 @@ describe('compareUrgency', () => {
       myIssue({ id: 10, title: 'id 10' }),
       myIssue({ id: 9, title: 'id 9' }),
     ])).toEqual(['id 9', 'id 10']);
+  });
+
+  it('compares deadlines and planned dates as the same calendar days', () => {
+    // Rank 3 for both: the plan lies beyond "soon", the deadline is not overdue.
+    expect(sort([
+      myIssue({ id: 1, title: 'deadline 25th', deadline: '2026-11-25', position: 1 }),
+      myIssue({ id: 2, title: 'planned 24th', planned_dates: ['2026-11-24'], position: 2 }),
+    ])).toEqual(['planned 24th', 'deadline 25th']);
+    // The same day on both sides is a tie, decided by position.
+    expect(sort([
+      myIssue({ id: 3, title: 'planned 25th', planned_dates: ['2026-11-25'], position: 2 }),
+      myIssue({ id: 4, title: 'deadline 25th', deadline: '2026-11-25', position: 1 }),
+    ])).toEqual(['deadline 25th', 'planned 25th']);
+  });
+
+  it('puts issues without any date after those with one', () => {
+    expect(sort([
+      myIssue({ id: 1, title: 'no date', position: 1 }),
+      myIssue({ id: 2, title: 'deadline', deadline: '2026-12-31', position: 2 }),
+    ])).toEqual(['deadline', 'no date']);
   });
 });
 
@@ -151,7 +171,7 @@ describe('compareInProgress', () => {
 
   it('stage wins over urgency, urgency orders within a stage', () => {
     expect(sort([
-      myIssue({ id: 1, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-01T12:00:00Z' }),
+      myIssue({ id: 1, title: 'stage1 overdue', status: 'Stage1', deadline: '2026-11-01' }),
       myIssue({ id: 2, title: 'stage2 rest', status: 'Stage2' }),
       myIssue({ id: 3, title: 'stage2 high', status: 'Stage2', priority: 'High' }),
     ])).toEqual(['stage2 high', 'stage2 rest', 'stage1 overdue']);

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 )
 
 const (
@@ -101,23 +100,46 @@ func TestValidateIssueInvalidPriority(t *testing.T) {
 }
 
 func TestValidateIssueValidPlannedDates(t *testing.T) {
-	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []string{"2026-01-15", "2026-02-28"}}
+	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []CalendarDate{"2026-01-15", "2026-02-28"}}
 	if err := validateIssue(i); err != nil {
 		t.Errorf("expected no error for valid dates, got %v", err)
 	}
 }
 
 func TestValidateIssueInvalidPlannedDate(t *testing.T) {
-	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []string{"2026-13-01"}}
+	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []CalendarDate{"2026-13-01"}}
 	if err := validateIssue(i); !errors.Is(err, ErrDateInvalid) {
 		t.Errorf("expected ErrDateInvalid, got %v", err)
 	}
 }
 
 func TestValidateIssuePlannedDateWrongFormat(t *testing.T) {
-	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []string{"01/15/2026"}}
+	i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []CalendarDate{"01/15/2026"}}
 	if err := validateIssue(i); !errors.Is(err, ErrDateInvalid) {
 		t.Errorf("expected ErrDateInvalid, got %v", err)
+	}
+}
+
+func TestValidateIssuePlannedDateYearRange(t *testing.T) {
+	cases := []struct {
+		date    CalendarDate
+		wantErr bool
+	}{
+		{"2000-01-01", false},
+		{"2100-12-31", false},
+		{"1999-12-31", true},
+		{"0202-11-20", true},
+		{"2101-01-01", true},
+	}
+	for _, c := range cases {
+		i := &Issue{Title: "T", Status: StatusOpen, PlannedDates: []CalendarDate{"2026-01-15", c.date}}
+		err := validateIssue(i)
+		if (err != nil) != c.wantErr {
+			t.Errorf("%s: got error %v, want error %v", c.date, err, c.wantErr)
+		}
+		if err != nil && err.Error() != "planned date year must be between 2000 and 2100" {
+			t.Errorf("%s: unexpected message %q", c.date, err.Error())
+		}
 	}
 }
 
@@ -368,7 +390,7 @@ func TestValidateReleaseDescTooLong(t *testing.T) {
 }
 
 func TestValidateReleaseInvalidStartDate(t *testing.T) {
-	d := time.Date(1999, 1, 1, 0, 0, 0, 0, time.UTC)
+	d := CalendarDate("1999-01-01")
 	r := &Release{Name: "v1.0", StartDate: &d}
 	if err := validateRelease(r); err == nil {
 		t.Error("expected error for start date year < 2000, got nil")
@@ -376,7 +398,7 @@ func TestValidateReleaseInvalidStartDate(t *testing.T) {
 }
 
 func TestValidateReleaseInvalidReleaseDate(t *testing.T) {
-	d := time.Date(2101, 1, 1, 0, 0, 0, 0, time.UTC)
+	d := CalendarDate("2101-01-01")
 	r := &Release{Name: "v1.0", ReleaseDate: &d}
 	if err := validateRelease(r); err == nil {
 		t.Error("expected error for release date year > 2100, got nil")
@@ -384,8 +406,8 @@ func TestValidateReleaseInvalidReleaseDate(t *testing.T) {
 }
 
 func TestValidateReleaseDateOrderInvalid(t *testing.T) {
-	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	rel := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	start := CalendarDate("2026-06-01")
+	rel := CalendarDate("2026-05-01")
 	r := &Release{Name: "v1.0", StartDate: &start, ReleaseDate: &rel}
 	if err := validateRelease(r); err == nil {
 		t.Error("expected error for release date before start date, got nil")
@@ -393,8 +415,8 @@ func TestValidateReleaseDateOrderInvalid(t *testing.T) {
 }
 
 func TestValidateReleaseDateOrderValid(t *testing.T) {
-	start := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
-	rel := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	start := CalendarDate("2026-05-01")
+	rel := CalendarDate("2026-06-01")
 	r := &Release{Name: "v1.0", StartDate: &start, ReleaseDate: &rel}
 	if err := validateRelease(r); err != nil {
 		t.Errorf("expected no error for valid date order, got %v", err)
@@ -416,7 +438,7 @@ func TestValidateReleaseNameStripsHTML(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestValidateIssueTooManyPlannedDates(t *testing.T) {
-	dates := make([]string, MaxPlannedDates+1)
+	dates := make([]CalendarDate, MaxPlannedDates+1)
 	for i := range dates {
 		dates[i] = "2026-01-15"
 	}
@@ -571,5 +593,41 @@ func TestValidateStatusConfigStage3InvalidOthersValid(t *testing.T) {
 	cfg := &StatusConfig{Stage1Name: "Pending", Stage2Name: "Working", Stage3Name: "Bad!", Stage4Name: ""}
 	if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameInvalid) {
 		t.Errorf("expected ErrStatusNameInvalid for Stage3, got %v", err)
+	}
+}
+
+func TestNormalizeCalendarDate(t *testing.T) {
+	tests := []struct {
+		name, in string
+		want     CalendarDate
+		wantErr  bool
+	}{
+		{"date", "2026-11-20", "2026-11-20", false},
+		{"midnight UTC from older clients", "2026-11-20T00:00:00Z", "2026-11-20", false},
+		{"date as written east of UTC", "2026-11-20T12:00:00+13:00", "2026-11-20", false},
+		{"date as written west of UTC", "2026-11-20T23:00:00-05:00", "2026-11-20", false},
+		{"no date", "tomorrow", "", true},
+		{"impossible day", "2026-02-30", "", true},
+		{"year before 2000", "1999-12-31", "", true},
+		{"year after 2100", "2101-01-01", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := CalendarDate(tt.in)
+			err := normalizeCalendarDate(&d, "deadline")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && d != tt.want {
+				t.Errorf("got %q, want %q", d, tt.want)
+			}
+		})
+	}
+	if err := normalizeCalendarDate(nil, "deadline"); err != nil {
+		t.Errorf("nil date: %v", err)
+	}
+	bad := CalendarDate("20.11.2026")
+	if err := normalizeCalendarDate(&bad, "deadline"); !errors.Is(err, ErrDateInvalid) {
+		t.Errorf("format error = %v, want ErrDateInvalid", err)
 	}
 }

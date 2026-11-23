@@ -1,17 +1,17 @@
 import { singleFlight, errorMessage } from './utils.ts';
-import type { Comment, HistoryEntry, Issue, Label, MyIssue, PositionUpdate, Project, Release, StatusConfig, Task, User } from './models.ts';
+import type { CalendarDate, Comment, HistoryEntry, Issue, Label, MyIssue, PositionUpdate, Project, Release, StatusConfig, Task, User } from './models.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Priority } from './domain-constants.ts';
 
-// Request bodies (the *Request schemas in docs/swagger.json). A Date is sent as its ISO string.
+// Request bodies (the *Request schemas in docs/swagger.json).
 export interface IssueWrite {
   title: string;
   description: string;
   status: IssueStatus;
   priority: Priority;
   position: number;
-  deadline: string | Date | null;
-  planned_dates: string[] | null;
+  deadline: CalendarDate | null;
+  planned_dates: CalendarDate[] | null;
   assignee_id: number | null;
   label: Pick<Label, 'id'> | null;
   release_id: number | null;
@@ -20,7 +20,7 @@ export interface IssueWrite {
 export interface TaskWrite {
   title: string;
   done?: boolean;
-  deadline: string | Date | null;
+  deadline: CalendarDate | null;
   position: number;
 }
 

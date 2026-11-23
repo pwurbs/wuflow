@@ -29,6 +29,8 @@ const (
 	MaxPlannedDates       = 100
 	MaxCommentLength      = 1000
 	MaxPositionUpdates    = 500
+	MinDateYear           = 2000 // catches typos such as year 0202 in a date field
+	MaxDateYear           = 2100
 )
 
 // Validation errors
@@ -176,16 +178,20 @@ func validateIssue(i *Issue) error {
 	if i.Position < 0 {
 		return errors.New("position must be non-negative")
 	}
-	if i.Deadline != nil && (i.Deadline.Year() < 2000 || i.Deadline.Year() > 2100) {
-		return errors.New("deadline year must be between 2000 and 2100")
+	if err := normalizeCalendarDate(i.Deadline, "deadline"); err != nil {
+		return err
 	}
 	// Validate planned dates format (each must be YYYY-MM-DD).
 	if len(i.PlannedDates) > MaxPlannedDates {
 		return ErrTooManyDates
 	}
 	for _, d := range i.PlannedDates {
-		if _, err := time.Parse("2006-01-02", d); err != nil {
+		t, err := time.Parse(time.DateOnly, string(d))
+		if err != nil {
 			return ErrDateInvalid
+		}
+		if err := checkDateYear(t, "planned date"); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -202,8 +208,32 @@ func validateTask(t *Task) error {
 	if t.Position < 0 {
 		return errors.New("position must be non-negative")
 	}
-	if t.Deadline != nil && (t.Deadline.Year() < 2000 || t.Deadline.Year() > 2100) {
-		return errors.New("deadline year must be between 2000 and 2100")
+	return normalizeCalendarDate(t.Deadline, "deadline")
+}
+
+// normalizeCalendarDate checks a calendar date (deadline, release dates) and rewrites it to
+// YYYY-MM-DD. An RFC 3339 timestamp from older clients is accepted too: its date counts in
+// the offset the client sent, so "2026-11-20T12:00:00+13:00" becomes 2026-11-20.
+func normalizeCalendarDate(d *CalendarDate, field string) error {
+	if d == nil {
+		return nil
+	}
+	t, err := time.Parse(time.DateOnly, string(*d))
+	if err != nil {
+		if t, err = time.Parse(time.RFC3339, string(*d)); err != nil {
+			return ErrDateInvalid
+		}
+	}
+	if err := checkDateYear(t, field); err != nil {
+		return err
+	}
+	*d = CalendarDate(t.Format(time.DateOnly))
+	return nil
+}
+
+func checkDateYear(t time.Time, field string) error {
+	if t.Year() < MinDateYear || t.Year() > MaxDateYear {
+		return fmt.Errorf("%s year must be between %d and %d", field, MinDateYear, MaxDateYear)
 	}
 	return nil
 }
@@ -299,13 +329,14 @@ func validateRelease(r *Release) error {
 	if utf8.RuneCountInString(r.Description) > MaxReleaseDescLen {
 		return ErrReleaseDescTooLong
 	}
-	if r.StartDate != nil && (r.StartDate.Year() < 2000 || r.StartDate.Year() > 2100) {
-		return errors.New("start date year must be between 2000 and 2100")
+	if err := normalizeCalendarDate(r.StartDate, "start date"); err != nil {
+		return err
 	}
-	if r.ReleaseDate != nil && (r.ReleaseDate.Year() < 2000 || r.ReleaseDate.Year() > 2100) {
-		return errors.New("release date year must be between 2000 and 2100")
+	if err := normalizeCalendarDate(r.ReleaseDate, "release date"); err != nil {
+		return err
 	}
-	if r.StartDate != nil && r.ReleaseDate != nil && r.ReleaseDate.Before(*r.StartDate) {
+	// YYYY-MM-DD strings sort like the dates they name.
+	if r.StartDate != nil && r.ReleaseDate != nil && *r.ReleaseDate < *r.StartDate {
 		return errors.New("release date must not be before start date")
 	}
 	return nil

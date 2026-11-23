@@ -1,11 +1,11 @@
 import { state, isFilterActive } from '../state.ts';
 import { STATUS_DONE, STATUS_ARCHIVE } from '../status-config.ts';
 import { updateIssue } from '../api.ts';
-import { showNotification, byId, bySelector, errorMessage, containsTarget, getDeadlineStatus, getTaskDeadlineStatus, startOfDay, localISODate } from '../utils.ts';
+import { showNotification, byId, bySelector, errorMessage, containsTarget, getDeadlineStatus, getTaskDeadlineStatus, todayISO, addDaysISO, formatISODate } from '../utils.ts';
 import { getDraggedCard, setDraggedCard } from '../drag.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues } from '../filters.ts';
-import type { Issue } from '../models.ts';
+import type { CalendarDate, Issue } from '../models.ts';
 import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 
 let refreshAppCallback: RefreshApp | undefined;
@@ -18,26 +18,13 @@ export function setupPlanningPanel(refreshApp?: RefreshApp, openModal?: OpenModa
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 }
 
+// The earliest of the issue deadline and the deadlines of its open tasks.
 export function getEffectiveDeadlineInfo(issue: Issue) {
-  let minInfo: { date: Date; isTask: boolean } | null = null;
-  if (issue.deadline) {
-    const d = new Date(issue.deadline);
-    d.setHours(12, 0, 0, 0);
-    minInfo = { date: d, isTask: false };
-  }
-
-  if (issue.tasks && issue.tasks.length > 0) {
-    issue.tasks.forEach(task => {
-      if (!task.done && task.deadline) {
-        const taskDeadline = new Date(task.deadline);
-        // Normalize time to noon to avoid timezone shift issues
-        taskDeadline.setHours(12, 0, 0, 0);
-
-        if (!minInfo || taskDeadline < minInfo.date) {
-          minInfo = { date: taskDeadline, isTask: true };
-        }
-      }
-    });
+  let minInfo: { date: CalendarDate; isTask: boolean } | null = issue.deadline ? { date: issue.deadline, isTask: false } : null;
+  for (const task of issue.tasks ?? []) {
+    if (!task.done && task.deadline && (!minInfo || task.deadline < minInfo.date)) {
+      minInfo = { date: task.deadline, isTask: true };
+    }
   }
   return minInfo;
 }
@@ -97,7 +84,7 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
   planningList.innerHTML = '';
 
   let count = 0;
-  const today = startOfDay(new Date());
+  const today = todayISO();
 
   // Day containers by key ('past', 'future' or YYYY-MM-DD), looked up here instead of by
   // document-wide ID because the board and My Work lists are in the DOM at the same time.
@@ -117,11 +104,8 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
       const isUnscheduled = !issue.planned_dates || issue.planned_dates.length === 0;
       return info && isUnscheduled && issue.status !== STATUS_DONE && issue.status !== STATUS_ARCHIVE;
     })
-    .sort((a, b) => {
-      const infoA = getEffectiveDeadlineInfo(a);
-      const infoB = getEffectiveDeadlineInfo(b);
-      return (infoA ? infoA.date.getTime() : 0) - (infoB ? infoB.date.getTime() : 0);
-    }); // Sort by effective deadline, tightest first
+    // Sort by effective deadline, tightest first (the filter above leaves only issues with one).
+    .sort((a, b) => (getEffectiveDeadlineInfo(a)?.date ?? '').localeCompare(getEffectiveDeadlineInfo(b)?.date ?? ''));
 
   if (unscheduledIssues.length > 0) {
     const unscheduledSection = createUnscheduledSection(unscheduledIssues, opts);
@@ -130,15 +114,7 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
   }
 
   // Past
-  const hasPastIssues = filteredIssues.some(issue => {
-    if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
-    return issue.planned_dates.some(dateStr => {
-      // Normalize strictly to avoid timezone issues?
-      // planned_dates are YYYY-MM-DD. existing Date(str) works in UTC usually or Local?
-      // safely:
-      return new Date(dateStr) < today;
-    });
-  });
+  const hasPastIssues = filteredIssues.some(issue => issue.planned_dates?.some(dateStr => dateStr < today));
 
   if (hasPastIssues) {
     addDay('Past Planning', 'past');
@@ -146,21 +122,14 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
 
   // Next 10 Days
   for (let i = 0; i < 10; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
-    const dateStr = date.toLocaleDateString(navigator.language, { weekday: 'short', month: 'short', day: 'numeric' });
-    const dateId = localISODate(date);
-    addDay(dateStr, dateId);
+    const dateId = addDaysISO(today, i);
+    addDay(formatISODate(dateId, { weekday: 'short', month: 'short', day: 'numeric' }), dateId);
   }
 
   // Future Planning (for > 10 days)
-  const futureCutoff = new Date(today);
-  futureCutoff.setDate(today.getDate() + 10);
+  const futureCutoff = addDaysISO(today, 10);
 
-  const hasFutureIssues = filteredIssues.some(issue => {
-    if (!issue.planned_dates || issue.planned_dates.length === 0) return false;
-    return issue.planned_dates.some(dateStr => startOfDay(dateStr) >= futureCutoff);
-  });
+  const hasFutureIssues = filteredIssues.some(issue => issue.planned_dates?.some(dateStr => dateStr >= futureCutoff));
 
   if (hasFutureIssues) {
     addDay('Future Planning', 'future');
@@ -173,16 +142,12 @@ export function buildPlanningList(planningList: HTMLElement, filteredIssues: Iss
   filteredIssues.forEach(issue => {
     if (issue.planned_dates && issue.planned_dates.length > 0) {
       issue.planned_dates.forEach(dateStr => {
-        const planned = new Date(dateStr);
-        // Normalize
-        planned.setHours(12, 0, 0, 0);
-
         let targetKey;
-        if (planned < today) {
+        if (dateStr < today) {
           if (addedPastIssues.has(issue.id)) return;
           targetKey = 'past';
           addedPastIssues.add(issue.id);
-        } else if (planned >= futureCutoff) {
+        } else if (dateStr >= futureCutoff) {
           if (addedFutureIssues.has(issue.id)) return;
           targetKey = 'future';
           addedFutureIssues.add(issue.id);
@@ -238,14 +203,14 @@ function createPlanningDayElement(title: string, idSuffix: string, readOnly: boo
   return div;
 }
 
-export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
+export function createDeadlineBadge(issue: Issue, specificDateStr?: CalendarDate) {
   const effectiveInfo = getEffectiveDeadlineInfo(issue);
   if (!effectiveInfo) return null;
 
-  const d = startOfDay(effectiveInfo.date);
+  const d = effectiveInfo.date;
 
   const status = effectiveInfo.isTask
-    ? getTaskDeadlineStatus(effectiveInfo.date, issue)
+    ? getTaskDeadlineStatus(d, issue)
     : getDeadlineStatus(issue);
   const plannedLate = isPlannedLate(issue, d, specificDateStr);
   const isWarning = status.late || plannedLate;
@@ -255,16 +220,16 @@ export function createDeadlineBadge(issue: Issue, specificDateStr?: string) {
 
   const badge = document.createElement('span');
   badge.className = `planning-item-deadline ${isWarning ? 'overdue' : ''}`;
-  badge.textContent = d.toLocaleDateString(navigator.language, { month: 'short', day: 'numeric' });
+  badge.textContent = formatISODate(d, { month: 'short', day: 'numeric' });
   badge.title = tooltip;
   return badge;
 }
 
 // Whether the given planned date, or without one the issue's latest planned date, is after the deadline.
-function isPlannedLate(issue: Issue, deadline: Date, specificDateStr?: string) {
+function isPlannedLate(issue: Issue, deadline: CalendarDate, specificDateStr?: CalendarDate) {
   const plannedStr = specificDateStr ?? [...(issue.planned_dates ?? [])].sort((a, b) => b.localeCompare(a))[0];
   if (!plannedStr) return false;
-  return startOfDay(plannedStr) > deadline;
+  return plannedStr > deadline;
 }
 
 function createAssigneeBadgeElement(issue: Issue) {
@@ -335,7 +300,7 @@ function createItemBase(issue: Issue, className: string, opts: PlanningListOptio
   return div;
 }
 
-function createPlanningItem(issue: Issue, dateStr: string, opts: PlanningListOptions) {
+function createPlanningItem(issue: Issue, dateStr: CalendarDate, opts: PlanningListOptions) {
   const div = createItemBase(issue, `planning-item ${issue.status === STATUS_DONE ? 'done' : ''}`, opts, 'copyMove');
   // Store the date of this specific instance
   div.dataset.dateInstance = dateStr;
@@ -391,9 +356,7 @@ function createUnscheduledSection(issues: Issue[], opts: PlanningListOptions) {
   const content = document.createElement('div');
   content.className = 'planning-section-content';
 
-  const today = startOfDay(new Date());
-  const tenDaysFromNow = new Date(today);
-  tenDaysFromNow.setDate(today.getDate() + 10);
+  const tenDaysFromNow = addDaysISO(todayISO(), 10);
 
   const nearTermIssues: Issue[] = [];
   const farTermIssues: Issue[] = [];
@@ -401,7 +364,7 @@ function createUnscheduledSection(issues: Issue[], opts: PlanningListOptions) {
   issues.forEach(issue => {
     const info = getEffectiveDeadlineInfo(issue);
     if (info?.date) {
-      if (startOfDay(info.date) > tenDaysFromNow) {
+      if (info.date > tenDaysFromNow) {
         farTermIssues.push(issue);
       } else {
         nearTermIssues.push(issue);

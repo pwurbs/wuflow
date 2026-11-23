@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, navigateTo, openIssueByTitle, selectPriority, selectStatus, waitForIssueSave, waitForToast } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, openIssueByTitle, selectPriority, selectStatus, waitForIssueSave, waitForToast, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Issue Edit Operations', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -114,9 +114,8 @@ test.describe('Issue Edit Operations', () => {
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Add deadline
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const deadlineStr = tomorrow.toISOString().split('T')[0];
+    const tomorrow = isoDateFromToday(1);
+    const deadlineStr = tomorrow;
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
@@ -136,9 +135,8 @@ test.describe('Issue Edit Operations', () => {
 
   test('change existing deadline', async ({ page }) => {
     // Create an issue with deadline
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const initialDeadline = tomorrow.toISOString().split('T')[0];
+    const tomorrow = isoDateFromToday(1);
+    const initialDeadline = tomorrow;
 
     await createIssue(page, {
       title: 'Change Deadline Issue',
@@ -151,9 +149,8 @@ test.describe('Issue Edit Operations', () => {
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Change deadline to a different date
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const newDeadline = nextWeek.toISOString().split('T')[0];
+    const nextWeek = isoDateFromToday(7);
+    const newDeadline = nextWeek;
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
@@ -176,9 +173,8 @@ test.describe('Issue Edit Operations', () => {
 
   test('remove deadline from issue', async ({ page }) => {
     // Create an issue with deadline
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const deadline = tomorrow.toISOString().split('T')[0];
+    const tomorrow = isoDateFromToday(1);
+    const deadline = tomorrow;
 
     await createIssue(page, {
       title: 'Remove Deadline Issue',
@@ -305,11 +301,8 @@ test.describe('Project change resets project-scoped fields', () => {
 
     test('warning toast shown when issue deadline is set past release date', async ({ page }) => {
       // Use near-future dates so the issue lands in "this week" in planning, not "10+ days away".
-      const today = new Date();
-      const relDate = new Date(today); relDate.setDate(today.getDate() + 3);
-      const dlDate  = new Date(today); dlDate.setDate(today.getDate() + 6);
-      const relDateStr = relDate.toISOString().split('T')[0];
-      const dlDateStr  = dlDate.toISOString().split('T')[0];
+      const relDateStr = isoDateFromToday(3);
+      const dlDateStr  = isoDateFromToday(6);
 
       const relName = `RI-${Date.now().toString().slice(-8)}`;
       await navigateTo(page, 'releases');

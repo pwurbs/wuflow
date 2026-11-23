@@ -9,7 +9,8 @@ import {
   promptAdminPasswordConfirmation,
   guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
   isErrorToastShown, setAriaDisabled, containsTarget, sortByName,
-  startOfDay, localISODate, createOption,
+  localISODate, todayISO, parseISODate, addDaysISO, formatISODate, createOption,
+  dateYearAccepted,
 } from '../utils.ts';
 import { makeIssue, makeRelease, makeTask, makeUserRef } from './fixtures.ts';
 
@@ -37,6 +38,32 @@ describe('getDeadlineStatus', () => {
       release: makeRelease({ release_date: '2999-12-31' }),
     }));
     expect(res.late).toBe(false);
+  });
+
+  describe('on the boundary days (today is 2026-11-20, late in the evening)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 10, 20, 23, 30));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('a deadline today is not overdue, one yesterday is', () => {
+      expect(getDeadlineStatus(makeIssue({ deadline: '2026-11-20' })).late).toBe(false);
+      expect(getDeadlineStatus(makeIssue({ deadline: '2026-11-19' }))).toEqual({ late: true, reason: 'Overdue!' });
+    });
+
+    it('a deadline on the release date is not past it, one a day later is', () => {
+      const release = makeRelease({ release_date: '2026-12-01' });
+      expect(getDeadlineStatus(makeIssue({ deadline: '2026-12-01', release })).late).toBe(false);
+      expect(getDeadlineStatus(makeIssue({ deadline: '2026-12-02', release }))).toEqual({ late: true, reason: 'Past release date!' });
+    });
+
+    it('a task deadline today is not overdue, one on the issue deadline is not after it', () => {
+      expect(getTaskDeadlineStatus('2026-11-20', makeIssue({ deadline: '2026-11-25' })).late).toBe(false);
+      expect(getTaskDeadlineStatus('2026-11-25', makeIssue({ deadline: '2026-11-25' })).late).toBe(false);
+      expect(getTaskDeadlineStatus('2026-11-26', makeIssue({ deadline: '2026-11-25' })))
+        .toEqual({ late: true, reason: 'After issue deadline!' });
+    });
   });
 });
 
@@ -264,13 +291,35 @@ describe('sortByName', () => {
   });
 });
 
-describe('startOfDay', () => {
-  it('returns local midnight of the same day, for a date and for a string, without changing the input', () => {
-    const input = new Date(2026, 10, 18, 15, 30, 45, 500);
-    const day = startOfDay(input);
-    expect(day).toEqual(new Date(2026, 10, 18));
-    expect(input.getHours()).toBe(15);
-    expect(startOfDay('2026-11-18T15:30:00').getTime()).toBe(new Date(2026, 10, 18).getTime());
+describe('calendar dates', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('parseISODate returns local midnight of that day', () => {
+    expect(parseISODate('2026-11-20')).toEqual(new Date(2026, 10, 20));
+  });
+
+  it('todayISO is the local day, also late in the evening', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 20, 23, 30));
+    expect(todayISO()).toBe('2026-11-20');
+    vi.setSystemTime(new Date(2026, 10, 21, 0, 30));
+    expect(todayISO()).toBe('2026-11-21');
+  });
+
+  it.each([
+    ['2026-11-20', 1, '2026-11-21'],
+    ['2026-11-30', 1, '2026-12-01'],
+    ['2026-12-31', 1, '2027-01-01'],
+    ['2028-02-28', 1, '2028-02-29'],
+    ['2026-03-27', 3, '2026-03-30'], // over the European switch to summer time
+    ['2026-03-07', 2, '2026-03-09'], // over the US switch to summer time
+    ['2026-11-01', -1, '2026-10-31'],
+  ])('addDaysISO(%s, %i) is %s', (iso, days, expected) => {
+    expect(addDaysISO(iso, days)).toBe(expected);
+  });
+
+  it('formatISODate shows the day itself, not the day before', () => {
+    expect(formatISODate('2026-11-20', { day: 'numeric' })).toBe('20');
   });
 });
 
@@ -278,6 +327,64 @@ describe('localISODate', () => {
   it('formats the local date as YYYY-MM-DD with zero padding', () => {
     expect(localISODate(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05');
     expect(localISODate(new Date(2026, 11, 31, 0, 0))).toBe('2026-12-31');
+  });
+});
+
+// The time zone reaches calendar dates only through the helpers above, so they are tested
+// again west and east of UTC. Node applies a TZ set at runtime, and each test file runs in a
+// process of its own (Vitest's default pool), so other files keep their zone.
+describe.each([
+  // A timestamp near midnight UTC and the local day it falls on, and the days around the switch
+  // of summer time in that zone (the middle one has 25 or 23 hours).
+  { tz: 'America/New_York', januaryOffset: 300, utcLate: '2026-11-20T03:00:00Z', localDay: '2026-11-19', switchDays: ['2026-10-31', '2026-11-01', '2026-11-02'] },
+  { tz: 'Pacific/Auckland', januaryOffset: -780, utcLate: '2026-11-20T12:00:00Z', localDay: '2026-11-21', switchDays: ['2026-09-26', '2026-09-27', '2026-09-28'] },
+])('calendar dates in $tz', ({ tz, januaryOffset, utcLate, localDay, switchDays }) => {
+  let savedTZ: string | undefined;
+
+  beforeEach(() => {
+    savedTZ = process.env.TZ;
+    process.env.TZ = tz;
+  });
+
+  afterEach(() => {
+    if (savedTZ === undefined) delete process.env.TZ;
+    else process.env.TZ = savedTZ;
+    vi.useRealTimers();
+  });
+
+  it('the zone applies', () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(tz);
+    expect(new Date(2026, 0, 15).getTimezoneOffset()).toBe(januaryOffset);
+  });
+
+  it('todayISO is the local day, late in the evening and just after midnight', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 20, 23, 30));
+    expect(todayISO()).toBe('2026-11-20');
+    vi.setSystemTime(new Date(2026, 10, 21, 0, 30));
+    expect(todayISO()).toBe('2026-11-21');
+  });
+
+  it('a deadline today is not overdue late in the evening, one yesterday is', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 20, 23, 30));
+    expect(getDeadlineStatus(makeIssue({ deadline: '2026-11-20' })).late).toBe(false);
+    expect(getDeadlineStatus(makeIssue({ deadline: '2026-11-19' }))).toEqual({ late: true, reason: 'Overdue!' });
+  });
+
+  it('parseISODate is local midnight of that day and formatISODate shows that day', () => {
+    const d = parseISODate('2026-11-20');
+    expect([d.getDate(), d.getHours()]).toEqual([20, 0]);
+    expect(formatISODate('2026-11-20', { day: 'numeric' })).toBe('20');
+  });
+
+  it('addDaysISO counts calendar days over the switch of summer time', () => {
+    const [before, day, after] = switchDays;
+    expect([addDaysISO(before, 1), addDaysISO(before, 2), addDaysISO(after, -2)]).toEqual([day, after, before]);
+  });
+
+  it('localISODate of a timestamp is the day it falls on locally', () => {
+    expect(localISODate(new Date(utcLate))).toBe(localDay);
   });
 });
 
@@ -407,6 +514,30 @@ describe('errorMessage', () => {
   it('turns any other thrown value into a string', () => {
     expect(errorMessage('plain text')).toBe('plain text');
     expect(errorMessage({ message: 'not an Error' })).toBe('[object Object]');
+  });
+});
+
+describe('dateYearAccepted', () => {
+  let toast: HTMLDivElement;
+
+  beforeEach(() => {
+    toast = document.createElement('div');
+    toast.id = 'notification-toast';
+    toast.classList.add('hidden');
+    document.body.appendChild(toast);
+  });
+
+  afterEach(() => toast.remove());
+
+  it.each([null, '', '2000-01-01', '2100-12-31'])('accepts %j without a notification', (iso) => {
+    expect(dateYearAccepted(iso, 'Deadline')).toBe(true);
+    expect(toast.classList.contains('hidden')).toBe(true);
+  });
+
+  it.each(['1999-12-31', '0202-11-20', '2101-01-01', '20026-11-20'])('rejects %s with an error notification', (iso) => {
+    expect(dateYearAccepted(iso, 'Deadline')).toBe(false);
+    expect(toast.textContent).toBe('Deadline year must be between 2000 and 2100.');
+    expect(toast.classList.contains('error')).toBe(true);
   });
 });
 

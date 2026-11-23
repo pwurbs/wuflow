@@ -11,7 +11,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
   return {
     byId: actual.byId, bySelector: actual.bySelector, errorMessage: actual.errorMessage, containsTarget: actual.containsTarget,
     getDeadlineStatus: actual.getDeadlineStatus, getTaskDeadlineStatus: actual.getTaskDeadlineStatus, showNotification: vi.fn(),
-    startOfDay: actual.startOfDay, localISODate: actual.localISODate,
+    todayISO: actual.todayISO, addDaysISO: actual.addDaysISO, formatISODate: actual.formatISODate,
   };
 });
 import { makeIssue, makeProject, makeTask, makeUserRef } from './fixtures.ts';
@@ -64,10 +64,7 @@ describe('planning.ts', () => {
 
     it('returns issue deadline if no tasks', () => {
       const issue = makeIssue({ id: 1, deadline: '2023-10-15', tasks: [] });
-      const result = getEffectiveDeadlineInfo(issue);
-      const expected = new Date('2023-10-15');
-      expected.setHours(12, 0, 0, 0);
-      expect(result).toEqual({ date: expected, isTask: false });
+      expect(getEffectiveDeadlineInfo(issue)).toEqual({ date: '2023-10-15', isTask: false });
     });
 
     it('returns task deadline if issue has no deadline', () => {
@@ -75,10 +72,7 @@ describe('planning.ts', () => {
         id: 1,
         tasks: [makeTask({ id: 1, deadline: '2023-10-12', done: false })]
       });
-      const result = getEffectiveDeadlineInfo(issue);
-      const expected = new Date('2023-10-12');
-      expected.setHours(12, 0, 0, 0);
-      expect(result).toEqual({ date: expected, isTask: true });
+      expect(getEffectiveDeadlineInfo(issue)).toEqual({ date: '2023-10-12', isTask: true });
     });
 
     it('returns earliest deadline between issue and tasks', () => {
@@ -90,10 +84,7 @@ describe('planning.ts', () => {
           makeTask({ id: 2, deadline: '2023-10-18', done: false })  // Earliest
         ]
       });
-      const result = getEffectiveDeadlineInfo(issue);
-      const expected = new Date('2023-10-18');
-      expected.setHours(12, 0, 0, 0);
-      expect(result).toEqual({ date: expected, isTask: true });
+      expect(getEffectiveDeadlineInfo(issue)).toEqual({ date: '2023-10-18', isTask: true });
     });
 
     it('ignores done tasks', () => {
@@ -104,10 +95,7 @@ describe('planning.ts', () => {
           makeTask({ id: 1, deadline: '2023-10-10', done: true }) // Overdue but done
         ]
       });
-      const result = getEffectiveDeadlineInfo(issue);
-      const expected = new Date('2023-10-20');
-      expected.setHours(12, 0, 0, 0);
-      expect(result).toEqual({ date: expected, isTask: false });
+      expect(getEffectiveDeadlineInfo(issue)).toEqual({ date: '2023-10-20', isTask: false });
     });
   });
 
@@ -207,6 +195,59 @@ describe('planning.ts', () => {
 
       expect(badge.classList.contains('overdue')).toBe(false);
       expect(badge.title).toBe('Deadline');
+    });
+  });
+
+  // Calendar dates count as the viewer's local day; the tz-west/tz-east projects run these too.
+  describe('calendar-day boundaries (today is 2023-10-10)', () => {
+    const titlesIn = (selector: string) =>
+      [...byId('planning-list').querySelectorAll(`${selector} .planning-item-title`)].map(el => el.textContent);
+
+    it('a deadline today is not overdue, one yesterday is', () => {
+      expect(createDeadlineBadge(makeIssue({ id: 1, deadline: '2023-10-10' }))?.title).toBe('Deadline');
+      expect(createDeadlineBadge(makeIssue({ id: 2, deadline: '2023-10-09' }))?.title).toBe('Overdue!');
+    });
+
+    it('shows the badge with the deadline day itself', () => {
+      expect(createDeadlineBadge(makeIssue({ id: 1, deadline: '2023-10-12' }))?.textContent).toBe('Oct 12');
+    });
+
+    it('marks a plan one day after the deadline as late, not one on the deadline', () => {
+      const issue = makeIssue({ id: 1, deadline: '2023-10-12', planned_dates: ['2023-10-12', '2023-10-13'] });
+      expect(createDeadlineBadge(issue, '2023-10-12')?.title).toBe('Deadline');
+      expect(createDeadlineBadge(issue, '2023-10-13')?.title).toBe('Planned late!');
+    });
+
+    it('puts plans up to day 9 in their day column, from day 10 in Future, before today in Past', () => {
+      state.issues = [
+        makeIssue({ id: 1, title: 'Yesterday', planned_dates: ['2023-10-09'], status: 'Todo' }),
+        makeIssue({ id: 2, title: 'Today', planned_dates: ['2023-10-10'], status: 'Todo' }),
+        makeIssue({ id: 3, title: 'Day 9', planned_dates: ['2023-10-19'], status: 'Todo' }),
+        makeIssue({ id: 4, title: 'Day 10', planned_dates: ['2023-10-20'], status: 'Todo' }),
+      ];
+      renderPlanningPanel();
+
+      expect(titlesIn('#day-past')).toEqual(['Yesterday']);
+      expect(titlesIn('#day-2023-10-10')).toEqual(['Today']);
+      expect(titlesIn('#day-2023-10-19')).toEqual(['Day 9']);
+      expect(titlesIn('#day-future')).toEqual(['Day 10']);
+    });
+
+    it('lists an unplanned deadline on day 10 as near term, on day 11 as far term', () => {
+      state.issues = [
+        makeIssue({ id: 1, title: 'Day 10', deadline: '2023-10-20', planned_dates: [], status: 'Todo' }),
+        makeIssue({ id: 2, title: 'Day 11', deadline: '2023-10-21', planned_dates: [], status: 'Todo' }),
+      ];
+      renderPlanningPanel();
+
+      expect(titlesIn('.planning-section-content.far-term')).toEqual(['Day 11']);
+      expect(titlesIn('.planning-section-unscheduled')).toEqual(['Day 10', 'Day 11']);
+    });
+
+    it('starts the day columns with today also late in the evening', () => {
+      vi.setSystemTime(new Date(2023, 9, 10, 23, 30));
+      renderPlanningPanel();
+      expect(bySelector(byId('planning-list'), '.planning-day').dataset.date).toBe('2023-10-10');
     });
   });
 

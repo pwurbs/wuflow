@@ -98,3 +98,13 @@ func seedMyWork(t *testing.T) (int, int) {
 	}
 	return me, other
 }
+
+// rawText reads a column as the text SQLite holds, bypassing the driver's DATETIME parsing.
+func rawText(t *testing.T, query string, id int) string {
+	t.Helper()
+	var s string
+	if err := DB.QueryRowContext(context.Background(), query, id).Scan(&s); err != nil {
+		t.Fatalf("%s: %v", query, err)
+	}
+	return s
+}

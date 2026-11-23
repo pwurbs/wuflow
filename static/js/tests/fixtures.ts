@@ -52,14 +52,10 @@ export function makeIssue(overrides: Partial<Issue> = {}): Issue {
   };
 }
 
-// The issue the server answers a save with: the sent fields, with label and deadline as stored.
+// The issue the server answers a save with: the sent fields, with the label as stored.
 export function savedIssue(sent: IssueWrite & { id: number }): Issue {
-  const { label, deadline, ...fields } = sent;
-  return makeIssue({
-    ...fields,
-    label: label && makeLabel(label),
-    deadline: deadline instanceof Date ? deadline.toISOString() : deadline,
-  });
+  const { label, ...fields } = sent;
+  return makeIssue({ ...fields, label: label && makeLabel(label) });
 }
 
 export function makeStatusConfig(overrides: Partial<StatusConfig> = {}): StatusConfig {

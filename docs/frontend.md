@@ -34,7 +34,7 @@ Each file in `static/js/` is an ES module. Paths relative to `static/js/`:
 - **`status-config.ts`**: Status constants and accessors for the configurable board columns
 - **`domain-constants.ts`**, **`validation-config.ts`**: Mirrors of backend constants (priorities, release statuses, roles, default project ID, input limits); keep them in sync with the backend
 - **`markdown.ts`**: Markdown rendering with marked and DOMPurify (npm packages, bundled by Vite)
-- **`utils.ts`**: Helper functions (HTML escaping, notifications, confirm dialogs, character counters, etc.)
+- **`utils.ts`**: Helper functions (HTML escaping, notifications, confirm dialogs, character counters, etc.). Calendar dates (deadlines, planned and release dates) stay `YYYY-MM-DD` strings as the API sends them (type `CalendarDate` in `models.ts`): they are compared as strings and computed or shown only via `todayISO`, `addDaysISO`, `parseISODate` and `formatISODate`, never via `new Date('YYYY-MM-DD')`, which reads midnight UTC and shows the day before west of UTC.
 - **`tests/`**: Vitest unit tests, one file per module
 
 ### Style Structure

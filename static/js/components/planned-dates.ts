@@ -1,6 +1,6 @@
 import { state } from '../state.ts';
-import { showNotification, byId, errorMessage } from '../utils.ts';
-import type { Issue } from '../models.ts';
+import { showNotification, byId, errorMessage, formatISODate, dateYearAccepted } from '../utils.ts';
+import type { CalendarDate, Issue } from '../models.ts';
 import type { IssueWrite } from '../api.ts';
 
 // Saves the dates of the open issue: getChanges(issue) computes them when the save runs.
@@ -9,7 +9,7 @@ export type SaveDates = (getChanges: (issue: Issue) => Pick<IssueWrite, 'planned
 
 export function getPlannedDatesFromDOM() {
   const chips = byId('planned-dates-container').querySelectorAll<HTMLElement>('.date-chip');
-  const dates: string[] = [];
+  const dates: CalendarDate[] = [];
   chips.forEach(chip => {
     if (chip.dataset.date) dates.push(chip.dataset.date);
   });
@@ -67,13 +67,13 @@ export function renderPlannedDateChips(issue: Pick<Issue, 'planned_dates'> | nul
   container.appendChild(addBtn);
 }
 
-function createDateChip(dateStr: string, saveDates: SaveDates) {
+function createDateChip(dateStr: CalendarDate, saveDates: SaveDates) {
   const chip = document.createElement('div');
   chip.className = 'date-chip';
   chip.dataset.date = dateStr;
 
   const span = document.createElement('span');
-  span.textContent = new Date(dateStr).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' });
+  span.textContent = formatISODate(dateStr, { month: 'numeric', day: 'numeric' });
 
   const remove = document.createElement('span');
   remove.className = 'remove';
@@ -89,7 +89,8 @@ function createDateChip(dateStr: string, saveDates: SaveDates) {
   return chip;
 }
 
-async function addPlannedDate(dateStr: string, saveDates: SaveDates) {
+async function addPlannedDate(dateStr: CalendarDate, saveDates: SaveDates) {
+  if (!dateYearAccepted(dateStr, 'Planned date')) return;
   // If editing existing issue
   if (state.currentIssue) {
     if (!(state.currentIssue.planned_dates || []).includes(dateStr)) {
@@ -116,7 +117,7 @@ async function addPlannedDate(dateStr: string, saveDates: SaveDates) {
   }
 }
 
-async function removePlannedDate(dateStr: string, saveDates: SaveDates) {
+async function removePlannedDate(dateStr: CalendarDate, saveDates: SaveDates) {
   if (state.currentIssue) {
     if (state.currentIssue.planned_dates) {
       try {

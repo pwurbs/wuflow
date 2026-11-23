@@ -4,6 +4,9 @@ import type { Priority, ReleaseStatus } from './domain-constants.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { Role } from './permissions.ts';
 
+// A day without time or time zone, as YYYY-MM-DD (rules in docs/frontend.md, utils.ts).
+export type CalendarDate = string;
+
 export interface User {
   id: number;
   email: string;
@@ -41,7 +44,7 @@ export interface Task {
   title: string;
   done: boolean;
   position: number;
-  deadline: string | null;
+  deadline: CalendarDate | null;
   created_at: string;
   updated_at: string;
 }
@@ -51,8 +54,8 @@ export interface Release {
   project_id: number;
   name: string;
   description: string;
-  start_date: string | null;
-  release_date: string | null;
+  start_date: CalendarDate | null;
+  release_date: CalendarDate | null;
   closed_at: string | null;
   status: ReleaseStatus;
   owner_id: number | null;
@@ -70,8 +73,8 @@ export interface Issue {
   description: string;
   status: IssueStatus;
   position: number;
-  deadline: string | null;
-  planned_dates: string[] | null; // YYYY-MM-DD
+  deadline: CalendarDate | null;
+  planned_dates: CalendarDate[] | null;
   priority: Priority;
   creator_id: number;
   assignee_id: number | null;

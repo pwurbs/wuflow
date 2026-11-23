@@ -2,6 +2,10 @@
 
 Base URL: `/api`
 
+## Dates
+
+Deadlines (issue and task), planned dates and the start and release dates of a release are calendar days: `YYYY-MM-DD`, the same in every time zone, year 2000–2100. Responses always use this format. For deadlines and release dates, requests may also send an RFC 3339 timestamp. Its date as written counts (`2026-11-20T12:00:00+13:00` is `2026-11-20`). All other times (`created_at`, `updated_at`, `closed_at`, …) are RFC 3339 timestamps.
+
 ## Authentication
 
 All API endpoints except `/api/auth/login` require authentication via HTTPOnly cookies. The server uses JWT tokens with automatic refresh.
@@ -264,8 +268,8 @@ Creates a new issue in the named project.
     "status": "Open", // Open, Todo, Stage1, Stage2, Stage3, Stage4, Done, Archive
     "priority": "Normal", // Normal, High
     "position": 0, // Optional; non-negative integer for column ordering
-    "deadline": "2026-12-31T00:00:00Z", // Optional ISO 8601; year 2000–2100
-    "planned_dates": ["2026-06-01", "2026-06-15"], // Optional; YYYY-MM-DD strings
+    "deadline": "2026-12-31", // Optional
+    "planned_dates": ["2026-06-01", "2026-06-15"], // Optional
     "assignee_id": 3, // Optional; must reference an active user
     "label": {"id": 1}, // Optional; must belong to the same project
     "release_id": 2 // Optional; must belong to the same project
@@ -390,7 +394,7 @@ Adds a task to a specific issue.
   ```json
   {
     "title": "Task Title",
-    "deadline": "2026-12-31T00:00:00Z", // Optional ISO 8601; year 2000–2100
+    "deadline": "2026-12-31", // Optional
     "position": 0 // Optional; non-negative integer for ordering within the issue
   }
   ```
@@ -409,7 +413,7 @@ Updates a task (e.g., toggle done status, change title).
   {
     "title": "Updated Title",
     "done": true,
-    "deadline": "2026-12-31T00:00:00Z", // Optional ISO 8601; year 2000–2100
+    "deadline": "2026-12-31", // Optional
     "position": 0 // Optional; non-negative integer for ordering within the issue
   }
   ```
@@ -700,15 +704,15 @@ Creates a new release within a project (Admin or Sysadmin).
   {
     "name": "v1.0",
     "description": "First stable release",
-    "start_date": "2026-01-01T00:00:00Z",
-    "release_date": "2026-03-31T00:00:00Z",
+    "start_date": "2026-01-01",
+    "release_date": "2026-03-31",
     "owner_id": 2
   }
   ```
 - **Notes**:
   - `name` is required, max 20 characters
   - `description` is optional, max 200 characters, plain text (no HTML)
-  - `start_date` and `release_date` are optional ISO 8601 timestamps; year must be between 2000 and 2100
+  - `start_date` and `release_date` are optional dates (see [Dates](#dates))
   - `release_date` must not be before `start_date` if both are provided
   - `owner_id` is optional; references a user
 - **Response**: Created release object (201 Created)

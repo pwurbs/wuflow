@@ -253,8 +253,55 @@ func createTables(ctx context.Context) error {
 
 // runMigrations applies incremental schema and data migrations to existing databases.
 // All migrations must be idempotent so they are safe to run on every startup.
-// Rename _ back to ctx when adding the next migration.
-func runMigrations(_ context.Context) error {
+func runMigrations(ctx context.Context) error {
+	return migrateCalendarDates(ctx)
+}
+
+// calendarDateColumns are the columns that hold a calendar date (YYYY-MM-DD), with the
+// statements migrateCalendarDates runs on them.
+var calendarDateColumns = []struct{ name, migrate, countUnreadable string }{
+	{"issues.deadline",
+		"UPDATE issues SET deadline = date(deadline) WHERE date(deadline) IS NOT NULL AND deadline <> date(deadline)",
+		"SELECT COUNT(*) FROM issues WHERE deadline IS NOT NULL AND date(deadline) IS NULL"},
+	{"tasks.deadline",
+		"UPDATE tasks SET deadline = date(deadline) WHERE date(deadline) IS NOT NULL AND deadline <> date(deadline)",
+		"SELECT COUNT(*) FROM tasks WHERE deadline IS NOT NULL AND date(deadline) IS NULL"},
+	{"releases.start_date",
+		"UPDATE releases SET start_date = date(start_date) WHERE date(start_date) IS NOT NULL AND start_date <> date(start_date)",
+		"SELECT COUNT(*) FROM releases WHERE start_date IS NOT NULL AND date(start_date) IS NULL"},
+	{"releases.release_date",
+		"UPDATE releases SET release_date = date(release_date) WHERE date(release_date) IS NOT NULL AND release_date <> date(release_date)",
+		"SELECT COUNT(*) FROM releases WHERE release_date IS NOT NULL AND date(release_date) IS NULL"},
+}
+
+// migrateCalendarDates rewrites deadlines and release dates stored as timestamps (up to 1.5.0)
+// to YYYY-MM-DD. SQLite's date() takes the stored offset into account, so a value becomes its
+// UTC date: right for midnight-UTC values and for the local noon the UI saved in UTC−12 to
+// UTC+12. A value date() cannot read is left as it is.
+//
+// TODO(calendar-dates): Remove with calendarDateColumns once upgrades from 1.5.0 or older are
+// no longer supported.
+func migrateCalendarDates(ctx context.Context) error {
+	for _, c := range calendarDateColumns {
+		res, err := DB.ExecContext(ctx, c.migrate)
+		if err != nil {
+			return fmt.Errorf("migrate %s to calendar dates: %w", c.name, err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("count migrated %s: %w", c.name, err)
+		}
+		if n > 0 {
+			LogInfo("Migrated timestamps to calendar dates", "column", c.name, "count", n)
+		}
+		var unreadable int
+		if err := DB.QueryRowContext(ctx, c.countUnreadable).Scan(&unreadable); err != nil {
+			return fmt.Errorf("count unreadable %s: %w", c.name, err)
+		}
+		if unreadable > 0 {
+			LogWarn("Calendar dates left unconverted, not readable as a date", "column", c.name, "count", unreadable)
+		}
+	}
 	return nil
 }
 
@@ -719,9 +766,7 @@ func scanTaskRow(s issueScanner) (Task, error) {
 	if err := s.Scan(&t.ID, &t.IssueID, &t.Title, &t.Done, &t.Position, &deadline, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		return Task{}, err
 	}
-	if deadline.Valid {
-		t.Deadline = &deadline.Time
-	}
+	t.Deadline = calendarDate(deadline)
 	return t, nil
 }
 
@@ -1158,6 +1203,17 @@ type issueScanner interface {
 	Scan(dest ...any) error
 }
 
+// calendarDate turns a scanned calendar-date column (deadline, release dates) into YYYY-MM-DD.
+// The columns are declared DATETIME, so the driver hands the stored text over as time.Time:
+// YYYY-MM-DD becomes midnight UTC, whose UTC date is the stored date.
+func calendarDate(n sql.NullTime) *CalendarDate {
+	if !n.Valid {
+		return nil
+	}
+	d := CalendarDate(n.Time.UTC().Format(time.DateOnly))
+	return &d
+}
+
 // scanIssueRow scans one issue row and hydrates all related fields.
 func scanIssueRow(s issueScanner) (Issue, error) {
 	var i Issue
@@ -1192,9 +1248,7 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 	} else {
 		i.Priority = PriorityNormal
 	}
-	if deadline.Valid {
-		i.Deadline = &deadline.Time
-	}
+	i.Deadline = calendarDate(deadline)
 	if plannedDatesStr.Valid {
 		if err := json.Unmarshal([]byte(plannedDatesStr.String), &i.PlannedDates); err != nil {
 			LogError("Database Error: parsing planned_dates", "id", i.ID, "error", err)
@@ -1222,11 +1276,7 @@ func scanIssueRow(s issueScanner) (Issue, error) {
 	if rID.Valid {
 		id := int(rID.Int64)
 		i.ReleaseID = &id
-		rel := &Release{ID: id, Name: rName.String, Status: ReleaseStatus(rStatus.String)}
-		if rReleaseDate.Valid {
-			rel.ReleaseDate = &rReleaseDate.Time
-		}
-		i.Release = rel
+		i.Release = &Release{ID: id, Name: rName.String, Status: ReleaseStatus(rStatus.String), ReleaseDate: calendarDate(rReleaseDate)}
 	}
 
 	return i, nil
@@ -1621,12 +1671,8 @@ type releaseNullFields struct {
 
 // hydrateRelease fills the nullable date and owner fields on r after a Scan.
 func hydrateRelease(r *Release, f releaseNullFields) {
-	if f.startDate.Valid {
-		r.StartDate = &f.startDate.Time
-	}
-	if f.releaseDate.Valid {
-		r.ReleaseDate = &f.releaseDate.Time
-	}
+	r.StartDate = calendarDate(f.startDate)
+	r.ReleaseDate = calendarDate(f.releaseDate)
 	if f.closedAt.Valid {
 		r.ClosedAt = &f.closedAt.Time
 	}

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, openIssueByTitle, waitForToast } from './helpers/test-utils';
+import { createIssue, openIssueByTitle, waitForToast, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Task (Subtask) Management', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -49,9 +49,8 @@ test.describe('Task (Subtask) Management', () => {
     await page.fill('#new-task-title', 'Deadline Task');
 
     // Set task deadline
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    await page.fill('#new-task-deadline', tomorrow.toISOString().split('T')[0]);
+    const tomorrow = isoDateFromToday(1);
+    await page.fill('#new-task-deadline', tomorrow);
 
     await page.click('#add-task-btn');
 
@@ -146,10 +145,9 @@ test.describe('Task (Subtask) Management', () => {
     await expect(page.locator('#issue-modal')).toBeVisible();
 
     // Add a task with deadline
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = isoDateFromToday(1);
     await page.fill('#new-task-title', 'Task With Deadline');
-    await page.fill('#new-task-deadline', tomorrow.toISOString().split('T')[0]);
+    await page.fill('#new-task-deadline', tomorrow);
     await page.click('#add-task-btn');
 
     // Find the task and its deadline input
@@ -160,16 +158,15 @@ test.describe('Task (Subtask) Management', () => {
 
     // Verify initial deadline
     const initialDeadline = await deadlineInput.inputValue();
-    expect(initialDeadline).toBe(tomorrow.toISOString().split('T')[0]);
+    expect(initialDeadline).toBe(tomorrow);
 
     // Change the deadline
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    await deadlineInput.fill(nextWeek.toISOString().split('T')[0]);
+    const nextWeek = isoDateFromToday(7);
+    await deadlineInput.fill(nextWeek);
 
     // Verify the deadline was updated
     const updatedDeadline = await deadlineInput.inputValue();
-    expect(updatedDeadline).toBe(nextWeek.toISOString().split('T')[0]);
+    expect(updatedDeadline).toBe(nextWeek);
   });
 
   test('remove task deadline', async ({ page }) => {
@@ -181,10 +178,9 @@ test.describe('Task (Subtask) Management', () => {
     await expect(page.locator('#issue-modal')).toBeVisible();
 
     // Add a task with deadline
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = isoDateFromToday(1);
     await page.fill('#new-task-title', 'Task To Clear Deadline');
-    await page.fill('#new-task-deadline', tomorrow.toISOString().split('T')[0]);
+    await page.fill('#new-task-deadline', tomorrow);
     await page.click('#add-task-btn');
 
     // Find the task and its deadline input

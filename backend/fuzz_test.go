@@ -315,12 +315,13 @@ func FuzzValidateRelease(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, name, desc string, hasStart bool, startUnix int64, hasRelease bool, releaseUnix int64) {
 		r := &Release{Name: name, Description: desc}
+		// One date as YYYY-MM-DD, the other as an RFC 3339 timestamp: validation accepts both.
 		if hasStart {
-			ts := time.Unix(startUnix, 0).UTC()
+			ts := CalendarDate(time.Unix(startUnix, 0).UTC().Format(time.DateOnly))
 			r.StartDate = &ts
 		}
 		if hasRelease {
-			ts := time.Unix(releaseUnix, 0).UTC()
+			ts := CalendarDate(time.Unix(releaseUnix, 0).UTC().Format(time.RFC3339))
 			r.ReleaseDate = &ts
 		}
 
@@ -346,18 +347,26 @@ func checkValidatedReleaseInvariants(t *testing.T, r *Release) {
 	if utf8.RuneCountInString(r.Description) > MaxReleaseDescLen {
 		t.Errorf("Validated release description exceeds max length: %q", r.Description)
 	}
-	if r.StartDate != nil {
-		if y := r.StartDate.Year(); y < 2000 || y > 2100 {
-			t.Errorf("Validated release has start date with out-of-range year: %d", y)
-		}
-	}
-	if r.ReleaseDate != nil {
-		if y := r.ReleaseDate.Year(); y < 2000 || y > 2100 {
-			t.Errorf("Validated release has release date with out-of-range year: %d", y)
-		}
-	}
-	if r.StartDate != nil && r.ReleaseDate != nil && r.ReleaseDate.Before(*r.StartDate) {
+	checkValidatedCalendarDate(t, "start", r.StartDate)
+	checkValidatedCalendarDate(t, "release", r.ReleaseDate)
+	if r.StartDate != nil && r.ReleaseDate != nil && *r.ReleaseDate < *r.StartDate {
 		t.Errorf("Validated release has release date before start date: start=%v release=%v", r.StartDate, r.ReleaseDate)
+	}
+}
+
+// checkValidatedCalendarDate asserts that a validated date is YYYY-MM-DD with a year in 2000–2100.
+func checkValidatedCalendarDate(t *testing.T, name string, d *CalendarDate) {
+	t.Helper()
+	if d == nil {
+		return
+	}
+	parsed, err := time.Parse(time.DateOnly, string(*d))
+	if err != nil {
+		t.Errorf("Validated %s date is not YYYY-MM-DD: %q", name, *d)
+		return
+	}
+	if y := parsed.Year(); y < 2000 || y > 2100 {
+		t.Errorf("Validated %s date has out-of-range year: %d", name, y)
 	}
 }
 

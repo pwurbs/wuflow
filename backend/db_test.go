@@ -51,7 +51,7 @@ func TestCreateIssue(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	deadline := time.Now().Add(24 * time.Hour)
+	deadline := CalendarDate(time.Now().Add(24 * time.Hour).Format(time.DateOnly))
 	issue := &Issue{
 		Title:       testIssueTitle,
 		Description: "Test Description",
@@ -78,7 +78,7 @@ func TestIssuePlannedDates(t *testing.T) {
 	defer teardownTestDB()
 
 	// 1. Create with multiple dates
-	dates := []string{testDate, "2023-10-28"}
+	dates := []CalendarDate{testDate, "2023-10-28"}
 	issue := &Issue{
 		Title:        "Planned Issue",
 		Status:       StatusOpen,
@@ -108,7 +108,7 @@ func TestIssuePlannedDates(t *testing.T) {
 	}
 
 	// 3. Update dates
-	retrieved.PlannedDates = []string{"2023-10-29"}
+	retrieved.PlannedDates = []CalendarDate{"2023-10-29"}
 	err = UpdateIssue(context.Background(), &retrieved)
 	if err != nil {
 		t.Fatalf(failedToUpdateIssueError, err)
@@ -1520,8 +1520,8 @@ func TestGetReleaseByIDWithDates(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	start := CalendarDate("2026-01-01")
+	end := CalendarDate("2026-06-01")
 	rel := &Release{ProjectID: 1, Name: "v1.0", StartDate: &start, ReleaseDate: &end}
 	if err := CreateRelease(context.Background(), rel); err != nil {
 		t.Fatalf("CreateRelease failed: %v", err)
@@ -1532,7 +1532,10 @@ func TestGetReleaseByIDWithDates(t *testing.T) {
 		t.Fatalf("GetReleaseByID failed: %v", err)
 	}
 	if got.StartDate == nil || got.ReleaseDate == nil {
-		t.Error("expected start and release dates to be set")
+		t.Fatal("expected start and release dates to be set")
+	}
+	if *got.StartDate != start || *got.ReleaseDate != end {
+		t.Errorf("dates = %s, %s, want %s, %s", *got.StartDate, *got.ReleaseDate, start, end)
 	}
 }
 
@@ -2019,5 +2022,63 @@ func TestDBErrorsWrappedNotLogged(t *testing.T) {
 
 	if buf.Len() != 0 {
 		t.Errorf("DB helpers must not log, got %s", buf)
+	}
+}
+
+func TestMigrateCalendarDates(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	issue := &Issue{Title: "Dated", Status: StatusOpen, ProjectID: 1}
+	if err := CreateIssue(ctx, issue); err != nil {
+		t.Fatal(err)
+	}
+	task := &Task{IssueID: issue.ID, Title: "Task"}
+	if err := CreateTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	rel := &Release{ProjectID: 1, Name: "v1"}
+	if err := CreateRelease(ctx, rel); err != nil {
+		t.Fatal(err)
+	}
+
+	// Values as 1.5.0 stored them: time.Time written by the driver (the UI's local noon from
+	// New York, and from Auckland), and midnight UTC.
+	newYorkNoon := time.Date(2026, 11, 20, 17, 0, 0, 0, time.UTC)
+	aucklandNoon := time.Date(2026, 11, 20, 12, 0, 0, 0, time.FixedZone("NZDT", 13*3600))
+	midnightUTC := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	for _, stmt := range []struct {
+		query string
+		value any
+		id    int
+	}{
+		{"UPDATE issues SET deadline = ? WHERE id = ?", newYorkNoon, issue.ID},
+		{"UPDATE tasks SET deadline = ? WHERE id = ?", aucklandNoon, task.ID},
+		{"UPDATE releases SET start_date = ? WHERE id = ?", midnightUTC, rel.ID},
+		{"UPDATE releases SET release_date = ? WHERE id = ?", "not a date", rel.ID},
+	} {
+		if _, err := DB.ExecContext(ctx, stmt.query, stmt.value, stmt.id); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for run := 1; run <= 2; run++ { // the second run must change nothing
+		if err := migrateCalendarDates(ctx); err != nil {
+			t.Fatalf("run %d: %v", run, err)
+		}
+		checks := []struct{ query, want string }{
+			{"SELECT deadline || '' FROM issues WHERE id = ?", "2026-11-20"},
+			// The UTC date: the known loss for values the UI saved east of UTC+12.
+			{"SELECT deadline || '' FROM tasks WHERE id = ?", "2026-11-19"},
+			{"SELECT start_date || '' FROM releases WHERE id = ?", "2026-06-01"},
+			{"SELECT release_date || '' FROM releases WHERE id = ?", "not a date"},
+		}
+		ids := []int{issue.ID, task.ID, rel.ID, rel.ID}
+		for i, c := range checks {
+			if got := rawText(t, c.query, ids[i]); got != c.want {
+				t.Errorf("run %d: %s = %q, want %q", run, c.query, got, c.want)
+			}
+		}
 	}
 }

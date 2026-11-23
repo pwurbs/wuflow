@@ -1,4 +1,4 @@
-import { escapeHtml, showNotification, getUserInitials, getDeadlineStatus } from '../utils.ts';
+import { escapeHtml, showNotification, getUserInitials, getDeadlineStatus, formatISODate } from '../utils.ts';
 import { COLOR_REGEX } from '../validation-config.ts';
 import { PRIORITY_HIGH } from '../domain-constants.ts';
 import { STATUS_ARCHIVE } from '../status-config.ts';
@@ -159,7 +159,7 @@ function getBoardCardHTML(issue: Issue, openTasks: number, options: CardOptions)
                   ${options.showAssignee === false ? '' : getAssigneeBadgeHTML(issue)}
                 </div>
                 <div class="board-card-meta-right">
-                    ${issue.deadline ? `<div class="board-card-deadline${deadlineClass}"${deadlineTitle}>${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
+                    ${issue.deadline ? `<div class="board-card-deadline${deadlineClass}"${deadlineTitle}>${formatISODate(issue.deadline, { month: 'numeric', day: 'numeric', year: 'numeric' })}</div>` : ''}
                     <div class="board-task-info">
                         <span class="board-task-icon" aria-hidden="true"></span>
                         <span>${openTasks}</span>
@@ -170,7 +170,7 @@ function getBoardCardHTML(issue: Issue, openTasks: number, options: CardOptions)
                                     <li>
                                         <span class="tooltip-icon" aria-hidden="true"></span>
                                         <span class="tooltip-title">${escapeHtml(t.title)}</span>
-                                        ${t.deadline ? `<span class="tooltip-deadline">${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                                        ${t.deadline ? `<span class="tooltip-deadline">${formatISODate(t.deadline, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                                     </li>
                                 `).join('')}
                             </ul>
@@ -195,7 +195,7 @@ function getBacklogCardHTML(issue: Issue, openTasks: number, totalTasks: number)
                 <li>
                     <span class="tooltip-icon" aria-hidden="true"></span>
                     <span class="tooltip-title">${escapeHtml(t.title)}</span>
-                    ${t.deadline ? `<span class="tooltip-deadline">${new Date(t.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' })}</span>` : ''}
+                    ${t.deadline ? `<span class="tooltip-deadline">${formatISODate(t.deadline, { month: 'numeric', day: 'numeric' })}</span>` : ''}
                 </li>
             `).join('')}
         </ul>
@@ -210,7 +210,7 @@ function getBacklogCardHTML(issue: Issue, openTasks: number, totalTasks: number)
     <div class="backlog-card-spacer"></div>
     <div class="backlog-card-right">
         ${issue.label ? `<span class="label-chip" title="${escapeHtml(issue.label.name)}" style="background-color: ${labelColor}20; color: ${labelColor}; border: 1px solid ${labelColor};">${escapeHtml(issue.label.name)}</span>` : ''}
-        ${issue.deadline ? `<span class="backlog-card-deadline${deadlineClass}"${deadlineTitle}>${new Date(issue.deadline).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
+        ${issue.deadline ? `<span class="backlog-card-deadline${deadlineClass}"${deadlineTitle}>${formatISODate(issue.deadline, { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>` : ''}
         ${totalTasks > 0 ? `
         <div class="board-task-info">
             <span class="board-task-icon" aria-hidden="true"></span>

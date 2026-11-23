@@ -8,9 +8,9 @@ const issue = makeIssue({
   title: 'Card Issue',
   status: 'Todo',
   priority: 'Normal',
-  deadline: '2030-05-10T00:00:00Z',
+  deadline: '2030-05-10',
   tasks: [
-    makeTask({ id: 1, title: 'Open task', done: false, deadline: '2030-05-09T00:00:00Z' }),
+    makeTask({ id: 1, title: 'Open task', done: false, deadline: '2030-05-09' }),
     makeTask({ id: 2, title: 'Done task', done: true }),
   ],
 });
@@ -27,6 +27,15 @@ describe('createCardElement', () => {
     expect(bySelector(card, '.board-task-icon').getAttribute('aria-hidden')).toBe('true');
     expect(bySelector(card, '.tooltip-icon').textContent).toBe('');
     expect(bySelector(card, '.tooltip-deadline').textContent.trim()).not.toBe('');
+  });
+
+  it.each([
+    ['board card', true, '.board-card-deadline'],
+    ['backlog row', false, '.backlog-card-deadline'],
+  ])('%s shows the deadline day itself, not the day before', (_, isBoard, selector) => {
+    const card = createCardElement(issue, isBoard);
+    expect(bySelector(card, selector).textContent).toBe(new Date(2030, 4, 10).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric', year: 'numeric' }));
+    expect(bySelector(card, '.tooltip-deadline').textContent).toBe(new Date(2030, 4, 9).toLocaleDateString(navigator.language, { month: 'numeric', day: 'numeric' }));
   });
 });
 

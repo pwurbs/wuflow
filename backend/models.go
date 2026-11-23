@@ -34,40 +34,43 @@ const (
 	PriorityHigh IssuePriority = "High"
 )
 
+// CalendarDate is a day without time or time zone, as YYYY-MM-DD (time.DateOnly).
+type CalendarDate string
+
 // Issue represents a task or bug to be tracked.
 type Issue struct {
-	ID           int           `json:"id"`
-	Title        string        `json:"title"`
-	Description  string        `json:"description"`
-	Status       IssueStatus   `json:"status"`
-	Position     int           `json:"position"` // For manual sorting within a column
-	Deadline     *time.Time    `json:"deadline"`
-	PlannedDates []string      `json:"planned_dates"` // Stored as JSON array in DB
-	Priority     IssuePriority `json:"priority"`
-	CreatorID    int           `json:"creator_id"`
-	AssigneeID   *int          `json:"assignee_id"`        // Pointer to allow null (unassigned)
-	UpdaterID    *int          `json:"updated_by"`         // Pointer to allow null (if user deleted)
-	ProjectID    int           `json:"project_id"`         // Every issue belongs to a project
-	ReleaseID    *int          `json:"release_id"`         // Pointer to allow null (no release)
-	Assignee     *User         `json:"assignee,omitempty"` // Populated for API responses to avoid N+1 queries
-	Label        *Label        `json:"label"`              // Pointer to manage nil label
-	Release      *Release      `json:"release"`            // Pointer to manage nil release
-	Project      *Project      `json:"project,omitempty"`  // Populated for API responses
-	Tasks        []Task        `json:"tasks"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+	ID           int            `json:"id"`
+	Title        string         `json:"title"`
+	Description  string         `json:"description"`
+	Status       IssueStatus    `json:"status"`
+	Position     int            `json:"position"` // For manual sorting within a column
+	Deadline     *CalendarDate  `json:"deadline"`
+	PlannedDates []CalendarDate `json:"planned_dates"` // Stored as JSON array in DB
+	Priority     IssuePriority  `json:"priority"`
+	CreatorID    int            `json:"creator_id"`
+	AssigneeID   *int           `json:"assignee_id"`        // Pointer to allow null (unassigned)
+	UpdaterID    *int           `json:"updated_by"`         // Pointer to allow null (if user deleted)
+	ProjectID    int            `json:"project_id"`         // Every issue belongs to a project
+	ReleaseID    *int           `json:"release_id"`         // Pointer to allow null (no release)
+	Assignee     *User          `json:"assignee,omitempty"` // Populated for API responses to avoid N+1 queries
+	Label        *Label         `json:"label"`              // Pointer to manage nil label
+	Release      *Release       `json:"release"`            // Pointer to manage nil release
+	Project      *Project       `json:"project,omitempty"`  // Populated for API responses
+	Tasks        []Task         `json:"tasks"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
 }
 
 // Task represents a sub-task associated with an issue.
 type Task struct {
-	ID        int        `json:"id"`
-	IssueID   int        `json:"issue_id"`
-	Title     string     `json:"title"`
-	Done      bool       `json:"done"`
-	Position  int        `json:"position"` // For manual sorting
-	Deadline  *time.Time `json:"deadline"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID        int           `json:"id"`
+	IssueID   int           `json:"issue_id"`
+	Title     string        `json:"title"`
+	Done      bool          `json:"done"`
+	Position  int           `json:"position"` // For manual sorting
+	Deadline  *CalendarDate `json:"deadline"`
+	CreatedAt time.Time     `json:"created_at"`
+	UpdatedAt time.Time     `json:"updated_at"`
 }
 
 // PositionUpdate is one entry of a reorder request: the new position of an issue
@@ -161,8 +164,8 @@ type Release struct {
 	ProjectID   int           `json:"project_id"`
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
-	StartDate   *time.Time    `json:"start_date"`
-	ReleaseDate *time.Time    `json:"release_date"`
+	StartDate   *CalendarDate `json:"start_date"`
+	ReleaseDate *CalendarDate `json:"release_date"`
 	ClosedAt    *time.Time    `json:"closed_at"`
 	Status      ReleaseStatus `json:"status"`
 	OwnerID     *int          `json:"owner_id"`

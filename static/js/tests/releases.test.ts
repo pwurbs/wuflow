@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   setupReleasesView,
   renderReleaseOwnerOptions,
@@ -25,7 +25,9 @@ vi.mock('../components/toolbar.ts', () => ({
 vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
   bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
-  toDateInputValue: (await importOriginal<typeof import('../utils.ts')>()).toDateInputValue,
+  localISODate: (await importOriginal<typeof import('../utils.ts')>()).localISODate,
+  formatISODate: (await importOriginal<typeof import('../utils.ts')>()).formatISODate,
+  todayISO: (await importOriginal<typeof import('../utils.ts')>()).todayISO,
   onGuardedSubmit: (await importOriginal<typeof import('../utils.ts')>()).onGuardedSubmit,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
@@ -37,6 +39,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   initCharCounter: vi.fn(),
   updateDateInputStyle: vi.fn(),
   getUserInitials: vi.fn(() => 'AB'),
+  dateYearAccepted: vi.fn(() => true),
   promptAdminPasswordConfirmation: vi.fn(async (title, message, onConfirm) => {
     await onConfirm('AdminPass123!');
     return true;
@@ -420,6 +423,19 @@ describe('releases', () => {
       expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
+    it('does not save a release whose release date has a year the backend rejects', async () => {
+      vi.mocked(utils.dateYearAccepted).mockImplementation((iso, field) => field !== 'Release date');
+      await openNewReleaseForm();
+      byId('release-modal-name', HTMLInputElement).value = 'v1.0';
+      byId('release-modal-start', HTMLInputElement).value = '2026-06-01';
+      byId('release-modal-date', HTMLInputElement).value = '0202-06-30';
+      byId('release-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(utils.dateYearAccepted).toHaveBeenCalledWith('2026-06-01', 'Start date');
+      expect(utils.dateYearAccepted).toHaveBeenCalledWith('0202-06-30', 'Release date');
+      expect(api.createRelease).not.toHaveBeenCalled();
+    });
+
     it('shows inline error when createRelease rejects', async () => {
       vi.mocked(api.createRelease).mockRejectedValue(new Error('Duplicate name'));
       await openNewReleaseForm();
@@ -469,7 +485,7 @@ describe('releases', () => {
       state.releases = [makeRelease({
         id: 10, name: 'v2.0', status: 'open', description: 'My desc',
         owner: makeUserRef({ id: 2, first_name: 'Bob', last_name: 'Jones' }),
-        start_date: '2026-01-01T00:00:00Z', release_date: '2026-06-01T00:00:00Z',
+        start_date: '2026-01-01', release_date: '2026-06-01',
       })];
       setupReleasesView();
       await renderReleasesView();
@@ -480,10 +496,11 @@ describe('releases', () => {
       expect(byId('release-modal-save').textContent).toBe('Save');
     });
 
-    it('opens read-only modal for a closed release, showing the closed-at date', async () => {
+    it('opens read-only modal for a closed release, showing the local day of closed_at', async () => {
       state.releases = [makeRelease({
         id: 11, name: 'v1.0', status: 'closed', description: '',
-        closed_at: '2026-01-15T00:00:00Z',
+        // closed_at is a timestamp: noon of the 15th local time is the 15th in every time zone.
+        closed_at: new Date(2026, 0, 15, 12).toISOString(),
         start_date: null, release_date: null,
       })];
       setupReleasesView();
@@ -751,6 +768,45 @@ describe('releases', () => {
 
   // ─── misc coverage ────────────────────────────────────────────────────────────
 
+  describe('release dates as calendar days (today is 2026-11-20, late in the evening)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 10, 20, 23, 30));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const overdueRelease = async (release_date: string) => {
+      state.releases = [makeRelease({ id: 1, name: 'v1', status: 'open', description: '', start_date: '2026-11-01', release_date })];
+      await renderReleasesView();
+      return document.querySelector('.release-dates--overdue')?.textContent ?? null;
+    };
+
+    it('marks a release overdue from the day after its release date, not on the day itself', async () => {
+      expect(await overdueRelease('2026-11-20')).toBeNull();
+      expect(await overdueRelease('2026-11-19')).toBe(new Date(2026, 10, 19).toLocaleDateString(navigator.language));
+    });
+
+    it('shows the start and release date days themselves', async () => {
+      await overdueRelease('2026-12-01');
+      const fmt = (d: Date) => d.toLocaleDateString(navigator.language);
+      expect(bySelector(document, '.release-dates').textContent).toBe(`${fmt(new Date(2026, 10, 1))} → ${fmt(new Date(2026, 11, 1))}`);
+    });
+
+    it('puts the stored dates into the inputs and sends the picked dates unchanged', async () => {
+      vi.mocked(api.updateRelease).mockResolvedValue(makeRelease({ id: 1, name: 'v1', status: 'open' }));
+      setupReleasesView();
+      await overdueRelease('2026-12-01');
+      bySelector(document, '.release-card-left').click();
+      expect(byId('release-modal-start', HTMLInputElement).value).toBe('2026-11-01');
+      expect(byId('release-modal-date', HTMLInputElement).value).toBe('2026-12-01');
+
+      byId('release-modal-date', HTMLInputElement).value = '2026-12-24';
+      byId('release-form').dispatchEvent(new Event('submit'));
+      await vi.waitFor(() => expect(api.updateRelease).toHaveBeenCalledWith(1, 1,
+        expect.objectContaining({ start_date: '2026-11-01', release_date: '2026-12-24' })));
+    });
+  });
+
   describe('misc', () => {
     it('sorts closed releases newest-first', async () => {
       state.releases = [
@@ -764,8 +820,8 @@ describe('releases', () => {
 
     it('sorts open releases with a release date soonest-first', async () => {
       state.releases = [
-        makeRelease({ id: 1, name: 'FarRelease', status: 'open', release_date: '2026-12-01T00:00:00Z', description: '' }),
-        makeRelease({ id: 2, name: 'NearRelease', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '' }),
+        makeRelease({ id: 1, name: 'FarRelease', status: 'open', release_date: '2026-12-01', description: '' }),
+        makeRelease({ id: 2, name: 'NearRelease', status: 'open', release_date: '2026-06-01', description: '' }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);
@@ -775,7 +831,7 @@ describe('releases', () => {
     it('places open releases without a release date after those with one', async () => {
       state.releases = [
         makeRelease({ id: 1, name: 'Undated', status: 'open', release_date: null, description: '' }),
-        makeRelease({ id: 2, name: 'Dated', status: 'open', release_date: '2026-06-01T00:00:00Z', description: '' }),
+        makeRelease({ id: 2, name: 'Dated', status: 'open', release_date: '2026-06-01', description: '' }),
       ];
       await renderReleasesView();
       const names = [...document.querySelectorAll('.release-card-name')].map(el => el.textContent);

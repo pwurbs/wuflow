@@ -1,7 +1,7 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { sortReleasesByDate } from '../list-utils.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, toDateInputValue, onGuardedSubmit, bySelector, errorMessage, containsTarget, sortByName, createOption } from '../utils.ts';
+import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, localISODate, formatISODate, todayISO, onGuardedSubmit, bySelector, errorMessage, dateYearAccepted, containsTarget, sortByName, createOption } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
 import type { Issue, Release, User } from '../models.ts';
@@ -239,13 +239,13 @@ function applyModalDateFields(release: Release | null, isClosed: boolean) {
   byId('release-modal-closed-at-group').classList.toggle('hidden', !isClosed);
   if (isClosed && release?.closed_at) {
     const closedAtInput = byId('release-modal-closed-at', HTMLInputElement);
-    closedAtInput.value = toDateInputValue(release.closed_at);
+    closedAtInput.value = localISODate(new Date(release.closed_at)); // a timestamp, shown as its local day
     updateDateInputStyle(closedAtInput);
   }
 
   if (release) {
-    startInput.value = toDateInputValue(release.start_date);
-    dateInput.value = toDateInputValue(release.release_date);
+    startInput.value = release.start_date ?? '';
+    dateInput.value = release.release_date ?? '';
   }
   updateDateInputStyle(startInput);
   updateDateInputStyle(dateInput);
@@ -314,15 +314,15 @@ async function handleReleaseSubmit() {
   const errorDisplay = byId('release-modal-error');
 
   if (!name) { showNotification('Release name is required.', 'error'); return; }
+  if (!dateYearAccepted(startVal, 'Start date') || !dateYearAccepted(dateVal, 'Release date')) return;
   if (startVal && dateVal && dateVal < startVal) {
     showNotification('Release date must not be before start date.', 'error');
     return;
   }
 
-  const toISO = (v: string) => v ? `${v}T00:00:00Z` : null;
   const ownerVal = byId('release-owner-input', HTMLInputElement).value;
   const owner_id = ownerVal ? Number.parseInt(ownerVal) : null;
-  const payload = { name, description: desc, start_date: toISO(startVal), release_date: toISO(dateVal), owner_id };
+  const payload = { name, description: desc, start_date: startVal || null, release_date: dateVal || null, owner_id };
   try {
     const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
     const releaseId = editingReleaseId;
@@ -348,11 +348,10 @@ function buildReleaseDateRange(rel: Release) {
   if (rel.status === RELEASE_STATUS_CLOSED && rel.closed_at) {
     return `<span class="release-dates">Released on ${new Date(rel.closed_at).toLocaleDateString(navigator.language)}</span>`;
   }
-  const startStr = rel.start_date ? new Date(rel.start_date).toLocaleDateString(navigator.language) : '';
-  const releaseDate = rel.release_date ? new Date(rel.release_date) : null;
-  const relStr = releaseDate ? releaseDate.toLocaleDateString(navigator.language) : '';
+  const startStr = rel.start_date ? formatISODate(rel.start_date) : '';
+  const relStr = rel.release_date ? formatISODate(rel.release_date) : '';
   if (!startStr && !relStr) return '';
-  const isOverdue = releaseDate && releaseDate < new Date() && rel.status === RELEASE_STATUS_OPEN;
+  const isOverdue = rel.release_date && rel.release_date < todayISO() && rel.status === RELEASE_STATUS_OPEN;
   let relFormatted = '';
   if (relStr) relFormatted = isOverdue ? `<span class="release-dates--overdue">${relStr}</span>` : relStr;
   return `<span class="release-dates">${startStr} → ${relFormatted}</span>`;

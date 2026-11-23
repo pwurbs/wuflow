@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, selectAssignee, openIssueByTitle } from './helpers/test-utils';
+import { createIssue, selectAssignee, openIssueByTitle, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Issue CRUD Operations', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -18,9 +18,8 @@ test.describe('Issue CRUD Operations', () => {
   test('create issue with all properties', async ({ page }) => {
     const title = `Complete Issue ${Date.now()} `;
     // Create issue with all properties
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const deadlineStr = tomorrow.toISOString().split('T')[0];
+    const tomorrow = isoDateFromToday(1);
+    const deadlineStr = tomorrow;
 
     await createIssue(page, {
       title,

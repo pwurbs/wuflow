@@ -84,6 +84,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     }),
     getDeadlineStatus: vi.fn(() => ({ late: false })),
     getTaskDeadlineStatus: vi.fn(() => ({ late: false })),
+    dateYearAccepted: vi.fn(() => true),
     formatDateTime: vi.fn(dateStr => new Date(dateStr).toISOString()),
     // Default: immediately "confirms" with a fixed password by invoking the
     // caller's onConfirm, mirroring the real dialog's happy path. Override with
@@ -94,7 +95,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
     }),
     // Real implementation — the list auto-continue tests assert on its actual behavior.
     continueListOnEnter: actual.continueListOnEnter,
-    toDateInputValue: actual.toDateInputValue,
+    formatISODate: actual.formatISODate,
     guardSubmit: actual.guardSubmit,
     markBusy: actual.markBusy,
     setAriaDisabled: actual.setAriaDisabled,
@@ -1029,7 +1030,7 @@ describe('Modal Component', () => {
         status: 'Todo',
         tasks: [],
         planned_dates: ['2024-02-01'],
-        deadline: '2024-02-15T12:00:00Z'
+        deadline: '2024-02-15'
       });
 
       await openModalWithMock(issue);
@@ -1179,6 +1180,51 @@ describe('Modal Component', () => {
       }), expect.any(String));
     });
 
+    describe('date with a year the backend rejects', () => {
+      beforeEach(() => { vi.mocked(utils.dateYearAccepted).mockReturnValue(false); });
+
+      it('does not save a planned date', async () => {
+        await openModalWithMock(makeIssue({ id: 1, planned_dates: [] }));
+        const picker = byId('planned-date-picker', HTMLInputElement);
+        picker.value = '0202-01-01';
+        picker.dispatchEvent(new Event('change'));
+        await new Promise(process.nextTick);
+        expect(utils.dateYearAccepted).toHaveBeenCalledWith('0202-01-01', 'Planned date');
+        expect(api.updateIssue).not.toHaveBeenCalled();
+      });
+
+      it('does not save the deadline and puts the stored one back into the field', async () => {
+        await openModalWithMock(makeIssue({ id: 1, deadline: '2026-11-20' }));
+        const input = byId('deadline', HTMLInputElement);
+        input.value = '0202-11-20';
+        input.dispatchEvent(new Event('change'));
+        await new Promise(process.nextTick);
+        expect(utils.dateYearAccepted).toHaveBeenCalledWith('0202-11-20', 'Deadline');
+        expect(api.updateIssue).not.toHaveBeenCalled();
+        expect(input.value).toBe('2026-11-20');
+      });
+
+      it('does not create the issue', async () => {
+        openModal(null);
+        byId('title', HTMLInputElement).value = 'New Title';
+        byId('deadline', HTMLInputElement).value = '0202-11-20';
+        byId('issue-form').dispatchEvent(new Event('submit'));
+        await new Promise(process.nextTick);
+        expect(utils.dateYearAccepted).toHaveBeenCalledWith('0202-11-20', 'Deadline');
+        expect(api.createIssue).not.toHaveBeenCalled();
+      });
+
+      it('does not create the task', async () => {
+        await openModalWithMock(makeIssue({ id: 1, tasks: [] }));
+        byId('new-task-title', HTMLInputElement).value = 'Subtask';
+        byId('new-task-deadline', HTMLInputElement).value = '0202-11-20';
+        byId('add-task-btn').click();
+        await new Promise(process.nextTick);
+        expect(utils.dateYearAccepted).toHaveBeenCalledWith('0202-11-20', 'Task deadline');
+        expect(api.createTask).not.toHaveBeenCalled();
+      });
+    });
+
     it('should update deadline immediately on change', async () => {
       const issue = makeIssue({ id: 1 });
       await openModalWithMock(issue);
@@ -1191,7 +1237,7 @@ describe('Modal Component', () => {
 
       expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
         id: 1,
-        deadline: new Date('2025-12-31T12:00:00')
+        deadline: '2025-12-31'
       }), expect.any(String));
     });
 

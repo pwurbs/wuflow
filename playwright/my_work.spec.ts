@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { test, expect } from './fixtures';
 import type { Page } from './fixtures';
 import {
+  isoDateFromToday,
   navigateTo,
   selectPriority,
   selectLabel,
@@ -160,8 +161,7 @@ test.describe('My Work', () => {
     const me = await (await request.get('/api/auth/me')).json();
     const projectB = `mwp_${suffix}`;
     const projectBId = await createProjectViaAPI(request, projectB);
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const todayStr = isoDateFromToday();
     const title = `Planned B ${suffix}`;
     await createIssueViaAPI(request, projectBId, title, { status: 'Todo', assignee_id: me.id, planned_dates: [todayStr] });
 

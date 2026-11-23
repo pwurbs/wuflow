@@ -3,7 +3,7 @@
 import { STATUS_TODO, STATUS_DONE, IN_PROGRESS_STATUSES } from './status-config.ts';
 import { PRIORITY_HIGH } from './domain-constants.ts';
 import { getEffectiveDeadlineInfo } from './components/planning.ts';
-import { startOfDay, localISODate } from './utils.ts';
+import { localISODate, addDaysISO } from './utils.ts';
 import type { IssueStatus } from './status-config.ts';
 import type { MyIssue } from './models.ts';
 
@@ -29,28 +29,36 @@ export function categoryOf(status: IssueStatus): MyWorkCategory | null {
 // 0 overdue (issue or open-task deadline before today), 1 high priority,
 // 2 planned for today or soon (or a missed plan), 3 the rest.
 export function urgencyRank(issue: MyIssue, today: Date) {
+  const todayStr = localISODate(today);
   const deadline = getEffectiveDeadlineInfo(issue);
-  if (deadline && startOfDay(deadline.date) < startOfDay(today)) return 0;
+  if (deadline && deadline.date < todayStr) return 0;
   if (issue.priority === PRIORITY_HIGH) return 1;
-  const soon = new Date(today);
-  soon.setDate(soon.getDate() + SOON_DAYS);
-  const soonStr = localISODate(soon);
+  const soonStr = addDaysISO(todayStr, SOON_DAYS);
   if (issue.planned_dates?.some(d => d <= soonStr)) return 2;
   return 3;
 }
 
-// Earliest of the effective deadline and the planned dates, for ties within a rank.
+// Earliest of the effective deadline and the planned dates (YYYY-MM-DD), null without any.
 function earliestDate(issue: MyIssue) {
-  const times: number[] = [];
+  const dates = [...issue.planned_dates ?? []];
   const deadline = getEffectiveDeadlineInfo(issue);
-  if (deadline) times.push(startOfDay(deadline.date).getTime());
-  for (const d of issue.planned_dates ?? []) times.push(new Date(`${d}T00:00:00`).getTime());
-  return times.length ? Math.min(...times) : Number.POSITIVE_INFINITY;
+  if (deadline) dates.push(deadline.date);
+  return dates.toSorted((x, y) => x.localeCompare(y))[0] ?? null;
+}
+
+// For ties within a rank: the earlier date first, issues without a date last.
+function compareEarliestDate(a: MyIssue, b: MyIssue) {
+  const da = earliestDate(a);
+  const db = earliestDate(b);
+  if (da === db) return 0;
+  if (da === null) return 1;
+  if (db === null) return -1;
+  return da < db ? -1 : 1;
 }
 
 export function compareUrgency(a: MyIssue, b: MyIssue, today: Date) {
   return urgencyRank(a, today) - urgencyRank(b, today)
-    || earliestDate(a) - earliestDate(b)
+    || compareEarliestDate(a, b)
     || a.position - b.position
     || a.id - b.id;
 }

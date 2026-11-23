@@ -198,7 +198,7 @@ func TestHandleCreateIssueInvalidDeadline(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()
 
-	invalidDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+	invalidDeadline := CalendarDate("9999-01-01")
 	issue := &Issue{Title: testIssueTitleNew, Status: StatusOpen, ProjectID: 1, Deadline: &invalidDeadline}
 	body, _ := json.Marshal(issue)
 
@@ -2130,7 +2130,7 @@ func TestHandleUpdateSelfUserNotFound(t *testing.T) {
 }
 
 func TestIssueContentHash(t *testing.T) {
-	deadline := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+	deadline := CalendarDate("2025-01-15")
 	assigneeID := 7
 	issue := &Issue{
 		Title:        "Title",
@@ -2140,7 +2140,7 @@ func TestIssueContentHash(t *testing.T) {
 		Label:        &Label{ID: 42},
 		AssigneeID:   &assigneeID,
 		Deadline:     &deadline,
-		PlannedDates: []string{"2025-01-01"},
+		PlannedDates: []CalendarDate{"2025-01-01"},
 		ProjectID:    1,
 	}
 
@@ -6016,5 +6016,54 @@ func TestLogoutLogsSessionLookupFailure(t *testing.T) {
 	entries := logEntries(t, buf)
 	if len(entries) != 1 || entries[0]["level"] != "WARN" || entries[0]["msg"] != "Logout: failed to look up session" {
 		t.Errorf("want one WARN line for the lookup failure, got %s", buf)
+	}
+}
+
+func TestCalendarDateStoredAndServedAsDate(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+
+	old := CalendarDate("2026-11-01")
+	issue := &Issue{Title: "Dated", Status: StatusOpen, Priority: PriorityNormal, ProjectID: 1, Deadline: &old}
+	if err := CreateIssue(context.Background(), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	// An older client sends a timestamp: its date as written counts.
+	body := []byte(`{"title":"Dated","status":"Open","priority":"Normal","deadline":"2026-11-20T12:00:00+13:00"}`)
+	req := httptest.NewRequest("PUT", "/api/projects/1/issues/1", bytes.NewBuffer(body))
+	req = req.WithContext(context.WithValue(req.Context(), contextKeyRole, RoleAdmin))
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", rr.Code, rr.Body.String())
+	}
+
+	var got struct {
+		Deadline *string `json:"deadline"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Deadline == nil || *got.Deadline != "2026-11-20" {
+		t.Errorf("response deadline = %v, want 2026-11-20", got.Deadline)
+	}
+	if raw := rawText(t, "SELECT deadline || '' FROM issues WHERE id = ?", issue.ID); raw != "2026-11-20" {
+		t.Errorf("stored deadline = %q, want 2026-11-20", raw)
+	}
+	// Read back through the driver's DATETIME parsing, the date stays the same.
+	fetched, err := GetIssueByID(context.Background(), issue.ID)
+	if err != nil || fetched == nil || fetched.Deadline == nil || *fetched.Deadline != "2026-11-20" {
+		t.Errorf("GetIssueByID deadline = %+v, err %v", fetched, err)
+	}
+
+	var entry *ChangeData
+	for _, e := range historyEvents(t, issue.ID) {
+		if e.Event == EventUpdated && e.Data.Field == "deadline" {
+			entry = &e.Data
+		}
+	}
+	if entry == nil || entry.From != "2026-11-01" || entry.To != "2026-11-20" {
+		t.Errorf("deadline history entry = %+v, want 2026-11-01 → 2026-11-20", entry)
 	}
 }

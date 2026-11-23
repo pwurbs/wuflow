@@ -1,17 +1,45 @@
 // Utility Functions
 
 import { state } from './state.ts';
-import type { Issue, UserRef } from './models.ts';
+import type { CalendarDate, Issue, UserRef } from './models.ts';
+import { MIN_DATE_YEAR, MAX_DATE_YEAR } from './validation-config.ts';
 
-export function startOfDay(date: Date | string) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+// Calendar dates (CalendarDate): rules in docs/frontend.md (utils.ts).
+
+// False with an error notification if the backend would reject the year of a date the user
+// entered (a typo such as 0202). An empty date is accepted.
+export function dateYearAccepted(iso: CalendarDate | null, field: string) {
+  if (!iso) return true;
+  const year = Number.parseInt(iso.slice(0, iso.indexOf('-')));
+  if (year >= MIN_DATE_YEAR && year <= MAX_DATE_YEAR) return true;
+  showNotification(`${field} year must be between ${MIN_DATE_YEAR} and ${MAX_DATE_YEAR}.`, 'error');
+  return false;
 }
 
-// YYYY-MM-DD in local time, the format of planned dates.
-export function localISODate(d: Date) {
+// YYYY-MM-DD of the local day d falls on.
+export function localISODate(d: Date): CalendarDate {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Today as a calendar date, in the viewer's time zone.
+export function todayISO(): CalendarDate {
+  return localISODate(new Date());
+}
+
+// Local midnight of a calendar date, for arithmetic and display.
+export function parseISODate(iso: CalendarDate) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function addDaysISO(iso: CalendarDate, days: number): CalendarDate {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() + days);
+  return localISODate(d);
+}
+
+export function formatISODate(iso: CalendarDate, options?: Intl.DateTimeFormatOptions) {
+  return parseISODate(iso).toLocaleDateString(navigator.language, options);
 }
 
 // Formats a date string as "<locale date> / <locale time>", e.g. for last-login or activity timestamps.
@@ -21,32 +49,27 @@ export function formatDateTime(dateStr: string) {
 }
 
 // What a deadline check reads: an issue, or the issue's deadline from the form before it is saved.
-type DeadlineSource = { deadline: Date | string | null; release: Issue['release'] };
+type DeadlineSource = { deadline: CalendarDate | null; release: Issue['release'] };
 
 type DeadlineStatus = { late: false } | { late: true; reason: string };
 
 // For an issue deadline.
 export function getDeadlineStatus(issue: DeadlineSource): DeadlineStatus {
   if (!issue.deadline) return { late: false };
-  const today = startOfDay(new Date());
-  const deadline = startOfDay(issue.deadline);
-  if (deadline < today) return { late: true, reason: 'Overdue!' };
-  if (issue.release?.release_date) {
-    if (deadline > startOfDay(issue.release.release_date)) return { late: true, reason: 'Past release date!' };
-  }
+  if (issue.deadline < todayISO()) return { late: true, reason: 'Overdue!' };
+  const releaseDate = issue.release?.release_date;
+  if (releaseDate && issue.deadline > releaseDate) return { late: true, reason: 'Past release date!' };
   return { late: false };
 }
 
 // For a task deadline given its parent issue.
-export function getTaskDeadlineStatus(taskDeadline: Date | string | null, issue: DeadlineSource | null): DeadlineStatus {
+export function getTaskDeadlineStatus(taskDeadline: CalendarDate | null, issue: DeadlineSource | null): DeadlineStatus {
   if (!taskDeadline) return { late: false };
-  const today = startOfDay(new Date());
-  const d = startOfDay(taskDeadline);
-  if (d < today) return { late: true, reason: 'Overdue!' };
+  if (taskDeadline < todayISO()) return { late: true, reason: 'Overdue!' };
   if (issue?.deadline) {
-    if (d > startOfDay(issue.deadline)) return { late: true, reason: 'After issue deadline!' };
-  } else if (issue?.release?.release_date) {
-    if (d > startOfDay(issue.release.release_date)) return { late: true, reason: 'Past release date!' };
+    if (taskDeadline > issue.deadline) return { late: true, reason: 'After issue deadline!' };
+  } else if (issue?.release?.release_date && taskDeadline > issue.release.release_date) {
+    return { late: true, reason: 'Past release date!' };
   }
   return { late: false };
 }
@@ -277,14 +300,7 @@ export function updateDateInputStyle(input: HTMLInputElement) {
     const display = container.querySelector('.custom-date-display');
     if (display) {
       if (input.value) {
-        // Parse YYYY-MM-DD to local date to avoid timezone issues
-        const [y, m, d] = input.value.split('-').map(Number);
-        const date = new Date(y, m - 1, d);
-        display.textContent = date.toLocaleDateString(navigator.language, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
+        display.textContent = formatISODate(input.value, { year: 'numeric', month: 'short', day: 'numeric' });
         display.classList.remove('placeholder');
       } else {
         display.textContent = 'Select date...';
@@ -292,11 +308,6 @@ export function updateDateInputStyle(input: HTMLInputElement) {
       }
     }
   }
-}
-
-// Formats a date as the value of an <input type="date"> (YYYY-MM-DD), '' for none.
-export function toDateInputValue(date: Date | string | null) {
-  return date ? new Date(date).toISOString().slice(0, 10) : '';
 }
 
 // Wraps an async function so concurrent calls share the running call's promise

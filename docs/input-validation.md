@@ -27,6 +27,7 @@
 | **Search Filter** | 50 chars | Prevents performance issues and UX breakdown during string matching. |
 | **Email** | 254 bytes | RFC 5321 standard limit. |
 | **Planned Dates** | 100 entries | Prevents unbounded array iteration; each entry must be a valid `YYYY-MM-DD` date. |
+| **Dates** (deadlines, planned and release dates) | Year 2000–2100 | Catches typos such as year 0202 in a date field. The frontend checks the year before saving (`dateYearAccepted`). |
 | **Password** | Min 12 chars, max 72 bytes (UTF-8) | Minimum complexity baseline; the max is bcrypt's input limit (bcrypt ignores everything after 72 bytes). Counted in bytes: letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4 — an ASCII password can have 72 characters. Login rejects longer passwords with 400 before any user lookup. |
 | **Project Name** | 15 chars | UI space constraint (sidebar, header). |
 | **Project Description** | 100 chars | Brief tagline shown in project overview. |
@@ -43,9 +44,7 @@ To prevent XSS while allowing rich text editing, both the issue **description** 
 For full details on the end-to-end data flow, frontend sanitization layers (using DOMPurify), and allowed Markdown/HTML mappings, please refer to the comprehensive [Markdown Security & Sanitization](markdown-security.md) documentation.
 
 ## Date Validation
-Release `start_date` and `release_date` are validated on both frontend and backend:
-- Year must be between 2000 and 2100.
-- `release_date` must not be before `start_date` when both are provided.
+Deadlines (issue and task), planned dates and the release `start_date` and `release_date` are calendar dates ([format](api.md#dates)). The backend rejects anything else with 400 and stores them as `YYYY-MM-DD`. `release_date` must not be before `start_date` when both are provided (also checked in the release dialog).
 
 ## Plain-Text Sanitization
 The backend automatically strips ALL HTML tags and NUL bytes (`\x00`) from fields intended to be plain-text:

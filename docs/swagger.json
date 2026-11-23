@@ -99,9 +99,9 @@
           },
           "deadline": {
             "type": "string",
-            "format": "date-time",
+            "format": "date",
             "nullable": true,
-            "description": "Optional. Year must be 2000–2100."
+            "description": "YYYY-MM-DD. Optional."
           },
           "created_at": {
             "type": "string",
@@ -213,13 +213,15 @@
           },
           "start_date": {
             "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "format": "date",
+            "nullable": true,
+            "description": "YYYY-MM-DD"
           },
           "release_date": {
             "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "format": "date",
+            "nullable": true,
+            "description": "YYYY-MM-DD"
           },
           "closed_at": {
             "type": "string",
@@ -272,8 +274,9 @@
           },
           "deadline": {
             "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "format": "date",
+            "nullable": true,
+            "description": "YYYY-MM-DD"
           },
           "planned_dates": {
             "type": "array",
@@ -507,9 +510,9 @@
           },
           "deadline": {
             "type": "string",
-            "format": "date-time",
+            "format": "date",
             "nullable": true,
-            "description": "Optional ISO 8601 timestamp. Year must be 2000–2100."
+            "description": "Optional. YYYY-MM-DD. An RFC 3339 timestamp is accepted too, its date as written counts. Year must be 2000–2100."
           },
           "planned_dates": {
             "type": "array",
@@ -519,7 +522,7 @@
               "description": "YYYY-MM-DD"
             },
             "nullable": true,
-            "description": "Optional. Maximum 100 entries."
+            "description": "Optional. Maximum 100 entries. Year must be 2000–2100."
           },
           "assignee_id": {
             "type": "integer",
@@ -554,9 +557,9 @@
           },
           "deadline": {
             "type": "string",
-            "format": "date-time",
+            "format": "date",
             "nullable": true,
-            "description": "Optional ISO 8601 timestamp. Year must be 2000–2100."
+            "description": "Optional. YYYY-MM-DD. An RFC 3339 timestamp is accepted too, its date as written counts. Year must be 2000–2100."
           },
           "position": {
             "type": "integer",
@@ -578,9 +581,9 @@
           },
           "deadline": {
             "type": "string",
-            "format": "date-time",
+            "format": "date",
             "nullable": true,
-            "description": "Optional ISO 8601 timestamp. Year must be 2000–2100."
+            "description": "Optional. YYYY-MM-DD. An RFC 3339 timestamp is accepted too, its date as written counts. Year must be 2000–2100."
           },
           "position": {
             "type": "integer",
@@ -719,15 +722,15 @@
           },
           "start_date": {
             "type": "string",
-            "format": "date-time",
+            "format": "date",
             "nullable": true,
-            "description": "Optional. Year must be 2000–2100."
+            "description": "Optional. YYYY-MM-DD. An RFC 3339 timestamp is accepted too, its date as written counts. Year must be 2000–2100."
           },
           "release_date": {
             "type": "string",
-            "format": "date-time",
+            "format": "date",
             "nullable": true,
-            "description": "Optional. Must not be before start_date. Year must be 2000–2100."
+            "description": "Optional. Must not be before start_date. YYYY-MM-DD. An RFC 3339 timestamp is accepted too, its date as written counts. Year must be 2000–2100."
           },
           "owner_id": {
             "type": "integer",

@@ -17,7 +17,7 @@ vi.mock('../utils.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils.ts')>();
   return {
     bySelector: actual.bySelector,
-    toDateInputValue: actual.toDateInputValue,
+    formatISODate: actual.formatISODate,
     guardSubmit: actual.guardSubmit,
     errorMessage: actual.errorMessage,
     containsTarget: actual.containsTarget,
@@ -26,7 +26,8 @@ vi.mock('../utils.ts', async (importOriginal) => {
     escapeHtml: vi.fn(s => s),
     initCharCounter: vi.fn(() => ({ show: vi.fn(), hide: vi.fn() })),
     countCodepoints: vi.fn(s => [...s].length),
-    getTaskDeadlineStatus: vi.fn(() => ({ late: false }))
+    getTaskDeadlineStatus: vi.fn(() => ({ late: false })),
+    dateYearAccepted: vi.fn(() => true),
   };
 });
 
@@ -203,8 +204,26 @@ describe('Tasks Component', () => {
 
     await new Promise(process.nextTick);
 
-    expect(api.updateTask).toHaveBeenCalled();
+    // The calendar date as picked, without a time that could shift it in another time zone.
+    expect(api.updateTask).toHaveBeenCalledWith(issue.project_id, issue.id, expect.objectContaining({ deadline: '2023-10-10' }));
     expect(callbacks.onTaskUpdate).toHaveBeenCalled();
+  });
+
+  it('does not save a deadline with a year the backend rejects and keeps the stored one in the field', async () => {
+    vi.mocked(utils.dateYearAccepted).mockReturnValue(false);
+    renderTasks([makeTask({ id: 1, title: 'Dated', deadline: '2023-10-10' })], container, issue, callbacks);
+    const deadlineInput = bySelector(container, '.task-deadline-input', HTMLInputElement);
+    deadlineInput.value = '0202-10-10';
+    deadlineInput.dispatchEvent(new Event('change'));
+    await new Promise(process.nextTick);
+    expect(utils.dateYearAccepted).toHaveBeenCalledWith('0202-10-10', 'Task deadline');
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(deadlineInput.value).toBe('2023-10-10');
+  });
+
+  it('puts a stored deadline into the date input unchanged', () => {
+    renderTasks([makeTask({ id: 1, title: 'Dated', deadline: '2023-10-10' })], container, issue, callbacks);
+    expect(bySelector(container, '.task-deadline-input', HTMLInputElement).value).toBe('2023-10-10');
   });
 
   it('shows the deadline with a calendar icon instead of an emoji', async () => {

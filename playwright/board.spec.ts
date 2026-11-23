@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, selectAssignee, openIssueByTitle, navigateTo, isIssueSaveResponse } from './helpers/test-utils';
+import { createIssue, createRelease, selectAssignee, openIssueByTitle, navigateTo, isIssueSaveResponse, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Board Functionality', () => {
   test.beforeEach(async ({ login }) => {
@@ -85,13 +85,12 @@ test.describe('Board Functionality', () => {
   test('planning panel shows issues with deadlines in unscheduled section', async ({ page }) => {
     // Create issue with deadline and board status but no planned date
     // Set deadline to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = isoDateFromToday(1);
 
     await createIssue(page, {
       title: 'Deadline Issue',
       status: 'Todo',
-      deadline: tomorrow.toISOString().split('T')[0]
+      deadline: tomorrow
     });
 
     // Verify issue appears in unscheduled section of planning panel
@@ -344,11 +343,8 @@ test.describe('Board Functionality', () => {
     test('deadline past release date shows red on board card', async ({ page }) => {
       // Use near-future dates so the issue lands in the planning panel's "this week"
       // bucket, not "10+ days away", avoiding count interference with planning.spec.ts.
-      const today = new Date();
-      const relDate = new Date(today); relDate.setDate(today.getDate() + 3);
-      const dlDate  = new Date(today); dlDate.setDate(today.getDate() + 6);
-      const relDateStr = relDate.toISOString().split('T')[0];
-      const dlDateStr  = dlDate.toISOString().split('T')[0];
+      const relDateStr = isoDateFromToday(3);
+      const dlDateStr  = isoDateFromToday(6);
 
       const relName = `RB-${Date.now().toString().slice(-8)}`;
       await navigateTo(page, 'releases');

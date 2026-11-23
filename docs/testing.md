@@ -41,6 +41,7 @@ Any frontend module containing "decisions" (if/else, state transitions, data map
 * **Requirement:** Decouple state logic from the DOM.
 * **Tool:** Vitest (preferred for speed).
 * **Why:** Testing state transitions in a unit test is ~100x faster than in a browser.
+* **Time zones:** calendar dates reach the time zone only through the date helpers in `utils.ts`. `utils.test.ts` tests them again in New York and Auckland (`calendar dates in …`, setting `process.env.TZ`).
 * **Values that may be missing:** elements are read with `byId`/`bySelector` like in the app, so a missing element fails with its id or selector. Inside `expect(...)` use `?.`, the assertion fails on a missing value. Before calling or reusing a value that may be missing, check it with `assert(value)` from Vitest.
 * **Promises resolved by the test:** `Promise.withResolvers()`.
 * **Mocks:** before each test, every mock goes back to the implementation it was created with (`mockReset` in `vitest.config.ts`). A default answer in a `vi.mock` factory is therefore written as `vi.fn(async () => [])`, not `vi.fn().mockResolvedValue([])`, which the reset would remove. Each `describe` sets up its own DOM and mock answers and does not rely on an earlier one.
