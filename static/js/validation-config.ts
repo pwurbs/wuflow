@@ -17,4 +17,4 @@ export const MAX_DATE_YEAR        = 2100;
 // Mirror of backend compiled regexes in validation.go
 export const EMAIL_REGEX       = /^[^\s@]+@[^\s@]+$/;
 export const COLOR_REGEX       = /^#[0-9A-Fa-f]{6}$/;
-export const STATUS_NAME_REGEX = /^[a-zA-Z0-9]+( [a-zA-Z0-9]+)*$/;
+export const STATUS_NAME_REGEX = /^[\p{L}\p{Nd}]+([ -][\p{L}\p{Nd}]+)*$/u;

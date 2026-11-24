@@ -155,7 +155,7 @@ function renderStatusConfigSection() {
         <div class="sc-fixed-name">Done</div>
       </div>
     </div>
-    <p class="sc-hint">Empty columns are hidden on the board. These names also define the status values when editing an issue. Letters and digits only, single spaces allowed, max 15 characters.</p>
+    <p class="sc-hint">Empty columns are hidden on the board. These names also define the status values when editing an issue. Only letters, digits, single spaces and hyphens, max 15 characters.</p>
     ${canEdit ? '<button id="ps-save-status-config-btn" class="btn primary">Save Columns</button>' : ''}
   `;
 
@@ -194,7 +194,7 @@ async function handleSaveStatusConfig(projectId: number, previousCfg: StatusName
     showNotification(
       STATUS_NAME_REGEX.test(invalidName)
         ? `Column names must not exceed ${MAX_STATUS_NAME_LEN} characters.`
-        : 'Column names must contain only letters, digits and single spaces.',
+        : 'Column names must contain only letters, digits, single spaces and hyphens.',
       'error'
     );
     return;

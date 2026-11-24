@@ -689,22 +689,22 @@
           "stage1_name": {
             "type": "string",
             "maxLength": 15,
-            "description": "Letters and digits only. Empty string hides the column."
+            "description": "Only letters (including umlauts and accented letters), digits, single spaces and hyphens between them. Empty string hides the column."
           },
           "stage2_name": {
             "type": "string",
             "maxLength": 15,
-            "description": "Letters and digits only. Empty string hides the column."
+            "description": "Only letters (including umlauts and accented letters), digits, single spaces and hyphens between them. Empty string hides the column."
           },
           "stage3_name": {
             "type": "string",
             "maxLength": 15,
-            "description": "Letters and digits only. Empty string hides the column."
+            "description": "Only letters (including umlauts and accented letters), digits, single spaces and hyphens between them. Empty string hides the column."
           },
           "stage4_name": {
             "type": "string",
             "maxLength": 15,
-            "description": "Letters and digits only. Empty string hides the column."
+            "description": "Only letters (including umlauts and accented letters), digits, single spaces and hyphens between them. Empty string hides the column."
           }
         }
       },

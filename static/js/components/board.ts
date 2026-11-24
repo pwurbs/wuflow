@@ -6,7 +6,7 @@ import { filterIssues, sortByPosition } from '../filters.ts';
 import { getBoardColumns, STATUS_OPEN } from '../status-config.ts';
 import { handleMoveTop, handleMoveBottom, handleTogglePriority, assigneeCallbacks, applyOrderChange, saveIssueOrder, showSaveFailure } from '../list-utils.ts';
 import { renderPlanningPanel } from './planning.ts';
-import { bySelector } from '../utils.ts';
+import { bySelector, escapeHtml } from '../utils.ts';
 import type { IssueStatus } from '../status-config.ts';
 import type { Issue } from '../models.ts';
 import type { OrderChange, OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
@@ -38,7 +38,7 @@ export function renderBoard(refreshApp?: RefreshApp, openModal?: OpenModal, rere
 
     const header = document.createElement('div');
     header.className = 'column-header';
-    header.innerHTML = `<h2>${col.displayName}</h2><span class="count">0</span>`;
+    header.innerHTML = `<h2>${escapeHtml(col.displayName)}</h2><span class="count">0</span>`;
 
     const content = document.createElement('div');
     content.className = 'column-content';

@@ -1,6 +1,7 @@
 
 import { describe, it, expect, vi, beforeEach, assert } from 'vitest';
 import { renderBoard, setupBoardView } from '../components/board.ts';
+import { getBoardColumns } from '../status-config.ts';
 import * as state from '../state.ts';
 import * as card from '../components/card.ts';
 import * as filters from '../filters.ts';
@@ -61,6 +62,7 @@ vi.mock('../drag.ts', () => ({
 
 vi.mock('../utils.ts', async (importOriginal) => ({
   bySelector: (await importOriginal<typeof import('../utils.ts')>()).bySelector,
+  escapeHtml: (await importOriginal<typeof import('../utils.ts')>()).escapeHtml,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
   showNotification: vi.fn()
@@ -117,6 +119,17 @@ describe('Board Component', () => {
       expect(bySelector(document, '.column[data-status="Done"] .column-content').children).toHaveLength(1);
 
       expect(card.createCardElement).toHaveBeenCalledTimes(3);
+    });
+
+    it('should escape HTML in column names', () => {
+      const name = '<img src=x';
+      vi.mocked(getBoardColumns).mockReturnValueOnce([{ statusKey: 'Stage1', displayName: name }]);
+
+      renderBoard();
+
+      const header = bySelector(document, '.column[data-status="Stage1"] .column-header');
+      expect(bySelector(header, 'h2').textContent).toBe(name);
+      expect(header.querySelector('img')).toBeNull();
     });
 
     it('should update column counts', () => {

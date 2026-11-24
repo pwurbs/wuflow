@@ -1,6 +1,7 @@
 
 # 1.5.1
 
+- Board column names may now contain umlauts, accented letters and hyphens
 - My Work now lists projects with high priority issues first, the one with the nearest deadline at the top, and shows the cards in the order of the project's board
 - Each backend error now appears only once in the log, and requests closed by the browser show as 499 in the access log instead of as errors
 - Fixed: deadlines, planned dates and release dates now show the picked day in every time zone (west of UTC they showed the day before), and a release no longer counts as overdue on its release date

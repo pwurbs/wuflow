@@ -276,7 +276,7 @@ test.describe('Edge Cases and Validation', () => {
     await page.fill('.sc-name-input[name="stage1_name"]', 'Bad!');
     await page.click('#ps-save-status-config-btn');
 
-    await expect(page.locator('#notification-toast')).toContainText('only letters, digits and single spaces');
+    await expect(page.locator('#notification-toast')).toContainText('only letters, digits, single spaces and hyphens');
   });
 
   test('strict validation: rejects query parameters', async ({ page }) => {

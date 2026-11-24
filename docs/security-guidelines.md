@@ -22,8 +22,7 @@ The security rules wuFlow's code follows and the risks the project has deliberat
   (`renderMarkdown`: marked + DOMPurify). Every new renderer of these fields needs its own
   sanitization. → [Markdown Security](markdown-security.md)
 - Plain text is rendered with `textContent` or `escapeHtml`; the backend additionally strips HTML
-  tags from plain-text fields. User data goes into `innerHTML` unescaped only when the backend
-  restricts it to a safe pattern (today only column names). → [Input Validation](input-validation.md)
+  tags from plain-text fields, or rejects them (column names). → [Input Validation](input-validation.md)
 - Every response carries the security headers (`nosniff`, `X-Frame-Options: DENY`, HSTS when
   `Secure` is on) and a strict CSP: no `'unsafe-inline'`/`'unsafe-eval'` in `script-src`, no
   external origins. → [Client Security](client-security.md)

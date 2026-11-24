@@ -553,7 +553,7 @@ func TestValidateStatusConfigNameTooLong(t *testing.T) {
 }
 
 func TestValidateStatusConfigNameInvalidChars(t *testing.T) {
-	cases := []string{"Bad!Name", "No#Hash", "dash-not-ok", "dot.not.ok", "slash/bad", "In  Progress"}
+	cases := []string{"Bad!Name", "No#Hash", "-leading", "trailing-", "double--hyphen", "A - B", "A- B", "en–dash", "dot.not.ok", "slash/bad", "In  Progress", "under_score", "Tab\tName", "Zero\u200bWidth", "Emoji😀", "½", "a\u0308", "<b>x</b>", "<img src=x", "a&b", "a\"b", "a'b", "Null\x00"}
 	for _, name := range cases {
 		cfg := &StatusConfig{Stage1Name: name}
 		if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameInvalid) {
@@ -562,10 +562,23 @@ func TestValidateStatusConfigNameInvalidChars(t *testing.T) {
 	}
 }
 
-func TestValidateStatusConfigNonASCIIInvalid(t *testing.T) {
-	cfg := &StatusConfig{Stage1Name: "Überprüfung"}
-	if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameInvalid) {
-		t.Errorf("expected ErrStatusNameInvalid for non-ASCII name, got %v", err)
+func TestValidateStatusConfigUnicodeAndHyphensValid(t *testing.T) {
+	cases := []string{"Überprüfung", "QÄ", "Straße", "Révision", "Code-Review", "Pre-Release 2", "A-B-C", strings.Repeat("ä", MaxStatusNameLen)}
+	for _, name := range cases {
+		cfg := &StatusConfig{Stage1Name: name}
+		if err := validateStatusConfig(cfg); err != nil {
+			t.Errorf("expected %q to be valid, got %v", name, err)
+		}
+		if cfg.Stage1Name != name {
+			t.Errorf("expected %q to stay unchanged, got %q", name, cfg.Stage1Name)
+		}
+	}
+}
+
+func TestValidateStatusConfigUmlautNameTooLong(t *testing.T) {
+	cfg := &StatusConfig{Stage1Name: strings.Repeat("ä", MaxStatusNameLen+1)}
+	if err := validateStatusConfig(cfg); !errors.Is(err, ErrStatusNameTooLong) {
+		t.Errorf("expected ErrStatusNameTooLong, got %v", err)
 	}
 }
 

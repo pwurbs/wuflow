@@ -176,13 +176,13 @@ func FuzzValidateStatusConfig(f *testing.F) {
 	f.Add(strings.Repeat("A", MaxStatusNameLen+1), "Working", "", "")
 	f.Add("  Pending  ", "Working", "", "")
 
-	// Null bytes — should fail the alphanumeric regex.
+	// Null bytes — should fail the column name regex.
 	f.Add("\x00Name", "Working", "", "")
 
-	// Unicode letters — must fail the ASCII-only regex.
-	f.Add("Révision", "Working", "", "")
+	// Unicode letters and hyphens — should pass the column name regex.
+	f.Add("Révision", "Code-Review", "", "")
 
-	// Partial-tag pattern: should fail the alphanumeric regex.
+	// Partial-tag pattern: should fail the column name regex.
 	f.Add("<x<b>col</b>", "Working", "", "")
 
 	f.Fuzz(func(t *testing.T, s1, s2, s3, s4 string) {
@@ -198,13 +198,16 @@ func FuzzValidateStatusConfig(f *testing.F) {
 			return
 		}
 
-		// Invariant: every non-empty name must consist solely of alphanumeric characters.
+		// Invariant: every non-empty name must match the column name regex.
 		for _, name := range []string{cfg.Stage1Name, cfg.Stage2Name, cfg.Stage3Name, cfg.Stage4Name} {
 			if name == "" {
 				continue
 			}
 			if !statusNameRegex.MatchString(name) {
 				t.Errorf("Validated stage name contains disallowed characters: %q", name)
+			}
+			if strings.ContainsAny(name, "<>&\"'") {
+				t.Errorf("Validated stage name contains HTML characters: %q", name)
 			}
 			if utf8.RuneCountInString(name) > MaxStatusNameLen {
 				t.Errorf("Validated stage name exceeds max length: %q", name)

@@ -64,7 +64,7 @@ var (
 	ErrProjectDescTooLong = fmt.Errorf("project description must not exceed %d characters", MaxProjectDescLen)
 
 	ErrStatusNameTooLong = fmt.Errorf("column name must not exceed %d characters", MaxStatusNameLen)
-	ErrStatusNameInvalid = errors.New("column name must contain only letters, digits and single spaces")
+	ErrStatusNameInvalid = errors.New("column name must contain only letters, digits, single spaces and hyphens")
 
 	ErrInvalidReleaseName = errors.New("release name is required")
 	ErrReleaseNameTooLong = fmt.Errorf("release name must not exceed %d characters", MaxReleaseNameLen)
@@ -87,7 +87,7 @@ var (
 	emailRegex      = regexp.MustCompile(`^[^\s@]+@[^\s@]+$`)
 	colorRegex      = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 	anyTagRegex     = regexp.MustCompile(`<[^>]+>`)
-	statusNameRegex = regexp.MustCompile(`^[a-zA-Z0-9]+( [a-zA-Z0-9]+)*$`)
+	statusNameRegex = regexp.MustCompile(`^[\p{L}\p{Nd}]+([ -][\p{L}\p{Nd}]+)*$`)
 )
 
 func sanitizeString(s string) string {

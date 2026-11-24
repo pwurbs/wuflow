@@ -66,6 +66,20 @@ test.describe('Board Columns Configuration', () => {
     await saveStatusConfig(page);
   });
 
+  test('column names accept umlauts and hyphens', async ({ page }) => {
+    await goToProjectSettings(page);
+    await setColumnName(page, 'stage1_name', 'QÄ-Prüfung');
+    await saveStatusConfig(page);
+
+    await goToBoard(page);
+    await expect(page.locator('.column[data-status="Stage1"] .column-header h2')).toHaveText('QÄ-Prüfung');
+
+    // Restore
+    await goToProjectSettings(page);
+    await setColumnName(page, 'stage1_name', 'Pending');
+    await saveStatusConfig(page);
+  });
+
   test('activating Stage3 adds a fifth column to the board', async ({ page }) => {
     await goToProjectSettings(page);
     await setColumnName(page, 'stage3_name', 'Review');

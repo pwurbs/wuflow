@@ -520,7 +520,30 @@ describe('project-settings.ts component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith(
-        'Column names must contain only letters, digits and single spaces.', 'error'
+        'Column names must contain only letters, digits, single spaces and hyphens.', 'error'
+      );
+      expect(api.updateStatusConfig).not.toHaveBeenCalled();
+    });
+
+    it.each(['QÄ', 'Überprüfung', 'Straße', 'Code-Review', 'In Progress'])('saves the valid name %s', async (name) => {
+      await renderProjectSettingsView();
+
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = name;
+      byId('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(api.updateStatusConfig).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ stage1_name: name }));
+    });
+
+    it.each(['-QA', 'QA-', 'A--B', 'A - B', 'QA/Test', 'Emoji😀', 'a\u0308', '<b>'])('rejects the invalid name %s', async (name) => {
+      await renderProjectSettingsView();
+
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = name;
+      byId('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith(
+        'Column names must contain only letters, digits, single spaces and hyphens.', 'error'
       );
       expect(api.updateStatusConfig).not.toHaveBeenCalled();
     });
@@ -533,7 +556,7 @@ describe('project-settings.ts component', () => {
       await new Promise(process.nextTick);
 
       expect(utils.showNotification).toHaveBeenCalledWith(
-        'Column names must contain only letters, digits and single spaces.', 'error'
+        'Column names must contain only letters, digits, single spaces and hyphens.', 'error'
       );
       expect(api.updateStatusConfig).not.toHaveBeenCalled();
     });
