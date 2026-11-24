@@ -1,5 +1,5 @@
 import { fetchUsers, createUser, updateUser, deleteUser, fetchProjects, createProject, updateProject, deleteProject, logout, fetchActiveIssuesByProject, fetchArchivedIssuesByProject, fetchOpenIssuesByProject } from '../api.ts';
-import { byId, showNotification, getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit, errorMessage } from '../utils.ts';
+import { byId, showNotification, loadFailureMessage, showListLoadFailure,getUserInitials, escapeHtml, initCharCounter, countCodepoints, countUtf8Bytes, formatDateTime, promptAdminPasswordConfirmation, onGuardedSubmit, errorMessage } from '../utils.ts';
 import { MAX_PROJECT_NAME_LEN, MAX_PROJECT_DESC_LEN, MAX_USERNAME_LENGTH, MAX_EMAIL_LENGTH, MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, EMAIL_REGEX } from '../validation-config.ts';
 import { state, setUsers, setProjects } from '../state.ts';
 import { ROLE_DISPLAY_NAMES, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
@@ -127,7 +127,7 @@ async function handleProjectSubmit() {
     const projects = await renderSystemSettingsView();
     // Refreshes the project selector dropdown; its own fallback logic triggers a full
     // refresh only if the currently selected project was affected (e.g. deleted elsewhere).
-    updateProjectSelectorOptions(projects ?? await fetchProjects());
+    if (projects) updateProjectSelectorOptions(projects);
   } catch (err) {
     showProjectError(errorDisplay, errorMessage(err));
   }
@@ -144,12 +144,13 @@ async function handleDeleteProject() {
   if (!userCan(state.currentUser, ACTION_DELETE_PROJECT)) return;
 
   const errorDisplay = byId('project-modal-error');
-  const [active, archived, open] = await Promise.all([
-    fetchActiveIssuesByProject(projectId),
-    fetchArchivedIssuesByProject(projectId),
-    fetchOpenIssuesByProject(projectId),
-  ]);
-  const issueCount = active.length + archived.length + open.length;
+  let issueCount;
+  try {
+    issueCount = await countIssues(projectId);
+  } catch (err) {
+    showProjectError(errorDisplay, loadFailureMessage('The project\'s issues', err));
+    return;
+  }
   if (issueCount > 0) {
     showProjectError(errorDisplay, `This project still has ${issueCount} issue${issueCount === 1 ? '' : 's'}. Move or delete them first before deleting the project.`);
     return;
@@ -171,7 +172,16 @@ async function handleDeleteProject() {
   const projects = await renderSystemSettingsView();
   // Refreshes the project selector dropdown; its own fallback logic triggers a full
   // refresh if the deleted project was the currently selected one.
-  updateProjectSelectorOptions(projects ?? await fetchProjects());
+  if (projects) updateProjectSelectorOptions(projects);
+}
+
+async function countIssues(projectId: number) {
+  const lists = await Promise.all([
+    fetchActiveIssuesByProject(projectId),
+    fetchArchivedIssuesByProject(projectId),
+    fetchOpenIssuesByProject(projectId),
+  ]);
+  return lists.flat().length;
 }
 
 async function renderProjectList() {
@@ -221,8 +231,7 @@ async function renderProjectList() {
 
     return projects;
   } catch (err) {
-    console.error(err);
-    projectsList.innerHTML = '<div class="error">Failed to load projects.</div>';
+    showListLoadFailure(projectsList, 'Projects', err);
   }
 }
 
@@ -633,8 +642,7 @@ async function renderUserList() {
     });
 
   } catch (err) {
-    console.error(err);
-    usersList.innerHTML = '<div class="error">Failed to load users.</div>';
+    showListLoadFailure(usersList, 'Users', err);
   }
 }
 

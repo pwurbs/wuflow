@@ -61,6 +61,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   byId: (await importOriginal<typeof import('../utils.ts')>()).byId,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
+  showListLoadFailure: (await importOriginal<typeof import('../utils.ts')>()).showListLoadFailure,
   canArchive: vi.fn(() => ({ allowed: true })),
   showConfirm: vi.fn(async () => true),
   showNotification: vi.fn(),
@@ -109,6 +110,14 @@ describe('Archive Component', () => {
         expect(cardCallbacks.get(cardEl)?.onMoveBottom).toBeUndefined();
       });
     });
+  });
+
+  it('says in place that the archived issues could not be loaded', async () => {
+    resetIssueLists();
+    vi.mocked(api.fetchArchivedIssuesByProject).mockRejectedValueOnce(new Error('Internal server error'));
+    await renderArchive();
+    expect(byId('archive-list').textContent).toBe('Archived issues could not be loaded: Internal server error');
+    expect(byId('archive-count').textContent).toBe('');
   });
 
   describe('setupArchiveView', () => {

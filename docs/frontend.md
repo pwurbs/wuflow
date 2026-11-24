@@ -162,7 +162,8 @@ The application initializes by fetching **only active issues**. Open and archive
 All three views share one cache (`static/js/issue-lists.ts`). Every list it loads is merged into the client-side issue state, so a list is fetched at most once per refresh, whichever view asks for it first:
 
 -   **Refresh**: `refreshApp()` (initial load, view switch to Board/Backlog/Archive, closing the issue modal, project switch) reloads the active issues and drops the cached open/archived lists. The lists the currently visible view needs are fetched **in the same parallel wave** as the active issues, the status config, labels, releases, users and projects. Lists of views that are not visible are **not** fetched, so background refreshes do not trigger unnecessary heavy payloads.
--   **Superseded refresh**: a refresh stores status config, labels, releases, users and projects together once everything has arrived, and only if no newer refresh (e.g. after a project switch) has started meanwhile. `issue-lists.ts` discards superseded issues the same way. Until then the previous project's data stays on screen.
+-   **Superseded refresh**: a refresh stores issues, status config, labels, releases, users and projects together once everything has arrived, and only if no newer refresh (e.g. after a project switch) has started meanwhile. Until then the previous project's data stays on screen.
+-   **Failed refresh**: if any of these requests fails, nothing is stored, and the issue lists loaded before stay usable. A failed project switch returns to the project on screen. Two requests may fail alone: without the status config the board keeps the column names loaded for this project, else it shows the default columns, and without My Work that view keeps its last list. If the selected project was deleted elsewhere, its requests answer 404 and the app selects another project. Until the first refresh has succeeded, a dialog asks to try again.
 -   **Data of the selected project**: Project Settings show the column names, and the issue dialog uses the cached options, only if `state.statusConfig.project_id` is the selected project. Otherwise Project Settings show no form, so another project's names or the defaults cannot be saved, and the dialog fetches the options.
 -   **View Switch to Backlog / Archive**: these views trigger a refresh, which already includes their list.
 -   **View Switch to Releases**: does not trigger a refresh. It fetches only the lists that are not cached yet (e.g. only the archived issues when coming from the Backlog) and costs no request at all when both are cached.
@@ -174,6 +175,22 @@ All three views share one cache (`static/js/issue-lists.ts`). Every list it load
 **Why one parallel wave:** the server answers these requests in a few milliseconds, so on slow or mobile connections the cost is the number of *sequential* round trips, each of which can take hundreds of milliseconds. Browsers open at most 6 connections per host over HTTP/1.1, so with latency the 7th request of a wave (My Work, Backlog, Archive) costs an extra round trip. [HTTP/2 on the reverse proxy](deployment.md#http2) avoids it.
 
 **Why hidden views are redrawn:** `refreshApp()` and the re-render functions in `app.ts` also redraw the Board and its planning panel while another view is visible. This is deliberate: it costs only a few milliseconds (measured with a few hundred issues), and the Board is up to date when the user switches back.
+
+---
+
+## Errors
+
+Each API error is shown once, where it ends, that is where it is no longer thrown. This is the frontend counterpart of [backend-architecture.md](./backend-architecture.md#errors-and-logging).
+
+| Nr | Case | How |
+|----|------|-----|
+| 1 | The caller can handle the error (`api.ts`, `issue-lists.ts`) | Throw. An expected status (401, 404, 409) may be a return value. |
+| 2 | A save ends | `showNotification(errorMessage(err), 'error')`, or in place in the open dialog or form. |
+| 3 | A load ends | `showLoadFailure(what, err)`, or `showListLoadFailure` in place of the list. |
+| 4 | A reload after a successful save ends | The save is reported as saved: `showNotification(loadFailureMessage('Release created, but the releases', err), 'error')`, or success if the list shows the failure in place. |
+| 5 | The error concerns nobody: a superseded load, the session check, the version, logout | Drop it, with a comment saying why. |
+
+There is one toast, so `showLoadFailure` leaves an error on screen in place: it may be a failed save, and several loads failing together give one message. The connection banner does not replace the message, because the next request that succeeds hides it.
 
 ---
 

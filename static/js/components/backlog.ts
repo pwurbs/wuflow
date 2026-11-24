@@ -10,7 +10,7 @@ import type { Issue } from '../models.ts';
 import { userCan, ACTION_UPDATE_ISSUE } from '../permissions.ts';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
 import { getDraggedCard } from '../drag.ts';
-import { escapeHtml, byId, bySelector } from '../utils.ts';
+import { escapeHtml, byId, bySelector, showListLoadFailure } from '../utils.ts';
 
 let refreshAppCallback: RefreshApp | undefined;
 let openModalCallback: OpenModal | undefined;
@@ -101,7 +101,12 @@ export async function renderBacklog(refreshApp?: RefreshApp, openModal?: OpenMod
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   // Lazy-load open issues if not already loaded
-  await ensureIssueLists(VIEW_ISSUE_LISTS.backlog);
+  let loadFailure: { err: unknown } | null = null;
+  try {
+    await ensureIssueLists(VIEW_ISSUE_LISTS.backlog);
+  } catch (err) {
+    loadFailure = { err };
+  }
 
   const validReleaseIds = new Set([null, ...state.releases.filter(r => r.status === RELEASE_STATUS_OPEN).map(r => r.id)]);
   pruneReleaseFilterIds(validReleaseIds);
@@ -149,6 +154,12 @@ export async function renderBacklog(refreshApp?: RefreshApp, openModal?: OpenMod
   } else {
     backlogCount.textContent = String(openIssues.length);
     todoCount.textContent = String(todoIssues.length);
+  }
+
+  if (loadFailure) {
+    showListLoadFailure(backlogList, 'Open issues', loadFailure.err);
+    backlogCount.textContent = '';
+    byId('backlog-release-lanes').classList.add('hidden'); // their counts include the open issues
   }
 }
 

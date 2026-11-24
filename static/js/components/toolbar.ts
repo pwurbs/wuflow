@@ -199,6 +199,16 @@ export function initProjectSelector(onProjectChange: RefreshApp) {
   bindDropdown(byId('project-selector-wrapper'), byId('project-selector-btn'), byId('project-selector-options'));
 }
 
+// Selects the project and remembers it for the next visit.
+export function selectProject(projectId: number | null) {
+  setSelectedProject(projectId);
+  if (projectId === null) {
+    localStorage.removeItem('wuflow_selectedProjectId');
+  } else {
+    localStorage.setItem('wuflow_selectedProjectId', String(projectId));
+  }
+}
+
 export function updateProjectSelectorOptions(projects: Project[]) {
   const btn = byId('project-selector-btn');
   const optionsDiv = byId('project-selector-options');
@@ -206,17 +216,10 @@ export function updateProjectSelectorOptions(projects: Project[]) {
   optionsDiv.innerHTML = '';
 
   if (state.selectedProjectId === null && projects.length > 0) {
-    setSelectedProject(projects[0].id);
-    localStorage.setItem('wuflow_selectedProjectId', String(projects[0].id));
+    selectProject(projects[0].id);
     if (_onProjectChange) _onProjectChange();
   } else if (state.selectedProjectId !== null && !projects.some(p => p.id === state.selectedProjectId)) {
-    const fallback = projects.length > 0 ? projects[0].id : null;
-    setSelectedProject(fallback);
-    if (fallback === null) {
-      localStorage.removeItem('wuflow_selectedProjectId');
-    } else {
-      localStorage.setItem('wuflow_selectedProjectId', String(fallback));
-    }
+    selectProject(projects.length > 0 ? projects[0].id : null);
     if (_onProjectChange) _onProjectChange();
   }
 
@@ -224,8 +227,7 @@ export function updateProjectSelectorOptions(projects: Project[]) {
   sortByName(projects, p => p.name).forEach(project => {
     const option = createOption(project.name, (e) => {
       e.stopPropagation();
-      setSelectedProject(project.id);
-      localStorage.setItem('wuflow_selectedProjectId', String(project.id));
+      selectProject(project.id);
       updateProjectButtonLabel(btn, project.name);
       optionsDiv.classList.add('hidden');
       if (_onProjectChange) _onProjectChange();

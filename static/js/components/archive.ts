@@ -7,7 +7,7 @@ import { getListUpdates, saveIssueOrder, setupSectionDrop, setupListDrag } from 
 import type { OpenModal, RefreshApp, RerenderView } from '../list-utils.ts';
 import type { IssueStatus } from '../status-config.ts';
 import { filterIssues, filterByStatus, sortByPosition } from '../filters.ts';
-import { canArchive, showConfirm, byId } from '../utils.ts';
+import { canArchive, showConfirm, byId, showListLoadFailure } from '../utils.ts';
 import { userCan, ACTION_ARCHIVE_ISSUE } from '../permissions.ts';
 
 let refreshAppCallback: RefreshApp | undefined;
@@ -20,7 +20,12 @@ export async function renderArchive(refreshApp?: RefreshApp, openModal?: OpenMod
   if (rerenderActiveView) rerenderActiveViewCallback = rerenderActiveView;
 
   // Lazy-load archived issues if not already loaded
-  await ensureIssueLists(VIEW_ISSUE_LISTS.archive);
+  let loadFailure: { err: unknown } | null = null;
+  try {
+    await ensureIssueLists(VIEW_ISSUE_LISTS.archive);
+  } catch (err) {
+    loadFailure = { err };
+  }
 
   const archiveList = byId('archive-list');
   const doneList = byId('archive-done-list');
@@ -71,6 +76,11 @@ export async function renderArchive(refreshApp?: RefreshApp, openModal?: OpenMod
 
   archiveCount.textContent = isFilterActive() ? `${archivedIssues.length}/${filterByStatus(state.issues, STATUS_ARCHIVE).length}` : String(archivedIssues.length);
   doneCount.textContent = isFilterActive() ? `${doneIssues.length}/${filterByStatus(state.issues, STATUS_DONE).length}` : String(doneIssues.length);
+
+  if (loadFailure) {
+    showListLoadFailure(archiveList, 'Archived issues', loadFailure.err);
+    archiveCount.textContent = '';
+  }
 }
 
 function groupByMonth(issues: Issue[]) {

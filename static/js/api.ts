@@ -46,7 +46,7 @@ const GATEWAY_ERROR_STATUSES = new Set([502, 503, 504]);
  * The message is shown as-is in error toasts.
  */
 export class NetworkError extends Error {
-  constructor(message = 'Connection to the server failed. The change was not saved.') {
+  constructor(message = 'Connection to the server failed.') {
     super(message);
     this.name = 'NetworkError';
   }
@@ -128,13 +128,23 @@ const renewSessionOnce = singleFlight(renewSession);
 /**
  * Auth-aware fetch wrapper.
  * - Network failures throw NetworkError; GET requests are retried once first.
- *   Other methods are never retried automatically, as their outcome is unknown.
+ *   Other methods are never retried automatically, as their outcome is unknown; their
+ *   error says that the change was not saved.
  * - On 401: refreshes the session (or re-authenticates the user) and replays the
  *   request once. The replay is safe because a 401 request was never executed.
  * All concurrent 401s share one renewal (Token Reuse Protection).
  */
 async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const isRead = (options.method ?? 'GET').toUpperCase() === 'GET';
+  if ((options.method ?? 'GET').toUpperCase() === 'GET') return sendWithSession(url, options, true);
+  try {
+    return await sendWithSession(url, options, false);
+  } catch (err) {
+    if (err instanceof NetworkError) throw new NetworkError(`${err.message} The change was not saved.`);
+    throw err;
+  }
+}
+
+async function sendWithSession(url: string, options: RequestInit, isRead: boolean): Promise<Response> {
   let res;
   try {
     res = await rawFetch(url, options);
@@ -169,6 +179,7 @@ export async function hasValidSession(): Promise<boolean> {
     const res = await rawFetch(`${API_URL}/auth/me`);
     return res.ok;
   } catch {
+    // Only decides whether the re-login dialog may close: without an answer it stays open.
     return false;
   }
 }
@@ -192,54 +203,34 @@ export async function reauthenticate(email: string, password: string): Promise<s
   }
 }
 
-export async function fetchActiveIssuesByProject(projectId: number): Promise<Issue[]> {
-  try {
-    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/active`);
-    const data = await res.json();
-    return data || [];
-  } catch {
-    return [];
-  }
+async function fetchIssueList(projectId: number, list: 'active' | 'open' | 'archived'): Promise<Issue[]> {
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${list}`);
+  if (!res.ok) throw new Error(await res.text() || `Failed to fetch ${list} issues`);
+  return await res.json() || []; // the backend sends null for an empty list
 }
 
-export async function fetchArchivedIssuesByProject(projectId: number): Promise<Issue[]> {
-  try {
-    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/archived`);
-    const data = await res.json();
-    return data || [];
-  } catch {
-    return [];
-  }
+export function fetchActiveIssuesByProject(projectId: number): Promise<Issue[]> {
+  return fetchIssueList(projectId, 'active');
 }
 
-export async function fetchOpenIssuesByProject(projectId: number): Promise<Issue[]> {
-  try {
-    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/open`);
-    const data = await res.json();
-    return data || [];
-  } catch {
-    return [];
-  }
+export function fetchArchivedIssuesByProject(projectId: number): Promise<Issue[]> {
+  return fetchIssueList(projectId, 'archived');
+}
+
+export function fetchOpenIssuesByProject(projectId: number): Promise<Issue[]> {
+  return fetchIssueList(projectId, 'open');
 }
 
 /**
- * Fetch a single issue by ID. Returns { issue, etag } or { issue: null } if not found.
+ * Fetch a single issue by ID. Returns { issue, etag }, or { issue: null } if it does not exist.
  */
 export async function fetchIssueById(projectId: number, id: number): Promise<{ issue: Issue | null, etag: string | null }> {
-  try {
-    const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`);
-    if (res.status === 404) {
-      return { issue: null, etag: null };
-    }
-    if (!res.ok) {
-      throw new Error(`Failed to fetch issue ${id}`);
-    }
-    const issue = await res.json();
-    const etag = res.headers.get('ETag');
-    return { issue, etag };
-  } catch {
-    return { issue: null, etag: null };
-  }
+  const res = await authFetch(`${API_URL}/projects/${projectId}/issues/${id}`);
+  if (res.status === 404) return { issue: null, etag: null };
+  if (!res.ok) throw new Error(await res.text() || `Failed to fetch issue ${id}`);
+  const issue = await res.json();
+  const etag = res.headers.get('ETag');
+  return { issue, etag };
 }
 
 export async function createIssue(projectId: number, issue: IssueWrite): Promise<Issue> {
@@ -438,8 +429,8 @@ export async function fetchVersion(): Promise<string> {
     const res = await authFetch(`${API_URL}/version`);
     const data = await res.json();
     return data.version || 'Unknown';
-  } catch (err) {
-    console.warn('Failed to fetch version:', err);
+  } catch {
+    // Shown only as information, nothing depends on it.
     return 'Unknown';
   }
 }
@@ -493,18 +484,13 @@ export async function deleteUser(id: number, adminPassword: string): Promise<voi
 
 /**
  * Fetch the current authenticated user.
- * Returns the user object or null if not authenticated.
+ * Returns the user object, or null if not authenticated (401) or deleted meanwhile (404).
  */
 export async function fetchCurrentUser(): Promise<User | null> {
-  try {
-    const res = await authFetch(`${API_URL}/auth/me`);
-    if (!res.ok) {
-      return null;
-    }
-    return await res.json();
-  } catch {
-    return null;
-  }
+  const res = await authFetch(`${API_URL}/auth/me`);
+  if (res.status === 401 || res.status === 404) return null;
+  if (!res.ok) throw new Error(await res.text() || 'Failed to fetch the current user');
+  return await res.json();
 }
 
 /**
@@ -517,9 +503,8 @@ export async function logout(): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
       body: '{}'
     });
-  } catch (err) {
+  } catch {
     // Still leave the app: the server-side session expires on its own.
-    console.warn('Logout request failed:', err);
   } finally {
     globalThis.location.href = '/login';
   }
@@ -541,13 +526,9 @@ export async function updateCurrentUser(data: { password: string, current_passwo
 // --- Project API functions ---
 
 export async function fetchProjects(): Promise<Project[]> {
-  try {
-    const res = await authFetch(`${API_URL}/projects`);
-    const data = await res.json();
-    return data || [];
-  } catch {
-    return [];
-  }
+  const res = await authFetch(`${API_URL}/projects`);
+  if (!res.ok) throw new Error(await res.text() || 'Failed to fetch projects');
+  return await res.json() || [];
 }
 
 export async function createProject(project: Omit<Project, 'id'>): Promise<Project> {

@@ -190,6 +190,12 @@ describe('Session', () => {
       expect(api.fetchCurrentUser).toHaveBeenCalledTimes(1);
     });
 
+    it('ignores a failed check, which says nothing about the session', async () => {
+      vi.mocked(api.fetchCurrentUser).mockRejectedValue(new Error('offline'));
+      await expect(session.probeSession({ force: true })).resolves.toBeUndefined();
+      expect(byId('reauth-modal').classList.contains('hidden')).toBe(true);
+    });
+
     it('checks the session when the browser comes back online, ignoring the throttle', async () => {
       globalThis.dispatchEvent(new Event('focus'));
       globalThis.dispatchEvent(new Event('online'));

@@ -72,6 +72,8 @@ vi.mock('../utils.ts', async (importOriginal) => {
     sortByName: actual.sortByName,
     createOption: actual.createOption,
     showNotification: vi.fn(),
+    loadFailureMessage: actual.loadFailureMessage,
+    showLoadFailure: vi.fn(),
     showConfirm: vi.fn(),
     updateDateInputStyle: vi.fn(),
     escapeHtml: vi.fn(s => s),
@@ -1867,6 +1869,90 @@ describe('Modal Component', () => {
       expect(utils.showNotification).not.toHaveBeenCalledWith('Issue not found or was deleted', 'error');
     });
 
+    describe('when the revalidation fails', () => {
+      const LOAD_ERROR = new Error('Internal server error');
+
+      it('keeps the dialog open with the typed text and reports the failed load once', async () => {
+        const load = deferred();
+        vi.mocked(api.fetchIssueById).mockReturnValue(load.promise);
+        openModal(baseIssue());
+        byId('description-preview').click();
+        byId('description-editor', HTMLTextAreaElement).value = 'Typed text';
+
+        load.reject(LOAD_ERROR);
+        await flush();
+
+        expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
+        expect(byId('description-editor', HTMLTextAreaElement).value).toBe('Typed text');
+        expect(utils.showLoadFailure).toHaveBeenCalledExactlyOnceWith('The latest version of this issue', LOAD_ERROR);
+        expect(utils.showNotification).not.toHaveBeenCalled();
+      });
+
+      it('repeats it before the next save and sends the ETag it got', async () => {
+        vi.mocked(api.fetchIssueById).mockRejectedValueOnce(LOAD_ERROR);
+        openModal(baseIssue());
+        await flush();
+
+        vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: baseIssue(), etag: '"late-etag"' });
+        changePriority('High');
+        await flush();
+        expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }), '"late-etag"');
+
+        changePriority('Normal');
+        await flush();
+        expect(api.fetchIssueById).toHaveBeenCalledTimes(2);
+      });
+
+      it('sends nothing and says the change was not saved when the repeat fails too', async () => {
+        vi.mocked(api.fetchIssueById).mockRejectedValue(LOAD_ERROR);
+        openModal(baseIssue());
+        await flush();
+
+        changePriority('High');
+        await flush();
+
+        expect(api.updateIssue).not.toHaveBeenCalled();
+        expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('The change was not saved: Internal server error', 'error');
+        expect(byId('priority', HTMLInputElement).value).toBe('Normal');
+      });
+
+      it('repeats it for a save that was already waiting', async () => {
+        const load = deferred();
+        vi.mocked(api.fetchIssueById).mockReturnValueOnce(load.promise);
+        openModal(baseIssue());
+        changePriority('High');
+        await flush();
+
+        vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: baseIssue(), etag: '"late-etag"' });
+        load.reject(LOAD_ERROR);
+        await flush();
+        expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 'High' }), '"late-etag"');
+      });
+
+      it('forces a conflict when the repeat finds a newer version', async () => {
+        vi.mocked(api.fetchIssueById).mockRejectedValueOnce(LOAD_ERROR);
+        vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({ conflict: true });
+        vi.mocked(utils.showConfirm).mockResolvedValue(false);
+        openModal(baseIssue());
+        await flush();
+
+        vi.mocked(api.fetchIssueById).mockResolvedValue({ issue: makeIssue({ ...baseIssue(), updated_at: '2026-10-08T11:00:00Z' }), etag: '"newer-etag"' });
+        changePriority('High');
+        await flush();
+        expect(api.updateIssue).toHaveBeenCalledWith(1, expect.any(Object), '"stale"');
+      });
+
+      it('reports nothing once the modal was closed', async () => {
+        const load = deferred();
+        vi.mocked(api.fetchIssueById).mockReturnValue(load.promise);
+        openModal(baseIssue());
+        closeModal();
+        load.reject(LOAD_ERROR);
+        await flush();
+        expect(utils.showLoadFailure).not.toHaveBeenCalled();
+      });
+    });
+
     it('renders dropdown options from cached state without refetching', () => {
       vi.mocked(api.fetchIssueById).mockReturnValue(new Promise(() => {}));
       state.labels = [makeLabel({ id: 3, name: 'Cached Label' })];
@@ -2561,14 +2647,13 @@ describe('Modal Component', () => {
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
-    it('should handle modal open failure - fetch error', async () => {
-      vi.mocked(api.fetchIssueById).mockRejectedValue(new Error('Network Error'));
-      const modal = byId('issue-modal');
-
-      openModal(makeIssue({ id: 999 }));
-
-      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledWith('Failed to load issue', 'error'));
-      expect(modal.classList.contains('hidden')).toBe(true);
+    it('reports a failed user load for the assignee dropdown', async () => {
+      vi.mocked(api.fetchUsers).mockRejectedValue(new Error('offline'));
+      vi.mocked(api.fetchProjects).mockRejectedValue(new Error('offline'));
+      openModal(null);
+      await flush();
+      expect(utils.showLoadFailure).toHaveBeenCalledWith('Users', new Error('offline'));
+      expect(utils.showLoadFailure).toHaveBeenCalledWith('Projects', new Error('offline'));
     });
 
     it('saves the description only once when ✓ is pressed again while the first save is in flight', async () => {
@@ -3015,6 +3100,22 @@ describe('Modal Component', () => {
       expect(byId('modal-title').textContent).toContain('Issue Details #1');
     });
 
+    it.each([
+      ['cannot be loaded', () => Promise.reject(new Error('Internal server error')), 'Internal server error'],
+      ['was deleted', () => Promise.resolve({ issue: null, etag: null }), 'Issue not found or was deleted'],
+    ])('shows an error when the reload after a conflict %s', async (_case, reload, message) => {
+      await openModalWithMock(makeIssue({ id: 1, title: 'Old' }));
+      vi.mocked(api.updateIssue, { partial: true }).mockResolvedValue({ conflict: true });
+      vi.mocked(utils.showConfirm).mockResolvedValue(true);
+      vi.mocked(api.fetchIssueById).mockImplementation(reload);
+
+      byId('priority').dispatchEvent(new Event('change'));
+      await flush();
+
+      expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith(message, 'error');
+      expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
+    });
+
     it('should handle sidebar save failures', async () => {
       const issue = makeIssue({ id: 1, title: 'Test' });
       await openModalWithMock(issue);
@@ -3295,7 +3396,7 @@ describe('Project Selector Coverage', () => {
     option.click();
     await new Promise(process.nextTick);
 
-    expect(utils.showNotification).toHaveBeenCalledWith('Network error', 'error');
+    expect(utils.showLoadFailure).toHaveBeenCalledWith('Status, labels and releases', new Error('Network error'));
   });
 
   it('loads the new project\'s labels, releases and statuses once the issue has moved', async () => {
@@ -3433,7 +3534,7 @@ describe('Project context of the issue dialog', () => {
     await openModalWithMock(issueB());
     await flush();
 
-    expect(utils.showNotification).toHaveBeenCalledWith('Network error', 'error');
+    expect(utils.showLoadFailure).toHaveBeenCalledWith('Status, labels and releases', new Error('Network error'));
     expect(projectTriggersDisabled()).toEqual([true, true, true]);
   });
 

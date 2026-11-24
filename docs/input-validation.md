@@ -70,4 +70,4 @@ When creating links via the editor toolbar or during sanitization:
 - **Target Safety**: Links are rendered with `target="_blank" rel="noopener noreferrer"` to open in a new tab and prevent reverse tabnapping attacks.
 
 ## Error Handling
-- Frontend catches API errors and displays them in the application's single notification toast, in every view and also in modals.
+- How the frontend shows API errors: [Frontend → Errors](./frontend.md#errors)

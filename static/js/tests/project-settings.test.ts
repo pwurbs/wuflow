@@ -26,6 +26,7 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   guardSubmit: (await importOriginal<typeof import('../utils.ts')>()).guardSubmit,
   errorMessage: (await importOriginal<typeof import('../utils.ts')>()).errorMessage,
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
+  showListLoadFailure: (await importOriginal<typeof import('../utils.ts')>()).showListLoadFailure,
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn((str) => str),
@@ -168,7 +169,19 @@ describe('project-settings.ts component', () => {
       input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
       await new Promise(process.nextTick);
 
-      expect(utils.showNotification).toHaveBeenCalledWith('Failed to create label', 'error');
+      expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Network error', 'error');
+    });
+
+    it('reports a created label as created when the labels cannot be reloaded', async () => {
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValueOnce([]).mockRejectedValue(new Error('Internal server error'));
+      setupProjectSettingsView();
+
+      const input = byId('ps-new-label-input', HTMLInputElement);
+      input.value = 'Bug';
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Label created', 'success'));
+
+      expect(byId('ps-labels-list').textContent).toBe('Labels could not be loaded: Internal server error');
     });
 
     it('does not create label on non-Enter keypress', async () => {
@@ -217,7 +230,7 @@ describe('project-settings.ts component', () => {
     it('shows error message when fetchLabelsByProject fails', async () => {
       vi.mocked(api.fetchLabelsByProject).mockRejectedValue(new Error('Network error'));
       await renderProjectSettingsView();
-      expect(byId('ps-labels-list').innerHTML).toContain('Failed to load labels');
+      expect(byId('ps-labels-list').innerHTML).toContain('Labels could not be loaded');
     });
 
     it('sanitizes invalid label color', async () => {
@@ -236,6 +249,17 @@ describe('project-settings.ts component', () => {
       await new Promise(process.nextTick);
 
       expect(api.deleteLabel).toHaveBeenCalledWith(1, 1, 'AdminPass123!');
+    });
+
+    it('reports a deleted label as deleted when the labels cannot be reloaded', async () => {
+      vi.mocked(api.fetchLabelsByProject)
+        .mockResolvedValueOnce([makeLabel({ id: 1, name: 'Bug', color: '#EF5350' })])
+        .mockRejectedValue(new Error('Internal server error'));
+      await renderProjectSettingsView();
+      bySelector(document, '.delete-label-btn').click();
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Label deleted', 'success'));
+
+      expect(byId('ps-labels-list').textContent).toBe('Labels could not be loaded: Internal server error');
     });
 
     it('does not delete when confirmation is cancelled', async () => {

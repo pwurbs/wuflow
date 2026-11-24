@@ -43,6 +43,8 @@ vi.mock('../utils.ts', async (importOriginal) => {
     onGuardedSubmit: actual.onGuardedSubmit,
     errorMessage: actual.errorMessage,
     containsTarget: actual.containsTarget,
+    loadFailureMessage: actual.loadFailureMessage,
+    showListLoadFailure: actual.showListLoadFailure,
     showNotification: vi.fn(),
     showConfirm: vi.fn(),
     getUserInitials: vi.fn(() => 'AD'),
@@ -576,7 +578,7 @@ describe('Additional Coverage', () => {
     it('should handle user fetch failure', async () => {
       vi.mocked(api.fetchUsers).mockRejectedValue(new Error('Fetch failed'));
       await renderSystemSettingsView();
-      expect(byId('users-list').innerHTML).toContain('Failed to load users');
+      expect(byId('users-list').innerHTML).toContain('Users could not be loaded');
     });
 
     it('should validate email length', async () => {
@@ -1299,6 +1301,19 @@ describe('Project Management', () => {
       expect(byId('project-modal-overlay').classList.contains('hidden')).toBe(false);
     });
 
+    it('should show an error and skip the password dialog when the issues cannot be loaded', async () => {
+      vi.mocked(api.fetchProjects).mockResolvedValue([{ id: 3, name: 'Unknown', description: '' }]);
+      vi.mocked(api.fetchOpenIssuesByProject).mockRejectedValueOnce(new Error('Internal server error'));
+      await renderSystemSettingsView();
+
+      bySelector(document, '.settings-entry').click();
+      byId('project-modal-delete').click();
+      await new Promise(process.nextTick);
+
+      expect(byId('admin-confirm-modal').classList.contains('hidden')).toBe(true);
+      expect(byId('project-modal-error').textContent).toBe('The project\'s issues could not be loaded: Internal server error');
+    });
+
     it('should show a blocking error and skip the password dialog when the project still has issues', async () => {
       const project = { id: 3, name: 'Has Issues', description: '' };
       vi.mocked(api.fetchProjects).mockResolvedValue([project]);
@@ -1376,7 +1391,7 @@ describe('Project Management', () => {
       vi.mocked(api.fetchProjects).mockRejectedValue(new Error('Fetch failed'));
       await renderSystemSettingsView();
 
-      expect(byId('projects-list').innerHTML).toContain('Failed to load projects');
+      expect(byId('projects-list').innerHTML).toContain('Projects could not be loaded');
     });
 
     it('should hide add-project-btn when user lacks CREATE_PROJECT permission', async () => {

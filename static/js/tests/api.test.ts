@@ -98,7 +98,7 @@ describe('api', () => {
         .mockResolvedValueOnce(makeResponse(401, ''))
         .mockResolvedValueOnce(makeResponse(401, ''));
 
-      await fetchActiveIssuesByProject(1);
+      await expect(fetchActiveIssuesByProject(1)).rejects.toThrow();
 
       expect(location.href).toBe('/login');
     });
@@ -119,7 +119,7 @@ describe('api', () => {
       await Promise.resolve();
       resolveRefresh();
 
-      await Promise.all([p1, p2]);
+      await Promise.allSettled([p1, p2]); // the replayed requests get a 401 again
 
       const refreshCalls = vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/refresh'));
       expect(refreshCalls).toHaveLength(1);
@@ -190,6 +190,19 @@ describe('api', () => {
 
       await expect(createComment(1, 2, 'hello')).rejects.toThrow('Connection to the server failed');
       expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('says that the change was not saved only for non-GET requests', async () => {
+      vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
+      await expect(createComment(1, 2, 'hello')).rejects.toThrow(/^Connection to the server failed\. The change was not saved\.$/);
+      await expect(fetchHistory(1, 2)).rejects.toThrow(/^Connection to the server failed\.$/);
+    });
+
+    it('says so too when the session renewal for a non-GET request fails', async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse(401, ''))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+      await expect(createComment(1, 2, 'hello')).rejects.toThrow('The change was not saved.');
     });
 
     it('treats gateway errors as NetworkError', async () => {
@@ -271,7 +284,7 @@ describe('api', () => {
 
     it('returns the network error message when the server is unreachable', async () => {
       vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
-      expect(await reauthenticate('a@b.c', 'pw')).toContain('Connection to the server failed');
+      expect(await reauthenticate('a@b.c', 'pw')).toBe('Connection to the server failed.');
     });
   });
 
@@ -285,9 +298,32 @@ describe('api', () => {
       expect(fetch).toHaveBeenCalledWith('/api/projects/42/issues/active', { signal: expect.any(AbortSignal) });
     });
 
-    it('returns empty array on network error', async () => {
+  });
+
+  describe.each([
+    ['fetchActiveIssuesByProject', () => fetchActiveIssuesByProject(1)],
+    ['fetchOpenIssuesByProject', () => fetchOpenIssuesByProject(1)],
+    ['fetchArchivedIssuesByProject', () => fetchArchivedIssuesByProject(1)],
+    ['fetchProjects', () => fetchProjects()],
+  ])('%s: a failure never looks like an empty list', (_name, fetchList) => {
+    it('throws on network error', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('network'));
-      expect(await fetchActiveIssuesByProject(1)).toEqual([]);
+      await expect(fetchList()).rejects.toBeInstanceOf(NetworkError);
+    });
+
+    it('throws with the server message on a non-ok response', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(500, 'Internal server error'));
+      await expect(fetchList()).rejects.toThrow('Internal server error');
+    });
+
+    it('throws on a non-ok response even if its body is JSON', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(500, []));
+      await expect(fetchList()).rejects.toThrow();
+    });
+
+    it('returns an empty list for null, as the backend sends it', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(200, null));
+      expect(await fetchList()).toEqual([]);
     });
   });
 
@@ -296,11 +332,6 @@ describe('api', () => {
       const issues = [{ id: 3 }];
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, issues));
       expect(await fetchArchivedIssuesByProject(5)).toEqual(issues);
-    });
-
-    it('returns empty array on error', async () => {
-      vi.mocked(fetch).mockRejectedValue(new Error('fail'));
-      expect(await fetchArchivedIssuesByProject(1)).toEqual([]);
     });
   });
 
@@ -325,14 +356,14 @@ describe('api', () => {
       expect(await fetchIssueById(1, 99)).toEqual({ issue: null, etag: null });
     });
 
-    it('returns null issue on non-ok response', async () => {
-      vi.mocked(fetch).mockResolvedValue(makeResponse(500, ''));
-      expect(await fetchIssueById(1, 1)).toEqual({ issue: null, etag: null });
+    it('throws on any other non-ok response', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(500, 'Internal server error'));
+      await expect(fetchIssueById(1, 1)).rejects.toThrow('Internal server error');
     });
 
-    it('returns null issue on network error', async () => {
+    it('throws on network error', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('fail'));
-      expect(await fetchIssueById(1, 1)).toEqual({ issue: null, etag: null });
+      await expect(fetchIssueById(1, 1)).rejects.toBeInstanceOf(NetworkError);
     });
   });
 
@@ -498,14 +529,22 @@ describe('api', () => {
       expect(await fetchCurrentUser()).toEqual(user);
     });
 
-    it('returns null on non-ok response', async () => {
-      vi.mocked(fetch).mockResolvedValue(makeResponse(401, ''));
+    it.each([
+      ['not authenticated', 401],
+      ['deleted meanwhile', 404],
+    ])('returns null if %s', async (_case, status) => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(status, ''));
       expect(await fetchCurrentUser()).toBeNull();
     });
 
-    it('returns null on network error', async () => {
+    it('throws on any other non-ok response', async () => {
+      vi.mocked(fetch).mockResolvedValue(makeResponse(500, 'Internal server error'));
+      await expect(fetchCurrentUser()).rejects.toThrow('Internal server error');
+    });
+
+    it('throws on network error', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('down'));
-      expect(await fetchCurrentUser()).toBeNull();
+      await expect(fetchCurrentUser()).rejects.toBeInstanceOf(NetworkError);
     });
   });
 
@@ -530,11 +569,6 @@ describe('api', () => {
     it('returns project list on success', async () => {
       vi.mocked(fetch).mockResolvedValue(makeResponse(200, [{ id: 1 }]));
       expect(await fetchProjects()).toEqual([{ id: 1 }]);
-    });
-
-    it('returns empty array on error', async () => {
-      vi.mocked(fetch).mockRejectedValue(new Error('fail'));
-      expect(await fetchProjects()).toEqual([]);
     });
   });
 

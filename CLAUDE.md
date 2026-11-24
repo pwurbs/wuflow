@@ -73,8 +73,11 @@ tell Explore agents not to fall back to grep/find. grep/find only for what it do
   validation message (400) or a generic `errMsg…` constant; internal details go only to the log
   (`LogError`). Every successful write logs `LogInfo` with resource ID and `user_email` (audit
   trail). Log via `LogDebug`/`LogInfo`/`LogWarn`/`LogError` (backend/utils.go) with key-value
-  pairs; `fmt`/`log` only for startup output. Frontend: API errors go to `showNotification`;
-  no empty `catch` without a comment saying why.
+  pairs; `fmt`/`log` only for startup output. Frontend: the same, throw it or show it, not
+  both (docs/frontend.md "Errors"): `showNotification`, `showLoadFailure` for a failed load, or in
+  place in the open dialog, form or list. Not only in the console. Fetchers in `api.ts` throw; an
+  expected status (401, 404, 409) may be a return value, a failure never looks like data. No
+  `catch` that drops an error without a comment saying why.
 - New input fields, on input: reject what's invalid — a validator in `backend/validation.go`
   (length, format; 400) plus its mirror in `validation-config.ts`; then decide plain text vs
   Markdown. Plain text is cleaned with `sanitizeString` before storing and rendered with

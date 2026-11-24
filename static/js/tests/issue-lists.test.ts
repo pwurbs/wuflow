@@ -85,6 +85,59 @@ describe('issue-lists', () => {
       await stale;
       expect(ids()).toEqual([1]);
     });
+
+    it('stores nothing before ready has resolved', async () => {
+      const ready = Promise.withResolvers<void>();
+      state.issues = [makeIssue({ id: 99 })];
+      const load = loadIssues(['open'], ready.promise);
+      await new Promise(process.nextTick);
+      expect(ids()).toEqual([99]);
+      ready.resolve();
+      await load;
+      expect(ids()).toEqual([1, 2]);
+    });
+
+    it.each([
+      ['the active issues', () => { vi.mocked(api.fetchActiveIssuesByProject).mockRejectedValueOnce(new Error('offline')); return loadIssues(['open']); }],
+      ['a list', () => { vi.mocked(api.fetchOpenIssuesByProject).mockRejectedValueOnce(new Error('offline')); return loadIssues(['open']); }],
+      ['ready', () => loadIssues(['open'], Promise.reject(new Error('offline')))],
+    ])('keeps state.issues and its lists when %s fails', async (_what, failingLoad) => {
+      await loadIssues(['open', 'archived']);
+      vi.mocked(api.fetchActiveIssuesByProject).mockResolvedValue([makeIssue({ id: 50 })]);
+      await expect(failingLoad()).rejects.toThrow('offline');
+      expect(ids()).toEqual([1, 2, 3]);
+
+      vi.mocked(api.fetchOpenIssuesByProject).mockClear();
+      vi.mocked(api.fetchArchivedIssuesByProject).mockClear();
+      await ensureIssueLists(['open', 'archived']);
+      expect(api.fetchOpenIssuesByProject).not.toHaveBeenCalled();
+      expect(api.fetchArchivedIssuesByProject).not.toHaveBeenCalled();
+    });
+
+    it('does not count a list of a superseded load as loaded after the newer load failed', async () => {
+      const staleOpen = deferred();
+      vi.mocked(api.fetchOpenIssuesByProject).mockReturnValueOnce(staleOpen.promise);
+      const stale = loadIssues(['open']);
+      await expect(loadIssues([], Promise.reject(new Error('offline')))).rejects.toThrow('offline');
+      staleOpen.resolve([]);
+      await stale;
+
+      await ensureIssueLists(['open']);
+      expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(2);
+      expect(ids()).toEqual([2]);
+    });
+
+    it('does not report the failure of a superseded load', async () => {
+      const staleActive = deferred();
+      vi.mocked(api.fetchActiveIssuesByProject).mockReturnValueOnce(staleActive.promise);
+      const stale = loadIssues();
+      const joined = ensureIssueLists(['open']);
+      await loadIssues();
+      staleActive.reject(new Error('offline'));
+      await expect(stale).resolves.toBeUndefined();
+      await expect(joined).resolves.toBeDefined();
+      expect(ids()).toEqual([1]);
+    });
   });
 
   describe('ensureIssueLists', () => {
@@ -125,6 +178,19 @@ describe('issue-lists', () => {
       await expect(loadIssues()).rejects.toThrow('offline');
       await ensureIssueLists(['open']);
       expect(ids()).toEqual([1, 2]);
+    });
+
+    it('does not merge a list requested during a load that fails, e.g. of a project switch', async () => {
+      state.issues = [makeIssue({ id: 1 })];
+      const active = deferred();
+      vi.mocked(api.fetchActiveIssuesByProject).mockReturnValueOnce(active.promise);
+      state.selectedProjectId = 8;
+      const load = loadIssues();
+      const ensure = ensureIssueLists(['open']);
+      active.reject(new Error('offline'));
+      await expect(load).rejects.toThrow('offline');
+      await expect(ensure).rejects.toThrow('offline');
+      expect(ids()).toEqual([1]);
     });
 
     it('waits for a pending active load before merging, so the list survives it', async () => {

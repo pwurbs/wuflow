@@ -11,9 +11,10 @@ import { setupReleasesView, renderReleasesView, renderReleaseOwnerOptions } from
 import { setupModal, openModal } from './components/modal.ts';
 import { setupMyWorkView, loadMyIssues, renderMyWork, mergeMyIssue } from './components/my-work.ts';
 import { setupSession } from './session.ts';
-import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from './issue-lists.ts';
-import { byId, bySelector, debounce, errorMessage, showNotification } from './utils.ts';
-import { initToolbarFilters, bindSearchClear, updateLabelFilterOptions, updatePriorityFilterOptions, updateUserFilterOptions, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, updateProjectSelectorOptions } from './components/toolbar.ts';
+import { loadIssues, VIEW_ISSUE_LISTS } from './issue-lists.ts';
+import type { Project, User } from './models.ts';
+import { byId, bySelector, debounce, errorMessage, showConfirm, showLoadFailure } from './utils.ts';
+import { initToolbarFilters, bindSearchClear, updateLabelFilterOptions, updatePriorityFilterOptions, updateUserFilterOptions, updateReleaseFilterOptions, setupUserMenu, initProjectSelector, selectProject, updateProjectSelectorOptions } from './components/toolbar.ts';
 
 // DOM Elements
 const navBoard = byId('nav-board');
@@ -44,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function init() {
     // Check authentication before anything else
-    const user = await fetchCurrentUser();
+    const user = await loadCurrentUser();
     if (!user) {
         globalThis.location.href = '/login';
         return;
@@ -90,14 +91,18 @@ async function init() {
     setTimeout(() => renderMarkdown('a'), 0);
 }
 
-// null: no project is selected or the load failed. The board then shows the default columns.
-async function loadStatusConfig(projectId: number | null) {
+async function loadCurrentUser(): Promise<User | null> {
     try {
-        return projectId ? await fetchStatusConfig(projectId) : null;
+        return await fetchCurrentUser();
     } catch (err) {
-        console.warn('Failed to load status config, using defaults:', err);
-        return null;
+        await askToTryAgain(err);
+        return loadCurrentUser();
     }
+}
+
+// For a load the app cannot start without: a toast would leave an empty page behind.
+async function askToTryAgain(err: unknown) {
+    await showConfirm('wuFlow could not be loaded', errorMessage(err), 'Try again', null, 'primary');
 }
 
 // Single source of truth for which view is currently visible, shared by
@@ -112,12 +117,13 @@ function getVisibleViews() {
     };
 }
 
-// Loads my issues for My Work. A failure is shown, and the view keeps its last list.
-async function loadMyWork() {
+// A load that may fail without stopping the refresh: value is missing then, and report()
+// shows the error, unless the refresh was superseded meanwhile.
+async function loadOptional<T>(what: string, load: Promise<T>): Promise<{ value?: T; report?: () => void }> {
     try {
-        await loadMyIssues();
+        return { value: await load };
     } catch (err) {
-        showNotification(errorMessage(err), 'error');
+        return { report: () => showLoadFailure(what, err) };
     }
 }
 
@@ -131,71 +137,104 @@ function issueListsFor(visible: ReturnType<typeof getVisibleViews>) {
 
 // Bumped by every refreshApp(), so the results of a superseded refresh are discarded.
 let refreshSeq = 0;
+// The project of the data on screen: null until the first refresh has succeeded.
+let loadedProjectId: number | null = null;
 
-async function refreshApp() {
+async function refreshApp(): Promise<void> {
     const seq = ++refreshSeq;
     const projectId = state.selectedProjectId;
+    const visible = getVisibleViews();
+    // Everything is requested in one parallel wave and stored together: nothing renders
+    // before all of it has arrived.
+    const projectsLoad = fetchProjects();
+    const myWorkLoad = visible.myWork ? loadOptional('My Work', loadMyIssues()) : null;
+    const projectDataLoad = Promise.all([
+        loadOptional('Column names', projectId ? fetchStatusConfig(projectId) : Promise.resolve(null)),
+        projectId ? fetchLabelsByProject(projectId) : Promise.resolve([]),
+        projectId ? fetchReleases(projectId) : Promise.resolve([]),
+        fetchUsers(),
+        projectsLoad,
+    ]);
+    let projectData;
     try {
-        // Everything is requested in one parallel wave: nothing renders before all of it
-        // has arrived, so the status config does not need to be awaited first.
-        const issuesLoad = loadIssues();
-        // The lists the visible view needs are requested in the same wave but not awaited
-        // here: the view's render joins the request and handles its errors, so a failed
-        // list does not stop the rest of the refresh.
-        const visibleAtStart = getVisibleViews();
-        void ensureIssueLists(issueListsFor(visibleAtStart)).catch(() => {});
-        const myWorkLoad = visibleAtStart.myWork ? loadMyWork() : null;
-        const [, statusConfig, labels, releases, users, projects] = await Promise.all([
-            issuesLoad,
-            loadStatusConfig(projectId),
-            projectId ? fetchLabelsByProject(projectId) : Promise.resolve([]),
-            projectId ? fetchReleases(projectId) : Promise.resolve([]),
-            fetchUsers(),
-            fetchProjects(),
-        ]);
-        if (seq !== refreshSeq) return; // a newer refresh started meanwhile, e.g. a project switch
-
-        setStatusConfig(statusConfig);
-
-        setLabels(labels, projectId);
-        updateLabelFilterOptions(labels);
-
-        setReleases(releases);
-        updateReleaseFilterOptions(releases);
-
-        setUsers(users);
-        const visible = getVisibleViews();
-        updateUserFilterOptions(state.users, visible.releases ? 'releases' : 'issues');
-        if (visible.releases) renderReleaseOwnerOptions(state.users);
-
-        setProjects(projects);
-        updateProjectSelectorOptions(projects);
-
-        // Priority filter options are static/local so we might not strictly need to call update here unless we want to ensure sync,
-        // but let's do it to be safe if we add dynamic priorities later or reset logic.
-        updatePriorityFilterOptions();
-
-        renderBoard(refreshApp, openModal, rerenderActiveView);
-        if (visible.backlog) {
-            await renderBacklog(refreshApp, openModal, rerenderActiveView);
-        }
-        if (visible.archive) {
-            await renderArchive(refreshApp, openModal, rerenderActiveView);
-        }
-        if (visible.projectSettings) {
-            await renderProjectSettingsView();
-        }
-        if (visible.releases) {
-            void renderReleasesView();
-        }
-        renderPlanningPanel();
-        if (myWorkLoad) {
-            await myWorkLoad;
-            renderMyWork();
-        }
+        await loadIssues(issueListsFor(visible), projectDataLoad);
+        projectData = await projectDataLoad;
     } catch (err) {
-        console.error('Failed to refresh app:', err);
+        if (seq === refreshSeq) await handleFailedRefresh(err, seq, projectsLoad);
+        return;
     }
+    if (seq !== refreshSeq) return; // a newer refresh started meanwhile, e.g. a project switch
+
+    const [statusConfig, labels, releases, users, projects] = projectData;
+    loadedProjectId = projectId;
+    // Names that cannot be loaded again stay, the default columns would hide cards.
+    const knownConfig = state.statusConfig?.project_id === projectId ? state.statusConfig : null;
+    setStatusConfig(statusConfig.value ?? knownConfig);
+    statusConfig.report?.();
+    setLabels(labels, projectId);
+    updateLabelFilterOptions(labels);
+    setReleases(releases);
+    updateReleaseFilterOptions(releases);
+    setUsers(users);
+    setProjects(projects);
+    await renderRefreshedViews();
+
+    const myWork = await myWorkLoad;
+    if (!myWork || seq !== refreshSeq) return;
+    myWork.report?.();
+    renderMyWork();
+}
+
+async function renderRefreshedViews() {
+    const visible = getVisibleViews();
+    updateUserFilterOptions(state.users, visible.releases ? 'releases' : 'issues');
+    if (visible.releases) renderReleaseOwnerOptions(state.users);
+    updateProjectSelectorOptions(state.projects);
+
+    // Priority filter options are static/local so we might not strictly need to call update here unless we want to ensure sync,
+    // but let's do it to be safe if we add dynamic priorities later or reset logic.
+    updatePriorityFilterOptions();
+
+    renderBoard(refreshApp, openModal, rerenderActiveView);
+    if (visible.backlog) {
+        await renderBacklog(refreshApp, openModal, rerenderActiveView);
+    }
+    if (visible.archive) {
+        await renderArchive(refreshApp, openModal, rerenderActiveView);
+    }
+    if (visible.projectSettings) {
+        await renderProjectSettingsView();
+    }
+    if (visible.releases) {
+        void renderReleasesView();
+    }
+    renderPlanningPanel();
+}
+
+// Nothing of a failed refresh was stored, so a failed project switch goes back to the project
+// whose data is on screen.
+async function handleFailedRefresh(err: unknown, seq: number, projectsLoad: Promise<Project[]>) {
+    // Before anything is awaited: a view drawn meanwhile would load the other project's lists.
+    if (loadedProjectId !== null && state.selectedProjectId !== loadedProjectId) {
+        selectProject(loadedProjectId);
+        updateProjectSelectorOptions(state.projects);
+    }
+    // If the projects failed too, err already stands for the refresh.
+    const projects = await projectsLoad.catch(() => null);
+    if (seq !== refreshSeq) return;
+    if (projects) {
+        setProjects(projects);
+        // Selects another project and refreshes again if the selected one was deleted elsewhere.
+        updateProjectSelectorOptions(projects);
+        if (seq !== refreshSeq) return;
+    }
+    if (loadedProjectId === null) {
+        await askToTryAgain(err);
+        if (seq === refreshSeq) await refreshApp();
+        return;
+    }
+    showLoadFailure('Project data', err);
+    rerenderActiveView();
 }
 
 // Re-renders whatever view is currently visible from already-loaded state, with zero API calls.

@@ -8,7 +8,7 @@ import {
   getDeadlineStatus, getTaskDeadlineStatus,
   promptAdminPasswordConfirmation,
   guardSubmit, onGuardedSubmit, confirmDiscard, markBusy,
-  isErrorToastShown, setAriaDisabled, containsTarget, sortByName,
+  isErrorToastShown, showLoadFailure, setAriaDisabled, containsTarget, sortByName,
   localISODate, todayISO, parseISODate, addDaysISO, formatISODate, createOption,
   dateYearAccepted,
 } from '../utils.ts';
@@ -588,6 +588,34 @@ describe('showNotification', () => {
     expect(isErrorToastShown()).toBe(true);
     vi.advanceTimersByTime(5000);
     expect(isErrorToastShown()).toBe(false);
+  });
+
+  describe('showLoadFailure', () => {
+    it('says what could not be loaded and why', () => {
+      showLoadFailure('Project data', new Error('Internal server error'));
+      expect(toast.textContent).toBe('Project data could not be loaded: Internal server error');
+      expect(toast.classList.contains('error')).toBe(true);
+    });
+
+    it('replaces a success toast', () => {
+      showNotification('Saved');
+      showLoadFailure('Project data', new Error('x'));
+      expect(isErrorToastShown()).toBe(true);
+    });
+
+    it('keeps an error on screen, and shows the next one after it is gone', () => {
+      showNotification('The change was not saved', 'error');
+      showLoadFailure('Project data', new Error('x'));
+      expect(toast.textContent).toBe('The change was not saved');
+      vi.advanceTimersByTime(5000);
+      showLoadFailure('Project data', new Error('x'));
+      expect(toast.textContent).toBe('Project data could not be loaded: x');
+    });
+
+    it('does not throw without a toast on the page', () => {
+      toast.remove();
+      expect(() => showLoadFailure('Project data', new Error('x'))).not.toThrow();
+    });
   });
 
   it('should not hide before 5000ms', () => {

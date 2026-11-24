@@ -134,8 +134,28 @@ export function showNotification(message: string, type = 'success') {
 
 // True while an error toast is on screen.
 export function isErrorToastShown() {
-  const toast = byId('notification-toast');
-  return toast.classList.contains('error') && !toast.classList.contains('hidden');
+  // Not byId: see showNotification.
+  const toast = document.getElementById('notification-toast');
+  return !!toast && toast.classList.contains('error') && !toast.classList.contains('hidden');
+}
+
+export function loadFailureMessage(what: string, err: unknown) {
+  return `${what} could not be loaded: ${errorMessage(err)}`;
+}
+
+// Reports a failed load, e.g. what: 'Project data'. An error on screen stays: it may be a
+// failed save, or another load of the same outage.
+export function showLoadFailure(what: string, err: unknown) {
+  if (isErrorToastShown()) return;
+  showNotification(loadFailureMessage(what, err), 'error');
+}
+
+// Shows in a list that its content could not be loaded.
+export function showListLoadFailure(container: HTMLElement, what: string, err: unknown) {
+  const message = document.createElement('div');
+  message.className = 'error';
+  message.textContent = loadFailureMessage(what, err);
+  container.replaceChildren(message);
 }
 
 // Cancels the confirm dialog that is currently open, if any (see showConfirm).

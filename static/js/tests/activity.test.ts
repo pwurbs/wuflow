@@ -27,6 +27,8 @@ vi.mock('../utils.ts', async (importOriginal) => {
     bySelector: actual.bySelector,
     errorMessage: actual.errorMessage,
     containsTarget: actual.containsTarget,
+    loadFailureMessage: actual.loadFailureMessage,
+    showLoadFailure: vi.fn(),
     escapeHtml: vi.fn(s => s),
     formatDateTime: vi.fn(dateStr => `formatted:${dateStr}`),
     getUserInitials: vi.fn(user => {
@@ -682,7 +684,7 @@ describe('Activity Component', () => {
     vi.mocked(api.fetchHistory).mockRejectedValue(new Error('network down'));
     vi.mocked(api.fetchComments).mockResolvedValue([]);
     await loadActivity(issue);
-    expect(utils.showNotification).toHaveBeenCalledWith('network down', 'error');
+    expect(utils.showLoadFailure).toHaveBeenCalledWith('Comments and history', new Error('network down'));
   });
 
   it('hides edit/delete actions on other comments while one is being edited, and restores them on cancel', async () => {
@@ -777,7 +779,23 @@ describe('Activity Component', () => {
     await new Promise(process.nextTick);
     await new Promise(process.nextTick);
 
-    expect(utils.showNotification).toHaveBeenCalledWith('refresh failed', 'error');
+    expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Comment added, but the comments could not be loaded: refresh failed', 'error');
+  });
+
+  it('reports only the save when its comment list re-fetch was superseded and fails', async () => {
+    vi.mocked(api.createComment).mockResolvedValue(makeComment({ id: 5 }));
+    const { promise: refetch, reject: failRefetch } = Promise.withResolvers<Comment[]>();
+    vi.mocked(api.fetchComments).mockResolvedValueOnce([]).mockReturnValueOnce(refetch);
+
+    await loadActivity(issue);
+    byId('new-comment-body', HTMLTextAreaElement).value = 'new comment';
+    byId('add-comment-btn').click();
+    await new Promise(process.nextTick);
+    await refreshHistory();
+    failRefetch(new Error('refresh failed'));
+    await new Promise(process.nextTick);
+
+    expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Comment added');
   });
 
   // docs/frontend.md "Editing Fields"
@@ -958,7 +976,7 @@ describe('Activity Component', () => {
       vi.mocked(api.fetchHistory).mockRejectedValueOnce(new Error('history refresh failed'));
       await refreshHistory();
 
-      expect(utils.showNotification).toHaveBeenCalledWith('history refresh failed', 'error');
+      expect(utils.showLoadFailure).toHaveBeenCalledWith('History', new Error('history refresh failed'));
     });
 
     it('discards a stale result if a newer loadActivity call resolves first', async () => {

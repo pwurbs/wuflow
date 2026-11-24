@@ -64,7 +64,11 @@ export async function probeSession({ force = false } = {}) {
   const now = Date.now();
   if (!force && now - lastProbeAt < PROBE_THROTTLE_MS) return;
   lastProbeAt = now;
-  await fetchCurrentUser();
+  try {
+    await fetchCurrentUser();
+  } catch {
+    // Only the session matters here, and a lost connection shows the banner.
+  }
 }
 
 // Returning to the tab fires both visibilitychange and focus; they share one check.

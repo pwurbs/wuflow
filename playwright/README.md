@@ -95,6 +95,7 @@ Permission-gated behaviour belongs in `role_authorization.spec.ts` even when the
 | Concurrent Editing | `concurrent_editing.spec.ts` | ETag-based edit conflict detection |
 | Input Validation | `input_validation.spec.ts` | Length limits on issue and task input |
 | Edge Cases | `edge_cases.spec.ts` | Validation and release edge cases |
+| Load Errors | `load_errors.spec.ts` | Failed loads: a message instead of empty data, selected project and typed text stay |
 | System | `system.spec.ts` | Client disconnect and graceful shutdown |
 
 ### File Structure

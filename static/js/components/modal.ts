@@ -1,7 +1,7 @@
 import { state, setCurrentIssue } from '../state.ts';
 import { getStatusLabel, STATUS_OPEN, STATUS_ARCHIVE } from '../status-config.ts';
 import { createIssue, updateIssue, archiveIssue, unarchiveIssue, moveIssue, createTask, updateTaskPositions, fetchIssueById, fetchUsers, fetchProjects, deleteIssue } from '../api.ts';
-import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, bySelector, errorMessage, dateYearAccepted } from '../utils.ts';
+import { byId, showNotification, showConfirm, updateDateInputStyle, canArchive, initCharCounter, countCodepoints, getDeadlineStatus, getTaskDeadlineStatus, promptAdminPasswordConfirmation, guardSubmit, onGuardedSubmit, confirmDiscard, markBusy, setAriaDisabled, isErrorToastShown, showLoadFailure, bySelector, errorMessage, dateYearAccepted } from '../utils.ts';
 import { MAX_TITLE_LENGTH, MAX_DESC_LENGTH } from '../validation-config.ts';
 import { PRIORITY_NORMAL, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import type { Priority } from '../domain-constants.ts';
@@ -27,6 +27,7 @@ let currentEtag: string | null = null; // Stores ETag for conflict detection
 // through the conflict dialog instead of silently overwriting newer changes.
 const STALE_ETAG = '"stale"';
 let issueLoad: Promise<void> | null = null; // Pending background revalidation of the open issue (see openModal)
+let issueCheckFailed = false; // The revalidation failed, so there is no ETag yet (see etagForSave)
 let issueLoadSeq = 0; // Bumped per open/close so a late revalidation can't touch another issue
 let hasSavedDuringSession = false; // Tracks whether any save occurred in this modal session
 
@@ -160,6 +161,7 @@ export function openModal(issue: Issue | null = null) {
 
   const seq = ++issueLoadSeq;
   currentEtag = null;
+  issueCheckFailed = false;
   dialogProject = null;
   dialogProjectLoad = null;
 
@@ -173,7 +175,7 @@ export function openModal(issue: Issue | null = null) {
     setCurrentIssue(current);
     renderModalDropdowns(current);
     setupEditModal(current);
-    issueLoad = revalidateIssue(current, seq);
+    issueLoad = revalidateInBackground(current, seq);
   } else {
     issueLoad = null;
     setCurrentIssue(null);
@@ -183,20 +185,23 @@ export function openModal(issue: Issue | null = null) {
   resetTaskForm();
 }
 
-async function revalidateIssue(issue: Issue, seq: number) {
-  let freshIssue, etag;
+// A failure leaves the dialog open with the caller's copy, so nothing typed is lost.
+async function revalidateInBackground(issue: Issue, seq: number) {
   try {
-    ({ issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id));
-  } catch (e) {
-    console.error(e);
-    if (seq === issueLoadSeq) {
-      showNotification('Failed to load issue', 'error');
-      closeModal();
-    }
-    return;
+    await revalidateIssue(issue, seq);
+  } catch (err) {
+    if (seq !== issueLoadSeq) return; // modal closed or another issue opened meanwhile
+    issueLoad = null;
+    issueCheckFailed = true;
+    showLoadFailure('The latest version of this issue', err);
   }
+}
+
+async function revalidateIssue(issue: Issue, seq: number) {
+  const { issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id);
   if (seq !== issueLoadSeq) return; // modal closed or another issue opened meanwhile
   issueLoad = null;
+  issueCheckFailed = false;
 
   if (!freshIssue) {
     showNotification('Issue not found or was deleted', 'error');
@@ -220,13 +225,21 @@ async function revalidateIssue(issue: Issue, seq: number) {
 
 /**
  * Returns the ETag to send with a save built from state.currentIssue. Waits for a pending
- * background revalidation first; if it replaced the issue with a newer server copy, the
- * save's data is outdated and STALE_ETAG forces the conflict flow.
+ * background revalidation first, and repeats one that failed: without an ETag the save could
+ * overwrite someone else's change, so it fails if the repeat fails. If the revalidation
+ * replaced the issue with a newer server copy, the save's data is outdated and STALE_ETAG
+ * forces the conflict flow.
  */
 async function etagForSave() {
-  if (!issueLoad) return currentEtag;
   const baseIssue = state.currentIssue;
-  await issueLoad;
+  if (issueLoad) await issueLoad;
+  if (issueCheckFailed && baseIssue && state.currentIssue === baseIssue) {
+    try {
+      await revalidateIssue(baseIssue, issueLoadSeq);
+    } catch (err) {
+      throw new Error(`The change was not saved: ${errorMessage(err)}`);
+    }
+  }
   return state.currentIssue === baseIssue ? currentEtag : STALE_ETAG;
 }
 
@@ -248,7 +261,7 @@ function setupProjectDropdown(issue: Issue | null) {
   if (state.projects.length) {
     applyProjects(state.projects);
   } else {
-    fetchProjects().then(applyProjects).catch(err => console.error('Failed to load projects', err));
+    fetchProjects().then(applyProjects).catch(err => showLoadFailure('Projects', err));
   }
 
   const restricted = !!issue && !userCan(state.currentUser, ACTION_MOVE_ISSUE);
@@ -290,7 +303,7 @@ function renderModalDropdowns(issue: Issue | null) {
   if (state.users.length) {
     applyUsers(state.users);
   } else {
-    fetchUsers().then(applyUsers).catch(err => console.error('Failed to load users', err));
+    fetchUsers().then(applyUsers).catch(err => showLoadFailure('Users', err));
   }
 
   // Project Dropdown
@@ -323,7 +336,7 @@ function showProjectOptions(issue: Issue | null, projectId: number) {
   }).catch((err: unknown) => {
     if (seq !== dialogProjectSeq) return;
     // The dropdowns stay disabled: the project's options are unknown.
-    showNotification(errorMessage(err), 'error');
+    showLoadFailure('Status, labels and releases', err);
   });
 }
 
@@ -495,6 +508,7 @@ export function closeModal() {
   currentEtag = null;
   _saveEditingTaskFn = null;
   issueLoad = null;
+  issueCheckFailed = false;
   issueLoadSeq++;
   resetTaskForm();
   syncUnloadListener();
@@ -518,14 +532,7 @@ async function saveIssueWithConflictCheck(issue: IssueWrite & { id: number; proj
     );
     if (shouldReload) {
       // Reload data in-place without closing modal
-      const { issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id);
-      if (freshIssue) {
-        currentEtag = etag;
-        setCurrentIssue(freshIssue);
-        renderModalDropdowns(freshIssue);
-        setupEditModal(freshIssue);
-        showNotification('Reloaded with latest data');
-      }
+      await reloadIssue(issue);
     }
     // If Cancel clicked, do nothing - keep modal open with current data
     return null;
@@ -539,6 +546,16 @@ async function saveIssueWithConflictCheck(issue: IssueWrite & { id: number; proj
   return result.issue;
 }
 
+async function reloadIssue(issue: { id: number; project_id: number }) {
+  const { issue: freshIssue, etag } = await fetchIssueById(issue.project_id, issue.id);
+  if (!freshIssue) throw new Error('Issue not found or was deleted');
+  currentEtag = etag;
+  setCurrentIssue(freshIssue);
+  renderModalDropdowns(freshIssue);
+  setupEditModal(freshIssue);
+  showNotification('Reloaded with latest data');
+}
+
 // Writes to the open issue run one at a time. Each is built from the issue as the previous
 // save left it and sent with that save's new ETag; sent in parallel, the second save would
 // carry the ETag the first one just replaced and fail with a false conflict.
@@ -547,7 +564,7 @@ let issueSaveChain: Promise<unknown> = Promise.resolve();
 // Runs write() after the writes queued before it.
 function enqueueIssueWrite<T>(write: () => Promise<T>): Promise<T> {
   const run = issueSaveChain.then(write);
-  issueSaveChain = run.catch(() => {});
+  issueSaveChain = run.catch(() => {}); // the caller of this write handles its error
   return run;
 }
 

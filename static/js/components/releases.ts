@@ -1,7 +1,7 @@
 import { createRelease, updateRelease, deleteRelease, triggerRelease, reopenRelease, fetchReleases } from '../api.ts';
 import { loadIssues, ensureIssueLists, VIEW_ISSUE_LISTS } from '../issue-lists.ts';
 import { sortReleasesByDate } from '../list-utils.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, localISODate, formatISODate, todayISO, onGuardedSubmit, bySelector, errorMessage, dateYearAccepted, containsTarget, sortByName, createOption } from '../utils.ts';
+import { byId, showNotification, loadFailureMessage, showLoadFailure, showListLoadFailure, showConfirm, escapeHtml, initCharCounter, updateDateInputStyle, getUserInitials, promptAdminPasswordConfirmation, localISODate, formatISODate, todayISO, onGuardedSubmit, bySelector, errorMessage, dateYearAccepted, containsTarget, sortByName, createOption } from '../utils.ts';
 import { MAX_RELEASE_NAME_LEN, MAX_RELEASE_DESC_LEN } from '../validation-config.ts';
 import { state, setReleases } from '../state.ts';
 import type { Issue, Release, User } from '../models.ts';
@@ -15,8 +15,19 @@ let editingReleaseId: number | null = null;
 // Issues assigned to a release can change status/release_id as a side effect of a release
 // action on the backend (delete clears release_id, triggering can archive Done issues) —
 // unlike the other release actions below, this can't be resolved from already-known data.
-async function refreshIssuesAfterReleaseSideEffect() {
-  await loadIssues(VIEW_ISSUE_LISTS.releases);
+async function refreshIssuesAfterReleaseSideEffect(savedMessage: string) {
+  await reportSavedAfter(loadIssues(VIEW_ISSUE_LISTS.releases), savedMessage, 'the issues');
+}
+
+// Reports a finished save once the data it changed has been reloaded. A failed reload is
+// not reported as a failed save.
+async function reportSavedAfter(reload: Promise<unknown>, savedMessage: string, reloaded: string) {
+  try {
+    await reload;
+    showNotification(savedMessage, 'success');
+  } catch (err) {
+    showNotification(loadFailureMessage(`${savedMessage}, but ${reloaded}`, err), 'error');
+  }
 }
 
 function mergeReleaseIntoState(updated: Release) {
@@ -124,7 +135,12 @@ function selectReleaseOwner(value: string, text: string) {
 export async function renderReleasesView() {
   const container = byId('releases-view');
 
-  await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
+  try {
+    await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
+  } catch (err) {
+    showListLoadFailure(container, 'Releases', err); // their progress counts every issue
+    return;
+  }
 
   const ownerFilter = state.filter.releaseOwnerFilter;
   const searchTerm = state.filter.releaseSearch?.trim().toLowerCase();
@@ -323,25 +339,29 @@ async function handleReleaseSubmit() {
   const ownerVal = byId('release-owner-input', HTMLInputElement).value;
   const owner_id = ownerVal ? Number.parseInt(ownerVal) : null;
   const payload = { name, description: desc, start_date: startVal || null, release_date: dateVal || null, owner_id };
+  const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
+  const releaseId = editingReleaseId;
   try {
-    const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
-    const releaseId = editingReleaseId;
     if (releaseId) {
       const updated = await updateRelease(projectId, releaseId, payload);
       mergeReleaseIntoState(updated);
     } else {
-      // The create response isn't owner-hydrated, so re-fetch the release list instead.
       await createRelease(projectId, payload);
-      setReleases(await fetchReleases(projectId));
     }
-    closeReleaseModal();
-    showNotification(releaseId ? 'Release updated' : 'Release created', 'success');
-    updateReleaseFilterOptions(state.releases);
-    void renderReleasesView();
   } catch (err) {
     errorDisplay.textContent = errorMessage(err) || 'Failed to save release.';
     errorDisplay.classList.remove('hidden');
+    return;
   }
+  closeReleaseModal();
+  if (releaseId) {
+    showNotification('Release updated', 'success');
+  } else {
+    // The create response isn't owner-hydrated, so re-fetch the release list instead.
+    await reportSavedAfter(fetchReleases(projectId).then(setReleases), 'Release created', 'the releases');
+  }
+  updateReleaseFilterOptions(state.releases);
+  void renderReleasesView();
 }
 
 function buildReleaseDateRange(rel: Release) {
@@ -440,14 +460,18 @@ async function handleDeleteRelease(rel: Release) {
   if (!confirmed) return;
   removeReleaseFromState(rel.id);
   // Deleting cascades release_id = NULL onto its issues server-side.
-  await refreshIssuesAfterReleaseSideEffect();
-  showNotification('Release deleted', 'success');
+  await refreshIssuesAfterReleaseSideEffect('Release deleted');
   updateReleaseFilterOptions(state.releases);
   void renderReleasesView();
 }
 
 async function handleTriggerReleaseDialog(rel: Release) {
-  await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
+  try {
+    await ensureIssueLists(VIEW_ISSUE_LISTS.releases);
+  } catch (err) {
+    showLoadFailure('The issues of the release', err);
+    return false;
+  }
   const issues = state.issues.filter(i => i.release_id === rel.id);
   const total = issues.length;
   const done = issues.filter(i => i.status === STATUS_DONE).length;
@@ -503,8 +527,7 @@ async function handleTriggerReleaseDialog(rel: Release) {
         const updated = await triggerRelease(rel.project_id, rel.id, archiveDone);
         mergeReleaseIntoState(updated);
         // Triggering can archive this release's Done issues server-side.
-        await refreshIssuesAfterReleaseSideEffect();
-        showNotification('Release closed', 'success');
+        await refreshIssuesAfterReleaseSideEffect('Release closed');
         updateReleaseFilterOptions(state.releases);
         void renderReleasesView();
       } catch (err) {

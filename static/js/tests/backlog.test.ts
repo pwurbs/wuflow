@@ -110,6 +110,25 @@ describe('Backlog Component', () => {
       expect(moves).toEqual([[1, false, true], [2, true, false], [3, false, false]]);
     });
 
+    it('says in place that the open issues could not be loaded, and loads them on the next render', async () => {
+      state.state.issues = [makeIssue({ id: 3, title: 'Item 3', status: 'Todo', position: 0 })];
+      vi.mocked(api.fetchOpenIssuesByProject).mockRejectedValueOnce(new Error('Internal server error'));
+      byId('backlog-release-lanes').classList.remove('hidden');
+      byId('backlog-list').textContent = 'an earlier project';
+
+      await renderBacklog(vi.fn(), vi.fn());
+      expect(byId('backlog-list').textContent).toBe('Open issues could not be loaded: Internal server error');
+      expect(byId('backlog-count').textContent).toBe('');
+      expect(byId('backlog-release-lanes').classList.contains('hidden')).toBe(true);
+      expect(byId('move-to-todo-list').children).toHaveLength(1);
+
+      vi.mocked(api.fetchOpenIssuesByProject).mockResolvedValueOnce([makeIssue({ id: 1, status: 'Open' })]);
+      await renderBacklog();
+      expect(byId('backlog-list').querySelector('.error')).toBeNull();
+      expect(byId('backlog-list').children).toHaveLength(1);
+      expect(byId('backlog-count').textContent).toBe('1');
+    });
+
     it('handleMoveTop should save the new order in one positions request', async () => {
       const issues = [
         makeIssue({ id: 1, title: 'Item 1', status: 'Open', position: 0 }),

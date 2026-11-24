@@ -22,12 +22,16 @@ const LIST_FETCHERS = {
   archived: fetchArchivedIssuesByProject,
 };
 
+type Lists = Partial<Record<IssueListKind, Promise<void>>>;
+
 // Bumped by every loadIssues(), so results of a superseded load are discarded.
 let generation = 0;
 // Resolves once state.issues holds the active issues of the current generation.
 let activeLoad = Promise.resolve();
 // Promise of the current generation per list (in flight or loaded).
-let lists: Partial<Record<IssueListKind, Promise<void>>> = {};
+let lists: Lists = {};
+// The lists state.issues contains.
+let mergedLists: Lists = {};
 
 // Without a selected project (the user has none) there is nothing to fetch.
 function fetchForSelectedProject(fetcher: (projectId: number) => Promise<Issue[]>) {
@@ -45,18 +49,33 @@ function mergeIntoIssues(issues: Issue[]) {
 /**
  * Reloads the active issues and drops the cached open/archived lists. The given lists
  * (e.g. ['open'] for the Backlog) are fetched in the same wave as the active issues.
+ * Everything is stored together, once ready has resolved too. If any of it fails,
+ * state.issues and its lists stay as they were. A superseded load resolves without storing.
  */
-export function loadIssues(kinds: IssueListKind[] = []) {
-  generation++;
-  lists = {};
-  const gen = generation;
-  const load = fetchForSelectedProject(fetchActiveIssuesByProject).then(issues => {
-    if (gen === generation) setIssues(issues);
+export function loadIssues(kinds: IssueListKind[] = [], ready: Promise<unknown> = Promise.resolve()): Promise<void> {
+  const gen = ++generation;
+  const load: Promise<void> = Promise.all([
+    fetchForSelectedProject(fetchActiveIssuesByProject),
+    Promise.all(kinds.map(kind => fetchForSelectedProject(LIST_FETCHERS[kind]))),
+    ready,
+  ]).then(([active, loadedLists]) => {
+    if (gen !== generation) return;
+    setIssues(active);
+    loadedLists.forEach(mergeIntoIssues);
+    mergedLists = listsOf(kinds, load);
+  }).catch(err => {
+    if (gen !== generation) return; // superseded: the newer load reports its own errors
+    activeLoad = Promise.resolve();
+    lists = { ...mergedLists };
+    throw err;
   });
-  // A failed load must not block later list merges: they then merge into the issues
-  // loaded before. The caller still gets the error.
-  activeLoad = load.catch(() => {});
-  return Promise.all([load, ensureIssueLists(kinds)]);
+  activeLoad = load;
+  lists = listsOf(kinds, load);
+  return load;
+}
+
+function listsOf(kinds: IssueListKind[], load: Promise<void>): Lists {
+  return Object.fromEntries(kinds.map(kind => [kind, load]));
 }
 
 /**
@@ -65,27 +84,28 @@ export function loadIssues(kinds: IssueListKind[] = []) {
  * A list that failed to load is fetched again by the next call.
  */
 export function ensureIssueLists(kinds: IssueListKind[]) {
+  return Promise.all(kinds.map(kind => lists[kind] ??= loadList(kind)));
+}
+
+function loadList(kind: IssueListKind): Promise<void> {
   const gen = generation;
-  const base = activeLoad;
-  return Promise.all(kinds.map(kind => {
-    if (!lists[kind]) {
-      const load = fetchForSelectedProject(LIST_FETCHERS[kind]).then(async issues => {
-        // Merge only after the active issues are in place, or setIssues() would drop them.
-        await base;
-        if (gen === generation) mergeIntoIssues(issues);
-      }).catch(err => {
-        if (lists[kind] === load) delete lists[kind];
-        throw err;
-      });
-      lists[kind] = load;
-    }
-    return lists[kind];
-  }));
+  // Merge only after the active issues are in place, or setIssues() would drop them.
+  const load: Promise<void> = Promise.all([fetchForSelectedProject(LIST_FETCHERS[kind]), activeLoad]).then(([issues]) => {
+    if (gen !== generation) return;
+    mergeIntoIssues(issues);
+    mergedLists[kind] = load;
+  }).catch(err => {
+    if (gen !== generation) return; // superseded: the newer load reports its own errors
+    if (lists[kind] === load) delete lists[kind];
+    throw err;
+  });
+  return load;
 }
 
 // Forgets the cached lists without fetching anything (used by tests).
 export function resetIssueLists() {
   generation++;
   lists = {};
+  mergedLists = {};
   activeLoad = Promise.resolve();
 }

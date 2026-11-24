@@ -1,5 +1,5 @@
 import { fetchHistory, fetchComments, createComment, updateComment, deleteComment } from '../api.ts';
-import { byId, escapeHtml, formatDateTime, getUserInitials, showNotification, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled, errorMessage } from '../utils.ts';
+import { byId, escapeHtml, formatDateTime, getUserInitials, showNotification, loadFailureMessage, showLoadFailure, showConfirm, initCharCounter, continueListOnEnter, guardSubmit, confirmDiscard, setAriaDisabled, errorMessage } from '../utils.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { getStatusLabel } from '../status-config.ts';
 import type { StatusNames } from '../status-config.ts';
@@ -254,7 +254,7 @@ export async function loadActivity(issue: Issue, callbacks: ActivityCallbacks = 
     ctx.comments = comments || [];
   } catch (err) {
     if (isStale(seq)) return;
-    showNotification(errorMessage(err), 'error');
+    showLoadFailure('Comments and history', err);
     return;
   }
   renderAll();
@@ -279,7 +279,7 @@ export async function refreshHistory() {
     ctx.history = history;
   } catch (err) {
     if (isStale(seq)) return;
-    showNotification(errorMessage(err), 'error');
+    showLoadFailure('History', err);
     return;
   }
   renderAll();
@@ -516,8 +516,7 @@ function enterCommentEdit(comment: Comment, li: HTMLElement, container: HTMLElem
       const issue = shownIssue();
       await updateComment(issue.project_id, issue.id, comment.id, newBody);
       finish();
-      await refreshComments();
-      showNotification('Comment updated');
+      await refreshComments('Comment updated');
       return true;
     } catch (err) {
       showNotification(errorMessage(err), 'error');
@@ -537,8 +536,7 @@ async function removeComment(comment: Comment) {
   try {
     const issue = shownIssue();
     await deleteComment(issue.project_id, issue.id, comment.id);
-    await refreshComments();
-    showNotification('Comment deleted');
+    await refreshComments('Comment deleted');
   } catch (err) {
     showNotification(errorMessage(err), 'error');
   }
@@ -553,8 +551,7 @@ async function submitNewComment() {
     const issue = shownIssue();
     await createComment(issue.project_id, issue.id, bodyText);
     closeNewCommentForm({ clear: true });
-    await refreshComments();
-    showNotification('Comment added');
+    await refreshComments('Comment added');
     return true;
   } catch (err) {
     showNotification(errorMessage(err), 'error');
@@ -562,20 +559,24 @@ async function submitNewComment() {
   }
 }
 
-async function refreshComments() {
-  if (!ctx.issue) return;
+// Reloads the comments after a save and reports the save.
+async function refreshComments(savedMessage: string) {
   const seq = nextSeq();
-  const issue = ctx.issue;
+  const issue = shownIssue();
   try {
     const comments = await fetchComments(issue.project_id, issue.id) || [];
-    if (isStale(seq)) return;
-    ctx.comments = comments;
+    if (!isStale(seq)) {
+      ctx.comments = comments;
+      renderAll();
+    }
   } catch (err) {
-    if (isStale(seq)) return;
-    showNotification(errorMessage(err), 'error');
-    return;
+    // A superseded reload concerns nobody: the newer request shows its own error.
+    if (!isStale(seq)) {
+      showNotification(loadFailureMessage(`${savedMessage}, but the comments`, err), 'error');
+      return;
+    }
   }
-  renderAll();
+  showNotification(savedMessage);
 }
 
 // --- History ----------------------------------------------------------------

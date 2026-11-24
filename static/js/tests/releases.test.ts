@@ -33,6 +33,9 @@ vi.mock('../utils.ts', async (importOriginal) => ({
   containsTarget: (await importOriginal<typeof import('../utils.ts')>()).containsTarget,
   sortByName: (await importOriginal<typeof import('../utils.ts')>()).sortByName,
   createOption: (await importOriginal<typeof import('../utils.ts')>()).createOption,
+  showListLoadFailure: (await importOriginal<typeof import('../utils.ts')>()).showListLoadFailure,
+  loadFailureMessage: (await importOriginal<typeof import('../utils.ts')>()).loadFailureMessage,
+  showLoadFailure: vi.fn(),
   showNotification: vi.fn(),
   showConfirm: vi.fn(),
   escapeHtml: vi.fn(s => String(s ?? '')),
@@ -151,6 +154,12 @@ describe('releases', () => {
       await renderReleasesView(); // cache cleared — must refetch
       expect(api.fetchArchivedIssuesByProject).toHaveBeenCalledTimes(2);
       expect(api.fetchOpenIssuesByProject).toHaveBeenCalledTimes(2);
+    });
+
+    it('says in place that the releases could not be loaded instead of showing a wrong progress', async () => {
+      vi.mocked(api.fetchArchivedIssuesByProject).mockRejectedValueOnce(new Error('Internal server error'));
+      await renderReleasesView();
+      expect(byId('releases-view').textContent).toBe('Releases could not be loaded: Internal server error');
     });
 
     it('does not fetch the lists twice when renders overlap', async () => {
@@ -423,6 +432,17 @@ describe('releases', () => {
       expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
+    it('closes the form and reports a created release as created when the releases cannot be reloaded', async () => {
+      vi.mocked(api.createRelease).mockResolvedValue(makeRelease({ id: 99, name: 'v1.0' }));
+      vi.mocked(api.fetchReleases).mockRejectedValue(new Error('Internal server error'));
+      await openNewReleaseForm();
+      byId('release-modal-name', HTMLInputElement).value = 'v1.0';
+      byId('release-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+      expect(byId('release-modal-overlay').classList.contains('hidden')).toBe(true);
+      expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Release created, but the releases could not be loaded: Internal server error', 'error');
+    });
+
     it('does not save a release whose release date has a year the backend rejects', async () => {
       vi.mocked(utils.dateYearAccepted).mockImplementation((iso, field) => field !== 'Release date');
       await openNewReleaseForm();
@@ -612,6 +632,18 @@ describe('releases', () => {
       expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
+    it('reports a deleted release as deleted when the issues cannot be reloaded', async () => {
+      state.releases = [makeRelease({ id: 10, name: 'v2.0', status: 'open' })];
+      setupReleasesView();
+      await renderReleasesView();
+      vi.mocked(api.fetchActiveIssuesByProject).mockRejectedValueOnce(new Error('Internal server error'));
+      bySelector(document, '.release-card-left').click();
+      byId('release-modal-delete').click();
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Release deleted, but the issues could not be loaded: Internal server error', 'error'));
+      expect(state.releases).toHaveLength(0);
+      expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
+    });
+
     it('does not call deleteRelease when the confirm is cancelled', async () => {
       vi.mocked(utils.promptAdminPasswordConfirmation).mockResolvedValue(false);
       state.releases = [makeRelease({
@@ -694,6 +726,29 @@ describe('releases', () => {
       expect(dialog.innerHTML).toContain('release-stat-row');
       expect(dialog.innerHTML).toContain('Done');
       expect(dialog.innerHTML).toContain('3 issues');
+    });
+
+    it('does not open with wrong numbers when the issue lists cannot be loaded', async () => {
+      state.releases = [makeRelease({ id: 10, name: 'v2.0', status: 'open' })];
+      await renderReleasesView();
+      resetIssueLists();
+      vi.mocked(api.fetchOpenIssuesByProject).mockRejectedValueOnce(new Error('Internal server error'));
+      bySelector(document, '.release-trigger-btn').click();
+      await new Promise(process.nextTick);
+      expect(document.querySelector('.release-dialog')).toBeNull();
+      expect(utils.showLoadFailure).toHaveBeenCalledExactlyOnceWith('The issues of the release', new Error('Internal server error'));
+    });
+
+    it('reports a closed release as closed when the issues cannot be reloaded', async () => {
+      vi.mocked(api.triggerRelease).mockResolvedValue(makeRelease({ id: 10, name: 'v2.0', status: 'closed' }));
+      state.releases = [makeRelease({ id: 10, name: 'v2.0', status: 'open' })];
+      await renderReleasesView();
+      vi.mocked(api.fetchActiveIssuesByProject).mockRejectedValueOnce(new Error('Internal server error'));
+      bySelector(document, '.release-trigger-btn').click();
+      await new Promise(process.nextTick);
+      byId('release-dialog-confirm').click();
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Release closed, but the issues could not be loaded: Internal server error', 'error'));
+      expect(state.releases[0].status).toBe('closed');
     });
 
     it('shows error notification when triggerRelease throws', async () => {

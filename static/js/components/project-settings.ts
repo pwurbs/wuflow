@@ -1,5 +1,5 @@
 import { fetchLabelsByProject, createLabel, deleteLabel, updateStatusConfig } from '../api.ts';
-import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation, guardSubmit, errorMessage } from '../utils.ts';
+import { byId, showNotification, showListLoadFailure, showConfirm, escapeHtml, initCharCounter, countCodepoints, getUnusedColor, promptAdminPasswordConfirmation, guardSubmit, errorMessage } from '../utils.ts';
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.ts';
 import { state, setStatusConfig, setLabels } from '../state.ts';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.ts';
@@ -36,12 +36,11 @@ export function setupProjectSettingsView() {
       const color = getUnusedColor(usedColors);
       await createLabel(projectId, { name, color });
       addLabelInput.value = '';
-      const labels = await renderProjectSettingsView();
-      updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
+      const labels = await renderProjectSettingsView(); // shows itself if the labels could not be loaded
+      if (labels) updateLabelFilterOptions(labels);
       showNotification('Label created', 'success');
     } catch (err) {
-      console.error(err);
-      showNotification('Failed to create label', 'error');
+      showNotification(errorMessage(err), 'error');
     }
   };
 
@@ -104,7 +103,7 @@ export async function renderProjectSettingsView() {
           );
           if (!confirmed) return;
           const labels = await renderProjectSettingsView();
-          updateLabelFilterOptions(labels ?? await fetchLabelsByProject(projectId));
+          if (labels) updateLabelFilterOptions(labels);
           showNotification('Label deleted', 'success');
         });
       }
@@ -114,8 +113,7 @@ export async function renderProjectSettingsView() {
 
     return labels;
   } catch (err) {
-    console.error(err);
-    labelsList.innerHTML = '<div class="error">Failed to load labels.</div>';
+    showListLoadFailure(labelsList, 'Labels', err);
   }
 }
 
