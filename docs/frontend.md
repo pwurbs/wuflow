@@ -169,7 +169,9 @@ All three views share one cache (`static/js/issue-lists.ts`). Every list it load
 
 **Rationale for splitting Open issues:** The Board view already excludes *Open* issues client-side (they are only shown in the Backlog). Backlogs tend to accumulate many items over time, making them a prime candidate for deferral.
 
-**Why one parallel wave:** the server answers these requests in a few milliseconds, so on slow or mobile connections the cost is the number of *sequential* round trips, each of which can take hundreds of milliseconds. With the bundled frontend and compression, HTTP/2 on the reverse proxy makes no measurable difference for these waves.
+**Why one parallel wave:** the server answers these requests in a few milliseconds, so on slow or mobile connections the cost is the number of *sequential* round trips, each of which can take hundreds of milliseconds. Browsers open at most 6 connections per host over HTTP/1.1, so with latency the 7th request of a wave (My Work, Backlog, Archive) costs an extra round trip. [HTTP/2 on the reverse proxy](deployment.md#http2) avoids it.
+
+**Why hidden views are redrawn:** `refreshApp()` and the re-render functions in `app.ts` also redraw the Board and its planning panel while another view is visible. This is deliberate: it costs only a few milliseconds (measured with a few hundred issues), and the Board is up to date when the user switches back.
 
 ---
 

@@ -50,7 +50,7 @@ For a detailed view of versions, manifests, values and changes, see [Artifact Hu
 Run wuFlow as an add-on next to your smart home, ideal for organising the household: [add-on documentation](../home-assistant-addon/README.md).
 
 ## Reverse proxy
-wuFlow serves plain HTTP. **It must run behind a reverse proxy** (e.g. Nginx, Traefik) in the same environment that **terminates TLS** and forwards requests to the app. Without TLS, the [Secure cookie](configuration.md#secure-cookie) flag can't work. The proxy should also pass the client IP and compress the responses.
+wuFlow serves plain HTTP. **It must run behind a reverse proxy** (e.g. Nginx, Traefik) in the same environment that **terminates TLS** and forwards requests to the app. Without TLS, the [Secure cookie](configuration.md#secure-cookie) flag can't work. The proxy should also pass the client IP, compress the responses and offer HTTP/2.
 
 ### Client IP
 wuFlow uses the client IP for the login and token-refresh rate limits and in its request logs. Behind a reverse proxy, the TCP connection comes from the proxy, so set **Remote IP Header** (`WF_REMOTE_IP_HEADER`) to the header in which your proxy passes the client IP. Otherwise all users share the proxy's IP and thus one login rate limit, and the request logs show the proxy's IP.
@@ -79,6 +79,11 @@ A proxy that doesn't trust the hop in front of it replaces the header, and all u
 Like TLS, compression is left to the proxy. wuFlow itself sends its responses uncompressed. On slow connections, compression makes the first page load and the Backlog and Archive views considerably faster.
 - **Traefik**: add the [`compress` middleware](https://doc.traefik.io/traefik/reference/routing-configuration/http/middlewares/compress/) to the route that serves wuFlow. With the [Helm chart](../chart/README.md), set `ingress.compress: true`.
 - **Nginx**: `gzip on;` with `gzip_types text/css text/javascript application/javascript application/json;` (HTML is always compressed when `gzip` is on).
+
+### HTTP/2
+Enable HTTP/2 for the connection from the browser. On slow connections, it makes the My Work, Backlog and Archive views load faster.
+- **Traefik**: nothing to do, it offers HTTP/2 over TLS by default.
+- **Nginx**: `http2 on;` (since 1.25.1, off by default).
 
 ### Caching
 Caching needs no proxy configuration. wuFlow sets the cache headers itself, so don't let the proxy override them (see [Frontend](frontend.md#delivery)).
