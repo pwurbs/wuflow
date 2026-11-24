@@ -234,6 +234,7 @@
 }
 
 .md-preview {
+  --md-block-gap: 1lh; /* one line, like the blank line typed in the editor */
   flex: 1;
   padding: 12px;
   overflow-y: auto;
@@ -282,11 +283,25 @@
 .md-preview ul,
 .md-preview ol {
   padding-left: 24px;
-  margin-bottom: 8px;
 }
 
-.md-preview p {
-  margin-bottom: 8px;
+.md-preview p,
+.md-preview ul,
+.md-preview ol,
+.md-preview pre,
+.md-preview table {
+  margin-bottom: var(--md-block-gap);
+}
+
+/* A list stays close to the text that introduces it. */
+.md-preview p:has(+ ul),
+.md-preview p:has(+ ol) {
+  margin-bottom: var(--space-2);
+}
+
+.md-preview li > ul,
+.md-preview li > ol {
+  margin-bottom: 0;
 }
 
 .md-preview li {
@@ -337,6 +352,9 @@
   border-radius: 4px;
   overflow-x: auto;
   border: 1px solid var(--card-border);
+}
+
+.rich-editor pre {
   margin-bottom: 8px;
 }
 
@@ -354,9 +372,12 @@
 .md-preview table,
 .rich-editor table {
   border-collapse: collapse;
-  margin-bottom: 8px;
   width: 100%;
   font-size: var(--fs-md);
+}
+
+.rich-editor table {
+  margin-bottom: 8px;
 }
 
 .md-preview th,

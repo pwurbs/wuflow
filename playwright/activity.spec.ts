@@ -49,6 +49,41 @@ test.describe('Issue Activity (History + Comments)', () => {
     await expect(page.locator('#modal-title')).toHaveCSS('font-family', /^Gabarito/);
   });
 
+  test('markdown blocks in description and comment are one line apart, a list follows its intro closely', async ({ page }) => {
+    const markdown = 'one\n\ntwo\n\n\n\nintro\n- a\n  - nested\n- b\n\nafter\n\n```\ncode\n```\n\n| h |\n|---|\n| c |\n\nend';
+    await createIssue(page, { title: 'Markdown Spacing Issue', status: 'Todo', description: markdown });
+    await openIssueByTitle(page, 'Markdown Spacing Issue');
+
+    await page.fill('#new-comment-body', markdown);
+    await page.click('#add-comment-btn');
+    await waitForToast(page, 'Comment added');
+
+    for (const container of ['#description-preview', '.comment-body']) {
+      const body = page.locator(container);
+      await expect(body.locator('table')).toBeVisible();
+      const spacing = await body.evaluate((el) => {
+        const blocks = [...el.children].map(child => ({
+          tag: child.tagName,
+          rect: child.getBoundingClientRect(),
+          lineHeight: Number.parseFloat(getComputedStyle(child).lineHeight),
+        }));
+        return {
+          tags: blocks.map(block => block.tag),
+          // The gap after each block, in pixels and in lines of that block's own text
+          gaps: blocks.slice(1).map(({ rect }, i) => {
+            const px = rect.top - blocks[i].rect.bottom;
+            return { px, lines: px / blocks[i].lineHeight };
+          }),
+        };
+      });
+      expect(spacing.tags).toEqual(['P', 'P', 'P', 'UL', 'P', 'PRE', 'TABLE', 'P']);
+      const [introGap] = spacing.gaps.splice(2, 1);
+      expect(introGap.px).toBeCloseTo(8, 0);
+      for (const gap of spacing.gaps) expect(gap.lines).toBeCloseTo(1, 1);
+      await expect(body.locator('li > ul')).toHaveCSS('margin-bottom', '0px');
+    }
+  });
+
   test('edit an existing comment', async ({ page }) => {
     await createIssue(page, { title: 'Comment Edit Issue', status: 'Todo' });
     await openIssueByTitle(page, 'Comment Edit Issue');
