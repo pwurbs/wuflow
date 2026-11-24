@@ -6,7 +6,7 @@ import * as utils from '../utils.ts';
 import * as permissions from '../permissions.ts';
 import * as stateModule from '../state.ts';
 import { makeIssue, makeLabel, makeStatusConfig } from './fixtures.ts';
-import type { Label } from '../models.ts';
+import type { Label, StatusConfig } from '../models.ts';
 
 vi.mock('../api.ts', () => ({
   fetchLabelsByProject: vi.fn(),
@@ -80,6 +80,8 @@ describe('project-settings.ts component', () => {
     vi.mocked(api.fetchLabelsByProject).mockResolvedValue([]);
     vi.mocked(api.fetchStatusConfig).mockResolvedValue(DEFAULT_CFG);
     stateModule.state.issues = [];
+    stateModule.state.selectedProjectId = 1;
+    stateModule.state.statusConfig = DEFAULT_CFG;
   });
 
   // ── setupProjectSettingsView ──────────────────────────────────────────────
@@ -259,6 +261,19 @@ describe('project-settings.ts component', () => {
       expect(api.deleteLabel).not.toHaveBeenCalled();
     });
 
+    it('drops labels that arrive after another project was selected', async () => {
+      const { promise: pendingLabels, resolve: answerLabels } = Promise.withResolvers<Label[]>();
+      vi.mocked(api.fetchLabelsByProject).mockReturnValueOnce(pendingLabels);
+      const render = renderProjectSettingsView();
+
+      stateModule.state.selectedProjectId = 2;
+      answerLabels([makeLabel({ id: 1, name: 'Bug' })]);
+      await render;
+
+      expect(document.querySelector('.label-item')).toBeNull();
+      expect(stateModule.setLabels).not.toHaveBeenCalled();
+    });
+
   });
 
   // ── renderStatusConfigSection ─────────────────────────────────────────────
@@ -266,6 +281,18 @@ describe('project-settings.ts component', () => {
   describe('renderStatusConfigSection()', () => {
     beforeEach(() => {
       setupProjectSettingsView();
+    });
+
+    it.each([
+      ['not loaded', 1, null],
+      ["another project's", 2, DEFAULT_CFG],
+      ['not loaded and no project is selected', null, null],
+    ])('shows no form when the config is %s', async (_, selectedProjectId, statusConfig) => {
+      stateModule.state.selectedProjectId = selectedProjectId;
+      stateModule.state.statusConfig = statusConfig;
+      await renderProjectSettingsView();
+      expect(byId('ps-status-config-content').textContent).toBe('Column names are not loaded.');
+      expect(document.getElementById('ps-save-status-config-btn')).toBeNull();
     });
 
     it('renders 6 boxes (Todo, Stage1–4, Done)', async () => {
@@ -419,6 +446,31 @@ describe('project-settings.ts component', () => {
         1, expect.objectContaining({ stage1_name: 'Review' })
       );
       expect(utils.showNotification).toHaveBeenCalledWith('Column configuration saved', 'success');
+    });
+
+    it('does not save once another project is selected', async () => {
+      await renderProjectSettingsView();
+
+      stateModule.state.selectedProjectId = 2;
+      byId('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(api.updateStatusConfig).not.toHaveBeenCalled();
+      expect(byId('ps-status-config-content').textContent).toBe('Column names are not loaded.');
+    });
+
+    it('does not apply the saved config when another project was selected meanwhile', async () => {
+      const { promise: pendingSave, resolve: answerSave } = Promise.withResolvers<StatusConfig>();
+      vi.mocked(api.updateStatusConfig).mockReturnValueOnce(pendingSave);
+      await renderProjectSettingsView();
+      byId('ps-save-status-config-btn').click();
+
+      stateModule.state.selectedProjectId = 2;
+      answerSave(updatedCfg);
+      await new Promise(process.nextTick);
+
+      expect(utils.showNotification).toHaveBeenCalledWith('Column configuration saved', 'success');
+      expect(stateModule.setStatusConfig).not.toHaveBeenCalled();
     });
 
     it('sends the names of all four stage columns', async () => {

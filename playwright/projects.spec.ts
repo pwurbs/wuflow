@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect, type Page } from './fixtures';
 import {
   navigateTo,
   createIssue,
@@ -244,6 +244,212 @@ test.describe('Project Selector', () => {
     await expect(page.locator('#project-selector-text')).toHaveText(name);
 
     await deleteProjectViaAPI(page.request, name, workerServer.adminPassword);
+  });
+});
+
+// A refresh that is still running when the project is switched must neither show nor save
+// the previous project's labels, releases and columns. A is the previous project, B the new one.
+test.describe('Project switch while data is loading', () => {
+  let a: { id: number; name: string };
+  let b: { id: number; name: string };
+  let releaseA: number;
+
+  const CONFIG_A = { stage1_name: 'A-One', stage2_name: '', stage3_name: 'A-Three', stage4_name: '' };
+  const CONFIG_B = { stage1_name: 'B-One', stage2_name: 'B-Two', stage3_name: '', stage4_name: '' };
+  const COLUMNS_B = ['Todo', 'B-One', 'B-Two', 'Done'];
+
+  test.beforeEach(async ({ page, login }) => {
+    await login();
+    const stamp = `${Date.now()}`.slice(-8);
+    const create = async (prefix: string, config: typeof CONFIG_A) => {
+      const name = `${prefix}${stamp}`;
+      const id = await createProjectViaAPI(page.request, name);
+      await createLabelViaAPI(page.request, id, `label-${prefix}`);
+      const release = await createReleaseViaAPI(page.request, id, `release-${prefix}`);
+      expect((await page.request.put(`/api/projects/${id}/statusconfig`, { data: config })).status()).toBe(200);
+      return { project: { id, name }, release };
+    };
+    const createdA = await create('a', CONFIG_A);
+    a = createdA.project;
+    releaseA = createdA.release;
+    b = (await create('b', CONFIG_B)).project;
+
+    await page.evaluate(id => localStorage.setItem('wuflow_selectedProjectId', String(id)), a.id);
+    await page.reload();
+    await expect(page.locator('#project-selector-text')).toHaveText(a.name);
+    await expect(page.locator('.board-columns .column-header h2')).toHaveText(['Todo', 'A-One', 'A-Three', 'Done']);
+  });
+
+  test.afterEach(async ({ page }) => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  // Holds the answers to the GET requests matching url until answer() is called. It resolves
+  // once the page has processed them: an answer that must be ignored changes
+  // nothing on the page that a test could wait for.
+  async function holdAnswers(page: Page, url: RegExp, options: { times?: number } = {}) {
+    let released = false;
+    let open = () => {};
+    const opened = new Promise<void>(resolve => { open = resolve; });
+    const answers: Promise<unknown>[] = [];
+    await page.route(url, async route => {
+      if (released || route.request().method() !== 'GET') return route.continue();
+      const response = await route.fetch();
+      answers.push(route.request().response().then(r => r?.finished()));
+      await opened;
+      await route.fulfill({ response });
+    }, options);
+    const answer = async () => {
+      released = true;
+      open();
+      await Promise.all(answers);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    };
+    return { answer, held: () => answers.length };
+  }
+
+  async function hold(page: Page, projectId: number) {
+    return (await holdAnswers(page, new RegExp(`/api/projects/${projectId}/(labels|releases|statusconfig)$`))).answer;
+  }
+
+  async function switchTo(page: Page, project: { name: string }) {
+    await page.click('#project-selector-btn');
+    await page.locator('#project-selector-options .custom-option', { hasText: project.name }).click();
+  }
+
+  async function expectBoardOfB(page: Page) {
+    await expect(page.locator('.board-columns .column-header h2')).toHaveText(COLUMNS_B);
+    await expect(page.locator('#label-filter-options .custom-option')).toHaveText(['No Label', 'label-b']);
+    await expect(page.locator('#release-filter-options .custom-option')).toHaveText(['No Release', 'release-b']);
+  }
+
+  async function expectDialogOfB(page: Page) {
+    await expect(page.locator('#label-trigger')).toBeEnabled();
+    await expect(page.locator('#label-options .custom-option')).toHaveText(['No Label', 'label-b']);
+    await expect(page.locator('#release-options .custom-option')).toHaveText(['No Release', 'release-b']);
+    await expect(page.locator('#status-options .custom-option')).toHaveText(['Open', 'Todo', 'B-One', 'B-Two', 'Done', 'Archived']);
+  }
+
+  const columnNames = (page: Page) => page.locator('#ps-status-config-content .sc-name-input');
+
+  test('a refresh of the previous project that finishes last is ignored', async ({ page }) => {
+    const answerA = await hold(page, a.id);
+    await navigateTo(page, 'board');
+    await switchTo(page, b);
+    await expectBoardOfB(page);
+
+    await answerA();
+    await expectBoardOfB(page);
+    await page.click('#add-issue-btn');
+    await expectDialogOfB(page);
+    await page.click('#cancel-btn');
+
+    await navigateTo(page, 'releases');
+    await expect(page.locator('#releases-view .release-row')).toHaveCount(1);
+    await expect(page.locator('#releases-view .release-row')).toContainText('release-b');
+  });
+
+  test('Project Settings keep the selected project\'s columns when the previous refresh finishes last', async ({ page }) => {
+    const answerA = await hold(page, a.id);
+    await navigateTo(page, 'board');
+    await switchTo(page, b);
+    await expectBoardOfB(page);
+    await navigateTo(page, 'project-settings');
+    await expect(columnNames(page).first()).toHaveValue('B-One');
+
+    await answerA();
+    await expect(columnNames(page).first()).toHaveValue('B-One');
+    await expect(page.locator('#ps-labels-list .label-name')).toHaveText(['label-b']);
+  });
+
+  test('the issue dialog waits for the selected project\'s options when the previous refresh finishes first', async ({ page }) => {
+    const answerA = await hold(page, a.id);
+    const answerB = await hold(page, b.id);
+    await navigateTo(page, 'board');
+    await switchTo(page, b);
+    await answerA();
+
+    await page.click('#add-issue-btn');
+    await expect(page.locator('#label-trigger')).toBeDisabled();
+    await expect(page.locator('#status-trigger')).toBeDisabled();
+
+    await answerB();
+    await expectDialogOfB(page);
+    await page.click('#cancel-btn');
+    await expectBoardOfB(page);
+  });
+
+  test('Project Settings show no column form until the selected project\'s names have arrived', async ({ page }) => {
+    const answerB = await hold(page, b.id);
+    await switchTo(page, b);
+    await navigateTo(page, 'project-settings');
+    await expect(page.locator('#ps-status-config-content')).toHaveText('Column names are not loaded.');
+    await expect(page.locator('#ps-save-status-config-btn')).toHaveCount(0);
+
+    await answerB();
+    await expect(columnNames(page).first()).toHaveValue('B-One');
+    await expect(page.locator('#ps-save-status-config-btn')).toBeVisible();
+  });
+
+  test('Project Settings show no column form when the names cannot be loaded', async ({ page }) => {
+    await page.route(new RegExp(`/api/projects/${b.id}/statusconfig$`), route => route.fulfill({ status: 500, body: 'Internal server error' }));
+    await switchTo(page, b);
+    await expect(page.locator('#label-filter-options .custom-option')).toHaveText(['No Label', 'label-b']);
+    await navigateTo(page, 'project-settings');
+    await expect(page.locator('#ps-labels-list .label-name')).toHaveText(['label-b']);
+    await expect(page.locator('#ps-status-config-content')).toHaveText('Column names are not loaded.');
+    await expect(page.locator('#ps-save-status-config-btn')).toHaveCount(0);
+  });
+
+  test('a column form drawn for the previous project cannot be saved', async ({ page }) => {
+    await navigateTo(page, 'project-settings');
+    await expect(columnNames(page).first()).toHaveValue('A-One');
+    const answerB = await hold(page, b.id);
+    await switchTo(page, b);
+
+    await columnNames(page).first().fill('Changed');
+    await page.click('#ps-save-status-config-btn');
+    await expect(page.locator('#ps-status-config-content')).toHaveText('Column names are not loaded.');
+
+    await answerB();
+    await expect(columnNames(page).first()).toHaveValue('B-One');
+    for (const [project, config] of [[a, CONFIG_A], [b, CONFIG_B]] as const) {
+      const stored = await (await page.request.get(`/api/projects/${project.id}/statusconfig`)).json();
+      expect(stored).toEqual({ project_id: project.id, ...config });
+    }
+  });
+
+  test('an older refresh of the same project does not undo a newer one', async ({ page }) => {
+    const older = await holdAnswers(page, new RegExp(`/api/projects/${a.id}/labels$`), { times: 1 });
+    await navigateTo(page, 'board');
+    await expect.poll(older.held).toBe(1);
+    await createLabelViaAPI(page.request, a.id, 'label-new');
+    await navigateTo(page, 'board');
+    const labels = page.locator('#label-filter-options .custom-option');
+    await expect(labels).toHaveText(['No Label', 'label-a', 'label-new']);
+
+    await older.answer();
+    await expect(labels).toHaveText(['No Label', 'label-a', 'label-new']);
+  });
+
+  test('a new issue saved while the options load does not get the release of the issue opened before', async ({ page }) => {
+    await createIssueViaAPI(page.request, a.id, 'With release', { status: 'Todo', release_id: releaseA });
+    await navigateTo(page, 'board');
+    await page.locator('.card', { hasText: 'With release' }).click();
+    await expect(page.locator('#release-select')).toHaveValue(String(releaseA));
+    await page.click('#done-btn');
+    await switchTo(page, b);
+    await expectBoardOfB(page);
+
+    const answerA = await hold(page, a.id);
+    await switchTo(page, a);
+    await page.click('#add-issue-btn');
+    await expect(page.locator('#release-trigger')).toBeDisabled();
+    await page.fill('#title', 'Without release');
+    const created = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith(`/projects/${a.id}/issues`));
+    await page.click('#save-issue-btn');
+    expect((await (await created).json()).release_id).toBeNull();
+    await answerA();
   });
 });
 

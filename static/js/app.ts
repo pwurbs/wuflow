@@ -90,13 +90,13 @@ async function init() {
     setTimeout(() => renderMarkdown('a'), 0);
 }
 
-async function loadStatusConfig() {
-    const id = state.selectedProjectId;
+// null: no project is selected or the load failed. The board then shows the default columns.
+async function loadStatusConfig(projectId: number | null) {
     try {
-        setStatusConfig(id ? await fetchStatusConfig(id) : null);
+        return projectId ? await fetchStatusConfig(projectId) : null;
     } catch (err) {
         console.warn('Failed to load status config, using defaults:', err);
-        setStatusConfig(null);
+        return null;
     }
 }
 
@@ -129,7 +129,12 @@ function issueListsFor(visible: ReturnType<typeof getVisibleViews>) {
     return [];
 }
 
+// Bumped by every refreshApp(), so the results of a superseded refresh are discarded.
+let refreshSeq = 0;
+
 async function refreshApp() {
+    const seq = ++refreshSeq;
+    const projectId = state.selectedProjectId;
     try {
         // Everything is requested in one parallel wave: nothing renders before all of it
         // has arrived, so the status config does not need to be awaited first.
@@ -140,16 +145,19 @@ async function refreshApp() {
         const visibleAtStart = getVisibleViews();
         void ensureIssueLists(issueListsFor(visibleAtStart)).catch(() => {});
         const myWorkLoad = visibleAtStart.myWork ? loadMyWork() : null;
-        const [, , labels, releases, users, projects] = await Promise.all([
+        const [, statusConfig, labels, releases, users, projects] = await Promise.all([
             issuesLoad,
-            loadStatusConfig(),
-            state.selectedProjectId ? fetchLabelsByProject(state.selectedProjectId) : Promise.resolve([]),
-            state.selectedProjectId ? fetchReleases(state.selectedProjectId) : Promise.resolve([]),
+            loadStatusConfig(projectId),
+            projectId ? fetchLabelsByProject(projectId) : Promise.resolve([]),
+            projectId ? fetchReleases(projectId) : Promise.resolve([]),
             fetchUsers(),
             fetchProjects(),
         ]);
+        if (seq !== refreshSeq) return; // a newer refresh started meanwhile, e.g. a project switch
 
-        setLabels(labels, state.selectedProjectId);
+        setStatusConfig(statusConfig);
+
+        setLabels(labels, projectId);
         updateLabelFilterOptions(labels);
 
         setReleases(releases);

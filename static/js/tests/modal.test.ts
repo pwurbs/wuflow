@@ -297,6 +297,8 @@ const MODAL_FIXTURE = `
       </div>
 `;
 
+const SELECTED_PROJECT_CONFIG = makeStatusConfig({ project_id: 1, stage1_name: 'Pending', stage2_name: 'Working' });
+
 // Sets up the modal on MODAL_FIXTURE with the default API answers and an empty state.
 function setupModalFixture(rerender = vi.fn()) {
   document.body.innerHTML = MODAL_FIXTURE;
@@ -311,7 +313,7 @@ function setupModalFixture(rerender = vi.fn()) {
   // Issues of other projects load their own options (see "Project context" below).
   state.selectedProjectId = 1;
   state.releases = [];
-  state.statusConfig = null;
+  state.statusConfig = SELECTED_PROJECT_CONFIG;
   state.labels = [makeLabel({ id: 1, name: 'Bug' }), makeLabel({ id: 2, name: 'Feature' })];
   state.labelsProjectId = 1;
   state.users = [];
@@ -3238,7 +3240,7 @@ describe('Project Selector Coverage', () => {
     expect(byId('label-text').textContent).toBe('Bug');
     expect(byId('release-select', HTMLInputElement).value).toBe('5');
     expect(state.releases).toBe(releasesA);
-    expect(state.statusConfig).toBeNull();
+    expect(state.statusConfig).toEqual(SELECTED_PROJECT_CONFIG);
     expect([...document.querySelectorAll('#label-options .custom-option')].map(o => o.textContent)).toEqual(['No Label', 'Bug']);
   });
 
@@ -3278,7 +3280,7 @@ describe('Project Selector Coverage', () => {
     expect([...document.querySelectorAll('#release-options .custom-option')].map(o => o.textContent)).toEqual(['No Release', 'B-1.0']);
     // The board's state keeps the selected project's options.
     expect(state.releases).toEqual([]);
-    expect(state.statusConfig).toBeNull();
+    expect(state.statusConfig).toEqual(SELECTED_PROJECT_CONFIG);
     expect(byId('status', HTMLInputElement).value).toBe('Open');
   });
 
@@ -3315,7 +3317,7 @@ describe('Project Selector Coverage', () => {
     expect([...document.querySelectorAll('#release-options .custom-option')].map(o => o.textContent)).toEqual(['No Release', 'B-1.0']);
     // The board's state keeps the selected project's options.
     expect(state.releases).toEqual([]);
-    expect(state.statusConfig).toBeNull();
+    expect(state.statusConfig).toEqual(SELECTED_PROJECT_CONFIG);
     expect(byId('status', HTMLInputElement).value).toBe('Open');
     expect(byId('label-select', HTMLInputElement).value).toBe('');
     expect(byId('release-select', HTMLInputElement).value).toBe('');
@@ -3374,8 +3376,42 @@ describe('Project context of the issue dialog', () => {
     expect(activity.setActivityStatusNames).toHaveBeenLastCalledWith(expect.objectContaining(namesB));
     // The board's state keeps the selected project's options.
     expect(state.releases).toEqual([]);
-    expect(state.statusConfig).toBeNull();
+    expect(state.statusConfig).toEqual(SELECTED_PROJECT_CONFIG);
     expect(state.labelsProjectId).toBe(1);
+  });
+
+  it.each([
+    ['not loaded', null],
+    ["another project's", makeStatusConfig({ project_id: 1, stage1_name: 'Pending' })],
+  ])('fetches the options when the cached status config is %s', async (_, statusConfig) => {
+    mockProjectB();
+    state.selectedProjectId = 2;
+    state.labelsProjectId = 2;
+    state.statusConfig = statusConfig;
+
+    await openModalWithMock(issueB());
+    expect(projectTriggersDisabled()).toEqual([true, true, true]);
+    await flush();
+
+    expect(optionTexts('status-options')).toEqual(['Open', 'Todo', 'Testing', 'Review', 'Done', 'Archived']);
+    expect(optionTexts('label-options')).toEqual(['No Label', 'B-Label']);
+    expect(optionTexts('release-options')).toEqual(['No Release', 'B-1.0']);
+  });
+
+  it('does not take over the release of the issue opened before while the options of a new issue load', async () => {
+    mockProjectB();
+    await openModalWithMock(issueB());
+    await flush();
+    expect(byId('release-select', HTMLInputElement).value).toBe('30');
+    closeModal();
+
+    vi.mocked(api.fetchStatusConfig).mockReturnValueOnce(new Promise(() => {}));
+    localStorage.setItem('wuflow_selectedProjectId', '2');
+    openModal(null);
+
+    expect(projectTriggersDisabled()).toEqual([true, true, true]);
+    expect(byId('release-select', HTMLInputElement).value).toBe('');
+    expect(byId('release-text').textContent).toBe('No Release');
   });
 
   it('uses the cached options for an issue of the selected project', async () => {

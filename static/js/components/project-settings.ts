@@ -3,7 +3,7 @@ import { byId, showNotification, showConfirm, escapeHtml, initCharCounter, count
 import { MAX_LABEL_NAME_LEN, MAX_STATUS_NAME_LEN, COLOR_REGEX, STATUS_NAME_REGEX } from '../validation-config.ts';
 import { state, setStatusConfig, setLabels } from '../state.ts';
 import { userCan, ACTION_LIST_LABELS, ACTION_CREATE_LABEL, ACTION_DELETE_LABEL, ACTION_UPDATE_STATUS_CONFIG } from '../permissions.ts';
-import { STATUS_SLOTS, getDefaultStatusConfig, type StatusNames } from '../status-config.ts';
+import { STATUS_SLOTS, type StatusNames } from '../status-config.ts';
 import { updateLabelFilterOptions } from './toolbar.ts';
 import { renderBoard } from './board.ts';
 import { DEFAULT_PROJECT_ID } from '../domain-constants.ts';
@@ -71,6 +71,8 @@ export async function renderProjectSettingsView() {
   try {
     const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
     const labels = await fetchLabelsByProject(projectId);
+    // Another project was selected meanwhile: its refresh draws its own labels.
+    if (projectId !== (state.selectedProjectId ?? DEFAULT_PROJECT_ID)) return state.labels;
     // Keep the shared cache current so the issue modal sees label changes made here.
     if (projectId === state.selectedProjectId) setLabels(labels, projectId);
     labelsList.innerHTML = '';
@@ -120,8 +122,15 @@ export async function renderProjectSettingsView() {
 function renderStatusConfigSection() {
   const content = byId('ps-status-config-content');
   const canEdit = userCan(state.currentUser, ACTION_UPDATE_STATUS_CONFIG);
-  const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
-  const cfg = state.statusConfig ?? getDefaultStatusConfig();
+  const projectId = state.selectedProjectId;
+  const cfg = state.statusConfig;
+
+  // No form without the selected project's own names: saving it would overwrite them with
+  // another project's names or the defaults.
+  if (projectId === null || cfg?.project_id !== projectId) {
+    content.innerHTML = '<p class="sc-hint">Column names are not loaded.</p>';
+    return;
+  }
 
   const disabledAttr = canEdit ? '' : 'disabled';
 
@@ -180,13 +189,24 @@ function renderStatusConfigSection() {
   }
 }
 
-async function handleSaveStatusConfig(projectId: number, previousCfg: StatusNames) {
-  const payload: Partial<StatusNames> = {};
+function readColumnNames() {
+  const names: Partial<StatusNames> = {};
   for (const slot of STATUS_SLOTS) {
     const input = document.querySelector<HTMLInputElement>(`#ps-status-config-content .sc-name-input[data-field="${slot.field}"]`);
-    if (input) payload[slot.field] = input.value.trim();
+    if (input) names[slot.field] = input.value.trim();
+  }
+  return names;
+}
+
+async function handleSaveStatusConfig(projectId: number, previousCfg: StatusNames) {
+  // Another project was selected since the form was drawn.
+  if (projectId !== state.selectedProjectId) {
+    renderStatusConfigSection();
+    return;
   }
 
+
+  const payload = readColumnNames();
   const invalidName = Object.values(payload).find(
     name => name !== '' && (!STATUS_NAME_REGEX.test(name) || name.length > MAX_STATUS_NAME_LEN)
   );
@@ -229,8 +249,9 @@ async function handleSaveStatusConfig(projectId: number, previousCfg: StatusName
 
   try {
     const updated = await updateStatusConfig(projectId, payload);
-    setStatusConfig(updated);
     showNotification('Column configuration saved', 'success');
+    if (projectId !== state.selectedProjectId) return;
+    setStatusConfig(updated);
     renderBoard();
   } catch (err) {
     showNotification(errorMessage(err) || 'Failed to save column configuration', 'error');

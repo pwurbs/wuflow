@@ -87,7 +87,7 @@ Permission-gated behaviour belongs in `role_authorization.spec.ts` even when the
 | Labels | `labels.spec.ts` | Label management, including project scoping |
 | Tasks | `tasks.spec.ts` | Subtask creation, management, deadline warnings |
 | Filters | `filters.spec.ts` | Label, priority, and text filtering |
-| Projects | `projects.spec.ts` | Project management and project selector |
+| Projects | `projects.spec.ts` | Project management, project selector, switching the project while data is loading |
 | Users | `users.spec.ts` | User management |
 | Auth | `auth.spec.ts` | Authentication security and rate limiting |
 | Authorization | `role_authorization.spec.ts` | Role-based UI and API restrictions |

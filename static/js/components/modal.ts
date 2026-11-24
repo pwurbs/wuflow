@@ -270,6 +270,10 @@ function renderModalDropdowns(issue: Issue | null) {
   byId('label-select', HTMLInputElement).value = String(issue?.label?.id ?? '');
   byId('label-text').textContent = issue?.label?.name ?? 'No Label';
 
+  // Release Dropdown (options: showProjectOptions)
+  byId('release-select', HTMLInputElement).value = String(issue?.release_id ?? '');
+  byId('release-text').textContent = issue?.release?.name ?? 'No Release';
+
   // Assignee Dropdown
   const assigneeInput = byId('assignee-select', HTMLInputElement);
   const assigneeText = byId('assignee-text');
@@ -311,7 +315,6 @@ function showProjectOptions(issue: Issue | null, projectId: number) {
   }
   setProjectOptionsPending(true);
   byId('status-text').textContent = '…';
-  if (issue) byId('release-text').textContent = issue.release?.name ?? 'No Release';
   loadDialogProject(projectId).then(options => {
     if (seq !== dialogProjectSeq) return; // another issue or project rendered meanwhile
     dialogProject = options;

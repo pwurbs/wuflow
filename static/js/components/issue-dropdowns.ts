@@ -139,9 +139,11 @@ export interface ProjectOptions {
   statusNames: StatusNames;
 }
 
-// The selected project's options from the cache refreshApp fills, or null for any other project.
+// The selected project's options from the cache refreshApp fills, or null for any other project
+// and while the cache does not hold the selected project's labels and status names.
 export function cachedProjectOptions(projectId: number): ProjectOptions | null {
   if (projectId !== state.selectedProjectId || state.labelsProjectId !== projectId) return null;
+  if (state.statusConfig?.project_id !== projectId) return null;
   return { projectId, labels: state.labels, releases: state.releases, statusNames: getActiveStatusConfig() };
 }
 
