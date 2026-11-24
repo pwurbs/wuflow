@@ -3,7 +3,7 @@
   background-color: var(--fill-green);
   color: var(--text-on-fill);
   padding: 12px 24px;
-  border-radius: 4px;
+  border-radius: var(--radius-float);
   box-shadow: var(--shadow-dropdown);
   z-index: 2000;
   font-weight: var(--fw-medium);
@@ -48,7 +48,7 @@
   transform: translateX(-50%);
   color: var(--text-on-fill);
   padding: 8px 20px;
-  border-radius: 0 0 4px 4px;
+  border-radius: 0 0 var(--radius-float) var(--radius-float);
   box-shadow: var(--shadow-dropdown);
   z-index: 2000;
   font-weight: var(--fw-medium);

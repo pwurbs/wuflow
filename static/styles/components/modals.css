@@ -38,11 +38,6 @@
   max-height: calc(100vh - 32px);
 }
 
-.small-modal {
-  width: 400px;
-  max-width: 90%;
-}
-
 #modal-title {
   margin-bottom: 20px;
 }
@@ -156,28 +151,6 @@
   border-left: 1px solid var(--card-border);
   overflow-y: auto;
 }
-
-.sidebar-placeholder {
-  opacity: 0.6;
-}
-
-.sidebar-placeholder .placeholder-label {
-  font-size: var(--fs-sm);
-  color: var(--muted-text);
-  margin-bottom: 4px;
-  display: block;
-}
-
-.placeholder-box {
-  background-color: var(--input-bg);
-  border: 1px solid var(--card-border);
-  padding: 8px;
-  border-radius: 4px;
-  font-size: var(--fs-md);
-  color: var(--muted-text);
-}
-
-
 
 /* Confirmation Modal */
 #confirm-modal {

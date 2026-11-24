@@ -46,7 +46,6 @@
   --badge-sysadmin-border: #0284c7;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-dropdown: 0 4px 6px rgba(0, 0, 0, 0.3);
   --shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -60,6 +59,12 @@
   --radius-card: 10px;
   --radius-item: 8px;
   --radius-chip: 5px;
+  /* Fields and field-like rows, buttons, menu entries */
+  --radius-control: 4px;
+  /* Floating layers: tooltips, dropdown lists, toasts */
+  --radius-float: 4px;
+  /* Code in Markdown, inline and blocks */
+  --radius-code: 4px;
 
   /* Spacing scale (padding, gaps), steps of 4px. Only the steps in use are defined; older
      files still use literal values. */
@@ -75,6 +80,9 @@
   --board-column-padding-x: 12px;
   /* Vertical padding of the toolbar's dropdown triggers and search inputs, so they are equally high */
   --toolbar-control-padding-y: 6px;
+  /* Task rows and the row to add one, as high as the empty comment field: its line height, padding
+     and border */
+  --task-row-height: calc(1.4 * var(--fs-base) + 2 * var(--space-2) + 2px);
   /* Text filter of the issue views (toolbar) */
   --issue-filter-input-width: 220px;
   /* Dropdown lists grow with their entries up to this width, longer entries end in "…" */

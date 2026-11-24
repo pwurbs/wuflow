@@ -128,7 +128,7 @@
   /* Maintain left position (230px from right) */
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 4px;
+  border-radius: var(--radius-float);
   padding: 8px;
   z-index: 100;
   box-shadow: var(--shadow-popover);

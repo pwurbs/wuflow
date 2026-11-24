@@ -58,7 +58,7 @@
     flex: 1;
     padding: 8px;
     border: 1px solid var(--card-border);
-    border-radius: 4px;
+    border-radius: var(--radius-control);
     font-size: var(--fs-base);
     font-weight: var(--fw-regular);
     background-color: var(--input-bg);
@@ -155,7 +155,6 @@
     margin-top: 24px;
 }
 
-.no-data,
 .error,
 .loader {
     color: var(--muted-text);
@@ -222,7 +221,7 @@
     width: 100%;
     padding: 4px 6px;
     border: 1px solid var(--card-border);
-    border-radius: 4px;
+    border-radius: var(--radius-control);
     font-size: var(--fs-md);
     text-align: center;
     background-color: var(--input-bg);
@@ -362,18 +361,12 @@
   white-space: nowrap;
 }
 
-.settings-entry-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .settings-entry-badge {
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-chip);
   letter-spacing: 0.5px;
 }
 
@@ -415,7 +408,7 @@
   background-color: var(--card-bg);
   color: var(--text-color);
   border: 1px solid var(--card-border);
-  border-radius: 4px;
+  border-radius: var(--radius-float);
   padding: 3px 8px;
   font-size: var(--fs-xs);
   white-space: nowrap;
@@ -431,7 +424,6 @@
 }
 
 /* User & Project Modals */
-#settings-modal-overlay.hidden,
 #project-modal-overlay.hidden {
   display: none;
 }
@@ -510,7 +502,6 @@
   color: var(--text-on-fill);
   border: none;
   padding: 8px 20px;
-  border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }

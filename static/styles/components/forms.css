@@ -26,7 +26,7 @@ input[type="checkbox"] {
   border: 1px solid var(--card-border);
   background-color: var(--input-bg);
   color: var(--text-color);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
 }
 
 .form-group input:focus,
@@ -101,6 +101,7 @@ input:-webkit-autofill:active,
   display: flex;
   gap: 8px;
   align-items: stretch;
+  min-height: var(--task-row-height);
 }
 
 .task-title-input-wrapper {
@@ -121,7 +122,7 @@ input:-webkit-autofill:active,
   background-color: var(--input-bg);
   color: var(--text-color);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
 }
 
 .input-group .btn {
@@ -142,7 +143,7 @@ input:-webkit-autofill:active,
   border: 1px solid var(--card-border);
   background-color: var(--input-bg);
   color: var(--text-color);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -195,17 +196,6 @@ input:-webkit-autofill:active,
 .form-label {
   display: block;
   margin-bottom: 0.5rem;
-}
-
-.read-only-meta {
-  background-color: var(--input-bg);
-  border: 1px solid var(--card-border);
-  color: var(--muted-text);
-  padding: 6px 12px;
-  border-radius: 4px;
-  min-height: 38px;
-  display: flex;
-  align-items: center;
 }
 
 .char-counter {

@@ -81,6 +81,33 @@ test.describe('Task (Subtask) Management', () => {
     await expect(display).toHaveText('Select date...');
   });
 
+  test('task rows and the add-task row are as high as the empty comment field', async ({ page }) => {
+    const title = `Task Height ${Date.now()}`;
+    await createIssue(page, { title, status: 'Todo' });
+    await openIssueByTitle(page, title);
+    const height = async (selector: string) => (await page.locator(selector).boundingBox())!.height;
+
+    // One task with and one without a deadline: both rows have the height of the field
+    await page.fill('#new-task-title', 'Plain Task');
+    await page.click('#add-task-btn');
+    await expect(page.locator('#task-list .task-item')).toHaveCount(1);
+    await page.fill('#new-task-title', 'Dated Task');
+    await page.fill('#new-task-deadline', '2029-01-01', { force: true });
+    await page.click('#add-task-btn');
+    await expect(page.locator('#task-list .task-item')).toHaveCount(2);
+    await expect(page.locator('#new-comment-body')).toHaveValue('');
+    await expect(page.locator('#new-comment-actions')).toBeHidden();
+
+    const commentField = await height('#new-comment-editor');
+    const rows = [
+      '#task-list .task-item:nth-child(1)', '#task-list .task-item:nth-child(2)',
+      '#new-task-title', '.task-input-date', '#add-task-btn',
+    ];
+    for (const row of rows) {
+      expect(Math.abs(await height(row) - commentField), row).toBeLessThan(0.5);
+    }
+  });
+
   test('toggle task completion', async ({ page }) => {
     // Create an issue with a task
     // Create an issue with a task

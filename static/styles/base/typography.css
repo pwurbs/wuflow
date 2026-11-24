@@ -106,13 +106,10 @@ h1 {
 .form-group textarea,
 .input-group input,
 .custom-date-input,
-.read-only-meta,
 .custom-select-trigger,
 .custom-option,
 .search-input,
 .task-title-input,
-.task-title-text,
-.rich-editor,
 .md-preview,
 .login-card .form-group input,
 .release-dialog,
@@ -165,7 +162,6 @@ code,
 kbd,
 pre,
 .md-textarea,
-.rich-editor code,
 .md-preview code {
   font-family: var(--font-mono);
   font-size: var(--fs-md);

@@ -1,6 +1,6 @@
 .editor-container {
   border: 1px solid var(--card-border);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background-color: var(--input-bg);
   display: flex;
   flex-direction: column;
@@ -27,7 +27,7 @@
   color: var(--text-color);
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-control);
   font-size: var(--fs-base);
   transition: background-color 0.2s;
   display: flex;
@@ -62,49 +62,6 @@
   color: var(--muted-text);
   margin: 0 4px;
   font-size: var(--fs-sm);
-}
-
-.rich-editor {
-  flex: 1;
-  padding: 12px;
-  overflow-y: auto;
-  outline: none;
-  color: var(--text-color);
-  line-height: 1.4;
-  white-space: pre-wrap;
-}
-
-.rich-editor ul,
-.rich-editor ol {
-  padding-left: 24px;
-  margin-bottom: 8px;
-  white-space: normal;
-}
-
-.rich-editor p {
-  margin-bottom: 8px;
-}
-
-/* Ensure lists in the editor look correct */
-.rich-editor li {
-  margin-bottom: 0;
-  white-space: normal;
-}
-
-.rich-editor b,
-.rich-editor strong {
-  font-weight: var(--fw-bold);
-}
-
-.rich-editor i,
-.rich-editor em {
-  font-style: italic;
-}
-
-.rich-editor a {
-  cursor: pointer;
-  color: var(--accent-blue-hover);
-  text-decoration: underline;
 }
 
 /* Inline Editing Styles for Title and Description. #title needs the id to win
@@ -155,7 +112,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   transition: background-color 0.2s;
   font-size: var(--fs-xl);
   width: 28px;
@@ -247,10 +204,10 @@
 
 .md-preview.active {
   background-color: color-mix(in srgb, var(--accent-blue) 5%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
 }
 
-/* Markdown preview typography — mirrors .rich-editor rules */
+/* Markdown preview typography */
 .md-preview h1,
 .md-preview h2,
 .md-preview h3,
@@ -335,30 +292,23 @@
    rgba(0,0,0,*) overlay did). Lightening instead reads as a distinct inlaid
    surface regardless of the underlying shade (same convention as GitHub/VS
    Code's dark themes). */
-.rich-editor code,
 .md-preview code {
   background-color: var(--code-bg);
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-code);
   color: var(--text-color);
   /* Match text colors */
   border: 1px solid var(--card-border);
 }
 
-.rich-editor pre,
 .md-preview pre {
   background-color: var(--code-bg);
   padding: 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-code);
   overflow-x: auto;
   border: 1px solid var(--card-border);
 }
 
-.rich-editor pre {
-  margin-bottom: 8px;
-}
-
-.rich-editor pre code,
 .md-preview pre code {
   background-color: transparent;
   padding: 0;
@@ -369,32 +319,23 @@
 }
 
 /* Table styles */
-.md-preview table,
-.rich-editor table {
+.md-preview table {
   border-collapse: collapse;
   width: 100%;
   font-size: var(--fs-md);
 }
 
-.rich-editor table {
-  margin-bottom: 8px;
-}
-
 .md-preview th,
-.md-preview td,
-.rich-editor th,
-.rich-editor td {
+.md-preview td {
   border: 1px solid var(--card-border);
   padding: 6px 10px;
 }
 
-.md-preview thead tr,
-.rich-editor thead tr {
+.md-preview thead tr {
   background-color: var(--column-bg);
   font-weight: var(--fw-bold);
 }
 
-.md-preview tbody tr:nth-child(even),
-.rich-editor tbody tr:nth-child(even) {
+.md-preview tbody tr:nth-child(even) {
   background-color: var(--table-stripe-bg);
 }

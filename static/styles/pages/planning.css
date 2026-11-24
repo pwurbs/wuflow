@@ -75,7 +75,7 @@
   white-space: nowrap;
   padding: 2px 6px;
   background-color: color-mix(in srgb, var(--accent-blue) 10%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-chip);
   flex-shrink: 0;
 }
 
@@ -92,7 +92,7 @@
   opacity: 0.7;
   transition: opacity 0.2s;
   padding: 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,7 +135,7 @@
   padding: 8px 12px;
   background-color: var(--card-bg);
   border: 1px dashed var(--card-border);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
 }
 
 .planning-section-header {
