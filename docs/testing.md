@@ -7,6 +7,7 @@
 | **Unit (Backend)** | Go logic, APIs, Math | `go test` | Yes |
 | **Unit (Frontend)** | Frontend state logic, Utilities | `vitest` | Yes |
 | **Type Check (Frontend)** | Type errors in the TypeScript sources | `tsc` | No |
+| **Type Check (E2E)** | Type errors in the Playwright specs | `tsc` | No |
 | **End-to-End** | Essential User Journeys | `playwright` | No |
 | **Go Fuzzing** | Edge Cases, Input Validation | `go test -fuzz` | No |
 | **Race Detection (Go)** | Data races in backend tests | `go test -race` | No |
@@ -50,8 +51,10 @@ Any frontend module containing "decisions" (if/else, state transitions, data map
 
 All Unit tests are located in the [static/js](../static/js/README.md) directory.
 
-## Type Check (Frontend)
+## Type Check
 The TypeScript compiler checks the frontend sources and their tests (`npm run typecheck` in `static/js`). The build checks only the app sources. This suite also covers the tests and the build configs. Setup: [Frontend → Type Checking](frontend.md#type-checking).
+
+Playwright runs the E2E specs without checking their types, so the compiler checks them separately (`npm run typecheck` in `playwright`).
 
 
 ## End-to-End (E2E) Tests

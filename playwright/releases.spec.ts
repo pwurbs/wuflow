@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures';
+import type { Page } from './fixtures';
 import { createRelease, triggerRelease, navigateTo, waitForToast, openIssueByTitle, createIssueViaAPI } from './helpers/test-utils';
 
 // ─── Release Lifecycle ────────────────────────────────────────────────────────
@@ -486,7 +487,7 @@ test.describe('Request Efficiency', () => {
   });
 
   // Records which of the lazily loaded issue lists (open / archived) are requested.
-  function trackIssueLists(page) {
+  function trackIssueLists(page: Page) {
     const requested: string[] = [];
     page.on('request', req => {
       const m = /\/issues\/(open|archived)$/.exec(new URL(req.url()).pathname);

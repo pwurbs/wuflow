@@ -33,6 +33,12 @@ A run proceeds as follows:
 
 Set `SKIP_SETUP=1` to skip the cleanup of the global setup; the frontend build always runs.
 
+### Type Check
+Check the types in the `playwright` directory, or with the VS Code task **JS Typecheck** (frontend and specs):
+```bash
+npm run typecheck
+```
+
 ---
 
 ## Test Concept

@@ -1,24 +1,14 @@
 {
   "compilerOptions": {
-    "target": "es2016",
-    "lib": [
-      "es2016",
-      "dom",
-      "dom.iterable"
-    ],
-    "module": "commonjs",
+    "target": "ES2023",
+    "module": "ESNext",
     "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "isolatedModules": true,
     "strict": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "types": [
-      "node",
-      "playwright"
-    ]
+    "noEmit": true,
+    "skipLibCheck": true
   },
-  "include": [
-    "**/*.ts"
-  ]
+  "include": ["**/*.ts"]
 }

@@ -79,7 +79,7 @@
       "label": "JS Typecheck",
       "type": "shell",
       // tsc prints nothing when there are no errors
-      "command": "npm run typecheck && echo 'Typecheck passed: no type errors'",
+      "command": "npm run typecheck && npm --prefix ../../playwright run typecheck && echo 'Typecheck passed: no type errors'",
       "options": {
         "cwd": "${workspaceFolder}/static/js"
       },

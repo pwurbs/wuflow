@@ -7,7 +7,8 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "npx playwright test"
+    "test": "npx playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +16,7 @@
   "type": "commonjs",
   "devDependencies": {
     "@playwright/test": "^1.58.0",
-    "@types/node": "^24.13.3"
+    "@types/node": "^24.13.3",
+    "typescript": "^7.0.2"
   }
 }

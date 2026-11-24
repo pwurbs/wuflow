@@ -23,6 +23,7 @@ Run in order; if one fails, stop and report — do not scan:
 - `go test -coverprofile=backend/test-results/coverage.out ./backend/...`
 - `cd static/js && npm run test:coverage`
 - `cd static/js && npm run typecheck`
+- `cd playwright && npm run typecheck`
 - `./scripts/go_checks.sh` (writes the gosec report; findings make it exit 1 — report them, then
   ask whether to scan anyway)
 
