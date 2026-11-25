@@ -36,7 +36,7 @@ var defaultTrustedProxies = []netip.Prefix{
 	netip.MustParsePrefix("172.16.0.0/12"),  //NOSONAR - private range, not a host address
 	netip.MustParsePrefix("192.168.0.0/16"), //NOSONAR - private range, not a host address
 	netip.MustParsePrefix("::1/128"),
-	netip.MustParsePrefix("fc00::/7"),
+	netip.MustParsePrefix("fc00::/7"), //NOSONAR - private range, not a host address
 }
 
 // trustedProxies are the peers whose remoteIPHeader is used (see GetClientIP).
@@ -51,7 +51,7 @@ func init() {
 }
 
 // StartServer initializes the database, serves static files, and starts the HTTP server.
-func StartServer(version string, port string, dbPath string, initialAdminEmail string, initialAdminPassword string, secretKey string, embeddedFiles embed.FS) {
+func StartServer(version, port, dbPath, initialAdminEmail, initialAdminPassword, secretKey string, embeddedFiles embed.FS) {
 	if err := resolveServerConfig(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

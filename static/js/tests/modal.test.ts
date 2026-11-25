@@ -1135,6 +1135,21 @@ describe('Modal Component', () => {
       }), expect.any(String));
     });
 
+    it('should save a cleared deadline as null', async () => {
+      await openModalWithMock(makeIssue({ id: 1, deadline: '2025-12-31' }));
+
+      const input = byId('deadline', HTMLInputElement);
+      input.value = '';
+      input.dispatchEvent(new Event('change'));
+
+      await new Promise(process.nextTick);
+
+      expect(api.updateIssue).toHaveBeenCalledWith(1, expect.objectContaining({
+        id: 1,
+        deadline: null
+      }), expect.any(String));
+    });
+
     it('should refresh task deadline styles when issue deadline changes', async () => {
       const issue = makeIssue({ id: 1 });
       await openModalWithMock(issue);

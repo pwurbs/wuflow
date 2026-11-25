@@ -13,8 +13,17 @@ if ! command -v container >/dev/null 2>&1; then
     echo "The Apple container CLI is not installed (macOS only). Aborting." >&2
     exit 1
 fi
+system_started=false
+stop_started_system() {
+    if [ "$system_started" = true ]; then
+        echo "==> Stopping the container system service ..."
+        container system stop || echo "The container system service could not be stopped." >&2
+    fi
+}
+trap stop_started_system EXIT
 if ! container system status 2>/dev/null | grep -q '^status *running'; then
     echo "==> Starting the container system service ..."
+    system_started=true
     container system start
 fi
 

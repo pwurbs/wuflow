@@ -2348,43 +2348,49 @@ func TestHandleRefreshInternalError(t *testing.T) {
 		{"user lookup", "ALTER TABLE users RENAME COLUMN last_login TO gone"},
 		{"session update", "CREATE TRIGGER fail_update BEFORE UPDATE ON sessions BEGIN SELECT RAISE(ABORT, 'boom'); END"},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			session, token := refreshTestSession(t)
-			execTestSQL(t, tt.breakDB)
-			buf, restore := captureLogs(t)
-			defer restore()
-
-			rr := httptest.NewRecorder()
-			HandleRefresh(rr, refreshRequest(token))
-			if rr.Code != http.StatusInternalServerError {
-				t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
-			}
-			if cookies := rr.Result().Cookies(); len(cookies) != 0 {
-				t.Errorf("the session must stay usable, got cookies %v", cookies)
-			}
-			if body := strings.TrimSpace(rr.Body.String()); body != errMsgInternalServerError {
-				t.Errorf("want the generic message, got %q", body)
-			}
-
-			if tryRefreshSession(httptest.NewRecorder(), refreshRequest(token)) {
-				t.Error("a page load must not be authenticated")
-			}
-
-			entries := logEntries(t, buf)
-			if len(entries) != 2 || entries[0]["level"] != "ERROR" || entries[1]["level"] != "ERROR" {
-				t.Errorf("want one ERROR line per request, got %s", buf)
-			}
-			if strings.Contains(buf.String(), token) || strings.Contains(buf.String(), session.TokenHash) || strings.Contains(buf.String(), session.SessionToken) {
-				t.Error("the log must not contain the token")
-			}
-		})
+		t.Run(tt.name, func(t *testing.T) { checkRefreshInternalError(t, tt.breakDB) })
 	}
 }
+
+func checkRefreshInternalError(t *testing.T, breakDB string) {
+	t.Helper()
+	session, token := refreshTestSession(t)
+	execTestSQL(t, breakDB)
+	buf, restore := captureLogs(t)
+	defer restore()
+
+	rr := httptest.NewRecorder()
+	HandleRefresh(rr, refreshRequest(token))
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("the session must stay usable, got cookies %v", cookies)
+	}
+	if body := strings.TrimSpace(rr.Body.String()); body != errMsgInternalServerError {
+		t.Errorf("want the generic message, got %q", body)
+	}
+
+	if tryRefreshSession(httptest.NewRecorder(), refreshRequest(token)) {
+		t.Error("a page load must not be authenticated")
+	}
+
+	entries := logEntries(t, buf)
+	if len(entries) != 2 || entries[0]["level"] != "ERROR" || entries[1]["level"] != "ERROR" {
+		t.Errorf("want one ERROR line per request, got %s", buf)
+	}
+	if strings.Contains(buf.String(), token) || strings.Contains(buf.String(), session.TokenHash) || strings.Contains(buf.String(), session.SessionToken) {
+		t.Error("the log must not contain the token")
+	}
+}
+
+// prepareRefresh sets up a rejected refresh and returns the token to send.
+type prepareRefresh func(t *testing.T, session *Session, token string) string
 
 func TestHandleRefreshRejected(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
-		prepare func(t *testing.T, session *Session, token string) string // returns the token to send
+		prepare prepareRefresh
 	}{
 		{"token format", func(*testing.T, *Session, string) string { return "bad-token" }},
 		{"session not found", func(t *testing.T, _ *Session, token string) string {
@@ -2411,35 +2417,38 @@ func TestHandleRefreshRejected(t *testing.T) {
 			return token
 		}},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			session, token := refreshTestSession(t)
-			token = tt.prepare(t, session, token)
-			buf, restore := captureLogsAt(t, slog.LevelInfo)
-			defer restore()
+		t.Run(tt.name, func(t *testing.T) { checkRefreshRejected(t, tt.prepare) })
+	}
+}
 
-			// First the page load: it keeps the cookies and logs at INFO.
-			rr := httptest.NewRecorder()
-			if tryRefreshSession(rr, refreshRequest(token)) {
-				t.Error("a page load must not be authenticated")
-			}
-			if entries := logEntries(t, buf); len(entries) != 1 || entries[0]["level"] != "INFO" {
-				t.Errorf("want one INFO line, got %s", buf)
-			}
-			buf.Reset()
+func checkRefreshRejected(t *testing.T, prepare prepareRefresh) {
+	t.Helper()
+	session, token := refreshTestSession(t)
+	token = prepare(t, session, token)
+	buf, restore := captureLogsAt(t, slog.LevelInfo)
+	defer restore()
 
-			rr = httptest.NewRecorder()
-			HandleRefresh(rr, refreshRequest(token))
-			if rr.Code != http.StatusUnauthorized {
-				t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
-			}
-			cookies := rr.Result().Cookies()
-			if len(cookies) != 2 || cookies[0].MaxAge >= 0 || cookies[1].MaxAge >= 0 {
-				t.Errorf("want both cookies deleted, got %v", cookies)
-			}
-			if entries := logEntries(t, buf); len(entries) != 1 || entries[0]["level"] != "WARN" {
-				t.Errorf("want one WARN line, got %s", buf)
-			}
-		})
+	// First the page load: it keeps the cookies and logs at INFO.
+	rr := httptest.NewRecorder()
+	if tryRefreshSession(rr, refreshRequest(token)) {
+		t.Error("a page load must not be authenticated")
+	}
+	if entries := logEntries(t, buf); len(entries) != 1 || entries[0]["level"] != "INFO" {
+		t.Errorf("want one INFO line, got %s", buf)
+	}
+	buf.Reset()
+
+	rr = httptest.NewRecorder()
+	HandleRefresh(rr, refreshRequest(token))
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
+	}
+	cookies := rr.Result().Cookies()
+	if len(cookies) != 2 || cookies[0].MaxAge >= 0 || cookies[1].MaxAge >= 0 {
+		t.Errorf("want both cookies deleted, got %v", cookies)
+	}
+	if entries := logEntries(t, buf); len(entries) != 1 || entries[0]["level"] != "WARN" {
+		t.Errorf("want one WARN line, got %s", buf)
 	}
 }
 

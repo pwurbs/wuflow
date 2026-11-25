@@ -112,7 +112,7 @@ export async function createIssue(page: Page, data: IssueData): Promise<void> {
   // Set planned date(s)
   const datesToAdd = data.plannedDates || (data.plannedDate ? [data.plannedDate] : []);
   for (const dateStr of datesToAdd) {
-    await page.fill('#planned-date-picker', dateStr, { force: true });
+    await page.fill('#planned-date-picker', dateStr, { force: true }); //NOSONAR - one shared input, the fills must run one after another
   }
 
   // Select label if provided

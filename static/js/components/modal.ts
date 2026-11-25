@@ -1073,15 +1073,14 @@ function savePlannedDates(getChanges: (issue: Issue) => IssueChanges, successMes
   return markBusy(plannedDatesField(), () => saveIssueChanges(getChanges, successMessage));
 }
 
-async function handleDeadlineChange(rawValue: string) {
+async function handleDeadlineChange(deadline: CalendarDate | null) {
   if (!state.currentIssue) return;
-  const dateVal = rawValue || null;
-  if (!dateYearAccepted(dateVal, 'Deadline')) {
+  if (!dateYearAccepted(deadline, 'Deadline')) {
     setDeadlineInput(state.currentIssue);
     return;
   }
-  if (!(await saveSidebarField({ deadline: dateVal }, null, byId('deadline', HTMLInputElement)))) return;
-  const dlStatus = getDeadlineStatus({ deadline: dateVal, release: state.currentIssue.release });
+  if (!(await saveSidebarField({ deadline }, null, byId('deadline', HTMLInputElement)))) return;
+  const dlStatus = getDeadlineStatus({ deadline, release: state.currentIssue.release });
   byId('deadline-display').classList.toggle('overdue', dlStatus.late);
   const lateTaskCount = refreshTaskDeadlineStyles();
   const taskSuffix = lateTaskCount === 1 ? '' : 's';
@@ -1119,7 +1118,7 @@ function setupSidebarImmediateSave() {
     }
   });
 
-  deadlineInput.addEventListener('change', () => handleDeadlineChange(deadlineInput.value));
+  deadlineInput.addEventListener('change', () => handleDeadlineChange(deadlineInput.value || null));
   labelSelect.addEventListener('change', async () => {
     if (state.currentIssue) {
       const val = labelSelect.value;

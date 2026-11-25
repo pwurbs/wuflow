@@ -5,7 +5,7 @@ import type { IssueStatus } from './status-config.ts';
 import type { Role } from './permissions.ts';
 
 // A day without time or time zone, as YYYY-MM-DD (rules in docs/frontend.md, utils.ts).
-export type CalendarDate = string;
+export type CalendarDate = string; //NOSONAR - the name marks which strings are calendar dates
 
 export interface User {
   id: number;

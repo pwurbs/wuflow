@@ -282,7 +282,7 @@ var calendarDateColumns = []struct{ name, migrate, countUnreadable string }{
 // UTC date: right for midnight-UTC values and for the local noon the UI saved in UTC−12 to
 // UTC+12. A value date() cannot read is left as it is.
 //
-// TODO(calendar-dates): Remove with calendarDateColumns once upgrades from 1.5.0 or older are
+// NOSONAR - TODO(calendar-dates): Remove with calendarDateColumns once upgrades from 1.5.0 or older are
 // no longer supported.
 func migrateCalendarDates(ctx context.Context) error {
 	for _, c := range calendarDateColumns {
@@ -312,7 +312,7 @@ func migrateCalendarDates(ctx context.Context) error {
 // up to 1.5.0: an issue that keeps one cannot be saved. CASE, because SQLite may evaluate the
 // operands of AND in any order and json_each fails on unreadable JSON.
 //
-// TODO(calendar-dates): Remove with migrateCalendarDates.
+// NOSONAR - TODO(calendar-dates): Remove with migrateCalendarDates.
 func migratePlannedDates(ctx context.Context) error {
 	res, err := DB.ExecContext(ctx, `
 		UPDATE issues
@@ -505,7 +505,7 @@ func getTasksForIssues(ctx context.Context, issues []Issue) (map[int][]Task, err
 }
 
 // queryIssuesByProject executes query, scans the results, and attaches tasks.
-func queryIssuesByProject(ctx context.Context, caller string, query string, args ...any) ([]Issue, error) {
+func queryIssuesByProject(ctx context.Context, caller, query string, args ...any) ([]Issue, error) {
 	rows, err := DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", caller, err)

@@ -5,7 +5,8 @@
 # Usage: ./scripts/image_release.sh
 #
 # Prerequisites:
-#   - Apple container CLI installed (the script starts its system service if it is not running)
+#   - Apple container CLI installed (the script starts its system service if it is not running
+#     and stops it again when it exits)
 #   - A GitHub Personal Access Token with the `write:packages` scope, stored in the macOS
 #     keychain item `ghcr-push-token` (scripts/README.md)
 
@@ -27,8 +28,17 @@ if ! command -v container >/dev/null 2>&1; then
     echo "The Apple container CLI is not installed (macOS only). Aborting." >&2
     exit 1
 fi
+SYSTEM_STARTED=false
+stop_started_system() {
+    if [[ "${SYSTEM_STARTED}" == true ]]; then
+        echo "==> Stopping the container system service ..."
+        container system stop || echo "The container system service could not be stopped." >&2
+    fi
+}
+trap stop_started_system EXIT
 if ! container system status 2>/dev/null | grep -q '^status *running'; then
     echo "==> Starting the container system service ..."
+    SYSTEM_STARTED=true
     container system start
 fi
 
@@ -43,7 +53,7 @@ if [[ -z "${GHCR_TOKEN}" ]]; then
 fi
 
 # The login lasts only for the push: the trap logs out on every exit, also after a failed push.
-trap 'container registry logout "${REGISTRY}" >/dev/null 2>&1 || true' EXIT
+trap 'container registry logout "${REGISTRY}" >/dev/null 2>&1 || true; stop_started_system' EXIT
 echo "==> Logging in to ${REGISTRY} as ${GITHUB_USER} ..."
 printf '%s' "${GHCR_TOKEN}" | container registry login "${REGISTRY}" -u "${GITHUB_USER}" --password-stdin
 unset GHCR_TOKEN
