@@ -6,6 +6,7 @@ import * as utils from '../utils.ts';
 import * as permissions from '../permissions.ts';
 import { state } from '../state.ts';
 import { makeIssue, makeProject, makeUser } from './fixtures.ts';
+import { mountPage } from './page-markup.ts';
 import type { Project, User } from '../models.ts';
 
 // Helper to generate random pass
@@ -88,84 +89,14 @@ vi.mock('../components/toolbar.ts', () => ({
   updateProjectSelectorOptions: vi.fn(),
 }));
 
-// setupSystemSettingsView sets up the project and the user management, so every fixture has both.
-const PROJECT_SECTION = `
-  <div id="project-management-section">
-    <button id="add-project-btn"></button>
-    <div id="projects-list"></div>
-  </div>
-`;
-
-const PROJECT_MODAL = `
-  <div id="project-modal-overlay" class="hidden">
-    <h2 id="project-modal-title"></h2>
-    <form id="project-form">
-      <input type="text" id="project-name">
-      <textarea id="project-description"></textarea>
-      <div id="project-modal-error" class="hidden"></div>
-      <button type="button" id="project-modal-cancel"></button>
-      <button type="button" id="project-modal-delete" class="hidden"></button>
-      <button type="submit" id="project-modal-save"></button>
-    </form>
-  </div>
-`;
+// setupSystemSettingsView sets up the project and the user management, so every test needs both.
+function mountSettingsPage() {
+  mountPage('#system-settings-view', '#user-modal-overlay', '#project-modal-overlay', '#admin-confirm-modal', '#confirm-modal');
+}
 
 describe('system-settings.ts component', () => {
   beforeEach(() => {
-    // Setup DOM
-    document.body.innerHTML = `
-      ${PROJECT_MODAL}
-      <div id="system-settings-view">
-        <div class="settings-section">
-          <input type="text" id="new-label-input">
-          <button id="add-label-btn"></button>
-          <div id="labels-list"></div>
-        </div>
-        ${PROJECT_SECTION}
-        <div id="user-management-section">
-          <button id="add-user-btn"></button>
-          <div id="users-list"></div>
-        </div>
-      </div>
-
-      <!-- User Modal -->
-      <div id="user-modal-overlay" class="modal-overlay hidden">
-        <h2 id="user-modal-title"></h2>
-        <form id="user-form">
-          <input type="text" id="user-email">
-          <input type="text" id="user-first-name">
-          <input type="text" id="user-last-name">
-          <input type="password" id="user-password">
-          <small id="user-password-hint"></small>
-          <div id="user-role-dropdown">
-            <input type="hidden" id="user-role">
-            <button type="button" id="user-role-trigger">
-              <span id="user-role-text"></span>
-            </button>
-            <div id="user-role-options" class="hidden">
-              <div class="custom-option" data-value="user">User</div>
-              <div class="custom-option" data-value="admin">Admin</div>
-              <div class="custom-option" data-value="sysadmin">Sysadmin</div>
-            </div>
-          </div>
-          <input type="checkbox" id="user-active">
-          <div id="user-modal-error" class="hidden"></div>
-          <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
-          <button type="submit" id="user-modal-save"></button>
-        </form>
-      </div>
-
-      <!-- Admin Confirm Modal -->
-      <div id="admin-confirm-modal" class="hidden">
-        <form id="admin-confirm-form">
-          <input type="text" id="admin-confirm-username">
-          <input type="password" id="admin-confirm-password">
-          <div id="admin-confirm-error" class="hidden"></div>
-          <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-          <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
-        </form>
-      </div>
-    `;
+    mountSettingsPage();
 
     vi.clearAllMocks();
     // Default mock returns
@@ -291,8 +222,12 @@ describe('system-settings.ts component', () => {
   });
 
   describe('User Modal', () => {
-    it('should open modal for new user', () => {
+    it('should open modal for new user', async () => {
+      vi.mocked(api.fetchUsers).mockResolvedValue([makeUser()]);
       setupSystemSettingsView();
+      await renderSystemSettingsView();
+      bySelector(document, '.settings-entry').click(); // the modal is reused: shows "Edit User"
+      byId('user-modal-cancel').click();
       byId('add-user-btn').click();
 
       expect(byId('user-modal-overlay').classList.contains('hidden')).toBe(false);
@@ -514,59 +449,7 @@ describe('Password Policy', () => {
 describe('Additional Coverage', () => {
   describe('User Management Validation & Errors', () => {
     beforeEach(async () => {
-      // Re-initialize DOM specifically for these tests to guarantee elements exist
-      document.body.innerHTML = `
-        ${PROJECT_MODAL}
-        <div id="system-settings-view">
-          <div class="settings-section">
-            <input type="text" id="new-label-input">
-            <button id="add-label-btn"></button>
-            <div id="labels-list"></div>
-          </div>
-          ${PROJECT_SECTION}
-          <div id="user-management-section">
-            <button id="add-user-btn"></button>
-            <div id="users-list"></div>
-          </div>
-        </div>
-
-        <div id="user-modal-overlay" class="modal-overlay hidden">
-          <h2 id="user-modal-title"></h2>
-          <form id="user-form">
-            <input type="text" id="user-email">
-            <input type="text" id="user-first-name">
-            <input type="text" id="user-last-name">
-            <input type="password" id="user-password">
-            <small id="user-password-hint"></small>
-            <div id="user-role-dropdown">
-              <input type="hidden" id="user-role">
-              <button type="button" id="user-role-trigger">
-                <span id="user-role-text"></span>
-              </button>
-              <div id="user-role-options" class="hidden">
-                <div class="custom-option" data-value="user">User</div>
-                <div class="custom-option" data-value="admin">Admin</div>
-                <div class="custom-option" data-value="sysadmin">Sysadmin</div>
-              </div>
-            </div>
-            <input type="checkbox" id="user-active">
-            <div id="user-modal-error" class="hidden"></div>
-            <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
-            <button type="submit" id="user-modal-save"></button>
-          </form>
-        </div>
-
-        <!-- Admin Confirm Modal -->
-        <div id="admin-confirm-modal" class="hidden">
-          <form id="admin-confirm-form">
-            <input type="text" id="admin-confirm-username">
-            <input type="password" id="admin-confirm-password">
-            <div id="admin-confirm-error" class="hidden"></div>
-            <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-            <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
-          </form>
-        </div>
-      `;
+      mountSettingsPage();
       state.currentUser = makeUser({ id: 100, role: 'admin' });
       vi.mocked(api.fetchUsers).mockResolvedValue([]);
       vi.mocked(permissions.userCan).mockReturnValue(true);
@@ -655,60 +538,9 @@ describe('Additional Coverage', () => {
   });
 });
 
-const ADMIN_CONFIRM_MODAL = `
-  <div id="admin-confirm-modal" class="hidden">
-    <h2 id="admin-confirm-title"></h2>
-    <p id="admin-confirm-message"></p>
-    <form id="admin-confirm-form">
-      <input type="text" id="admin-confirm-username">
-      <input type="password" id="admin-confirm-password">
-      <div id="admin-confirm-error" class="hidden"></div>
-      <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-      <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
-    </form>
-  </div>
-`;
-
-const USER_MODAL = `
-  <div id="user-modal-overlay" class="modal-overlay hidden">
-    <h2 id="user-modal-title"></h2>
-    <form id="user-form">
-      <input type="text" id="user-email">
-      <input type="text" id="user-first-name">
-      <input type="text" id="user-last-name">
-      <input type="password" id="user-password">
-      <small id="user-password-hint"></small>
-      <div id="user-role-dropdown">
-        <input type="hidden" id="user-role">
-        <button type="button" id="user-role-trigger"><span id="user-role-text"></span></button>
-        <div id="user-role-options" class="hidden">
-          <div class="custom-option" data-value="user">User</div>
-          <div class="custom-option" data-value="admin">Admin</div>
-          <div class="custom-option" data-value="sysadmin">Sysadmin</div>
-        </div>
-      </div>
-      <input type="checkbox" id="user-active">
-      <div id="user-modal-error" class="hidden"></div>
-      <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
-      <button type="submit" id="user-modal-save"></button>
-    </form>
-  </div>
-`;
-
 describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   beforeEach(() => {
-    document.body.innerHTML = `
-      ${PROJECT_MODAL}
-      <div id="system-settings-view">
-        ${PROJECT_SECTION}
-        <div id="user-management-section">
-          <button id="add-user-btn"></button>
-          <div id="users-list"></div>
-        </div>
-      </div>
-      ${USER_MODAL}
-      ${ADMIN_CONFIRM_MODAL}
-    `;
+    mountSettingsPage();
     vi.clearAllMocks();
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
     vi.mocked(permissions.userCan).mockReturnValue(true);
@@ -871,6 +703,8 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
     await renderSystemSettingsView();
     bySelector(document, '.settings-entry').click();
 
+    expect(byId('user-active', HTMLInputElement).checked).toBe(false);
+
     // Reactivate (no password/role change)
     byId('user-active', HTMLInputElement).checked = true;
     byId('user-form').dispatchEvent(new Event('submit'));
@@ -1013,72 +847,9 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
   });
 });
 
-const PROJECT_DOM = `
-  <div id="system-settings-view">
-    <div class="settings-section">
-      <input type="text" id="new-label-input">
-      <button id="add-label-btn"></button>
-      <div id="labels-list"></div>
-    </div>
-    ${PROJECT_SECTION}
-    <div id="user-management-section">
-      <button id="add-user-btn"></button>
-      <div id="users-list"></div>
-    </div>
-  </div>
-
-  ${PROJECT_MODAL}
-
-  <!-- Confirm Modal -->
-  <div id="confirm-modal" class="hidden">
-    <h2 id="confirm-title"></h2>
-    <p id="confirm-message"></p>
-    <button id="confirm-ok-btn"></button>
-    <button id="confirm-cancel-btn"></button>
-  </div>
-
-  <!-- User Modal (required by setupUserModal) -->
-  <div id="user-modal-overlay" class="modal-overlay hidden">
-    <h2 id="user-modal-title"></h2>
-    <form id="user-form">
-      <input type="text" id="user-email">
-      <input type="text" id="user-first-name">
-      <input type="text" id="user-last-name">
-      <input type="password" id="user-password">
-      <small id="user-password-hint"></small>
-      <div id="user-role-dropdown">
-        <input type="hidden" id="user-role">
-        <button type="button" id="user-role-trigger"><span id="user-role-text"></span></button>
-        <div id="user-role-options" class="hidden">
-          <div class="custom-option" data-value="user">User</div>
-          <div class="custom-option" data-value="admin">Admin</div>
-          <div class="custom-option" data-value="sysadmin">Sysadmin</div>
-        </div>
-      </div>
-      <input type="checkbox" id="user-active">
-      <div id="user-modal-error" class="hidden"></div>
-      <button type="button" id="user-modal-delete" class="hidden"></button><button type="button" id="user-modal-cancel"></button>
-      <button type="submit" id="user-modal-save"></button>
-    </form>
-  </div>
-
-  <!-- Admin Confirm Modal (required by promptAdminPasswordConfirmation) -->
-  <div id="admin-confirm-modal" class="hidden">
-    <h2 id="admin-confirm-title"></h2>
-    <p id="admin-confirm-message"></p>
-    <form id="admin-confirm-form">
-      <input type="text" id="admin-confirm-username">
-      <input type="password" id="admin-confirm-password">
-      <div id="admin-confirm-error" class="hidden"></div>
-      <button type="button" id="admin-confirm-ok-btn">Confirm</button>
-      <button type="button" id="admin-confirm-cancel-btn">Cancel</button>
-    </form>
-  </div>
-`;
-
 describe('Project Management', () => {
   beforeEach(() => {
-    document.body.innerHTML = PROJECT_DOM;
+    mountSettingsPage();
     state.currentUser = makeUser({ id: 100, role: 'admin' });
     vi.clearAllMocks();
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
@@ -1090,7 +861,11 @@ describe('Project Management', () => {
   });
 
   describe('setupProjectModal', () => {
-    it('should open project modal for new project on add-project-btn click', () => {
+    it('should open project modal for new project on add-project-btn click', async () => {
+      vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 2 })]);
+      await renderSystemSettingsView();
+      bySelector(document, '.settings-entry').click(); // the modal is reused: shows "Edit Project"
+      byId('project-modal-cancel').click();
       byId('add-project-btn').click();
       expect(byId('project-modal-overlay').classList.contains('hidden')).toBe(false);
       expect(byId('project-modal-title').textContent).toBe('New Project');
@@ -1410,18 +1185,7 @@ describe('User deletion', () => {
   const target = makeUser({ id: 7, email: 'peter@test.com', first_name: 'Peter', last_name: 'Pan', role: 'user', active: true });
 
   beforeEach(() => {
-    document.body.innerHTML = `
-      ${PROJECT_MODAL}
-      <div id="system-settings-view">
-        ${PROJECT_SECTION}
-        <div id="user-management-section">
-          <button id="add-user-btn"></button>
-          <div id="users-list"></div>
-        </div>
-      </div>
-      ${USER_MODAL}
-      ${ADMIN_CONFIRM_MODAL}
-    `;
+    mountSettingsPage();
     vi.clearAllMocks();
     vi.mocked(permissions.userCan).mockReturnValue(true);
     vi.spyOn(console, 'error').mockImplementation(() => {});

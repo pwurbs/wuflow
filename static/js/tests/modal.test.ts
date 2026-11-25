@@ -12,6 +12,7 @@ import type { IssueWrite } from '../api.ts';
 
 type UpdateIssueResult = Awaited<ReturnType<typeof api.updateIssue>>;
 import { makeIssue, makeLabel, makeProject, makeRelease, makeStatusConfig, makeTask, makeUser, makeUserRef, savedIssue } from './fixtures.ts';
+import { mountPage } from './page-markup.ts';
 
 // Provide a localStorage stub for the jsdom environment used by vitest.
 const _localStore: Record<string, string> = {};
@@ -148,6 +149,16 @@ async function openModalWithMock(issue: Issue | null) {
   await Promise.resolve(); // lets the background revalidation start
 }
 
+// The modal element is reused: leaves it showing the values and buttons of another issue, so a
+// test sees whether opening the next one replaces them.
+async function openAndCloseOtherIssue() {
+  await openModalWithMock(makeIssue({
+    id: 99, title: 'Other', status: 'Stage2', priority: 'High', label: makeLabel({ id: 2, name: 'Feature' }),
+  }));
+  closeModal();
+  vi.clearAllMocks();
+}
+
 // A save of the open issue that the test answers by hand: answer(etag) lets the server answer
 // with the sent fields as the saved issue. It may be called before the save is sent.
 function answerByHand() {
@@ -172,138 +183,11 @@ function setScrollMetrics(el: Element, { scrollHeight, clientHeight, scrollTop }
 
 const rerenderViews = vi.fn();
 
-// The activity area, which setupModal wires through the real setupActivity.
-const ACTIVITY_FIXTURE = `
-  <div id="activity-section" class="hidden">
-    <button id="tab-comments"></button>
-    <button id="tab-history"></button>
-    <ul id="comment-list"></ul>
-    <ul id="history-list" class="hidden"></ul>
-    <div id="comment-form-container">
-      <div id="new-comment-editor">
-        <textarea id="new-comment-body"></textarea>
-        <div id="new-comment-actions" class="hidden">
-          <button id="cancel-comment-btn" type="button"></button>
-          <button id="add-comment-btn" type="button"></button>
-        </div>
-      </div>
-    </div>
-  </div>
-`;
-
-// The issue modal and the page parts setupModal wires.
-const MODAL_FIXTURE = `
-      <div id="notification-toast" class="notification-toast hidden"></div>
-      ${ACTIVITY_FIXTURE}
-      <div id="issue-modal" class="hidden">
-        <div class="modal-content">
-          <h2 id="modal-title"></h2>
-          <form id="issue-form">
-            <input id="issue-id" type="hidden">
-            <div class="title-input-container">
-              <input id="title" type="text" value="">
-            </div>
-            <div class="editor-container">
-              <div class="md-editor-panes">
-                <textarea id="description-editor"></textarea>
-                <div id="description-preview" class="hidden"></div>
-              </div>
-              <div id="description-edit-actions" class="hidden">
-                <button id="desc-cancel-btn" type="button"></button>
-                <button id="desc-save-btn" type="button"></button>
-              </div>
-            </div>
-            <div class="form-group"><div id="planned-dates-container"></div></div>
-            <span id="deadline-display"></span>
-            <input id="deadline" type="date" class="custom-date-input">
-
-            <!-- Custom Dropdowns -->
-            <div class="form-group">
-              <div id="status-dropdown">
-                <div id="status-trigger" class="custom-select-trigger"><span id="status-text"></span></div>
-                <div id="status-options" class="custom-select-options hidden"></div>
-                <input type="hidden" id="status">
-              </div>
-            </div>
-            <div class="form-group">
-              <div id="priority-dropdown">
-                <div id="priority-trigger" class="custom-select-trigger"><span id="priority-text"></span></div>
-                <div id="priority-options" class="custom-select-options hidden"></div>
-                <input type="hidden" id="priority">
-              </div>
-            </div>
-            <div id="label-dropdown">
-              <div id="label-trigger" class="custom-select-trigger"><span id="label-text"></span></div>
-              <div id="label-options" class="custom-select-options hidden"></div>
-              <input type="hidden" id="label-select">
-            </div>
-            <div id="assignee-dropdown">
-              <div id="assignee-trigger" class="custom-select-trigger"><span id="assignee-text"></span></div>
-              <div id="assignee-options" class="custom-select-options hidden"></div>
-              <input type="hidden" id="assignee-select">
-            </div>
-            <div id="project-dropdown">
-              <button type="button" id="project-trigger" class="custom-select-trigger"><span id="project-text"></span></button>
-              <div id="project-options" class="custom-select-options hidden"></div>
-              <input type="hidden" id="project-select" value="1">
-            </div>
-            <div id="release-dropdown">
-              <div id="release-trigger" class="custom-select-trigger"><span id="release-text"></span></div>
-              <div id="release-options" class="custom-select-options hidden"></div>
-              <input type="hidden" id="release-select">
-            </div>
-
-            <div class="modal-main-scroll">
-              <div id="tasks-section">
-                <div id="task-form-container">
-                  <div class="input-group">
-                    <input id="new-task-title" type="text">
-                    <input id="new-task-deadline" type="date">
-                    <button id="add-task-btn" type="button"></button>
-                  </div>
-                </div>
-                <ul id="task-list"></ul>
-              </div>
-            </div>
-            <button type="button" class="scroll-cue scroll-cue-down"></button>
-            <button type="button" class="scroll-cue scroll-cue-up"></button>
-
-            <button id="delete-issue-btn" type="button"></button>
-            <button id="archive-issue-btn" type="button"></button>
-            <button id="unarchive-issue-btn" type="button"></button>
-
-            <button id="cancel-btn" type="button"></button>
-            <button id="save-issue-btn" type="submit"></button>
-            <button id="done-btn" type="button"></button>
-
-            <!-- Editor toolbar btns for setup -->
-            <button class="editor-btn" data-md="bold" data-prefix="**" data-suffix="**"></button>
-            <button class="editor-btn" data-md="italic" data-prefix="*" data-suffix="*"></button>
-            <button class="editor-btn" data-md="strike" data-prefix="~~" data-suffix="~~"></button>
-            <button class="editor-btn" data-md="h1"></button>
-            <button class="editor-btn" data-md="h2"></button>
-            <button class="editor-btn" data-md="ul"></button>
-            <button class="editor-btn" data-md="ol"></button>
-            <button class="editor-btn" data-md="link"></button>
-            <button class="editor-btn" data-md="code"></button>
-            <button class="editor-btn" data-md="table"></button>
-            <button id="md-preview-toggle" class="editor-btn">Preview</button>
-          </form>
-        </div>
-      </div>
-
-      <!-- Left nav for active state check -->
-      <div class="left-menu">
-        <div id="add-issue-btn" class="menu-btn"></div>
-        <div id="nav-board" class="menu-btn"></div>
-      </div>
-`;
-
 const SELECTED_PROJECT_CONFIG = makeStatusConfig({ project_id: 1, stage1_name: 'Pending', stage2_name: 'Working' });
 
-// Sets up the modal on MODAL_FIXTURE with the default API answers and an empty state.
+// Sets up the modal with the default API answers and an empty state.
 function setupModalFixture(rerender = vi.fn()) {
-  document.body.innerHTML = MODAL_FIXTURE;
+  mountPage('#issue-modal', '#notification-toast', '.left-menu');
 
   vi.mocked(api.fetchLabelsByProject).mockResolvedValue([makeLabel({ id: 1, name: 'Bug' }), makeLabel({ id: 2, name: 'Feature' })]);
   vi.mocked(api.fetchUsers).mockResolvedValue([makeUser({ id: 1, first_name: 'Test', last_name: 'User', active: true })]);
@@ -325,6 +209,7 @@ function setupModalFixture(rerender = vi.fn()) {
   localStorage.removeItem('wuflow_selectedProjectId');
 
   HTMLElement.prototype.scrollIntoView = vi.fn();
+  HTMLElement.prototype.scrollTo = vi.fn();
   HTMLInputElement.prototype.reportValidity = vi.fn();
   vi.spyOn(console, "error").mockImplementation(() => { });
 
@@ -340,6 +225,7 @@ describe('Modal Component', () => {
     setupModalFixture(rerenderViews);
   });
   it('should open modal for new issue', async () => {
+    await openAndCloseOtherIssue();
     openModal(null);
     expect(byId('issue-modal').classList.contains('hidden')).toBe(false);
     expect(byId('modal-title').textContent).toBe('New Issue');
@@ -837,6 +723,7 @@ describe('Modal Component', () => {
     });
 
     it('should render modal dropdowns with defaults for new issue', async () => {
+      await openAndCloseOtherIssue();
       openModal(null);
 
       await new Promise(process.nextTick);
@@ -949,11 +836,14 @@ describe('Modal Component', () => {
       expect(descContainer.getAttribute('aria-disabled')).toBe('true');
 
       // Dates and dropdowns are inactive
-      expect(byId('deadline').getAttribute('aria-disabled')).toBe('true');
+      for (const id of ['deadline', 'planned-dates-container']) {
+        expect(byId(id).closest('.custom-date-input')?.getAttribute('aria-disabled')).toBe('true');
+      }
       document.querySelectorAll<HTMLButtonElement>('.custom-select-trigger').forEach(trigger => expect(trigger.disabled).toBe(true));
     });
 
-    it('should setup new modal with correct button visibility', () => {
+    it('should setup new modal with correct button visibility', async () => {
+      await openAndCloseOtherIssue();
       openModal(null);
 
       expect(byId('modal-title').textContent).toBe('New Issue');
@@ -999,6 +889,7 @@ describe('Modal Component', () => {
         tasks: []
       });
 
+      await openAndCloseOtherIssue();
       await openModalWithMock(issue);
 
       expect(byId('label-select', HTMLInputElement).value).toBe('');
@@ -2998,7 +2889,9 @@ describe('Modal Component', () => {
       closeModal();
       await openModalWithMock(makeIssue({ id: 2, title: 'B', status: 'Done' }));
 
-      expect(byId('deadline').hasAttribute('aria-disabled')).toBe(false);
+      for (const id of ['deadline', 'planned-dates-container']) {
+        expect(byId(id).closest('.custom-date-input')?.hasAttribute('aria-disabled')).toBe(false);
+      }
       document.querySelectorAll<HTMLButtonElement>('.custom-select-trigger').forEach(trigger => expect(trigger.disabled).toBe(false));
       expect(byId('title').classList.contains('read-only-text')).toBe(false);
       expect(byId('title').hasAttribute('aria-disabled')).toBe(false);
@@ -3274,6 +3167,7 @@ describe('Project Selector Coverage', () => {
   });
 
   it('should not update project-text when project_id is not found in fetched projects (line 198 branch false)', async () => {
+    byId('project-text').textContent = 'Other project';
     const issue = makeIssue({ id: 1, title: 'Test', project_id: 99 });
     vi.mocked(api.fetchIssueById).mockResolvedValue({ issue, etag: '"etag"' });
     vi.mocked(api.fetchProjects).mockResolvedValue([makeProject({ id: 1, name: 'Default' })]);
@@ -3581,11 +3475,7 @@ describe('Issue dialog dropdowns: sort order', () => {
   const texts = (id: string) => [...document.querySelectorAll<HTMLElement>(`#${id} .custom-option`)].map(o => o.textContent);
 
   beforeEach(() => {
-    document.body.innerHTML = ['label', 'project', 'assignee', 'release'].map(n => `
-      <span id="${n}-text"></span>
-      <div id="${n}-options" class="custom-select-options hidden"></div>
-      <input type="hidden" id="${n}-select">
-    `).join('');
+    mountPage('.modal-sidebar');
     state.currentUser = makeUser({ id: 1, first_name: 'Me', last_name: 'User' });
   });
 
@@ -3614,11 +3504,6 @@ describe('Issue dialog dropdowns: sort order', () => {
   });
 
   it('gives the fixed entries and the priorities their text as tooltip', () => {
-    document.body.insertAdjacentHTML('beforeend', `
-      <span id="priority-text"></span>
-      <div id="priority-options" class="custom-select-options hidden"></div>
-      <input type="hidden" id="priority">
-    `);
     renderLabelOptions([]);
     renderReleaseOptions([], null);
     renderAssigneeOptions([]);
@@ -3634,15 +3519,7 @@ describe('Issue dialog dropdowns: sort order', () => {
 
 describe('renderReleaseOptions', () => {
   beforeEach(() => {
-    document.body.innerHTML = `
-      <div id="release-dropdown">
-        <div id="release-trigger" class="custom-select-trigger">
-          <span id="release-text">No Release</span>
-        </div>
-        <div id="release-options" class="custom-select-options hidden"></div>
-        <input type="hidden" id="release-select">
-      </div>
-    `;
+    mountPage('.modal-sidebar');
   });
 
   it('always renders a "No Release" option', () => {
