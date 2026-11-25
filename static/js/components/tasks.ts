@@ -4,10 +4,10 @@ import { updateTask, deleteTask } from '../api.ts'; // Ensure createTask is impo
 import { setDraggedTask } from '../drag.ts';
 import { userCan, ACTION_UPDATE_TASK, ACTION_DELETE_TASK } from '../permissions.ts';
 import { state } from '../state.ts';
-import type { Issue, Task } from '../models.ts';
+import type { CalendarDate, Issue, Task } from '../models.ts';
 
 // Calendar icon plus the short date; without a deadline the icon alone opens the date picker.
-function taskDeadlineHTML(deadline: string | null) {
+function taskDeadlineHTML(deadline: CalendarDate | null) {
   const date = deadline ? formatISODate(deadline, { month: 'short', day: 'numeric' }) : '';
   return `<span class="icon-calendar" aria-hidden="true"></span>${date}`;
 }

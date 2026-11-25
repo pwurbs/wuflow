@@ -102,8 +102,6 @@ describe('system-settings.ts component', () => {
     // Default mock returns
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
     vi.mocked(permissions.userCan).mockReturnValue(true);
-    // Suppress console.error in tests
-    vi.spyOn(console, 'error').mockImplementation(() => { });
   });
 
   describe('User Management Rendering', () => {
@@ -544,7 +542,6 @@ describe('Admin Confirm Modal (promptAdminPasswordConfirmation)', () => {
     vi.clearAllMocks();
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
     vi.mocked(permissions.userCan).mockReturnValue(true);
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     state.currentUser = makeUser({ id: 99, role: 'sysadmin' });
     setupSystemSettingsView();
   });
@@ -855,7 +852,6 @@ describe('Project Management', () => {
     vi.mocked(api.fetchUsers).mockResolvedValue([]);
     vi.mocked(api.fetchProjects).mockResolvedValue([]);
     vi.mocked(permissions.userCan).mockReturnValue(true);
-    vi.spyOn(console, 'error').mockImplementation(() => { });
 
     setupSystemSettingsView();
   });
@@ -1188,7 +1184,6 @@ describe('User deletion', () => {
     mountSettingsPage();
     vi.clearAllMocks();
     vi.mocked(permissions.userCan).mockReturnValue(true);
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     state.currentUser = makeUser({ id: 99, role: 'sysadmin' });
     setupSystemSettingsView();
   });

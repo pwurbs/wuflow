@@ -10,7 +10,7 @@ import { MIN_DATE_YEAR, MAX_DATE_YEAR } from './validation-config.ts';
 // entered (a typo such as 0202). An empty date is accepted.
 export function dateYearAccepted(iso: CalendarDate | null, field: string) {
   if (!iso) return true;
-  const year = Number.parseInt(iso.slice(0, iso.indexOf('-')));
+  const year = Number.parseInt(iso);
   if (year >= MIN_DATE_YEAR && year <= MAX_DATE_YEAR) return true;
   showNotification(`${field} year must be between ${MIN_DATE_YEAR} and ${MAX_DATE_YEAR}.`, 'error');
   return false;

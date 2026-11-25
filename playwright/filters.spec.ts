@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { test, expect } from './fixtures';
-import { createIssue, createRelease, navigateTo, selectAssignee, selectStatus, openIssueByTitle, localISODate } from './helpers/test-utils';
+import { createIssue, createRelease, navigateTo, selectAssignee, selectStatus, openIssueByTitle, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Filtering and Search', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -314,8 +314,7 @@ test.describe('Planning Panel Filtering', () => {
   });
 
   test('filters planned issues by text', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     await createIssue(page, { title: 'Plan Key', status: 'Todo', plannedDate: dateStr });
     await createIssue(page, { title: 'Plan Hidden', status: 'Todo', plannedDate: dateStr });
@@ -331,8 +330,7 @@ test.describe('Planning Panel Filtering', () => {
   });
 
   test('filters planned issues by priority', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     await createIssue(page, { title: 'Plan High', status: 'Todo', priority: 'High', plannedDate: dateStr });
     await createIssue(page, { title: 'Plan Normal', status: 'Todo', priority: 'Normal', plannedDate: dateStr });
@@ -348,8 +346,7 @@ test.describe('Planning Panel Filtering', () => {
   });
 
   test('filters planned issues by label', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     // Create label
     await navigateTo(page, 'project-settings');

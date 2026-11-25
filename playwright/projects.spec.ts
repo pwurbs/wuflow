@@ -7,6 +7,9 @@ import {
   createIssueViaAPI,
   createReleaseViaAPI,
   createLabelViaAPI,
+  setStatusConfigViaAPI,
+  switchProject,
+  waitForRender,
 } from './helpers/test-utils';
 
 test.describe('Project Management', () => {
@@ -266,7 +269,7 @@ test.describe('Project switch while data is loading', () => {
       const id = await createProjectViaAPI(page.request, name);
       await createLabelViaAPI(page.request, id, `label-${prefix}`);
       const release = await createReleaseViaAPI(page.request, id, `release-${prefix}`);
-      expect((await page.request.put(`/api/projects/${id}/statusconfig`, { data: config })).status()).toBe(200);
+      await setStatusConfigViaAPI(page.request, id, config);
       return { project: { id, name }, release };
     };
     const createdA = await create('a', CONFIG_A);
@@ -303,18 +306,13 @@ test.describe('Project switch while data is loading', () => {
       released = true;
       open();
       await Promise.all(answers);
-      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await waitForRender(page);
     };
     return { answer, held: () => answers.length };
   }
 
   async function hold(page: Page, projectId: number) {
     return (await holdAnswers(page, new RegExp(`/api/projects/${projectId}/(labels|releases|statusconfig)$`))).answer;
-  }
-
-  async function switchTo(page: Page, project: { name: string }) {
-    await page.click('#project-selector-btn');
-    await page.locator('#project-selector-options .custom-option', { hasText: project.name }).click();
   }
 
   async function expectBoardOfB(page: Page) {
@@ -335,7 +333,7 @@ test.describe('Project switch while data is loading', () => {
   test('a refresh of the previous project that finishes last is ignored', async ({ page }) => {
     const answerA = await hold(page, a.id);
     await navigateTo(page, 'board');
-    await switchTo(page, b);
+    await switchProject(page, b);
     await expectBoardOfB(page);
 
     await answerA();
@@ -352,7 +350,7 @@ test.describe('Project switch while data is loading', () => {
   test('Project Settings keep the selected project\'s columns when the previous refresh finishes last', async ({ page }) => {
     const answerA = await hold(page, a.id);
     await navigateTo(page, 'board');
-    await switchTo(page, b);
+    await switchProject(page, b);
     await expectBoardOfB(page);
     await navigateTo(page, 'project-settings');
     await expect(columnNames(page).first()).toHaveValue('B-One');
@@ -366,7 +364,7 @@ test.describe('Project switch while data is loading', () => {
     const answerA = await hold(page, a.id);
     const answerB = await hold(page, b.id);
     await navigateTo(page, 'board');
-    await switchTo(page, b);
+    await switchProject(page, b);
     await answerA();
 
     await page.click('#add-issue-btn');
@@ -381,7 +379,7 @@ test.describe('Project switch while data is loading', () => {
 
   test('Project Settings show no column form until the selected project\'s names have arrived', async ({ page }) => {
     const answerB = await hold(page, b.id);
-    await switchTo(page, b);
+    await switchProject(page, b);
     await navigateTo(page, 'project-settings');
     await expect(page.locator('#ps-status-config-content')).toHaveText('Column names are not loaded.');
     await expect(page.locator('#ps-save-status-config-btn')).toHaveCount(0);
@@ -393,7 +391,7 @@ test.describe('Project switch while data is loading', () => {
 
   test('Project Settings show no column form when the names cannot be loaded', async ({ page }) => {
     await page.route(new RegExp(`/api/projects/${b.id}/statusconfig$`), route => route.fulfill({ status: 500, body: 'Internal server error' }));
-    await switchTo(page, b);
+    await switchProject(page, b);
     await expect(page.locator('#label-filter-options .custom-option')).toHaveText(['No Label', 'label-b']);
     await navigateTo(page, 'project-settings');
     await expect(page.locator('#ps-labels-list .label-name')).toHaveText(['label-b']);
@@ -405,7 +403,7 @@ test.describe('Project switch while data is loading', () => {
     await navigateTo(page, 'project-settings');
     await expect(columnNames(page).first()).toHaveValue('A-One');
     const answerB = await hold(page, b.id);
-    await switchTo(page, b);
+    await switchProject(page, b);
 
     await columnNames(page).first().fill('Changed');
     await page.click('#ps-save-status-config-btn');
@@ -438,11 +436,11 @@ test.describe('Project switch while data is loading', () => {
     await page.locator('.card', { hasText: 'With release' }).click();
     await expect(page.locator('#release-select')).toHaveValue(String(releaseA));
     await page.click('#done-btn');
-    await switchTo(page, b);
+    await switchProject(page, b);
     await expectBoardOfB(page);
 
     const answerA = await hold(page, a.id);
-    await switchTo(page, a);
+    await switchProject(page, a);
     await page.click('#add-issue-btn');
     await expect(page.locator('#release-trigger')).toBeDisabled();
     await page.fill('#title', 'Without release');

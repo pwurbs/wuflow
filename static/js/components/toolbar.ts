@@ -215,11 +215,9 @@ export function updateProjectSelectorOptions(projects: Project[]) {
 
   optionsDiv.innerHTML = '';
 
-  if (state.selectedProjectId === null && projects.length > 0) {
-    selectProject(projects[0].id);
-    if (_onProjectChange) _onProjectChange();
-  } else if (state.selectedProjectId !== null && !projects.some(p => p.id === state.selectedProjectId)) {
-    selectProject(projects.length > 0 ? projects[0].id : null);
+  const fallback = projects.length > 0 ? projects[0].id : null;
+  if (state.selectedProjectId !== fallback && !projects.some(p => p.id === state.selectedProjectId)) {
+    selectProject(fallback);
     if (_onProjectChange) _onProjectChange();
   }
 

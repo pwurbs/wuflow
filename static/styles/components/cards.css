@@ -47,15 +47,6 @@ body:not(.is-dragging) .card.is-archived:hover {
   font-weight: var(--fw-regular);
 }
 
-.card-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--fs-sm);
-  color: var(--muted-text);
-  margin-top: 8px;
-}
-
 /* Task Deadlines - Keeping consistent with original override */
 .task-deadline {
   font-size: var(--fs-xs);

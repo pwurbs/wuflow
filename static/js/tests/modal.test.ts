@@ -211,7 +211,6 @@ function setupModalFixture(rerender = vi.fn()) {
   HTMLElement.prototype.scrollIntoView = vi.fn();
   HTMLElement.prototype.scrollTo = vi.fn();
   HTMLInputElement.prototype.reportValidity = vi.fn();
-  vi.spyOn(console, "error").mockImplementation(() => { });
 
   setupModal(vi.fn(), rerender);
   // modal.ts keeps the open issue and editors in module state; start every test with the

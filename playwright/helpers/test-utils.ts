@@ -18,7 +18,7 @@ export interface IssueData {
 // YYYY-MM-DD of the local day d falls on. Tests and browser share the time zone (except where
 // a test sets timezoneId), so this is the day the app shows. Never use toISOString(): it gives
 // the UTC day, which differs from the local one around midnight.
-export function localISODate(d: Date): string {
+function localISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -188,6 +188,17 @@ export async function navigateTo(page: Page, view: 'my-work' | 'board' | 'backlo
   await page.click(`#nav-${view}`);
 }
 
+/** Switches the project in the toolbar. */
+export async function switchProject(page: Page, project: { name: string }): Promise<void> {
+  await page.click('#project-selector-btn');
+  await page.locator('#project-selector-options .custom-option', { hasText: project.name }).click();
+}
+
+/** Waits until the page has rendered, for a change that must not show and so cannot be waited for. */
+export async function waitForRender(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
 export interface ReleaseData {
   name: string;
   description?: string;
@@ -248,6 +259,19 @@ export async function deleteProjectViaAPI(request: APIRequestContext, name: stri
   const project = projects.find(p => p.name === name);
   if (!project) throw new Error(`Project ${name} not found`);
   const res = await request.delete(`/api/projects/${project.id}`, { data: { admin_password: adminPassword } });
+  expect(res.status()).toBe(200);
+}
+
+export interface StatusNames {
+  stage1_name: string;
+  stage2_name: string;
+  stage3_name: string;
+  stage4_name: string;
+}
+
+/** Sets the column names of the given project via API. */
+export async function setStatusConfigViaAPI(request: APIRequestContext, projectId: number, names: StatusNames): Promise<void> {
+  const res = await request.put(`/api/projects/${projectId}/statusconfig`, { data: names });
   expect(res.status()).toBe(200);
 }
 

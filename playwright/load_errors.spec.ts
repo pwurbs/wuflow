@@ -2,8 +2,8 @@
 // text stay as they were, and a save that worked is never reported as failed.
 
 import { test, expect } from './fixtures';
-import type { Page } from './fixtures';
-import { createIssueViaAPI, createLabelViaAPI, createProjectViaAPI, createReleaseViaAPI, navigateTo, waitForToast } from './helpers/test-utils';
+import type { Page, Route } from './fixtures';
+import { createIssueViaAPI, createLabelViaAPI, createProjectViaAPI, createRelease, createReleaseViaAPI, deleteProjectViaAPI, navigateTo, selectPriority, setStatusConfigViaAPI, switchProject, waitForRender, waitForToast } from './helpers/test-utils';
 
 const FAILURES = [
   { name: 'server error', reason: 'Internal server error', mode: '500' },
@@ -18,10 +18,14 @@ let a: { id: number; name: string };
 let b: { id: number; name: string };
 let pageErrors: string[];
 
+function failRoute(route: Route, mode: Mode) {
+  return mode === '500' ? route.fulfill({ status: 500, body: 'Internal server error' }) : route.abort('failed');
+}
+
 async function failGet(page: Page, url: RegExp, mode: Mode) {
   await page.route(url, route => {
     if (route.request().method() !== 'GET') return route.fallback();
-    return mode === '500' ? route.fulfill({ status: 500, body: 'Internal server error' }) : route.abort('failed');
+    return failRoute(route, mode);
   });
 }
 
@@ -33,11 +37,6 @@ const columns = (page: Page) => page.locator('.board-columns .column-header h2')
 const toast = (page: Page) => page.locator('#notification-toast');
 const selectedProject = (page: Page) => page.locator('#project-selector-text');
 const storedProject = (page: Page) => page.evaluate(() => localStorage.getItem('wuflow_selectedProjectId'));
-
-async function switchTo(page: Page, project: { name: string }) {
-  await page.click('#project-selector-btn');
-  await page.locator('#project-selector-options .custom-option', { hasText: project.name }).click();
-}
 
 // A re-render from the loaded data, without requests.
 async function rerender(page: Page) {
@@ -61,8 +60,8 @@ test.beforeEach(async ({ page, login }) => {
   const stamp = `${Date.now()}`.slice(-8);
   a = { id: await createProjectViaAPI(page.request, `a${stamp}`), name: `a${stamp}` };
   b = { id: await createProjectViaAPI(page.request, `b${stamp}`), name: `b${stamp}` };
-  await page.request.put(`/api/projects/${a.id}/statusconfig`, { data: { stage1_name: 'A-One', stage2_name: '', stage3_name: 'A-Three', stage4_name: '' } });
-  await page.request.put(`/api/projects/${b.id}/statusconfig`, { data: { stage1_name: 'B-One', stage2_name: '', stage3_name: '', stage4_name: '' } });
+  await setStatusConfigViaAPI(page.request, a.id, { stage1_name: 'A-One', stage2_name: '', stage3_name: 'A-Three', stage4_name: '' });
+  await setStatusConfigViaAPI(page.request, b.id, { stage1_name: 'B-One', stage2_name: '', stage3_name: '', stage4_name: '' });
   await createIssueViaAPI(page.request, a.id, 'Issue in A', { status: 'Todo' });
   await createIssueViaAPI(page.request, a.id, 'Issue in column 3', { status: 'Stage3' });
   await createIssueViaAPI(page.request, a.id, 'Issue open', { status: 'Open' });
@@ -97,14 +96,14 @@ for (const { name, reason, mode } of FAILURES) {
 
     test('a failed project switch returns to the project shown', async ({ page }) => {
       await failGet(page, new RegExp(`/projects/${b.id}/labels$`), mode);
-      await switchTo(page, b);
+      await switchProject(page, b);
       await waitForToast(page, `Project data could not be loaded: ${reason}`);
       await expectBoardOfA(page);
       await rerender(page);
       await expectBoardOfA(page);
 
       await recover(page);
-      await switchTo(page, b);
+      await switchProject(page, b);
       await expect(columns(page)).toHaveText(['Todo', 'B-One', 'Done']);
       await expect(cards(page)).toHaveText([/Issue in B/]);
     });
@@ -147,7 +146,7 @@ for (const { name, reason, mode } of FAILURES) {
 
       await recover(page);
       await navigateTo(page, 'board');
-      await switchTo(page, b);
+      await switchProject(page, b);
       await expect(cards(page)).toHaveText([/Issue in B/]);
       await failGet(page, /\/issues\/open$/, mode);
       await navigateTo(page, 'backlog');
@@ -162,7 +161,7 @@ for (const { name, reason, mode } of FAILURES) {
       await page.route(ISSUE, async route => {
         if (route.request().method() !== 'GET') return route.fallback();
         await held;
-        return mode === '500' ? route.fulfill({ status: 500, body: 'Internal server error' }) : route.abort('failed');
+        return failRoute(route, mode);
       });
       await cards(page).filter({ hasText: 'Issue in A' }).click();
       await page.click('#description-preview');
@@ -191,10 +190,9 @@ for (const { name, reason, mode } of FAILURES) {
       await checked;
       await page.route(ISSUE, route => {
         if (route.request().method() === 'PUT') return route.fulfill({ status: 409, body: 'conflict' });
-        return mode === '500' ? route.fulfill({ status: 500, body: 'Internal server error' }) : route.abort('failed');
+        return failRoute(route, mode);
       });
-      await page.click('#priority-trigger');
-      await page.click('#priority-options .custom-option:has-text("High")');
+      await selectPriority(page, 'High');
       await page.click('#confirm-ok-btn'); // Reload
       await waitForToast(page, reason);
       await expect(page.locator('#issue-modal')).toBeVisible();
@@ -205,11 +203,8 @@ for (const { name, reason, mode } of FAILURES) {
     test('release', async ({ page }) => {
       await navigateTo(page, 'releases');
       await failGet(page, /\/releases$/, mode);
-      await page.click('.release-add-btn');
-      await page.fill('#release-modal-name', 'New release');
-      await page.click('#release-modal-save');
+      await createRelease(page, { name: 'New release' });
       await waitForToast(page, `Release created, but the releases could not be loaded: ${reason}`);
-      await expect(page.locator('#release-modal-overlay')).toBeHidden();
     });
 
     test('label created and deleted', async ({ page, workerServer }) => {
@@ -220,7 +215,7 @@ for (const { name, reason, mode } of FAILURES) {
       await page.route(/\/labels(\/\d+)?$/, route => {
         if (route.request().method() !== 'GET') { failing = true; return route.fallback(); }
         if (!failing) return route.fallback();
-        return mode === '500' ? route.fulfill({ status: 500, body: 'Internal server error' }) : route.abort('failed');
+        return failRoute(route, mode);
       });
       await page.fill('#ps-new-label-input', 'new');
       await page.press('#ps-new-label-input', 'Enter');
@@ -244,10 +239,8 @@ for (const { name, reason, mode } of FAILURES) {
       await page.fill('#new-comment-body', 'A comment');
       await page.click('#add-comment-btn');
       await waitForToast(page, `Comment added, but the comments could not be loaded: ${reason}`);
-      await expect(toast(page)).toBeHidden({ timeout: 7000 });
 
-      await page.click('#priority-trigger');
-      await page.click('#priority-options .custom-option:has-text("High")');
+      await selectPriority(page, 'High');
       await waitForToast(page, `History could not be loaded: ${reason}`);
       await expect(page.locator('#priority-text')).toHaveText('High');
     });
@@ -277,11 +270,11 @@ test('a refresh that was superseded does not report its failure', async ({ page 
     await route.fulfill({ status: 500, body: 'Internal server error' });
   });
   await navigateTo(page, 'board');
-  await switchTo(page, b);
+  await switchProject(page, b);
   await expect(columns(page)).toHaveText(['Todo', 'B-One', 'Done']);
   fail();
   await failed;
-  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await waitForRender(page);
   await expect(toast(page)).toBeHidden();
   await expect(selectedProject(page)).toHaveText(b.name);
 });
@@ -307,8 +300,7 @@ test('selected project deleted elsewhere: the app selects another project', asyn
   await page.evaluate(projectId => localStorage.setItem('wuflow_selectedProjectId', String(projectId)), id);
   await page.reload();
   await expect(selectedProject(page)).toHaveText(name);
-  const res = await page.request.delete(`/api/projects/${id}`, { data: { admin_password: workerServer.adminPassword } });
-  expect(res.status()).toBe(200);
+  await deleteProjectViaAPI(page.request, name, workerServer.adminPassword);
 
   await navigateTo(page, 'board');
   await expect(selectedProject(page)).toHaveText('default');

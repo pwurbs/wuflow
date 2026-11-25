@@ -198,7 +198,7 @@ describe('planning.ts', () => {
     });
   });
 
-  // Calendar dates count as the viewer's local day; the tz-west/tz-east projects run these too.
+  // Calendar dates count as the viewer's local day (other time zones: utils.test.ts).
   describe('calendar-day boundaries (today is 2023-10-10)', () => {
     const titlesIn = (selector: string) =>
       [...byId('planning-list').querySelectorAll(`${selector} .planning-item-title`)].map(el => el.textContent);

@@ -198,22 +198,27 @@ func FuzzValidateStatusConfig(f *testing.F) {
 			return
 		}
 
-		// Invariant: every non-empty name must match the column name regex.
 		for _, name := range []string{cfg.Stage1Name, cfg.Stage2Name, cfg.Stage3Name, cfg.Stage4Name} {
-			if name == "" {
-				continue
-			}
-			if !statusNameRegex.MatchString(name) {
-				t.Errorf("Validated stage name contains disallowed characters: %q", name)
-			}
-			if strings.ContainsAny(name, "<>&\"'") {
-				t.Errorf("Validated stage name contains HTML characters: %q", name)
-			}
-			if utf8.RuneCountInString(name) > MaxStatusNameLen {
-				t.Errorf("Validated stage name exceeds max length: %q", name)
-			}
+			checkValidatedStatusName(t, name)
 		}
 	})
+}
+
+// checkValidatedStatusName asserts that a validated column name is empty or matches the column name regex.
+func checkValidatedStatusName(t *testing.T, name string) {
+	t.Helper()
+	if name == "" {
+		return
+	}
+	if !statusNameRegex.MatchString(name) {
+		t.Errorf("Validated stage name contains disallowed characters: %q", name)
+	}
+	if strings.ContainsAny(name, "<>&\"'") {
+		t.Errorf("Validated stage name contains HTML characters: %q", name)
+	}
+	if utf8.RuneCountInString(name) > MaxStatusNameLen {
+		t.Errorf("Validated stage name exceeds max length: %q", name)
+	}
 }
 
 // FuzzValidateIssue tests the issue validation logic, verifying that Title is
@@ -357,7 +362,7 @@ func checkValidatedReleaseInvariants(t *testing.T, r *Release) {
 	}
 }
 
-// checkValidatedCalendarDate asserts that a validated date is YYYY-MM-DD with a year in 2000–2100.
+// checkValidatedCalendarDate asserts that a validated date is YYYY-MM-DD with an allowed year.
 func checkValidatedCalendarDate(t *testing.T, name string, d *CalendarDate) {
 	t.Helper()
 	if d == nil {
@@ -368,7 +373,7 @@ func checkValidatedCalendarDate(t *testing.T, name string, d *CalendarDate) {
 		t.Errorf("Validated %s date is not YYYY-MM-DD: %q", name, *d)
 		return
 	}
-	if y := parsed.Year(); y < 2000 || y > 2100 {
+	if y := parsed.Year(); y < MinDateYear || y > MaxDateYear {
 		t.Errorf("Validated %s date has out-of-range year: %d", name, y)
 	}
 }

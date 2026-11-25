@@ -203,7 +203,6 @@ async function handleSaveStatusConfig(projectId: number, previousCfg: StatusName
     return;
   }
 
-
   const payload = readColumnNames();
   const invalidName = Object.values(payload).find(
     name => name !== '' && (!STATUS_NAME_REGEX.test(name) || name.length > MAX_STATUS_NAME_LEN)

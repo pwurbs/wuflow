@@ -4,7 +4,7 @@ import { STATUS_TODO, STATUS_DONE, IN_PROGRESS_STATUSES } from './status-config.
 import { PRIORITY_HIGH } from './domain-constants.ts';
 import { getEffectiveDeadlineInfo } from './components/planning.ts';
 import type { IssueStatus } from './status-config.ts';
-import type { MyIssue } from './models.ts';
+import type { CalendarDate, MyIssue } from './models.ts';
 
 export const MY_WORK_CATEGORIES = ['notStarted', 'inProgress', 'done'] as const;
 export type MyWorkCategory = typeof MY_WORK_CATEGORIES[number];
@@ -36,7 +36,7 @@ function compareInProgress(a: MyIssue, b: MyIssue) {
 
 interface LaneRank {
   highCount: number;
-  nextHighDeadline: string | null; // YYYY-MM-DD, the earliest effective deadline of the High issues
+  nextHighDeadline: CalendarDate | null; // the earliest effective deadline of the High issues
   openCount: number;
 }
 
@@ -51,7 +51,7 @@ function laneRank(lane: MyWorkLane): LaneRank {
 }
 
 // The earlier deadline first (an overdue one is the earliest), no deadline last.
-function compareDeadline(a: string | null, b: string | null) {
+function compareDeadline(a: CalendarDate | null, b: CalendarDate | null) {
   if (a === b) return 0;
   if (a === null) return 1;
   if (b === null) return -1;

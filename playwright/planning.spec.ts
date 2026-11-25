@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createIssue, selectAssignee, waitForIssueSave, localISODate, isoDateFromToday } from './helpers/test-utils';
+import { createIssue, selectAssignee, waitForIssueSave, isoDateFromToday } from './helpers/test-utils';
 
 test.describe('Planning Panel', () => {
   test.beforeEach(async ({ page, login }) => {
@@ -15,8 +15,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('create issue with planned date appears in planning panel', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     await createIssue(page, {
       title: 'Planned Issue 1',
@@ -35,12 +34,8 @@ test.describe('Planning Panel', () => {
   });
 
   test('issues are grouped by date', async ({ page }) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    const todayStr = localISODate(today);
-    const tomorrowStr = localISODate(tomorrow);
+    const todayStr = isoDateFromToday();
+    const tomorrowStr = isoDateFromToday(1);
 
     // Create issue for today
     await createIssue(page, {
@@ -73,8 +68,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('multiple issues on same date are grouped together', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     // Create first issue
     await createIssue(page, {
@@ -96,9 +90,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('past planned dates appear in Past section', async ({ page }) => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateStr = localISODate(yesterday);
+    const dateStr = isoDateFromToday(-1);
 
     await createIssue(page, {
       title: 'Past Issue',
@@ -112,8 +104,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('remove from plan via button', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     await createIssue(page, {
       title: 'To Be Removed',
@@ -137,12 +128,8 @@ test.describe('Planning Panel', () => {
   });
 
   test('drag planning item to another day', async ({ page }) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    const todayStr = localISODate(today);
-    const tomorrowStr = localISODate(tomorrow);
+    const todayStr = isoDateFromToday();
+    const tomorrowStr = isoDateFromToday(1);
 
     await createIssue(page, {
       title: 'Move Me',
@@ -170,8 +157,7 @@ test.describe('Planning Panel', () => {
 
 
   test('issue with deadline shows deadline badge', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     // Create issue with both planned date and deadline
     await createIssue(page, {
@@ -190,8 +176,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('unscheduled section shows issues with deadline but no planned date', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     // Create issue with deadline but no planned date
     await createIssue(page, {
@@ -208,8 +193,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('drag unscheduled issue to day slot assigns planned date', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
     const uniqueTitle = 'Schedule Me ' + Date.now(); // Unique title for isolation
 
     // Create unscheduled issue with deadline
@@ -250,8 +234,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('click planning item opens edit modal', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     await createIssue(page, {
       title: 'Click Me',
@@ -276,7 +259,7 @@ test.describe('Planning Panel', () => {
     const pastSection = page.locator('#day-past');
 
     // Today's box is always rendered, in the same pass as the past section.
-    await expect(page.locator(`#day-${localISODate(new Date())}`)).toBeVisible();
+    await expect(page.locator(`#day-${isoDateFromToday()}`)).toBeVisible();
 
     if (await pastSection.isVisible()) {
       // Clear all items in past section
@@ -294,8 +277,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('unscheduled section is hidden when empty', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
     const uniqueTitle = 'Hide Test ' + Date.now(); // Unique title for isolation
 
     // Create a fresh issue with deadline (appears in unscheduled)
@@ -467,12 +449,8 @@ test.describe('Planning Panel', () => {
   });
 
   test('issue can be planned on multiple days', async ({ page }) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    const todayStr = localISODate(today);
-    const tomorrowStr = localISODate(tomorrow);
+    const todayStr = isoDateFromToday();
+    const tomorrowStr = isoDateFromToday(1);
 
     await createIssue(page, {
       title: 'Multi-Day Issue',
@@ -492,9 +470,7 @@ test.describe('Planning Panel', () => {
   test('dragging issue to future box is blocked (does not add date)', async ({ page }) => {
     const title = 'Future Block Test ' + Date.now();
     // Must have a deadline to appear in Unscheduled section
-    const deadline = new Date();
-    deadline.setDate(deadline.getDate() + 5);
-    const deadlineStr = localISODate(deadline);
+    const deadlineStr = isoDateFromToday(5);
 
     await createIssue(page, {
       title: title,
@@ -508,9 +484,7 @@ test.describe('Planning Panel', () => {
     await expect(item).toBeVisible();
 
     // Ensure Future section is visible via trigger issue
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 20); // Far future
-    const futureDateStr = localISODate(futureDate);
+    const futureDateStr = isoDateFromToday(20);
 
     await createIssue(page, {
       title: 'Trigger Future Box',
@@ -544,12 +518,8 @@ test.describe('Planning Panel', () => {
   });
 
   test('smart late status: only late instance shows warning', async ({ page }) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    const todayStr = localISODate(today);
-    const tomorrowStr = localISODate(tomorrow);
+    const todayStr = isoDateFromToday();
+    const tomorrowStr = isoDateFromToday(1);
 
     // Deadline is today
     await createIssue(page, {
@@ -576,12 +546,8 @@ test.describe('Planning Panel', () => {
   });
 
   test('removing one day from multi-day plan does not remove others', async ({ page }) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    const todayStr = localISODate(today);
-    const tomorrowStr = localISODate(tomorrow);
+    const todayStr = isoDateFromToday();
+    const tomorrowStr = isoDateFromToday(1);
 
     await createIssue(page, {
       title: 'Partial Remove Test',
@@ -603,13 +569,8 @@ test.describe('Planning Panel', () => {
   });
 
   test('multiple past dates show as single item in past section', async ({ page }) => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dayBeforeYesterday = new Date();
-    dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 2);
-
-    const dateStr1 = localISODate(yesterday);
-    const dateStr2 = localISODate(dayBeforeYesterday);
+    const dateStr1 = isoDateFromToday(-1);
+    const dateStr2 = isoDateFromToday(-2);
 
     await createIssue(page, {
       title: 'Dedupe Past Test',
@@ -661,8 +622,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('assignee badge initials on planning card', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
     const title = `Planning Badge Test ${Date.now()}`;
 
     await createIssue(page, {
@@ -695,8 +655,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('done issue shows as completed in planning sidebar', async ({ page }) => {
-    const today = new Date();
-    const dateStr = localISODate(today);
+    const dateStr = isoDateFromToday();
 
     await createIssue(page, {
       title: 'Done Completion Test',
@@ -726,7 +685,7 @@ test.describe('Planning Panel', () => {
   });
 
   test('hovering a planning item highlights a high-priority card with the blue border', async ({ page }) => {
-    const dateStr = localISODate(new Date());
+    const dateStr = isoDateFromToday();
     await createIssue(page, { title: 'Prio Highlight Test', status: 'Todo', priority: 'High', plannedDate: dateStr });
 
     const card = page.locator('.column[data-status="Todo"] .board-card:has-text("Prio Highlight Test")');

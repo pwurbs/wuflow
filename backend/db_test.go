@@ -2067,16 +2067,18 @@ func TestMigrateCalendarDates(t *testing.T) {
 		if err := migrateCalendarDates(ctx); err != nil {
 			t.Fatalf("run %d: %v", run, err)
 		}
-		checks := []struct{ query, want string }{
-			{"SELECT deadline || '' FROM issues WHERE id = ?", "2026-11-20"},
+		for _, c := range []struct {
+			query string
+			id    int
+			want  string
+		}{
+			{"SELECT deadline || '' FROM issues WHERE id = ?", issue.ID, "2026-11-20"},
 			// The UTC date: the known loss for values the UI saved east of UTC+12.
-			{"SELECT deadline || '' FROM tasks WHERE id = ?", "2026-11-19"},
-			{"SELECT start_date || '' FROM releases WHERE id = ?", "2026-06-01"},
-			{"SELECT release_date || '' FROM releases WHERE id = ?", "not a date"},
-		}
-		ids := []int{issue.ID, task.ID, rel.ID, rel.ID}
-		for i, c := range checks {
-			if got := rawText(t, c.query, ids[i]); got != c.want {
+			{"SELECT deadline || '' FROM tasks WHERE id = ?", task.ID, "2026-11-19"},
+			{"SELECT start_date || '' FROM releases WHERE id = ?", rel.ID, "2026-06-01"},
+			{"SELECT release_date || '' FROM releases WHERE id = ?", rel.ID, "not a date"},
+		} {
+			if got := rawText(t, c.query, c.id); got != c.want {
 				t.Errorf("run %d: %s = %q, want %q", run, c.query, got, c.want)
 			}
 		}

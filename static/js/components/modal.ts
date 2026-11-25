@@ -7,7 +7,7 @@ import { PRIORITY_NORMAL, DEFAULT_PROJECT_ID } from '../domain-constants.ts';
 import type { Priority } from '../domain-constants.ts';
 import type { IssueStatus } from '../status-config.ts';
 import type { IssueWrite } from '../api.ts';
-import type { Issue, PositionUpdate, Project, Task, User } from '../models.ts';
+import type { CalendarDate, Issue, PositionUpdate, Project, Task, User } from '../models.ts';
 import type { RefreshApp, RerenderView } from '../list-utils.ts';
 import { renderMarkdown, renderMarkdownWithReport } from '../markdown.ts';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.ts';
@@ -594,7 +594,7 @@ function saveIssueChanges(getChanges: (issue: Issue) => IssueChanges, successMes
   });
 }
 
-function validateIssueForm(title: string, description: string, deadline: string | null) {
+function validateIssueForm(title: string, description: string, deadline: CalendarDate | null) {
   if (!title) {
     showNotification('Title is required.', 'error');
     byId('title', HTMLInputElement).focus();
@@ -639,7 +639,7 @@ function getIssueDataFromForm(): IssueWrite & { project_id: number } {
 
 async function handleIssueSubmit() {
   const issueData = getIssueDataFromForm();
-  if (!validateIssueForm(issueData.title, issueData.description, issueData.deadline ?? null)) return;
+  if (!validateIssueForm(issueData.title, issueData.description, issueData.deadline)) return;
 
   try {
     if (state.currentIssue) {
@@ -1075,7 +1075,7 @@ function savePlannedDates(getChanges: (issue: Issue) => IssueChanges, successMes
 
 async function handleDeadlineChange(rawValue: string) {
   if (!state.currentIssue) return;
-  const dateVal = rawValue === '' ? null : rawValue;
+  const dateVal = rawValue || null;
   if (!dateYearAccepted(dateVal, 'Deadline')) {
     setDeadlineInput(state.currentIssue);
     return;

@@ -114,8 +114,7 @@ test.describe('Issue Edit Operations', () => {
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Add deadline
-    const tomorrow = isoDateFromToday(1);
-    const deadlineStr = tomorrow;
+    const deadlineStr = isoDateFromToday(1);
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
@@ -135,8 +134,7 @@ test.describe('Issue Edit Operations', () => {
 
   test('change existing deadline', async ({ page }) => {
     // Create an issue with deadline
-    const tomorrow = isoDateFromToday(1);
-    const initialDeadline = tomorrow;
+    const initialDeadline = isoDateFromToday(1);
 
     await createIssue(page, {
       title: 'Change Deadline Issue',
@@ -149,8 +147,7 @@ test.describe('Issue Edit Operations', () => {
     await expect(page.locator('#issue-id')).toHaveValue(/\d+/);
 
     // Change deadline to a different date
-    const nextWeek = isoDateFromToday(7);
-    const newDeadline = nextWeek;
+    const newDeadline = isoDateFromToday(7);
 
     // Wait for the save (a field change now only re-renders locally; the app-wide
     // issues refresh is deferred until the modal closes, not fired per-field).
@@ -173,8 +170,7 @@ test.describe('Issue Edit Operations', () => {
 
   test('remove deadline from issue', async ({ page }) => {
     // Create an issue with deadline
-    const tomorrow = isoDateFromToday(1);
-    const deadline = tomorrow;
+    const deadline = isoDateFromToday(1);
 
     await createIssue(page, {
       title: 'Remove Deadline Issue',

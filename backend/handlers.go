@@ -656,17 +656,13 @@ func issueContentHash(i *Issue) string {
 	if i.AssigneeID != nil {
 		assigneeID = *i.AssigneeID
 	}
-	var deadline CalendarDate
-	if i.Deadline != nil {
-		deadline = *i.Deadline
-	}
 	var releaseID int
 	if i.ReleaseID != nil {
 		releaseID = *i.ReleaseID
 	}
 	return fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%d\x00%d\x00%s\x00%v\x00%d\x00%d",
 		i.Title, i.Description, i.Status, i.Priority,
-		labelID, assigneeID, deadline, i.PlannedDates, i.ProjectID, releaseID)
+		labelID, assigneeID, deadlineStr(i.Deadline), i.PlannedDates, i.ProjectID, releaseID)
 }
 
 // persistIssueUpdate routes to UpdateIssuePosition (no timestamp recorded) when only position

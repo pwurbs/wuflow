@@ -18,8 +18,7 @@ test.describe('Issue CRUD Operations', () => {
   test('create issue with all properties', async ({ page }) => {
     const title = `Complete Issue ${Date.now()} `;
     // Create issue with all properties
-    const tomorrow = isoDateFromToday(1);
-    const deadlineStr = tomorrow;
+    const deadlineStr = isoDateFromToday(1);
 
     await createIssue(page, {
       title,
