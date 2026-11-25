@@ -66,6 +66,33 @@ func TestHandleCreateCommentPost(t *testing.T) {
 	}
 }
 
+// The comment is stored, so a failed author lookup does not fail the request, but is logged.
+func TestHandleCreateCommentLogsAuthorLookupFailure(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	_, authorID, _ := seedIssueAndUsers(t)
+	execTestSQL(t, "ALTER TABLE users RENAME COLUMN last_login TO gone")
+	buf, restore := captureLogs(t)
+	defer restore()
+
+	body, _ := json.Marshal(Comment{Body: "Hello"})
+	req := ctxUser(httptest.NewRequest("POST", "/api/projects/1/issues/1/comments", bytes.NewBuffer(body)), RoleUser, authorID)
+	rr := httptest.NewRecorder()
+	testAPI.ServeHTTP(rr, req)
+
+	var got Comment
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); rr.Code != http.StatusCreated || err != nil {
+		t.Fatalf("expected 201 with a comment, got %d (%s)", rr.Code, rr.Body.String())
+	}
+	if got.Body != "Hello" || got.User != nil {
+		t.Errorf("want the comment without author, got %+v", got)
+	}
+	entries := logEntries(t, buf)
+	if len(entries) != 1 || entries[0]["level"] != "ERROR" || entries[0]["msg"] != "handleCreateComment: GetUserByID failed, response without author" {
+		t.Errorf("want one ERROR line for the lookup, got %s", buf)
+	}
+}
+
 func TestHandleCreateCommentEmpty(t *testing.T) {
 	setupTestDB()
 	defer teardownTestDB()

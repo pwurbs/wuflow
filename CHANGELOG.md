@@ -9,9 +9,10 @@
 - Task rows and the row to add a task in the issue dialog are now as high as the comment field
 - Fixed: deadlines, planned dates and release dates now show the picked day in every time zone (west of UTC they showed the day before), and a release no longer counts as overdue on its release date
 - The API now returns deadlines and release start and release dates as `YYYY-MM-DD` instead of timestamps, and requests may still send timestamps. Existing dates are converted on upgrade: a deadline set in the app from UTC+13 or further east may move to the day before
-- A date with a mistyped year (outside 2000–2100) is now reported before saving, and planned dates are checked for it too, like deadlines and release dates
+- A date with a mistyped year (outside 2000–2100) is now reported before saving, and planned dates are checked for it too, like deadlines and release dates. Existing planned dates with such a year are removed on upgrade
 - Fixed: on a slow or interrupted connection, switching the project can no longer mix up the projects' columns, labels and releases, overwrite the column names in Project Settings or give a new issue the release of another issue
 - Fixed: data that cannot be loaded is now reported instead of appearing as empty lists, a deleted issue, another selected project or a failed save, and text typed in the issue dialog is no longer lost
+- Fixed: a short database failure while renewing the session no longer deletes the login cookies
 
 # 1.5.0
 

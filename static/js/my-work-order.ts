@@ -67,7 +67,7 @@ function compareLanes(a: LaneRank, b: LaneRank) {
 
 /**
  * Groups the issues into one lane per project, each split into the three categories. Projects
- * with High issues come first, by the nearest deadline of these, then by their number; then the
+ * with High issues come first, by the nearest deadline of these, then by their number. Then the
  * project with the most open cards, then by name. Cells keep the board order.
  */
 export function buildLanes(issues: MyIssue[]): MyWorkLane[] {

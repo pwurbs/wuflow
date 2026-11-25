@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -2025,14 +2026,14 @@ func TestAuthHandlersDBError(t *testing.T) {
 	})
 
 	t.Run("Refresh_DBError", func(t *testing.T) {
-		// Generate a valid-format token; DB is closed so the handler returns 401
+		// Generate a valid-format token; DB is closed, which says nothing about the token
 		token, _, _ := GenerateRefreshToken(generateSessionToken())
 		req := httptest.NewRequest("POST", apiAuthRefresh, nil)
 		req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: token})
 		rr := httptest.NewRecorder()
 		HandleRefresh(rr, req)
-		if rr.Code != http.StatusUnauthorized {
-			t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
 		}
 	})
 
@@ -2311,4 +2312,175 @@ func TestDeleteSessionSafeError(t *testing.T) {
 
 	// Must not panic; simply logs a warning.
 	deleteSessionSafe(context.Background(), 123, "test cleanup failure")
+}
+
+// refreshTestSession creates an active user with a session, resets the refresh rate limit and
+// returns the session and its refresh token.
+func refreshTestSession(t *testing.T) (*Session, string) {
+	t.Helper()
+	setupTestDB()
+	t.Cleanup(teardownTestDB)
+	InitSecretKey("")
+	orig := refreshLimiter
+	refreshLimiter = ipLimiter{newKeyedLimiter[string](refreshIPMax, refreshIPWindow, rlCleanupEvery)}
+	t.Cleanup(func() { refreshLimiter = orig })
+
+	user := &User{Email: testEmail, FirstName: "Test", LastName: "User", PasswordHash: "h", Role: RoleUser, Active: true}
+	if err := CreateUser(context.Background(), user); err != nil {
+		t.Fatal(err)
+	}
+	session, _, refreshToken, err := CreateUserSession(context.Background(), user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return session, refreshToken
+}
+
+func refreshRequest(token string) *http.Request {
+	req := httptest.NewRequest("POST", apiAuthRefresh, nil)
+	req.AddCookie(&http.Cookie{Name: cookieRefreshToken, Value: token})
+	return req
+}
+
+func TestHandleRefreshInternalError(t *testing.T) {
+	for _, tt := range []struct{ name, breakDB string }{
+		{"session lookup", "ALTER TABLE sessions RENAME COLUMN token_hash TO gone"},
+		{"user lookup", "ALTER TABLE users RENAME COLUMN last_login TO gone"},
+		{"session update", "CREATE TRIGGER fail_update BEFORE UPDATE ON sessions BEGIN SELECT RAISE(ABORT, 'boom'); END"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			session, token := refreshTestSession(t)
+			execTestSQL(t, tt.breakDB)
+			buf, restore := captureLogs(t)
+			defer restore()
+
+			rr := httptest.NewRecorder()
+			HandleRefresh(rr, refreshRequest(token))
+			if rr.Code != http.StatusInternalServerError {
+				t.Errorf(wrongStatusCode, rr.Code, http.StatusInternalServerError)
+			}
+			if cookies := rr.Result().Cookies(); len(cookies) != 0 {
+				t.Errorf("the session must stay usable, got cookies %v", cookies)
+			}
+			if body := strings.TrimSpace(rr.Body.String()); body != errMsgInternalServerError {
+				t.Errorf("want the generic message, got %q", body)
+			}
+
+			if tryRefreshSession(httptest.NewRecorder(), refreshRequest(token)) {
+				t.Error("a page load must not be authenticated")
+			}
+
+			entries := logEntries(t, buf)
+			if len(entries) != 2 || entries[0]["level"] != "ERROR" || entries[1]["level"] != "ERROR" {
+				t.Errorf("want one ERROR line per request, got %s", buf)
+			}
+			if strings.Contains(buf.String(), token) || strings.Contains(buf.String(), session.TokenHash) || strings.Contains(buf.String(), session.SessionToken) {
+				t.Error("the log must not contain the token")
+			}
+		})
+	}
+}
+
+func TestHandleRefreshRejected(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		prepare func(t *testing.T, session *Session, token string) string // returns the token to send
+	}{
+		{"token format", func(*testing.T, *Session, string) string { return "bad-token" }},
+		{"session not found", func(t *testing.T, _ *Session, token string) string {
+			execTestSQL(t, "DELETE FROM sessions")
+			return token
+		}},
+		{"session expired", func(t *testing.T, s *Session, token string) string {
+			s.ExpiresAt = time.Now().Add(-time.Hour)
+			if err := UpdateSession(context.Background(), s); err != nil {
+				t.Fatal(err)
+			}
+			return token
+		}},
+		{"HMAC mismatch", func(_ *testing.T, s *Session, _ string) string {
+			other, _, _ := GenerateRefreshToken(s.SessionToken)
+			return other
+		}},
+		{"inactive user", func(t *testing.T, _ *Session, token string) string {
+			execTestSQL(t, "UPDATE users SET active = 0")
+			return token
+		}},
+		{"session revoked during the refresh", func(t *testing.T, _ *Session, token string) string {
+			execTestSQL(t, "CREATE TRIGGER skip_update BEFORE UPDATE ON sessions BEGIN SELECT RAISE(IGNORE); END")
+			return token
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			session, token := refreshTestSession(t)
+			token = tt.prepare(t, session, token)
+			buf, restore := captureLogsAt(t, slog.LevelInfo)
+			defer restore()
+
+			// First the page load: it keeps the cookies and logs at INFO.
+			rr := httptest.NewRecorder()
+			if tryRefreshSession(rr, refreshRequest(token)) {
+				t.Error("a page load must not be authenticated")
+			}
+			if entries := logEntries(t, buf); len(entries) != 1 || entries[0]["level"] != "INFO" {
+				t.Errorf("want one INFO line, got %s", buf)
+			}
+			buf.Reset()
+
+			rr = httptest.NewRecorder()
+			HandleRefresh(rr, refreshRequest(token))
+			if rr.Code != http.StatusUnauthorized {
+				t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
+			}
+			cookies := rr.Result().Cookies()
+			if len(cookies) != 2 || cookies[0].MaxAge >= 0 || cookies[1].MaxAge >= 0 {
+				t.Errorf("want both cookies deleted, got %v", cookies)
+			}
+			if entries := logEntries(t, buf); len(entries) != 1 || entries[0]["level"] != "WARN" {
+				t.Errorf("want one WARN line, got %s", buf)
+			}
+		})
+	}
+}
+
+// The token is rejected all the same, and the failed revocation is an ERROR of its own.
+func TestHandleRefreshFailedRevocation(t *testing.T) {
+	session, _ := refreshTestSession(t)
+	other, _, _ := GenerateRefreshToken(session.SessionToken)
+	execTestSQL(t, "CREATE TRIGGER fail_delete BEFORE DELETE ON sessions BEGIN SELECT RAISE(ABORT, 'boom'); END")
+	buf, restore := captureLogs(t)
+	defer restore()
+
+	rr := httptest.NewRecorder()
+	HandleRefresh(rr, refreshRequest(other))
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf(wrongStatusCode, rr.Code, http.StatusUnauthorized)
+	}
+	if cookies := rr.Result().Cookies(); len(cookies) != 2 {
+		t.Errorf("want both cookies deleted, got %v", cookies)
+	}
+	entries := logEntries(t, buf)
+	if len(entries) != 2 || entries[0]["level"] != "ERROR" || entries[0]["user_id"] != float64(session.UserID) || entries[1]["level"] != "WARN" {
+		t.Errorf("want an ERROR for the revocation and a WARN for the token, got %s", buf)
+	}
+}
+
+func TestRefreshClientAbortIsNoError(t *testing.T) {
+	_, token := refreshTestSession(t)
+	buf, restore := captureLogs(t)
+	defer restore()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	rr := httptest.NewRecorder()
+	HandleRefresh(rr, refreshRequest(token).WithContext(ctx))
+	if rr.Code != statusClientClosedRequest {
+		t.Errorf(wrongStatusCode, rr.Code, statusClientClosedRequest)
+	}
+	if tryRefreshSession(httptest.NewRecorder(), refreshRequest(token).WithContext(ctx)) {
+		t.Error("want false for an aborted request")
+	}
+	if buf.Len() != 0 {
+		t.Errorf("want no warning or error, got %s", buf)
+	}
 }

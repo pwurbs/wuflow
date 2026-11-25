@@ -1,6 +1,6 @@
 import { fetchLabelsByProject, fetchVersion, fetchCurrentUser, fetchUsers, fetchProjects, fetchStatusConfig, fetchReleases } from './api.ts';
 import { renderMarkdown } from './markdown.ts';
-import { state, setFilterSearch, setCurrentUser, setStatusConfig, setReleases, setLabels, setUsers, setProjects, setFilterRelease, setFilterReleaseOwner, setFilterReleaseSearch } from './state.ts';
+import { state, setFilterSearch, setCurrentUser, setStatusConfig, setReleases, setLabels, setUsers, setProjects, setLoadedProject, setFilterRelease, setFilterReleaseOwner, setFilterReleaseSearch } from './state.ts';
 import { renderBoard, setupBoardView } from './components/board.ts';
 import { renderBacklog, setupBacklogView } from './components/backlog.ts';
 import { renderPlanningPanel, setupPlanningPanel } from './components/planning.ts';
@@ -137,8 +137,6 @@ function issueListsFor(visible: ReturnType<typeof getVisibleViews>) {
 
 // Bumped by every refreshApp(), so the results of a superseded refresh are discarded.
 let refreshSeq = 0;
-// The project of the data on screen: null until the first refresh has succeeded.
-let loadedProjectId: number | null = null;
 
 async function refreshApp(): Promise<void> {
     const seq = ++refreshSeq;
@@ -161,12 +159,13 @@ async function refreshApp(): Promise<void> {
         projectData = await projectDataLoad;
     } catch (err) {
         if (seq === refreshSeq) await handleFailedRefresh(err, seq, projectsLoad);
+        await showMyWork(myWorkLoad, seq);
         return;
     }
     if (seq !== refreshSeq) return; // a newer refresh started meanwhile, e.g. a project switch
 
     const [statusConfig, labels, releases, users, projects] = projectData;
-    loadedProjectId = projectId;
+    setLoadedProject(projectId);
     // Names that cannot be loaded again stay, the default columns would hide cards.
     const knownConfig = state.statusConfig?.project_id === projectId ? state.statusConfig : null;
     setStatusConfig(statusConfig.value ?? knownConfig);
@@ -178,8 +177,12 @@ async function refreshApp(): Promise<void> {
     setUsers(users);
     setProjects(projects);
     await renderRefreshedViews();
+    await showMyWork(myWorkLoad, seq);
+}
 
-    const myWork = await myWorkLoad;
+// My Work does not depend on the selected project, so it is shown after a failed refresh too.
+async function showMyWork(load: ReturnType<typeof loadOptional> | null, seq: number) {
+    const myWork = await load;
     if (!myWork || seq !== refreshSeq) return;
     myWork.report?.();
     renderMyWork();
@@ -214,9 +217,11 @@ async function renderRefreshedViews() {
 // Nothing of a failed refresh was stored, so a failed project switch goes back to the project
 // whose data is on screen.
 async function handleFailedRefresh(err: unknown, seq: number, projectsLoad: Promise<Project[]>) {
+    // A deleted project is nothing to go back to: its data must not stay usable.
+    if (!state.projects.some(p => p.id === state.loadedProjectId)) setLoadedProject(null);
     // Before anything is awaited: a view drawn meanwhile would load the other project's lists.
-    if (loadedProjectId !== null && state.selectedProjectId !== loadedProjectId) {
-        selectProject(loadedProjectId);
+    if (state.loadedProjectId !== null && state.selectedProjectId !== state.loadedProjectId) {
+        selectProject(state.loadedProjectId);
         updateProjectSelectorOptions(state.projects);
     }
     // If the projects failed too, err already stands for the refresh.
@@ -228,7 +233,7 @@ async function handleFailedRefresh(err: unknown, seq: number, projectsLoad: Prom
         updateProjectSelectorOptions(projects);
         if (seq !== refreshSeq) return;
     }
-    if (loadedProjectId === null) {
+    if (state.loadedProjectId === null) {
         await askToTryAgain(err);
         if (seq === refreshSeq) await refreshApp();
         return;

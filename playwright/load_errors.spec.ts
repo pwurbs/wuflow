@@ -108,6 +108,30 @@ for (const { name, reason, mode } of FAILURES) {
       await expect(cards(page)).toHaveText([/Issue in B/]);
     });
 
+    test('My Work: shows the issues although the project data could not be loaded', async ({ page }) => {
+      const me = await (await page.request.get('/api/auth/me')).json();
+      await createIssueViaAPI(page.request, a.id, 'Issue mine', { status: 'Todo', assignee_id: me.id });
+      let answer = () => {};
+      const held = new Promise<void>(resolve => { answer = resolve; });
+      await page.route(/\/api\/me\/issues$/, async route => {
+        await held;
+        await route.fallback();
+      });
+      await failGet(page, /\/labels$/, mode);
+      await navigateTo(page, 'my-work');
+      await waitForToast(page, `Project data could not be loaded: ${reason}`);
+      await expect(page.locator('.my-work-empty')).toHaveText('Your issues are not loaded.');
+      answer();
+      await expect(page.locator('#my-work-grid .card', { hasText: 'Issue mine' }).first()).toBeVisible();
+    });
+
+    test('My Work: says that the issues are not loaded instead of that there are none', async ({ page }) => {
+      await failGet(page, /\/api\/me\/issues$/, mode);
+      await navigateTo(page, 'my-work');
+      await waitForToast(page, `My Work could not be loaded: ${reason}`);
+      await expect(page.locator('.my-work-empty')).toHaveText('Your issues are not loaded.');
+    });
+
     test('column names: the columns of the project stay, and Project Settings keep the form', async ({ page }) => {
       await failGet(page, /\/statusconfig$/, mode);
       await navigateTo(page, 'board');
@@ -279,6 +303,56 @@ test('a refresh that was superseded does not report its failure', async ({ page 
   await expect(selectedProject(page)).toHaveText(b.name);
 });
 
+// A response that is held until it is released.
+async function holdGet(page: Page, url: RegExp, answer: (route: Route) => Promise<void>) {
+  let release = () => {};
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await page.route(url, async route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await held;
+    await answer(route);
+  });
+  return () => release();
+}
+
+test('releases that arrive after a project switch do not replace those of the new project', async ({ page }) => {
+  await createReleaseViaAPI(page.request, b.id, 'Rel of B');
+  await navigateTo(page, 'releases');
+  const url = new RegExp(`/projects/${a.id}/releases$`);
+  const release = await holdGet(page, url, route => route.fallback());
+  const requested = page.waitForRequest(req => req.method() === 'GET' && url.test(req.url()));
+  await createRelease(page, { name: 'Rel of A' });
+  await requested;
+  await switchProject(page, b);
+  await expect(page.locator('.release-row')).toHaveText([/Rel of B/]);
+
+  release();
+  await waitForToast(page, 'Release created');
+  await waitForRender(page);
+  await expect(page.locator('.release-row')).toHaveText([/Rel of B/]);
+});
+
+test('release deleted during a failing project switch: the issues of the project shown stay', async ({ page, workerServer }) => {
+  await createReleaseViaAPI(page.request, a.id, 'Rel of A');
+  await navigateTo(page, 'board'); // loads the release
+  await expect(page.locator('#release-filter-options .custom-option', { hasText: 'Rel of A' })).toHaveCount(1);
+  await navigateTo(page, 'releases');
+  const fail = await holdGet(page, new RegExp(`/projects/${b.id}/labels$`), route => failRoute(route, '500'));
+  await switchProject(page, b);
+  await page.locator('.release-row', { hasText: 'Rel of A' }).locator('.release-card-left').click();
+  await page.click('#release-modal-delete');
+  await page.fill('#admin-confirm-password', workerServer.adminPassword);
+  await page.click('#admin-confirm-ok-btn');
+  await waitForToast(page, 'Release deleted');
+
+  fail();
+  await waitForToast(page, 'Project data could not be loaded');
+  await expect(selectedProject(page)).toHaveText(a.name);
+  // Without opening the board, which would load it again.
+  await expect(cards(page).filter({ hasText: 'Issue in A' })).toHaveCount(1);
+  await expect(cards(page).filter({ hasText: 'Issue in B' })).toHaveCount(0);
+});
+
 test('full outage: a failed save stays on screen when the refresh after it fails too', async ({ page }) => {
   await createIssueViaAPI(page.request, a.id, 'Issue second', { status: 'Todo' });
   await navigateTo(page, 'board');
@@ -313,6 +387,41 @@ test('selected project deleted elsewhere: the app selects another project', asyn
   await expect(columns(page).first()).toHaveText('Todo');
   await expect(toast(page)).toBeHidden();
 });
+
+for (const where of ['here', 'elsewhere'] as const) {
+  test(`selected project deleted ${where} and the next one cannot be loaded: asks once to try again`, async ({ page, workerServer }) => {
+    const name = `d${Date.now()}`.slice(-9);
+    const id = await createProjectViaAPI(page.request, name);
+    await page.evaluate(projectId => localStorage.setItem('wuflow_selectedProjectId', String(projectId)), id);
+    await page.reload();
+    await expect(selectedProject(page)).toHaveText(name);
+
+    let requests = 0;
+    await page.route(/\/projects\/1\/labels$/, route => {
+      requests++;
+      return failRoute(route, '500');
+    });
+    if (where === 'here') {
+      await navigateTo(page, 'system-settings');
+      await page.locator('#projects-list .settings-entry', { hasText: name }).click();
+      await page.click('#project-modal-delete');
+      await page.fill('#admin-confirm-password', workerServer.adminPassword);
+      await page.click('#admin-confirm-ok-btn');
+    } else {
+      await deleteProjectViaAPI(page.request, name, workerServer.adminPassword);
+      await navigateTo(page, 'board');
+    }
+    await expect(page.locator('#confirm-title')).toHaveText('wuFlow could not be loaded');
+    await expect(page.locator('#confirm-ok-btn')).toBeVisible();
+    await waitForRender(page);
+    expect(requests).toBe(1);
+
+    await recover(page);
+    await page.click('#confirm-ok-btn');
+    await expect(selectedProject(page)).toHaveText('default');
+    await expect(page.locator('#confirm-ok-btn')).toBeHidden();
+  });
+}
 
 test('project delete: an unknown number of issues is reported before the password dialog', async ({ page }) => {
   await navigateTo(page, 'system-settings');

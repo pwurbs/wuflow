@@ -22,12 +22,12 @@
 | **Issue/Task Title** | 100 chars | Encourages concise summaries. |
 | **Description** | 5,000 chars | Allows detailed content while preventing excessive payload sizes. |
 | **Label Name** | 15 chars | UI space constraints (chips/tags). |
-| **Column Name** | 15 chars, letters (including umlauts and accented letters), digits, single spaces and hyphens between them | Fits board column headers; empty = column hidden. |
+| **Column Name** | 15 chars, letters (including umlauts and accented letters), digits, single spaces and hyphens between them | Fits board column headers. Empty = column hidden. |
 | **User Name** | 50 chars | Accommodates most names without layout breakage. |
 | **Search Filter** | 50 chars | Prevents performance issues and UX breakdown during string matching. |
 | **Email** | 254 bytes | RFC 5321 standard limit. |
 | **Planned Dates** | 100 entries | Prevents unbounded array iteration; each entry must be a valid `YYYY-MM-DD` date. |
-| **Dates** (deadlines, planned and release dates) | Year 2000–2100 | Catches typos such as year 0202 in a date field. The frontend checks the year before saving (`dateYearAccepted`). |
+| **Dates** (deadlines, planned and release dates) | Year 2000–2100 | Catches typos such as year 0202 in a date field. The frontend checks the year before saving (`dateYearAccepted`). Planned dates with another year, stored up to 1.5.0, are removed at startup (`migratePlannedDates`). |
 | **Password** | Min 12 chars, max 72 bytes (UTF-8) | Minimum complexity baseline; the max is bcrypt's input limit (bcrypt ignores everything after 72 bytes). Counted in bytes: letters, digits and common symbols count 1, umlauts and accented letters 2, emoji 4 — an ASCII password can have 72 characters. Login rejects longer passwords with 400 before any user lookup. |
 | **Project Name** | 15 chars | UI space constraint (sidebar, header). |
 | **Project Description** | 100 chars | Brief tagline shown in project overview. |

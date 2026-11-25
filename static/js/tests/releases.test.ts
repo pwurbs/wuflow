@@ -59,6 +59,7 @@ vi.mock('../state.ts', () => ({
     releases: [],
     currentUser: { id: 1, role: 'admin', first_name: 'Alice', last_name: 'Smith' },
     selectedProjectId: 1,
+    loadedProjectId: 1,
     issues: [],
     filter: { releaseOwnerFilter: null, releaseSearch: '' },
   },
@@ -87,7 +88,7 @@ vi.mock('../status-config.ts', () => ({
   IN_PROGRESS_STATUSES: ['Stage1', 'Stage2', 'Stage3', 'Stage4'],
 }));
 
-import { state } from '../state.ts';
+import { state, setReleases } from '../state.ts';
 import * as api from '../api.ts';
 import { byId, bySelector } from '../utils.ts';
 import * as utils from '../utils.ts';
@@ -132,6 +133,7 @@ describe('releases', () => {
     state.releases = [];
     state.currentUser = makeUser({ id: 1, role: 'admin', first_name: 'Alice', last_name: 'Smith' });
     state.selectedProjectId = 1;
+    state.loadedProjectId = 1;
     state.issues = [];
     state.filter = { ...state.filter, releaseOwnerFilter: null, releaseSearch: '' };
     vi.clearAllMocks();
@@ -432,6 +434,27 @@ describe('releases', () => {
       expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
     });
 
+    it.each([
+      ['stores the reloaded releases while the switch to another project is pending', 1, true],
+      ['drops the reloaded releases once another project is on screen', 2, false],
+    ])('%s', async (_what, loadedProjectId, stored) => {
+      const { promise: pendingReleases, resolve: answerReleases } = Promise.withResolvers<Release[]>();
+      const releases = [makeRelease({ id: 99, name: 'v1.0' })];
+      vi.mocked(api.createRelease).mockResolvedValue(releases[0]);
+      vi.mocked(api.fetchReleases).mockReturnValueOnce(pendingReleases);
+      await openNewReleaseForm();
+      byId('release-modal-name', HTMLInputElement).value = 'v1.0';
+      byId('release-form').dispatchEvent(new Event('submit'));
+      await new Promise(process.nextTick);
+
+      state.selectedProjectId = 2;
+      state.loadedProjectId = loadedProjectId;
+      answerReleases(releases);
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Release created', 'success'));
+
+      expect(vi.mocked(setReleases).mock.calls).toEqual(stored ? [[releases]] : []);
+    });
+
     it('closes the form and reports a created release as created when the releases cannot be reloaded', async () => {
       vi.mocked(api.createRelease).mockResolvedValue(makeRelease({ id: 99, name: 'v1.0' }));
       vi.mocked(api.fetchReleases).mockRejectedValue(new Error('Internal server error'));
@@ -642,6 +665,20 @@ describe('releases', () => {
       await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Release deleted, but the issues could not be loaded: Internal server error', 'error'));
       expect(state.releases).toHaveLength(0);
       expect(toolbar.updateReleaseFilterOptions).toHaveBeenCalled();
+    });
+
+    it('leaves the issues to the refresh of a pending project switch', async () => {
+      state.releases = [makeRelease({ id: 10, name: 'v2.0', status: 'open' })];
+      setupReleasesView();
+      await renderReleasesView();
+      bySelector(document, '.release-card-left').click();
+      state.selectedProjectId = 2;
+      vi.mocked(api.fetchOpenIssuesByProject).mockClear();
+      byId('release-modal-delete').click();
+      await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalledExactlyOnceWith('Release deleted', 'success'));
+      expect(state.releases).toHaveLength(0);
+      expect(api.fetchActiveIssuesByProject).not.toHaveBeenCalled();
+      expect(api.fetchOpenIssuesByProject).not.toHaveBeenCalled();
     });
 
     it('does not call deleteRelease when the confirm is cancelled', async () => {

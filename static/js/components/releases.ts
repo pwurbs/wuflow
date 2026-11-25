@@ -15,7 +15,12 @@ let editingReleaseId: number | null = null;
 // Issues assigned to a release can change status/release_id as a side effect of a release
 // action on the backend (delete clears release_id, triggering can archive Done issues) —
 // unlike the other release actions below, this can't be resolved from already-known data.
-async function refreshIssuesAfterReleaseSideEffect(savedMessage: string) {
+async function refreshIssuesAfterReleaseSideEffect(rel: Release, savedMessage: string) {
+  // Another project is being loaded: its refresh replaces all issues.
+  if (rel.project_id !== state.selectedProjectId) {
+    showNotification(savedMessage, 'success');
+    return;
+  }
   await reportSavedAfter(loadIssues(VIEW_ISSUE_LISTS.releases), savedMessage, 'the issues');
 }
 
@@ -319,6 +324,13 @@ function closeReleaseModal() {
   byId('release-modal-overlay').classList.add('hidden');
 }
 
+async function reloadReleases(projectId: number) {
+  const releases = await fetchReleases(projectId);
+  // Another project is on screen by now.
+  if (projectId !== state.loadedProjectId) return;
+  setReleases(releases);
+}
+
 async function handleReleaseSubmit() {
   const rel = editingReleaseId ? state.releases.find(r => r.id === editingReleaseId) : null;
   if (rel?.status === RELEASE_STATUS_CLOSED) { closeReleaseModal(); return; }
@@ -358,7 +370,7 @@ async function handleReleaseSubmit() {
     showNotification('Release updated', 'success');
   } else {
     // The create response isn't owner-hydrated, so re-fetch the release list instead.
-    await reportSavedAfter(fetchReleases(projectId).then(setReleases), 'Release created', 'the releases');
+    await reportSavedAfter(reloadReleases(projectId), 'Release created', 'the releases');
   }
   updateReleaseFilterOptions(state.releases);
   void renderReleasesView();
@@ -460,7 +472,7 @@ async function handleDeleteRelease(rel: Release) {
   if (!confirmed) return;
   removeReleaseFromState(rel.id);
   // Deleting cascades release_id = NULL onto its issues server-side.
-  await refreshIssuesAfterReleaseSideEffect('Release deleted');
+  await refreshIssuesAfterReleaseSideEffect(rel, 'Release deleted');
   updateReleaseFilterOptions(state.releases);
   void renderReleasesView();
 }
@@ -527,7 +539,7 @@ async function handleTriggerReleaseDialog(rel: Release) {
         const updated = await triggerRelease(rel.project_id, rel.id, archiveDone);
         mergeReleaseIntoState(updated);
         // Triggering can archive this release's Done issues server-side.
-        await refreshIssuesAfterReleaseSideEffect('Release closed');
+        await refreshIssuesAfterReleaseSideEffect(rel, 'Release closed');
         updateReleaseFilterOptions(state.releases);
         void renderReleasesView();
       } catch (err) {

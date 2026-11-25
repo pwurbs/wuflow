@@ -67,11 +67,12 @@ export async function renderProjectSettingsView() {
 
   labelsList.innerHTML = '<div class="loader">Loading...</div>';
 
+  const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
+  // Another project was selected meanwhile: its refresh draws its own labels.
+  const isSuperseded = () => projectId !== (state.selectedProjectId ?? DEFAULT_PROJECT_ID);
   try {
-    const projectId = state.selectedProjectId ?? DEFAULT_PROJECT_ID;
     const labels = await fetchLabelsByProject(projectId);
-    // Another project was selected meanwhile: its refresh draws its own labels.
-    if (projectId !== (state.selectedProjectId ?? DEFAULT_PROJECT_ID)) return state.labels;
+    if (isSuperseded()) return state.labels;
     // Keep the shared cache current so the issue modal sees label changes made here.
     if (projectId === state.selectedProjectId) setLabels(labels, projectId);
     labelsList.innerHTML = '';
@@ -113,6 +114,7 @@ export async function renderProjectSettingsView() {
 
     return labels;
   } catch (err) {
+    if (isSuperseded()) return; // the error concerns labels nobody sees
     showListLoadFailure(labelsList, 'Labels', err);
   }
 }
@@ -205,7 +207,7 @@ async function handleSaveStatusConfig(projectId: number, previousCfg: StatusName
 
   const payload = readColumnNames();
   const invalidName = Object.values(payload).find(
-    name => name !== '' && (!STATUS_NAME_REGEX.test(name) || name.length > MAX_STATUS_NAME_LEN)
+    name => name !== '' && (!STATUS_NAME_REGEX.test(name) || countCodepoints(name) > MAX_STATUS_NAME_LEN)
   );
   if (invalidName) {
     showNotification(

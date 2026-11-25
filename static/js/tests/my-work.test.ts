@@ -224,4 +224,24 @@ describe('My Work view', () => {
     renderMyWork();
     expect(document.querySelectorAll('#my-work-grid .card')).toHaveLength(4);
   });
+
+  it('says that the issues are not loaded instead of that there are none, until the first load', async () => {
+    vi.resetModules();
+    const fresh = await import('../components/my-work.ts'); // without the list loaded above
+    const counts = () => [...document.querySelectorAll('#my-work-grid .count')].map(c => c.textContent);
+
+    fresh.mergeMyIssue(makeIssue({ id: 1 }));
+    fresh.renderMyWork();
+    expect(bySelector(document, '.my-work-empty').textContent).toBe('Your issues are not loaded.');
+    expect(counts()).toEqual(['', '', '']);
+    expect(byId('my-work-planning-count').textContent).toBe('');
+
+    const freshApi = await import('../api.ts');
+    vi.mocked(freshApi.fetchMyIssues).mockResolvedValue([]);
+    await fresh.loadMyIssues();
+    fresh.renderMyWork();
+    expect(bySelector(document, '.my-work-empty').textContent).toBe('No active issues are assigned to you.');
+    expect(counts()).toEqual(['0', '0', '0']);
+    expect(byId('my-work-planning-count').textContent).toBe('0');
+  });
 });

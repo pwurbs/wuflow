@@ -19,7 +19,8 @@ const CATEGORY_TITLES: Record<MyWorkCategory, string> = {
 };
 
 // Kept here, not in state.issues: those belong to the selected project.
-let myIssues: MyIssue[] = [];
+// null: never loaded.
+let myIssues: MyIssue[] | null = null;
 let openModalCallback: OpenModal | undefined;
 
 export function setupMyWorkView(openModal: OpenModal) {
@@ -32,6 +33,7 @@ export async function loadMyIssues() {
 
 // Applies changes made in the issue dialog to the cached issue (like the board's merge in app.ts).
 export function mergeMyIssue(issue: Issue) {
+  if (!myIssues) return;
   const idx = myIssues.findIndex(i => i.id === issue.id);
   if (idx !== -1) myIssues[idx] = { ...myIssues[idx], ...issue };
 }
@@ -119,8 +121,19 @@ function categoryCount(lanes: MyWorkLane[], category: MyWorkCategory) {
 function createEmptyMessage() {
   const empty = document.createElement('div');
   empty.className = 'my-work-empty';
-  empty.textContent = myIssues.length > 0 ? 'No issues match the filters.' : 'No active issues are assigned to you.';
+  empty.textContent = emptyMessage();
   return empty;
+}
+
+function emptyMessage() {
+  if (!myIssues) return 'Your issues are not loaded.';
+  return myIssues.length > 0 ? 'No issues match the filters.' : 'No active issues are assigned to you.';
+}
+
+// Like the board: "shown/total" while a filter is active. Nothing is counted before the issues are loaded.
+function countText(shown: number, total: number, filtering: boolean) {
+  if (!myIssues) return '';
+  return filtering ? `${shown}/${total}` : String(shown);
 }
 
 export function renderMyWork() {
@@ -129,19 +142,16 @@ export function renderMyWork() {
   // Only the issue search and the priority filter apply: the other filters belong to the selected project.
   const { search, priority } = state.filter;
   const filtering = search.trim() !== '' || priority !== null;
-  const shownIssues = filterIssues(myIssues, { search, priority });
+  const issues = myIssues ?? [];
+  const shownIssues = filterIssues(issues, { search, priority });
   const lanes = buildLanes(shownIssues);
 
   // One sticky head for the three category headers, so its lower edge is one line across all bands.
   const head = document.createElement('div');
   head.className = 'my-work-head';
   for (const category of MY_WORK_CATEGORIES) {
-    const shown = categoryCount(lanes, category);
-    // Like the board: "shown/total" while a filter is active.
-    const count = filtering
-      ? `${shown}/${myIssues.filter(issue => categoryOf(issue.status) === category).length}`
-      : String(shown);
-    head.appendChild(createCategoryHeader(category, count));
+    const total = issues.filter(issue => categoryOf(issue.status) === category).length;
+    head.appendChild(createCategoryHeader(category, countText(categoryCount(lanes, category), total, filtering)));
   }
   grid.appendChild(head);
 
@@ -168,5 +178,5 @@ export function renderMyWork() {
     itemSubline: createProjectSubline,
     openModal: openIssue,
   });
-  byId('my-work-planning-count').textContent = filtering ? `${count}/${countPlanningEntries(myIssues)}` : String(count);
+  byId('my-work-planning-count').textContent = countText(count, countPlanningEntries(issues), filtering);
 }

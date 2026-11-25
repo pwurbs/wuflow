@@ -254,7 +254,10 @@ func createTables(ctx context.Context) error {
 // runMigrations applies incremental schema and data migrations to existing databases.
 // All migrations must be idempotent so they are safe to run on every startup.
 func runMigrations(ctx context.Context) error {
-	return migrateCalendarDates(ctx)
+	if err := migrateCalendarDates(ctx); err != nil {
+		return err
+	}
+	return migratePlannedDates(ctx)
 }
 
 // calendarDateColumns are the columns that hold a calendar date (YYYY-MM-DD), with the
@@ -301,6 +304,32 @@ func migrateCalendarDates(ctx context.Context) error {
 		if unreadable > 0 {
 			LogWarn("Calendar dates left unconverted, not readable as a date", "column", c.name, "count", unreadable)
 		}
+	}
+	return nil
+}
+
+// migratePlannedDates removes planned dates with a year validateIssue rejects, which were stored
+// up to 1.5.0: an issue that keeps one cannot be saved. CASE, because SQLite may evaluate the
+// operands of AND in any order and json_each fails on unreadable JSON.
+//
+// TODO(calendar-dates): Remove with migrateCalendarDates.
+func migratePlannedDates(ctx context.Context) error {
+	res, err := DB.ExecContext(ctx, `
+		UPDATE issues
+		SET planned_dates = (SELECT json_group_array(value) FROM json_each(planned_dates) WHERE value BETWEEN ?1 AND ?2)
+		WHERE CASE WHEN json_valid(planned_dates)
+			THEN EXISTS (SELECT 1 FROM json_each(planned_dates) WHERE value NOT BETWEEN ?1 AND ?2)
+			ELSE 0 END`,
+		fmt.Sprintf("%04d-01-01", MinDateYear), fmt.Sprintf("%04d-12-31", MaxDateYear))
+	if err != nil {
+		return fmt.Errorf("migrate issues.planned_dates: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count migrated issues.planned_dates: %w", err)
+	}
+	if n > 0 {
+		LogInfo("Removed planned dates with an invalid year", "issues", n)
 	}
 	return nil
 }

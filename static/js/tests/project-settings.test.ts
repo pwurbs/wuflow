@@ -298,6 +298,21 @@ describe('project-settings.ts component', () => {
       expect(stateModule.setLabels).not.toHaveBeenCalled();
     });
 
+    it("keeps another project's labels when the previous project's request fails late", async () => {
+      const { promise: pendingLabels, reject: failLabels } = Promise.withResolvers<Label[]>();
+      vi.mocked(api.fetchLabelsByProject).mockReturnValueOnce(pendingLabels);
+      const render = renderProjectSettingsView();
+
+      stateModule.state.selectedProjectId = 2;
+      vi.mocked(api.fetchLabelsByProject).mockResolvedValueOnce([makeLabel({ id: 1, name: 'Label of 2' })]);
+      await renderProjectSettingsView();
+      failLabels(new Error('Network error'));
+      await render;
+
+      expect(byId('ps-labels-list').textContent).toContain('Label of 2');
+      expect(byId('ps-labels-list').textContent).not.toContain('could not be loaded');
+    });
+
   });
 
   // ── renderStatusConfigSection ─────────────────────────────────────────────
@@ -635,6 +650,18 @@ describe('project-settings.ts component', () => {
         'Column names must contain only letters, digits, single spaces and hyphens.', 'error'
       );
       expect(api.updateStatusConfig).not.toHaveBeenCalled();
+    });
+
+    // Letters outside the BMP are two UTF-16 units, but one character for the backend.
+    it.each([[15, true], [16, false]])('counts characters, not UTF-16 units: %i letters', async (length, valid) => {
+      await renderProjectSettingsView();
+
+      bySelector(document, '.sc-name-input[data-field="stage1_name"]', HTMLInputElement).value = '\u{20000}'.repeat(length);
+      byId('ps-save-status-config-btn').click();
+      await new Promise(process.nextTick);
+
+      expect(api.updateStatusConfig).toHaveBeenCalledTimes(valid ? 1 : 0);
+      if (!valid) expect(utils.showNotification).toHaveBeenCalledWith('Column names must not exceed 15 characters.', 'error');
     });
 
     it('shows error for name exceeding max length', async () => {

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -349,13 +350,27 @@ func tryRefreshSession(w http.ResponseWriter, r *http.Request) bool {
 	// Use shared RefreshSession logic
 	user, newAccessToken, newRefreshToken, err := RefreshSession(r.Context(), refreshTokenCookie.Value)
 	if err != nil {
-		LogInfo("Session refresh failed, redirecting to login", "reason", err.Error())
+		logStaticRefreshFailure(r.Context(), err)
 		return false
 	}
 
 	SetAuthCookies(w, newAccessToken, newRefreshToken)
 	LogInfo("Token refresh successful (static)", "email", user.Email)
 	return true
+}
+
+// logStaticRefreshFailure logs why a page load is redirected to the login page. A failure
+// that follows from the client closing the request is no error (as in writeInternalError).
+func logStaticRefreshFailure(ctx context.Context, err error) {
+	const msg = "Session refresh failed, redirecting to login"
+	switch {
+	case errors.Is(err, ErrRefreshRejected):
+		LogInfo(msg, "reason", err.Error())
+	case errors.Is(ctx.Err(), context.Canceled):
+		LogDebug(msg+" (client closed request)", "error", err)
+	default:
+		LogError(msg, "error", err)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -408,13 +423,32 @@ func deleteSessionSafe(ctx context.Context, sessionID int, msg string) {
 	}
 }
 
+// ErrRefreshRejected marks a refresh token that is not valid (any more). Every other error of
+// RefreshSession is an internal failure, which says nothing about the token.
+var ErrRefreshRejected = errors.New("refresh rejected")
+
+// revokeAfterMismatch revokes all sessions of the user of a token whose HMAC does not match, and
+// returns the rejection of that token.
+func revokeAfterMismatch(ctx context.Context, session *Session) error {
+	err := RevokeUserSessions(ctx, session.UserID)
+	if err != nil {
+		err = RevokeUserSessions(ctx, session.UserID) // one retry for transient DB failures
+	}
+	if err != nil {
+		// Operators should monitor for this error.
+		LogError("Session revocation failed after retry (sessions may remain active)", "user_id", session.UserID, "error", err)
+		return fmt.Errorf("token HMAC mismatch user_id=%d session_token=%.8s, sessions not revoked: %w", session.UserID, session.SessionToken, ErrRefreshRejected)
+	}
+	return fmt.Errorf("token HMAC mismatch user_id=%d session_token=%.8s, all sessions revoked (possible token reuse or server restart without WF_SECRET_KEY): %w", session.UserID, session.SessionToken, ErrRefreshRejected)
+}
+
 // RefreshSession validates a refresh token, performs rotation, and returns new tokens.
-// Returns the user, new access token, new refresh token, or error.
+// Returns the user, new access token, new refresh token, or error (see ErrRefreshRejected).
 func RefreshSession(ctx context.Context, tokenString string) (*User, string, string, error) {
 	// 1. Parse Opaque Token
 	sessionToken, secret, err := ValidateRefreshToken(tokenString)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("invalid token format: %w", err)
+		return nil, "", "", fmt.Errorf("invalid token format: %w: %w", err, ErrRefreshRejected)
 	}
 
 	// 2. Fetch Session by unguessable token (not by integer row ID)
@@ -423,27 +457,19 @@ func RefreshSession(ctx context.Context, tokenString string) (*User, string, str
 		return nil, "", "", fmt.Errorf("session lookup failed session_token=%.8s: %w", sessionToken, err)
 	}
 	if session == nil {
-		return nil, "", "", fmt.Errorf("session not found session_token=%.8s", sessionToken)
+		return nil, "", "", fmt.Errorf("session not found session_token=%.8s: %w", sessionToken, ErrRefreshRejected)
 	}
 
 	// 3. Check Expiry
 	if time.Now().After(session.ExpiresAt) {
 		deleteSessionSafe(ctx, session.ID, "failed to delete expired session")
-		return nil, "", "", fmt.Errorf("session expired user_id=%d session_token=%.8s", session.UserID, sessionToken)
+		return nil, "", "", fmt.Errorf("session expired user_id=%d session_token=%.8s: %w", session.UserID, sessionToken, ErrRefreshRejected)
 	}
 
 	// 4. Verify Hash (Reuse Detection)
 	expected := computeTokenMAC([]byte(secret))
 	if !hmac.Equal([]byte(expected), []byte(session.TokenHash)) {
-		revokeErr := RevokeUserSessions(ctx, session.UserID)
-		if revokeErr != nil {
-			revokeErr = RevokeUserSessions(ctx, session.UserID) // one retry for transient DB failures
-		}
-		if revokeErr != nil {
-			// Sessions may remain active — operators should monitor for this error.
-			return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_token=%.8s AND session revocation failed after retry (sessions may remain active): %w", session.UserID, sessionToken, revokeErr)
-		}
-		return nil, "", "", fmt.Errorf("token HMAC mismatch user_id=%d session_token=%.8s, all sessions revoked (possible token reuse or server restart without WF_SECRET_KEY)", session.UserID, sessionToken)
+		return nil, "", "", revokeAfterMismatch(ctx, session)
 	}
 
 	// 5. Fetch User
@@ -453,7 +479,7 @@ func RefreshSession(ctx context.Context, tokenString string) (*User, string, str
 	}
 	if user == nil || !user.Active {
 		deleteSessionSafe(ctx, session.ID, "failed to delete session for inactive user")
-		return nil, "", "", fmt.Errorf("user inactive or not found user_id=%d session_token=%.8s", session.UserID, sessionToken)
+		return nil, "", "", fmt.Errorf("user inactive or not found user_id=%d session_token=%.8s: %w", session.UserID, sessionToken, ErrRefreshRejected)
 	}
 
 	// 6. Generate New Access Token
@@ -471,7 +497,11 @@ func RefreshSession(ctx context.Context, tokenString string) (*User, string, str
 	// 8. Update Session
 	session.TokenHash = newTokenHash
 	session.ExpiresAt = time.Now().UTC().Add(refreshTokenDuration)
-	if err := UpdateSession(ctx, session); err != nil {
+	err = UpdateSession(ctx, session)
+	if errors.Is(err, ErrSessionNotFound) { // revoked meanwhile
+		return nil, "", "", fmt.Errorf("session revoked user_id=%d session_token=%.8s: %w", session.UserID, sessionToken, ErrRefreshRejected)
+	}
+	if err != nil {
 		return nil, "", "", fmt.Errorf("failed to update session user_id=%d session_token=%.8s: %w", session.UserID, sessionToken, err)
 	}
 

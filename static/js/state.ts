@@ -25,6 +25,7 @@ export interface State {
   currentIssue: Issue | null;
   currentUser: User | null;
   selectedProjectId: number | null;
+  loadedProjectId: number | null;
   statusConfig: StatusConfig | null;
   filter: Filter;
 }
@@ -39,6 +40,7 @@ export const state: State = {
   currentIssue: null,
   currentUser: null,
   selectedProjectId: null, // null = show all projects (project selector context)
+  loadedProjectId: null,   // project of the data on screen: differs from selectedProjectId during a project switch, null until the first refresh has succeeded
   statusConfig: null,      // StatusConfig for selectedProjectId, null until loaded
   filter: {
     labelId: null,
@@ -70,6 +72,10 @@ export function setFilterSearch(term: string) {
 
 export function setSelectedProject(projectId: number | null) {
   state.selectedProjectId = projectId;
+}
+
+export function setLoadedProject(projectId: number | null) {
+  state.loadedProjectId = projectId;
 }
 
 export function setIssues(newIssues: Issue[]) {

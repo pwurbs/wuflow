@@ -2084,3 +2084,66 @@ func TestMigrateCalendarDates(t *testing.T) {
 		}
 	}
 }
+
+func TestMigratePlannedDates(t *testing.T) {
+	setupTestDB()
+	defer teardownTestDB()
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		stored, want any
+	}{
+		{"mixed", `["0202-05-01","2026-11-20","2101-01-01"]`, `["2026-11-20"]`},
+		{"only invalid years", `["0202-05-01","0203-05-01"]`, `[]`},
+		{"only valid years, as stored", `["2026-11-20", "2026-01-01"]`, `["2026-11-20", "2026-01-01"]`},
+		{"first and last valid day", `["1999-12-31","2000-01-01","2100-12-31"]`, `["2000-01-01","2100-12-31"]`},
+		{"empty", `[]`, `[]`},
+		{"NULL", nil, nil},
+		{"JSON null", `null`, `null`},
+		{"unreadable JSON", `["0202-05-01"`, `["0202-05-01"`},
+	}
+	ids := make([]int, len(tests))
+	for i, tt := range tests {
+		issue := &Issue{Title: tt.name, Status: StatusOpen, ProjectID: 1}
+		if err := CreateIssue(ctx, issue); err != nil {
+			t.Fatal(err)
+		}
+		ids[i] = issue.ID
+		if _, err := DB.ExecContext(ctx, "UPDATE issues SET planned_dates = ? WHERE id = ?", tt.stored, issue.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, wantLogged := range []bool{true, false} { // the second run must change nothing
+		buf, restore := captureLogsAt(t, slog.LevelInfo)
+		err := runMigrations(ctx)
+		restore()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if logged := strings.Contains(buf.String(), `"issues":3`); logged != wantLogged || (!wantLogged && buf.Len() != 0) {
+			t.Errorf("want the 3 changed issues logged: %v, got %s", wantLogged, buf)
+		}
+		for i, tt := range tests {
+			var got any
+			if err := DB.QueryRowContext(ctx, "SELECT planned_dates FROM issues WHERE id = ?", ids[i]).Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("%s: got %v, want %v", tt.name, got, tt.want)
+			}
+		}
+	}
+
+	// What the migration is for: the issue can be saved again.
+	for i, tt := range tests[:2] {
+		issue, err := GetIssueByID(ctx, ids[i])
+		if err != nil || issue == nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		if err := validateIssue(issue); err != nil {
+			t.Errorf("%s: %v", tt.name, err)
+		}
+	}
+}

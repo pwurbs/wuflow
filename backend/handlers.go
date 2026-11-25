@@ -1005,7 +1005,10 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request, _, issueID int,
 
 	// The request context carries only user_id/email/role, so hydrate the author's
 	// name from the DB for the frontend comment header.
-	if u, err := GetUserByID(r.Context(), userID); err == nil && u != nil {
+	u, err := GetUserByID(r.Context(), userID)
+	if err != nil {
+		LogError("handleCreateComment: GetUserByID failed, response without author", "id", c.ID, "error", err, "user_email", userEmail)
+	} else if u != nil {
 		c.User = u
 	}
 
@@ -1366,10 +1369,14 @@ func HandleRefresh(w http.ResponseWriter, r *http.Request) {
 
 	// Use Auth Service to refresh session
 	user, accessToken, newRefreshToken, err := RefreshSession(r.Context(), cookie.Value)
-	if err != nil {
+	if errors.Is(err, ErrRefreshRejected) {
 		LogWarn("Refresh failed", "error", err)
 		ClearAuthCookies(w)
 		http.Error(w, errMsgUnauthorized, http.StatusUnauthorized)
+		return
+	}
+	if err != nil {
+		writeInternalError(r.Context(), w, "RefreshSession failed", err)
 		return
 	}
 

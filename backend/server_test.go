@@ -1092,7 +1092,7 @@ type swaggerOperation struct {
 	RequiredRole UserRole           `json:"x-required-role"`
 }
 
-// requiredRank is the rank of x-required-role (roleRank in models.go); without the field every role may.
+// requiredRank is the rank of x-required-role (roleRank in models.go). Without the field every role may.
 func (op swaggerOperation) requiredRank() int {
 	if op.RequiredRole == "" {
 		return roleRank(RoleUser)

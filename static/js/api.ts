@@ -128,7 +128,7 @@ const renewSessionOnce = singleFlight(renewSession);
 /**
  * Auth-aware fetch wrapper.
  * - Network failures throw NetworkError; GET requests are retried once first.
- *   Other methods are never retried automatically, as their outcome is unknown; their
+ *   Other methods are never retried automatically, as their outcome is unknown. Their
  *   error says that the change was not saved.
  * - On 401: refreshes the session (or re-authenticates the user) and replays the
  *   request once. The replay is safe because a 401 request was never executed.

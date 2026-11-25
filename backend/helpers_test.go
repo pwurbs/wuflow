@@ -108,3 +108,11 @@ func rawText(t *testing.T, query string, id int) string {
 	}
 	return s
 }
+
+// execTestSQL changes the test database behind the app, e.g. so that a later query fails.
+func execTestSQL(t *testing.T, query string) {
+	t.Helper()
+	if _, err := DB.ExecContext(context.Background(), query); err != nil {
+		t.Fatal(err)
+	}
+}
