@@ -59,6 +59,8 @@ A fully automated two-phase shell script that:
 ```
 The script expects Wapiti to be installed in a virtual environment at `~/python_wapiti_env`. Results are saved in the `./test-results` directory. If a server already listens on port 8088, e.g. one left over from an aborted scan, the script stops and names the process instead of killing it. `check_dependencies.sh` reports when a newer Wapiti release is available; update it with `~/python_wapiti_env/bin/pip install --upgrade wapiti3`.
 
+**Known false positive:** since 3.3.3 or 3.3.4 Wapiti reports "Lack of anti CSRF token" for POST routes without a request body. It applies only if the finding's request shows `content-type: application/json` and `content-length: 0`. Investigate any other CSRF finding. Remove this note when a Wapiti release no longer reports it.
+
 ### `check_dependencies.sh`
 A shell script to check for available updates across all dependencies in the repository. It checks:
 1. NPM dependencies in `static/js` (including the build tool Vite) and `playwright`. The `@types/node` line carries a reminder to keep its major version at the Node major of the `Dockerfile`.

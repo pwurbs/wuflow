@@ -1202,3 +1202,33 @@ func TestRouteLoginRequired(t *testing.T) {
 		})
 	}
 }
+
+// TestRouteRequiresJSON: every registered POST and PUT route must answer 415 without a
+// JSON content type in the production middleware chain (CSRF protection).
+func TestRouteRequiresJSON(t *testing.T) {
+	identity := func(h http.Handler) http.Handler { return h }
+	rec := &recordingMux{ServeMux: http.NewServeMux()}
+	registerAPIRoutes(rec, "test", identity, identity)
+
+	mux := APIMux("test")
+	for _, pattern := range rec.patterns {
+		method, _, _ := strings.Cut(pattern, " ")
+		if method != http.MethodPost && method != http.MethodPut {
+			continue
+		}
+		for _, contentType := range []string{"", "text/plain", "application/x-www-form-urlencoded", "multipart/form-data"} {
+			t.Run(pattern+"/"+contentType, func(t *testing.T) {
+				req := routeRequest(pattern)
+				req.Header.Del(headerContentType)
+				if contentType != "" {
+					req.Header.Set(headerContentType, contentType)
+				}
+				rr := httptest.NewRecorder()
+				mux.ServeHTTP(rr, req)
+				if rr.Code != http.StatusUnsupportedMediaType {
+					t.Errorf("got %d with content type %q, want 415", rr.Code, contentType)
+				}
+			})
+		}
+	}
+}

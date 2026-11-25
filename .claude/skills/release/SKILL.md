@@ -56,7 +56,8 @@ Steps 1–3 also write the coverage and gosec reports that the Sonar scan in P7 
 5. `./scripts/check_dependencies.sh` — no pass/fail: list outstanding updates and npm audit /
    govulncheck findings; the user decides whether one blocks the release.
 6. `./scripts/run_wapiti_scan.sh` — findings from `test-results/wapiti/` (console log, reports);
-   compare with the accepted risks in docs/security-guidelines.md.
+   compare with the known false positive in scripts/README.md and the accepted risks in
+   docs/security-guidelines.md.
 7. `helm lint chart --set ingress.host=wuflow.example.com` (the chart requires a host)
 8. `./scripts/trivy_scan.sh` — builds the arm64 image `wuflow:X.Y.Z` and lists HIGH/CRITICAL findings.
 9. `cd playwright && npm test` — last, as the full E2E run (CLAUDE.md "Testing"); P6's fast-forward

@@ -103,8 +103,11 @@ The security rules wuFlow's code follows and the risks the project has deliberat
 - **Why decided**: The three rules under *Mitigation* already block every way a foreign web page
   can send a request with the user's cookies. A token would block the same requests again, at the
   cost of extra code and server-side state.
-- **Mitigation**: `SameSite=Strict` cookies; `Content-Type: application/json` for POST/PUT (HTML
-  forms can't send it); no CORS headers (script requests from other sites are blocked).
+- **Mitigation**: `SameSite=Strict` cookies, `Content-Type: application/json` for POST/PUT (HTML
+  forms can't send it, nor can they send DELETE), and no CORS headers (the browser's preflight
+  blocks write requests by scripts from other origins). `SameSite` does not apply to sibling
+  subdomains and other ports of the same host, which count as the same site. Against pages there,
+  only the other two rules protect.
 - **Revisit if**: CORS headers are added, `SameSite` is relaxed, or a non-JSON write endpoint is
   introduced (e.g. file upload for attachments).
 
