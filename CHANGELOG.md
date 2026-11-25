@@ -14,6 +14,7 @@
 - Fixed: data that cannot be loaded is now reported instead of appearing as empty lists, a deleted issue, another selected project or a failed save, and text typed in the issue dialog is no longer lost
 - Fixed: a short database failure while renewing the session no longer deletes the login cookies
 - Fixed: the issue dialog no longer treats done tasks as late, and marks late tasks correctly right after the release is changed
+- Bumped marked to 18.3.0 and DOMPurify to 3.5.0
 
 # 1.5.0
 
