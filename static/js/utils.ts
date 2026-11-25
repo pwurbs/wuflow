@@ -1,7 +1,7 @@
 // Utility Functions
 
 import { state } from './state.ts';
-import type { CalendarDate, Issue, UserRef } from './models.ts';
+import type { CalendarDate, Issue, Task, UserRef } from './models.ts';
 import { MIN_DATE_YEAR, MAX_DATE_YEAR } from './validation-config.ts';
 
 // Calendar dates (CalendarDate): rules in docs/frontend.md (utils.ts).
@@ -62,9 +62,10 @@ export function getDeadlineStatus(issue: DeadlineSource): DeadlineStatus {
   return { late: false };
 }
 
-// For a task deadline given its parent issue.
-export function getTaskDeadlineStatus(taskDeadline: CalendarDate | null, issue: DeadlineSource | null): DeadlineStatus {
-  if (!taskDeadline) return { late: false };
+// For a task deadline given its parent issue. A done task is never late.
+export function getTaskDeadlineStatus(task: Pick<Task, 'deadline' | 'done'>, issue: DeadlineSource | null): DeadlineStatus {
+  const taskDeadline = task.deadline;
+  if (task.done || !taskDeadline) return { late: false };
   if (taskDeadline < todayISO()) return { late: true, reason: 'Overdue!' };
   if (issue?.deadline) {
     if (taskDeadline > issue.deadline) return { late: true, reason: 'After issue deadline!' };

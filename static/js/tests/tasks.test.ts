@@ -244,6 +244,72 @@ describe('Tasks Component', () => {
     expect(display.textContent).not.toMatch(/📅/u);
   });
 
+  describe('late deadlines', () => {
+    beforeEach(async () => {
+      const actual = await vi.importActual<typeof import('../utils.ts')>('../utils.ts');
+      vi.mocked(utils.getTaskDeadlineStatus).mockImplementation(actual.getTaskDeadlineStatus);
+    });
+
+    const renderTask = (overrides: Partial<Task>) => {
+      renderTasks([makeTask({ id: 1, ...overrides })], container, issue, callbacks);
+      return {
+        display: bySelector(container, '.task-deadline-display'),
+        deadlineContainer: bySelector(container, '.task-deadline-container'),
+      };
+    };
+
+    const toggle = async () => {
+      const checkbox = bySelector(container, 'input[type="checkbox"]', HTMLInputElement);
+      checkbox.checked = !checkbox.checked;
+      checkbox.dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+    };
+
+    it('marks an overdue open task', () => {
+      const { display, deadlineContainer } = renderTask({ deadline: '2000-01-01', done: false });
+      expect(display.classList.contains('overdue')).toBe(true);
+      expect(deadlineContainer.title).toBe('Overdue!');
+    });
+
+    it('does not mark a done task', () => {
+      const { display, deadlineContainer } = renderTask({ deadline: '2000-01-01', done: true });
+      expect(display.classList.contains('overdue')).toBe(false);
+      expect(deadlineContainer.title).toBe('Set Deadline');
+    });
+
+    it('removes the mark when the task is checked and sets it again when it is reopened', async () => {
+      const { display, deadlineContainer } = renderTask({ deadline: '2000-01-01', done: false });
+
+      await toggle();
+      expect(display.classList.contains('overdue')).toBe(false);
+      expect(deadlineContainer.title).toBe('Set Deadline');
+
+      await toggle();
+      expect(display.classList.contains('overdue')).toBe(true);
+      expect(deadlineContainer.title).toBe('Overdue!');
+    });
+
+    it('keeps the mark when checking the task fails', async () => {
+      vi.mocked(api.updateTask).mockRejectedValue(new Error('Update failed'));
+      const { display } = renderTask({ deadline: '2000-01-01', done: false });
+      await toggle();
+      expect(utils.showNotification).toHaveBeenCalledWith('Update failed', 'error');
+      expect(display.classList.contains('overdue')).toBe(true);
+    });
+
+    it.each([
+      [false, 'Task deadline updated — Overdue!', 'warning'],
+      [true, 'Task deadline updated', 'success'],
+    ] as const)('warns about a past deadline only for an open task (done: %s)', async (done, message, type) => {
+      renderTask({ done });
+      const input = bySelector(container, '.task-deadline-input', HTMLInputElement);
+      input.value = '2000-01-01';
+      input.dispatchEvent(new Event('change'));
+      await new Promise(process.nextTick);
+      expect(utils.showNotification).toHaveBeenCalledWith(message, type);
+    });
+  });
+
   it('should handle keyboard navigation in edit mode', async () => {
     renderTasks(tasks, container, issue, callbacks);
     const item = bySelector(container, '.task-item', HTMLLIElement);

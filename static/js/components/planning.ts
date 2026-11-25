@@ -210,7 +210,7 @@ export function createDeadlineBadge(issue: Issue, specificDateStr?: CalendarDate
   const d = effectiveInfo.date;
 
   const status = effectiveInfo.isTask
-    ? getTaskDeadlineStatus(d, issue)
+    ? getTaskDeadlineStatus({ deadline: d, done: false }, issue)
     : getDeadlineStatus(issue);
   const plannedLate = isPlannedLate(issue, d, specificDateStr);
   const isWarning = status.late || plannedLate;

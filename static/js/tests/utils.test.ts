@@ -59,9 +59,9 @@ describe('getDeadlineStatus', () => {
     });
 
     it('a task deadline today is not overdue, one on the issue deadline is not after it', () => {
-      expect(getTaskDeadlineStatus('2026-11-20', makeIssue({ deadline: '2026-11-25' })).late).toBe(false);
-      expect(getTaskDeadlineStatus('2026-11-25', makeIssue({ deadline: '2026-11-25' })).late).toBe(false);
-      expect(getTaskDeadlineStatus('2026-11-26', makeIssue({ deadline: '2026-11-25' })))
+      expect(getTaskDeadlineStatus(makeTask({ deadline: '2026-11-20' }), makeIssue({ deadline: '2026-11-25' })).late).toBe(false);
+      expect(getTaskDeadlineStatus(makeTask({ deadline: '2026-11-25' }), makeIssue({ deadline: '2026-11-25' })).late).toBe(false);
+      expect(getTaskDeadlineStatus(makeTask({ deadline: '2026-11-26' }), makeIssue({ deadline: '2026-11-25' })))
         .toEqual({ late: true, reason: 'After issue deadline!' });
     });
   });
@@ -69,30 +69,39 @@ describe('getDeadlineStatus', () => {
 
 describe('getTaskDeadlineStatus', () => {
   it('returns not-late when no task deadline is set', () => {
-    expect(getTaskDeadlineStatus(null, makeIssue()).late).toBe(false);
+    expect(getTaskDeadlineStatus(makeTask({ deadline: null }), makeIssue()).late).toBe(false);
   });
 
   it('flags a past task deadline as Overdue', () => {
-    expect(getTaskDeadlineStatus('2000-01-01', makeIssue())).toEqual({
+    expect(getTaskDeadlineStatus(makeTask({ deadline: '2000-01-01' }), makeIssue())).toEqual({
       late: true,
       reason: 'Overdue!',
     });
   });
 
   it('flags a task deadline after the issue deadline', () => {
-    const res = getTaskDeadlineStatus('2999-12-31', makeIssue({ deadline: '2999-01-01' }));
+    const res = getTaskDeadlineStatus(makeTask({ deadline: '2999-12-31' }), makeIssue({ deadline: '2999-01-01' }));
     expect(res).toEqual({ late: true, reason: 'After issue deadline!' });
   });
 
   it('falls back to release date when issue has no deadline', () => {
-    const res = getTaskDeadlineStatus('2999-12-31', makeIssue({
+    const res = getTaskDeadlineStatus(makeTask({ deadline: '2999-12-31' }), makeIssue({
       release: makeRelease({ release_date: '2999-01-01' }),
     }));
     expect(res).toEqual({ late: true, reason: 'Past release date!' });
   });
 
+  it.each([
+    ['overdue', '2000-01-01', makeIssue()],
+    ['after the issue deadline', '2999-12-31', makeIssue({ deadline: '2999-01-01' })],
+    ['after the release date', '2999-12-31', makeIssue({ release: makeRelease({ release_date: '2999-01-01' }) })],
+  ])('returns not-late for a done task whose deadline is %s', (_case, deadline, issue) => {
+    expect(getTaskDeadlineStatus(makeTask({ deadline, done: false }), issue).late).toBe(true);
+    expect(getTaskDeadlineStatus(makeTask({ deadline, done: true }), issue)).toEqual({ late: false });
+  });
+
   it('returns not-late for a task deadline within bounds', () => {
-    const res = getTaskDeadlineStatus('2999-06-01', makeIssue({ deadline: '2999-12-31' }));
+    const res = getTaskDeadlineStatus(makeTask({ deadline: '2999-06-01' }), makeIssue({ deadline: '2999-12-31' }));
     expect(res.late).toBe(false);
   });
 });

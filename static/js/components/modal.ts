@@ -11,7 +11,7 @@ import type { CalendarDate, Issue, PositionUpdate, Project, Task, User } from '.
 import type { RefreshApp, RerenderView } from '../list-utils.ts';
 import { renderMarkdown, renderMarkdownWithReport } from '../markdown.ts';
 import { userCan, ACTION_CREATE_ISSUE, ACTION_UPDATE_ISSUE, ACTION_DELETE_ISSUE, ACTION_ARCHIVE_ISSUE, ACTION_UNARCHIVE_ISSUE, ACTION_MOVE_ISSUE, ACTION_CREATE_TASK, ACTION_UPDATE_TASK } from '../permissions.ts';
-import { renderTasks } from './tasks.ts';
+import { renderTasks, showTaskDeadlineStatus } from './tasks.ts';
 import { setupEditorToolbar, exitMdPreview } from './editor-toolbar.ts';
 import { setupIssueDropdowns, renderStatusOptions, renderPriorityOptions, renderLabelOptions, renderReleaseOptions, renderProjectOptions, renderAssigneeOptions, cachedProjectOptions, fetchProjectOptions, resetProjectDropdowns } from './issue-dropdowns.ts';
 import type { ProjectOptions } from './issue-dropdowns.ts';
@@ -1082,9 +1082,9 @@ async function handleDeadlineChange(deadline: CalendarDate | null) {
   if (!(await saveSidebarField({ deadline }, null, byId('deadline', HTMLInputElement)))) return;
   const dlStatus = getDeadlineStatus({ deadline, release: state.currentIssue.release });
   byId('deadline-display').classList.toggle('overdue', dlStatus.late);
-  const lateTaskCount = refreshTaskDeadlineStyles();
+  const lateTaskCount = refreshTaskDeadlineStyles(state.currentIssue);
   const taskSuffix = lateTaskCount === 1 ? '' : 's';
-  const taskWarning = lateTaskCount > 0 ? ` — ${lateTaskCount} task${taskSuffix} past deadline` : '';
+  const taskWarning = lateTaskCount > 0 ? ` — ${lateTaskCount} late task${taskSuffix}` : '';
   showNotification(
     dlStatus.late ? `Deadline updated — ${dlStatus.reason}${taskWarning}` : `Deadline updated${taskWarning}`,
     dlStatus.late || lateTaskCount > 0 ? 'warning' : 'success'
@@ -1135,6 +1135,7 @@ function setupSidebarImmediateSave() {
       if (await saveSidebarField({ release_id: releaseId }, 'Release updated', releaseSelect)) {
         const dlStatus = getDeadlineStatus(state.currentIssue);
         byId('deadline-display').classList.toggle('overdue', dlStatus.late);
+        refreshTaskDeadlineStyles(state.currentIssue);
         if (dlStatus.late) showNotification(`Release updated — deadline is ${dlStatus.reason}`, 'warning');
       }
     }
@@ -1186,18 +1187,14 @@ async function moveIssueToProject(projectId: number) {
 }
 
 // Task Logic Helpers
-function refreshTaskDeadlineStyles() {
+// Updates the rows of the issue's tasks and returns how many of them are late.
+function refreshTaskDeadlineStyles(issue: Issue) {
+  const list = byId('task-list');
   let lateCount = 0;
-  document.querySelectorAll('#task-list .task-item').forEach(li => {
-    const input = li.querySelector<HTMLInputElement>('.task-deadline-input');
-    const display = li.querySelector('.task-deadline-display');
-    const container = li.querySelector<HTMLElement>('.task-deadline-container');
-    if (!input || !display || !container) return;
-    const status = getTaskDeadlineStatus(input.value || null, state.currentIssue);
-    display.classList.toggle('overdue', status.late);
-    container.title = status.late ? status.reason : 'Set Deadline';
-    if (status.late) lateCount++;
-  });
+  for (const task of issue.tasks ?? []) {
+    const li = list.querySelector<HTMLElement>(`.task-item[data-id="${task.id}"]`);
+    if (li && showTaskDeadlineStatus(li, task, issue).late) lateCount++;
+  }
   return lateCount;
 }
 
@@ -1236,7 +1233,7 @@ async function handleTaskSubmit() {
     renderTasks(state.currentIssue.tasks, byId('task-list'), state.currentIssue, taskCallbacks(state.currentIssue));
     resetTaskForm();
     syncUnloadListener();
-    const taskDlStatus = getTaskDeadlineStatus(taskData.deadline, state.currentIssue);
+    const taskDlStatus = getTaskDeadlineStatus(taskData, state.currentIssue);
     showNotification(taskDlStatus.late ? `Task created — ${taskDlStatus.reason}` : 'Task created', taskDlStatus.late ? 'warning' : 'success');
     if (rerenderViewsCallback) rerenderViewsCallback();
     void refreshHistory();

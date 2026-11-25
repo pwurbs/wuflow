@@ -100,7 +100,7 @@ We decided against treating (sub)tasks as separate issues like it's done in Jira
 As a consequence, tasks can only be managed as part of an issue and owns these properties:
 - **Title**: A short summary of the task (max. 100 chars).
 - **Deadline**: You can optionally assign a deadline only for one task. If set, then the task is considered in the planning sidebar too. See the Planning section below for more details.
-- **Done**: If checked, the task is considered done. 
+- **Done**: If checked, the task is considered done. A done task is never late, even if its deadline has passed.
 
 Tasks can also be deleted by clicking the cross icon in the task card. This action can't be undone. Sometimes it's better to delete to clean a long list of already done tasks.
 

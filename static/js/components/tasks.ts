@@ -12,6 +12,14 @@ function taskDeadlineHTML(deadline: CalendarDate | null) {
   return `<span class="icon-calendar" aria-hidden="true"></span>${date}`;
 }
 
+// Shows in the task's row whether its deadline is late, and returns that status.
+export function showTaskDeadlineStatus(li: HTMLElement, task: Task, issue: Issue) {
+  const status = getTaskDeadlineStatus(task, issue);
+  bySelector(li, '.task-deadline-display').classList.toggle('overdue', status.late);
+  bySelector(li, '.task-deadline-container').title = status.late ? status.reason : 'Set Deadline';
+  return status;
+}
+
 export interface TaskCallbacks {
   readOnly?: boolean;
   onTaskUpdate?: () => void;
@@ -34,15 +42,14 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
 
     // Coerce task.id to a safe integer before embedding in HTML attributes
     const taskId = Number.isInteger(task.id) ? task.id : Math.trunc(Number(task.id));
-    const dlStatus = getTaskDeadlineStatus(task.deadline, currentIssue);
     li.innerHTML = `
             <span class="task-drag-handle">⋮⋮</span>
             <input type="checkbox" id="task-check-${taskId}" name="task_check_${taskId}" ${task.done ? 'checked' : ''}>
             <div class="task-info">
                 <input type="text" id="task-title-${taskId}" name="task_title_${taskId}" class="task-title-input" value="${escapeHtml(task.title)}" title="${escapeHtml(task.title)}" readonly>
                 <div class="task-actions">
-                    <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}" title="${dlStatus.late ? dlStatus.reason : 'Set Deadline'}">
-                        <span class="task-deadline task-deadline-display${dlStatus.late ? ' overdue' : ''}">${taskDeadlineHTML(task.deadline)}</span>
+                    <div class="task-deadline-container ${task.deadline ? '' : 'no-deadline'}">
+                        <span class="task-deadline task-deadline-display">${taskDeadlineHTML(task.deadline)}</span>
                         <input type="date" id="task-deadline-${taskId}" name="task_deadline_${taskId}" class="task-deadline-input" value="${escapeHtml(task.deadline ?? '')}">
                     </div>
                     <div class="delete-task-btn" title="Delete Task">
@@ -51,6 +58,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
                 </div>
             </div>
         `;
+    showTaskDeadlineStatus(li, task, currentIssue);
 
     // Checkbox Logic
     const checkbox = bySelector(li, 'input[type="checkbox"]', HTMLInputElement);
@@ -67,6 +75,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
         try {
           await updateTask(currentIssue.project_id, currentIssue.id, task);
           li.className = `task-item ${task.done ? 'done' : ''}`;
+          showTaskDeadlineStatus(li, task, currentIssue);
           showNotification(task.done ? 'Task marked as done' : 'Task marked as not done');
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         } catch (err) {
@@ -201,9 +210,7 @@ export function renderTasks(tasks: Task[], container: HTMLElement, currentIssue:
           const display = bySelector(li, '.task-deadline-display');
           display.innerHTML = taskDeadlineHTML(task.deadline);
           deadlineContainer.classList.toggle('no-deadline', !task.deadline);
-          const updatedStatus = getTaskDeadlineStatus(task.deadline, currentIssue);
-          display.classList.toggle('overdue', updatedStatus.late);
-          deadlineContainer.title = updatedStatus.late ? updatedStatus.reason : 'Set Deadline';
+          const updatedStatus = showTaskDeadlineStatus(li, task, currentIssue);
           showNotification(updatedStatus.late ? `Task deadline updated — ${updatedStatus.reason}` : 'Task deadline updated', updatedStatus.late ? 'warning' : 'success');
           if (callbacks.onTaskUpdate) callbacks.onTaskUpdate();
         } catch (err) {

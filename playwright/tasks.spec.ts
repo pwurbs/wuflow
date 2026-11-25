@@ -303,6 +303,36 @@ test.describe('Task (Subtask) Management', () => {
       });
       await expect(taskItem.locator('.task-deadline-display')).toHaveClass(/overdue/);
     });
+
+    test('a done task with a past deadline is not counted when the issue deadline is set', async ({ page }) => {
+      const title = `Task Done Late ${Date.now()}`;
+      await createIssue(page, { title, status: 'Todo' });
+      await openIssueByTitle(page, title);
+
+      await page.fill('#new-task-title', 'Finished Task');
+      await page.fill('#new-task-deadline', '2020-01-01', { force: true });
+      await page.click('#add-task-btn');
+      const taskItem = page.locator('#task-list .task-item').filter({
+        has: page.locator('.task-title-input[value="Finished Task"]'),
+      });
+      const toast = page.locator('#notification-toast');
+      const deadline = taskItem.locator('.task-deadline-display');
+      await expect(deadline).toHaveClass(/overdue/);
+
+      await page.fill('#deadline', isoDateFromToday(5), { force: true });
+      await expect(toast).toHaveText('Deadline updated — 1 late task');
+      await expect(toast).toHaveClass(/warning/);
+
+      await taskItem.locator('input[type="checkbox"]').check();
+      await expect(toast).toHaveText('Task marked as done');
+      await expect(deadline).not.toHaveClass(/overdue/);
+
+      await page.fill('#deadline', isoDateFromToday(6), { force: true });
+      await expect(toast).toHaveText('Deadline updated');
+      await expect(toast).not.toHaveClass(/warning/);
+
+      await taskItem.locator('input[type="checkbox"]').uncheck();
+      await expect(deadline).toHaveClass(/overdue/);
+    });
   });
 });
-

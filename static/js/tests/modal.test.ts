@@ -118,7 +118,8 @@ vi.mock('../markdown.ts', () => ({
   })),
 }));
 
-vi.mock('../components/tasks.ts', () => ({
+vi.mock('../components/tasks.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../components/tasks.ts')>(),
   renderTasks: vi.fn()
 }));
 
@@ -1150,32 +1151,79 @@ describe('Modal Component', () => {
       }), expect.any(String));
     });
 
-    it('should refresh task deadline styles when issue deadline changes', async () => {
-      const issue = makeIssue({ id: 1 });
-      await openModalWithMock(issue);
+    describe('late tasks', () => {
+      const LATE: Partial<Task> = { deadline: '2000-01-01', done: false };
 
-      // Seed a task item so refreshTaskDeadlineStyles' forEach has something to iterate.
-      const taskList = byId('task-list');
-      taskList.innerHTML = `
-        <li class="task-item">
-          <div class="task-deadline-container">
-            <input class="task-deadline-input" value="2020-01-01">
-            <span class="task-deadline-display"></span>
-          </div>
-        </li>
-      `;
+      beforeEach(async () => {
+        const actualUtils = await vi.importActual<typeof import('../utils.ts')>('../utils.ts');
+        vi.mocked(utils.getTaskDeadlineStatus).mockImplementation(actualUtils.getTaskDeadlineStatus);
+        const actualTasks = await vi.importActual<typeof tasks>('../components/tasks.ts');
+        vi.mocked(tasks.renderTasks).mockImplementation(actualTasks.renderTasks);
+      });
 
-      const input = byId('deadline', HTMLInputElement);
-      input.value = '2025-12-31';
-      input.dispatchEvent(new Event('change'));
+      const openWithTasks = (overrides: Partial<Task>[], issue: Partial<Issue> = {}) =>
+        openModalWithMock(makeIssue({ id: 1, ...issue, tasks: overrides.map((task, i) => makeTask({ id: i + 1, ...task })) }));
 
-      await new Promise(process.nextTick);
+      // The server answers with the sent fields, plus the given ones it fills in itself.
+      const answerSave = (filledIn: Partial<Issue> = {}) => {
+        vi.mocked(api.updateIssue).mockImplementationOnce(async (_projectId, sent) => (
+          { issue: { ...savedIssue(sent), ...filledIn }, etag: '"e2"', conflict: false }
+        ));
+      };
 
-      // The forEach reached the task item — its container's title is updated
-      // by refreshTaskDeadlineStyles regardless of overdue status.
-      const container = bySelector(taskList, '.task-deadline-container');
-      expect(container.title).toBeTruthy();
-      expect(api.updateIssue).toHaveBeenCalled();
+      const change = async (id: string, value: string) => {
+        const input = byId(id, HTMLInputElement);
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        await vi.waitFor(() => expect(utils.showNotification).toHaveBeenCalled());
+        await new Promise(process.nextTick);
+      };
+
+      const row = (id: number) => bySelector(byId('task-list'), `.task-item[data-id="${id}"]`);
+      const isMarked = (id: number) => bySelector(row(id), '.task-deadline-display').classList.contains('overdue');
+
+      it('does not warn about a done task when the issue deadline changes', async () => {
+        await openWithTasks([{ ...LATE, done: true }, {}]);
+        answerSave();
+        await change('deadline', '2999-01-01');
+        expect(utils.showNotification).toHaveBeenCalledWith('Deadline updated', 'success');
+      });
+
+      it.each([
+        ['1 late task', [LATE, { ...LATE, done: true }]],
+        ['2 late tasks', [LATE, { deadline: '2999-12-31' }]],
+      ])('warns about %s, without the done ones', async (text, overrides) => {
+        await openWithTasks(overrides);
+        answerSave();
+        await change('deadline', '2999-01-01');
+        expect(utils.showNotification).toHaveBeenCalledWith(`Deadline updated — ${text}`, 'warning');
+      });
+
+      it('marks the tasks after the new issue deadline', async () => {
+        await openWithTasks([{ deadline: '2999-12-31' }, { deadline: '2999-12-31', done: true }, { deadline: '2998-01-01' }]);
+        expect(isMarked(1)).toBe(false);
+        answerSave();
+        await change('deadline', '2999-01-01');
+        expect([1, 2, 3].map(isMarked)).toEqual([true, false, false]);
+        expect(bySelector(row(1), '.task-deadline-container').title).toBe('After issue deadline!');
+      });
+
+      it('marks the tasks after the date of a newly chosen release', async () => {
+        await openWithTasks([{ deadline: '2999-12-31' }, { deadline: '2999-12-31', done: true }]);
+        answerSave({ release: makeRelease({ id: 2, release_date: '2999-01-01' }) });
+        await change('release-select', '2');
+        expect([1, 2].map(isMarked)).toEqual([true, false]);
+        expect(bySelector(row(1), '.task-deadline-container').title).toBe('Past release date!');
+      });
+
+      it('removes the mark when the release is cleared', async () => {
+        await openWithTasks([{ deadline: '2999-12-31' }], { release_id: 2, release: makeRelease({ id: 2, release_date: '2999-01-01' }) });
+        expect(isMarked(1)).toBe(true);
+        answerSave({ release: null });
+        await change('release-select', '');
+        expect(isMarked(1)).toBe(false);
+        expect(bySelector(row(1), '.task-deadline-container').title).toBe('Set Deadline');
+      });
     });
 
     it('should update label immediately on change', async () => {
