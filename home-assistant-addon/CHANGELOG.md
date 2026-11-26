@@ -1,4 +1,21 @@
 
+# 1.5.1
+
+- Board column names may now contain umlauts, accented letters and hyphens
+- My Work now lists projects with high priority issues first, the one with the nearest deadline at the top, and shows the cards in the order of the project's board
+- Each backend error now appears only once in the log, and requests closed by the browser show as 499 in the access log instead of as errors
+- Paragraphs, lists, code blocks and tables in descriptions and comments are now followed by a full line of space, so a blank line shows as one
+- Buttons, comments, menus, badges and the planning sidebar now have consistently rounded corners
+- Task rows and the row to add a task in the issue dialog are now as high as the comment field
+- Fixed: deadlines, planned dates and release dates now show the picked day in every time zone (west of UTC they showed the day before), and a release no longer counts as overdue on its release date
+- The API now returns deadlines and release start and release dates as `YYYY-MM-DD` instead of timestamps, and requests may still send timestamps. Existing dates are converted on upgrade: a deadline set in the app from UTC+13 or further east may move to the day before
+- A date with a mistyped year (outside 2000–2100) is now reported before saving, and planned dates are checked for it too, like deadlines and release dates. Existing planned dates with such a year are removed on upgrade
+- Fixed: on a slow or interrupted connection, switching the project can no longer mix up the projects' columns, labels and releases, overwrite the column names in Project Settings or give a new issue the release of another issue
+- Fixed: data that cannot be loaded is now reported instead of appearing as empty lists, a deleted issue, another selected project or a failed save, and text typed in the issue dialog is no longer lost
+- Fixed: a short database failure while renewing the session no longer deletes the login cookies
+- Fixed: the issue dialog no longer treats done tasks as late, and marks late tasks correctly right after the release is changed
+- Bumped marked to 18.3.0 and DOMPurify to 3.5.0
+
 # 1.5.0
 
 - Added the My Work view: all active issues assigned to you across all projects, in project lanes sorted by progress and urgency, with your personal planning
