@@ -66,8 +66,13 @@ Steps 1–3 also write the coverage and gosec reports that the Sonar scan in P7 
 **P5 Commit** all release changes on the feature branch, one commit:
 `chore(release): Finalized changelog and version for X.Y.Z`.
 
-**P6 Merge:** `git checkout main`, then `git merge --ff-only <feature branch>`. If it is not a
-fast-forward, stop: main then differs from what P4 tested.
+**P6 Merge:** on the feature branch `git fetch . <feature branch>:main`, then `git checkout main`.
+The fetch moves main without writing files: the sandbox keeps `.claude/skills` and `.vscode`
+read-only, so checking out the old main would fail on them. After the fetch both branches hold the
+same files and the checkout writes none. The fetch allows only a fast-forward (never prefix the
+branch with `+`, that forces it) and asks the user (ask rule `git *fetch . *` in
+`~/.claude/settings.json`). If it is rejected as non-fast-forward, stop: main then differs from what
+P4 tested.
 
 **P7 Sonar on main:** `./scripts/sonar_scan.sh`, then `./scripts/sonar_results.sh`. Only the
 quality gate counts here: if it failed, stop and report the failed conditions; the fix belongs on the
